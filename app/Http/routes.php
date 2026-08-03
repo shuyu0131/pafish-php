@@ -18,6 +18,9 @@ use Pafish\Http\CommentApiController;
 use Pafish\Admin\AdminAuthMiddleware;
 use Pafish\Admin\DashboardController;
 use Pafish\Admin\PostsController;
+use Pafish\Admin\PagesController;
+use Pafish\Admin\CategoriesController;
+use Pafish\Admin\TagsController;
 use Pafish\Admin\ApiController;
 
 /**
@@ -77,6 +80,28 @@ $app->group('/admin', function ($group) {
     $group->post('/posts/{id}/restore', [PostsController::class, 'restore']);
     $group->post('/posts/{id}/purge', [PostsController::class, 'purge']);
     $group->post('/posts/batch', [PostsController::class, 'batch']);
+
+    // 页面管理（列表 / 编辑器 / 保存 / 删除 / 设首页）
+    $group->get('/pages', [PagesController::class, 'index']);
+    $group->get('/pages/new', [PagesController::class, 'createEditor']);
+    $group->get('/pages/{id}/edit', [PagesController::class, 'editEditor']);
+    $group->post('/pages/save', [PagesController::class, 'save']);
+    $group->post('/pages/{id}/save', [PagesController::class, 'save']);
+    $group->post('/pages/{id}/delete', [PagesController::class, 'delete']);
+    $group->post('/pages/set-home', [PagesController::class, 'setHome']);
+
+    // 分类管理（树列表 / 保存 / 同级移动 / 删除）
+    $group->get('/categories', [CategoriesController::class, 'index']);
+    $group->post('/categories/save', [CategoriesController::class, 'save']);
+    $group->post('/categories/{id}/save', [CategoriesController::class, 'save']);
+    $group->post('/categories/{id}/move', [CategoriesController::class, 'move']);
+    $group->post('/categories/{id}/delete', [CategoriesController::class, 'delete']);
+
+    // 标签管理（列表 / 保存 / 删除）
+    $group->get('/tags', [TagsController::class, 'index']);
+    $group->post('/tags/save', [TagsController::class, 'save']);
+    $group->post('/tags/{id}/save', [TagsController::class, 'save']);
+    $group->post('/tags/{id}/delete', [TagsController::class, 'delete']);
 })->add(AdminAuthMiddleware::class);
 
 // ---- M3：编辑器配套 API（登录 + 内容权限 + CSRF，控制器内自检） ----

@@ -1468,3 +1468,113 @@
 .admin-back-link:hover {
   color: var(--accent);
 }
+
+/* ---------- 通用表格辅助（M3c 遗留裸类，本块统一补齐） ---------- */
+.admin-col-check { width: 36px; }
+.admin-col-sm { width: 64px; }
+.admin-col-md { width: 120px; }
+.admin-col-lg { width: 150px; }
+.admin-col-ops { width: 140px; white-space: nowrap; }
+
+.admin-muted {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.admin-row-ops {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.admin-inline-form {
+  display: inline;
+  margin: 0;
+}
+
+.admin-icon-danger {
+  color: var(--danger);
+}
+.admin-icon-danger:hover {
+  color: var(--danger);
+  background: var(--accent-soft);
+}
+
+.admin-empty-list {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 48px 16px;
+  color: var(--muted);
+  text-align: center;
+}
+.admin-empty-list svg {
+  opacity: 0.45;
+}
+
+/* ---------- 分类 / 标签管理布局（M3e） ---------- */
+.admin-cat-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 20px;
+  align-items: start;
+}
+.admin-cat-tree {
+  min-width: 0;
+}
+.admin-cat-form {
+  position: sticky;
+  top: 20px;
+}
+.admin-card-title {
+  margin: 0 0 14px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--title);
+}
+.admin-cat-name {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.admin-tree-indent {
+  display: inline-block;
+  flex-shrink: 0;
+}
+.admin-tree-branch {
+  color: var(--muted);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.admin-cat-name-text {
+  font-weight: 500;
+  color: var(--fg);
+}
+.admin-cat-form-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+/* ---------- 页面编辑器顶栏（M3e） ---------- */
+.admin-editor-topline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.admin-editor-topline-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+@media (max-width: 899px) {
+  .admin-cat-layout {
+    grid-template-columns: 1fr;
+  }
+  .admin-cat-form {
+    position: static;
+  }
+}

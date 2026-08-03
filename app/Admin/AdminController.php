@@ -130,6 +130,12 @@ abstract class AdminController
         return null;
     }
 
+    /** 重定向响应（子控制器共用） */
+    protected function redirect(Response $response, string $path, int $status = 302): Response
+    {
+        return $response->withStatus($status)->withHeader('Location', Url::to($path));
+    }
+
     /** 仅管理员页守卫（非 ADMIN 重定向回工作台，对齐 Node 页面级 requireAdmin） */
     protected function guardAdmin(): void
     {

@@ -101,6 +101,12 @@ function csrf_field(): string
     return '<input type="hidden" name="_csrf" value="' . e(Session::csrfToken()) . '">';
 }
 
+/** 当前会话 CSRF token（供页面内联 JS 使用） */
+function csrf_token(): string
+{
+    return Session::csrfToken();
+}
+
 /** Markdown → HTML（ParsedownExtra，主题模板可直接调用） */
 function md(string $markdown): string
 {
@@ -222,6 +228,8 @@ function admin_icon(string $name, int $size = 16): string
         'check' => '<path d="M20 6 9 17l-5-5"/>',
         'edit' => '<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4Z"/>',
         'upload' => '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/>',
+        'chevron-up' => '<path d="m18 15-6-6-6 6"/>',
+        'chevron-down' => '<path d="m6 9 6 6 6-6"/>',
     ];
     $inner = $paths[$name] ?? $paths['file-text'];
     return '<svg xmlns="http://www.w3.org/2000/svg" width="' . $size . '" height="' . $size

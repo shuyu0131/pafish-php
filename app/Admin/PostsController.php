@@ -628,9 +628,4 @@ final class PostsController extends AdminController
     {
         return $this->redirect($response, '/admin/posts', 302);
     }
-
-    private function redirect(Response $response, string $path, int $status = 302): Response
-    {
-        return $response->withStatus($status)->withHeader('Location', Url::to($path));
-    }
 }

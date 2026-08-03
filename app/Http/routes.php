@@ -15,6 +15,7 @@ use Pafish\Http\RobotsController;
 use Pafish\Http\AuthPageController;
 use Pafish\Http\AuthApiController;
 use Pafish\Http\CommentApiController;
+use Pafish\Http\PluginPageController;
 use Pafish\Admin\AdminAuthMiddleware;
 use Pafish\Admin\DashboardController;
 use Pafish\Admin\PostsController;
@@ -32,6 +33,7 @@ use Pafish\Admin\UsersController;
 use Pafish\Admin\ProfileController;
 use Pafish\Admin\BackupController;
 use Pafish\Admin\AppearanceController;
+use Pafish\Admin\PluginsController;
 use Pafish\Admin\ApiController;
 
 /**
@@ -56,6 +58,9 @@ $app->get('/pages/{slug}', [PageController::class, 'show']);
 $app->get('/rss.xml', [RssController::class, 'index']);
 $app->get('/sitemap.xml', [SitemapController::class, 'index']);
 $app->get('/robots.txt', [RobotsController::class, 'index']);
+
+// ---- M5：插件前台页面（/plugin/{name}/{path}，path 缺省 index） ----
+$app->get('/plugin/{name}/{path:.*}', [PluginPageController::class, 'show']);
 
 // ---- M2：登录 / 注册 / 找回密码 ----
 $app->get('/login', [AuthPageController::class, 'login']);
@@ -190,6 +195,15 @@ $app->group('/admin', function ($group) {
     $group->post('/appearance/uninstall', [AppearanceController::class, 'uninstall']);
     $group->post('/appearance/install', [AppearanceController::class, 'install']);
     $group->post('/appearance/import', [AppearanceController::class, 'import']);
+
+    // 插件管理（仅 ADMIN：列表/设置页/启停/卸载/保存设置/安装 zip·URL）
+    $group->get('/plugins', [PluginsController::class, 'index']);
+    $group->get('/plugins/{name}', [PluginsController::class, 'settings']);
+    $group->post('/plugins/activate', [PluginsController::class, 'activate']);
+    $group->post('/plugins/deactivate', [PluginsController::class, 'deactivate']);
+    $group->post('/plugins/uninstall', [PluginsController::class, 'uninstall']);
+    $group->post('/plugins/save-settings', [PluginsController::class, 'saveSettings']);
+    $group->post('/plugins/install', [PluginsController::class, 'install']);
 })->add(AdminAuthMiddleware::class);
 
 // ---- M3：编辑器配套 API（登录 + 内容权限 + CSRF，控制器内自检） ----

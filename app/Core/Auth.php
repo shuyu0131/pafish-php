@@ -83,7 +83,7 @@ final class Auth
     {
         self::requireLogin();
         if (!self::isAdmin()) {
-            http_response_code(403);
+            // 对齐 Node requireAdmin：非 ADMIN 重定向回工作台（redirect('/admin')）
             header('Location: ' . Url::to('/admin'));
             exit;
         }

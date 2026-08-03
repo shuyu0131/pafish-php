@@ -73,11 +73,24 @@ final class CommentsController extends AdminController
         if (!in_array($next, self::STATUSES, true)) {
             return $this->json($response, ['error' => '无效的状态'], 400);
         }
-        $row = DB::fetchOne('SELECT id FROM comments WHERE id = ?', [$id]);
+        $row = DB::fetchOne('SELECT id, post_id, status FROM comments WHERE id = ?', [$id]);
         if ($row === null) {
             return $this->json($response, ['error' => '评论不存在'], 400);
         }
+        $from = (string) $row['status'];
+        if ($from === $next) {
+            return $this->json($response, ['ok' => true]);
+        }
         DB::execute('UPDATE comments SET status = ? WHERE id = ?', [$next, $id]);
+
+        // 钩子：评论状态流转
+        \do_action('after_comment_status', [
+            'id' => (string) $id,
+            'postId' => (string) $row['post_id'],
+            'from' => $from,
+            'to' => $next,
+        ]);
+
         return $this->json($response, ['ok' => true]);
     }
 
@@ -143,7 +156,18 @@ final class CommentsController extends AdminController
     {
         $this->guardCanManage();
         $id = (int) ($args['id'] ?? 0);
+        $row = DB::fetchOne('SELECT id, author_name FROM comments WHERE id = ?', [$id]);
+        if ($row === null) {
+            return $this->json($response, ['error' => '评论不存在'], 400);
+        }
         DB::execute('DELETE FROM comments WHERE id = ?', [$id]);
+
+        // 钩子：评论删除
+        \do_action('after_comment_delete', [
+            'id' => (string) $id,
+            'authorName' => (string) $row['author_name'],
+        ]);
+
         return $this->json($response, ['ok' => true]);
     }
 

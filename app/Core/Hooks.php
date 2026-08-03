@@ -17,9 +17,17 @@ final class Hooks
     /** @var array<string, array<int, array{priority:int, tag:?string, fn:callable}>> */
     private static array $filters = [];
 
-    public static function addAction(string $name, callable $fn, int $priority = 10, ?string $tag = null): void
+    /** 注册 action 监听；返回注销闭包（精确移除本条；tag 供停用插件整批移除） */
+    public static function addAction(string $name, callable $fn, int $priority = 10, ?string $tag = null): callable
     {
         self::$actions[$name][] = ['priority' => $priority, 'tag' => $tag, 'fn' => $fn];
+        $key = array_key_last(self::$actions[$name]);
+        return static function () use ($name, $key): void {
+            unset(self::$actions[$name][$key]);
+            if (self::$actions[$name] === []) {
+                unset(self::$actions[$name]);
+            }
+        };
     }
 
     /** 触发事件：按优先级顺序调用全部监听者，单个异常不阻断后续 */
@@ -38,9 +46,17 @@ final class Hooks
         }
     }
 
-    public static function addFilter(string $name, callable $fn, int $priority = 10, ?string $tag = null): void
+    /** 注册 filter 监听；返回注销闭包（语义同 addAction） */
+    public static function addFilter(string $name, callable $fn, int $priority = 10, ?string $tag = null): callable
     {
         self::$filters[$name][] = ['priority' => $priority, 'tag' => $tag, 'fn' => $fn];
+        $key = array_key_last(self::$filters[$name]);
+        return static function () use ($name, $key): void {
+            unset(self::$filters[$name][$key]);
+            if (self::$filters[$name] === []) {
+                unset(self::$filters[$name]);
+            }
+        };
     }
 
     /** 过滤器管道：值依次经各监听者转换后返回 */

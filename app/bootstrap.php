@@ -58,6 +58,10 @@ $errorMiddleware->setDefaultErrorHandler(
     new ErrorHandler($app->getCallableResolver(), $app->getResponseFactory())
 );
 
+// 7.5 插件系统启动：注册激活插件的钩子 + 系统注入渲染器 + 云存储管线
+//（PHP 每请求新进程，天然无缓存/节流问题；boot 内部 try/catch，DB 不可用时不阻断前台）
+\Pafish\Services\Plugin::boot();
+
 // 8. 路由
 require __DIR__ . '/Http/routes.php';
 

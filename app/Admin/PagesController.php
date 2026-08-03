@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pafish\Admin;
 
 use Pafish\Core\DB;
+use Pafish\Services\Plugin;
 use Pafish\Services\Settings;
 use Pafish\Services\Slug;
 use Pafish\Services\Theme;
@@ -18,14 +19,22 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  */
 final class PagesController extends AdminController
 {
-    /** 页面模板选项：default + 主题/插件扩展（M5 接入） */
+    /** 页面模板选项：default + 激活主题 + 激活插件（对齐 Node getPageTemplateOptions 三层来源） */
     public static function templateOptions(): array
     {
         $options = ['default' => '默认模板'];
         foreach (Theme::pageTemplates(Theme::active()) as $tpl) {
             $options[$tpl['name']] = $tpl['title'];
         }
-        // TODO(M5b)：插件注册的页面模板
+        foreach (Plugin::activeNames() as $name) {
+            $desc = Plugin::describe($name);
+            if ($desc['error'] !== null) {
+                continue;
+            }
+            foreach (($desc['manifest']['pageTemplates'] ?? []) as $tpl) {
+                $options[$tpl['name']] = $tpl['title'];
+            }
+        }
         return $options;
     }
 

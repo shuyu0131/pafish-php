@@ -11,7 +11,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 /**
  * 应用商店（对齐 Node app/admin/store/page.tsx + store-view；仅 ADMIN）：
  * - 双 Tab（主题 / 插件），卡片列表：标题/版本/描述/作者 + 已安装徽章/更新可用/安装·更新按钮
- * - 源标识：内置商店 / 远程地址（远程失败回退内置并提示）
+ * - 源标识：远程商店地址 / 未配置提示（远程失败显示 error）
  * - 安装拒绝已存在（提示直接更新）；更新失败自动恢复旧版本
  */
 final class StoreController extends AdminController

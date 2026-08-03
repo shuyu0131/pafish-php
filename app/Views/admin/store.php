@@ -26,8 +26,8 @@ function store_kind_label(string $kind): string
       <span class="badge badge-primary">远程商店</span>
       <span class="admin-muted"><?= e($storeUrl) ?></span>
     <?php else: ?>
-      <span class="badge">内置商店</span>
-      <span class="admin-muted">未配置远程商店地址，使用内置目录（store/）</span>
+      <span class="badge">未配置</span>
+      <span class="admin-muted">未配置远程商店地址，请在「站点设置 → 应用商店」中填写后使用。</span>
     <?php endif; ?>
   </div>
 
@@ -39,7 +39,7 @@ function store_kind_label(string $kind): string
   <?php foreach (['theme' => $themeCat, 'plugin' => $pluginCat] as $kind => $cat): ?>
     <div class="admin-store-pane" data-pane="<?= e($kind) ?>"<?= $kind === 'theme' ? '' : ' hidden' ?>>
       <?php if ($cat['items'] === []): ?>
-        <div class="card admin-empty">该分类暂无可用条目<?= $storeUrl !== '' ? '（远程商店可能尚未提供' . store_kind_label($kind) . '目录）' : '' ?>。</div>
+        <div class="card admin-empty">该分类暂无可用条目<?= $storeUrl !== '' ? '（远程商店可能尚未提供' . store_kind_label($kind) . '目录）' : '，请先配置远程商店地址' ?>。</div>
       <?php else: ?>
         <div class="admin-theme-grid">
           <?php foreach ($cat['items'] as $item): ?>

@@ -59,8 +59,8 @@ try {
         </div>
         <div class="admin-field">
           <span class="label">应用商店地址</span>
-          <input class="input" type="text" name="store_url" value="<?= e($textVal('store_url')) ?>" placeholder="留空使用内置官方商店" maxlength="500">
-          <p class="admin-field-hint">远程商店基础地址，需提供 themes.json 与 plugins.json；留空用内置官方商店，远程不可达自动回退本地内置。</p>
+          <input class="input" type="text" name="store_url" value="<?= e($textVal('store_url')) ?>" placeholder="https://store.example.com" maxlength="500">
+          <p class="admin-field-hint">远程商店基础地址，需提供 themes.json 与 plugins.json；留空则不启用应用商店。</p>
         </div>
         <div class="admin-field">
           <span class="label">商店访问令牌</span>

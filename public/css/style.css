@@ -1187,6 +1187,7 @@ input[type="radio"]:focus-visible {
 
 .post-head {
   margin-bottom: 2rem;
+  text-align: center;
 }
 .post-title {
   margin: 0;
@@ -1203,6 +1204,7 @@ input[type="radio"]:focus-visible {
 .post-meta {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   align-items: center;
   gap: 0.375rem 1.25rem;
   margin-top: 1.25rem;
@@ -1213,9 +1215,6 @@ input[type="radio"]:focus-visible {
   display: inline-flex;
   align-items: center;
   gap: 0.375rem;
-}
-.post-views {
-  margin-left: auto;
 }
 .post-meta-tags {
   display: inline-flex;

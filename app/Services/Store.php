@@ -5,8 +5,9 @@ namespace Pafish\Services;
 
 /**
  * 应用商店（对齐 Node 版 store.ts 协议）：
- * - 设置键 store_url（空 → 内置本地源 store/*.json）与 store_token（Bearer）
+ * - 设置键 store_url（远程商店地址）与 store_token（Bearer）
  * - 目录：{base}/themes.json、{base}/plugins.json（顶层数组，条目含 name/title/version/zip）
+ * - 未配置远程地址 → 空目录；远程失败 → 空目录 + error 提示（不内置本地源）
  * - 名称正则 /^[a-z0-9_-]{1,50}$/；zip 相对路径拼 base，http(s) 直用
  * - 版本比较：数字分段（容忍 v 前缀，非数字段按 0）
  * - 安装拒绝已存在（提示直接更新）；更新 = 备份旧版 → 移除 → 装新版，失败自动恢复旧版
@@ -19,7 +20,7 @@ final class Store
     private const MAX_ZIP_BYTES = 10 * 1024 * 1024;
     private const KIND_FILE = ['theme' => 'themes.json', 'plugin' => 'plugins.json'];
 
-    /** 商店地址（未配置或非 http(s) 视为使用内置本地源） */
+    /** 商店地址（未配置或非 http(s) → ''，表示未启用远程商店） */
     public static function baseUrl(): string
     {
         $url = trim((string) Settings::get('store_url', ''));
@@ -61,23 +62,23 @@ final class Store
     }
 
     /**
-     * 拉取目录：未配置 store_url → 内置本地源；配置后远程失败 → 回退内置源并附 error。
-     * 返回 ['items' => 条目数组, 'base' => 源地址, 'error'? => 回退原因]
+     * 拉取目录：未配置 store_url → 空目录（提示配置）；远程失败 → 空目录 + error。
+     * 返回 ['items' => 条目数组, 'base' => 源地址, 'error'? => 失败原因]
      */
     public static function fetchCatalog(string $kind): array
     {
         $file = self::KIND_FILE[$kind] ?? 'themes.json';
         $base = self::baseUrl();
         if ($base === '') {
-            return ['items' => self::readLocalCatalog($file), 'base' => ''];
+            return ['items' => [], 'base' => ''];
         }
         try {
             return ['items' => self::parseCatalog(self::httpGet($base . '/' . $file)), 'base' => $base];
         } catch (\Throwable $e) {
             return [
-                'items' => self::readLocalCatalog($file),
+                'items' => [],
                 'base' => '',
-                'error' => '远程商店不可用：' . $e->getMessage() . '，已回退到内置商店',
+                'error' => '远程商店不可用：' . $e->getMessage(),
             ];
         }
     }
@@ -152,7 +153,7 @@ final class Store
         }
     }
 
-    /** 下载 zip 包（远程带 Bearer token；内置源直接读本地文件） */
+    /** 下载 zip 包（远程带 Bearer token；未配置远程商店时直接拒绝） */
     private static function downloadZip(string $base, array $item): string
     {
         $zip = (string) ($item['zip'] ?? '');
@@ -163,18 +164,7 @@ final class Store
             return self::httpGet($zip);
         }
         if ($base === '') {
-            // 内置源：zip 是网站根相对路径（/store/xxx.zip，与 Node 内置源格式一致），
-            // 本地 fs 直读项目根/store/ 下的包文件（无网络依赖）
-            $rel = ltrim($zip, '/');
-            if (str_starts_with($rel, 'store/')) {
-                $rel = substr($rel, 6);
-            }
-            $local = self::localRoot() . '/' . $rel;
-            $buf = @file_get_contents($local);
-            if ($buf === false) {
-                throw new \RuntimeException('内置商店缺少包文件：' . $zip);
-            }
-            return $buf;
+            throw new \RuntimeException('未配置远程商店地址，无法下载');
         }
         return self::httpGet(rtrim($base, '/') . '/' . ltrim($zip, '/'));
     }
@@ -261,21 +251,6 @@ final class Store
             throw new \RuntimeException('下载失败（HTTP ' . $status . '）');
         }
         return (string) $body;
-    }
-
-    /** 内置本地源目录（项目根/store/） */
-    private static function localRoot(): string
-    {
-        return dirname(__DIR__, 2) . '/store';
-    }
-
-    private static function readLocalCatalog(string $file): array
-    {
-        $body = @file_get_contents(self::localRoot() . '/' . $file);
-        if ($body === false) {
-            return [];
-        }
-        return self::parseCatalog($body);
     }
 
     /** 解析目录 JSON：非法条目（缺字段/名称不合法）跳过 */

@@ -30,6 +30,7 @@ use Pafish\Admin\WidgetsController;
 use Pafish\Admin\SettingsController;
 use Pafish\Admin\UsersController;
 use Pafish\Admin\ProfileController;
+use Pafish\Admin\BackupController;
 use Pafish\Admin\ApiController;
 
 /**
@@ -170,6 +171,14 @@ $app->group('/admin', function ($group) {
     $group->get('/profile', [ProfileController::class, 'index']);
     $group->post('/profile/save', [ProfileController::class, 'save']);
     $group->post('/profile/password', [ProfileController::class, 'changePassword']);
+
+    // 数据备份（仅 ADMIN：创建/上传/下载/恢复/删除）
+    $group->get('/backup', [BackupController::class, 'index']);
+    $group->get('/backup/download', [BackupController::class, 'download']);
+    $group->post('/backup/create', [BackupController::class, 'create']);
+    $group->post('/backup/upload', [BackupController::class, 'upload']);
+    $group->post('/backup/restore', [BackupController::class, 'restore']);
+    $group->post('/backup/delete', [BackupController::class, 'delete']);
 })->add(AdminAuthMiddleware::class);
 
 // ---- M3：编辑器配套 API（登录 + 内容权限 + CSRF，控制器内自检） ----

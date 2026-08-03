@@ -46,6 +46,30 @@ final class Upload
         'mkv' => 'video/x-matroska',
     ];
 
+    /** 媒体类型筛选 SQL（mime 前缀 + url 扩展名兜底，对齐 Node lib/media-filter.ts buildTypeWhere） */
+    public static function typeWhere(string $type): string
+    {
+        static $prefixes = [
+            'image' => 'image/', 'doc' => 'application/', 'archive' => 'application/',
+            'audio' => 'audio/', 'video' => 'video/',
+        ];
+        static $exts = [
+            'image' => ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'],
+            'doc' => ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'md', 'csv'],
+            'archive' => ['zip', 'rar', '7z', 'tar', 'gz'],
+            'audio' => ['mp3', 'wav', 'ogg', 'm4a', 'flac'],
+            'video' => ['mp4', 'webm', 'mov', 'mkv'],
+        ];
+        if (!isset($prefixes[$type])) {
+            return '';
+        }
+        $conds = ["mime LIKE '" . $prefixes[$type] . "%'"];
+        foreach ($exts[$type] as $e) {
+            $conds[] = "url LIKE '%.{$e}'";
+        }
+        return '(' . implode(' OR ', $conds) . ')';
+    }
+
     /**
      * 处理上传文件（$_FILES 单元素），成功返回 ['url','mime','size','width','height']
      * @throws \RuntimeException 中文错误信息

@@ -21,6 +21,7 @@ use Pafish\Admin\PostsController;
 use Pafish\Admin\PagesController;
 use Pafish\Admin\CategoriesController;
 use Pafish\Admin\TagsController;
+use Pafish\Admin\MediaController;
 use Pafish\Admin\ApiController;
 
 /**
@@ -102,6 +103,11 @@ $app->group('/admin', function ($group) {
     $group->post('/tags/save', [TagsController::class, 'save']);
     $group->post('/tags/{id}/save', [TagsController::class, 'save']);
     $group->post('/tags/{id}/delete', [TagsController::class, 'delete']);
+
+    // 媒体库（列表 48/页 / 删除 / 外部资源）
+    $group->get('/uploads', [MediaController::class, 'index']);
+    $group->post('/uploads/{id}/delete', [MediaController::class, 'delete']);
+    $group->post('/uploads/external', [MediaController::class, 'external']);
 })->add(AdminAuthMiddleware::class);
 
 // ---- M3：编辑器配套 API（登录 + 内容权限 + CSRF，控制器内自检） ----

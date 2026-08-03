@@ -60,7 +60,7 @@ final class ApiController extends AdminController
         ]);
     }
 
-    /** GET /api/uploads：媒体库（page / q / type=image） */
+    /** GET /api/uploads：媒体库（page / q / type 5 类筛选，对齐 Node GET /api/uploads） */
     public function uploads(Request $request, Response $response): Response
     {
         $guard = $this->guardJson($request, $response);
@@ -70,6 +70,9 @@ final class ApiController extends AdminController
         $page = max(1, (int) ($_GET['page'] ?? 1));
         $q = trim((string) ($_GET['q'] ?? ''));
         $type = (string) ($_GET['type'] ?? '');
+        if (!in_array($type, ['image', 'doc', 'archive', 'audio', 'video'], true)) {
+            $type = '';
+        }
 
         $where = '1=1';
         $params = [];
@@ -77,8 +80,9 @@ final class ApiController extends AdminController
             $where .= ' AND original_name LIKE ?';
             $params[] = "%{$q}%";
         }
-        if ($type === 'image') {
-            $where .= " AND mime LIKE 'image/%'";
+        $tw = Upload::typeWhere($type);
+        if ($tw !== '') {
+            $where .= ' AND ' . $tw;
         }
         $total = (int) DB::value("SELECT COUNT(*) FROM uploads WHERE {$where}", $params);
         $items = DB::fetchAll(
@@ -97,7 +101,7 @@ final class ApiController extends AdminController
             'width' => $row['width'] !== null ? (int) $row['width'] : null,
             'height' => $row['height'] !== null ? (int) $row['height'] : null,
         ], $items);
-        return $this->json($response, ['items' => $items, 'total' => $total]);
+        return $this->json($response, ['items' => $items, 'total' => $total, 'page' => $page, 'pageSize' => self::LIB_PAGE_SIZE]);
     }
 
     /** POST /api/md-preview：服务端渲染 Markdown（编辑器分栏/预览模式） */

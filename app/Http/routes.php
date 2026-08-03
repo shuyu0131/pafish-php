@@ -66,8 +66,9 @@ $app->group('/admin', function ($group) {
     $group->get('', [DashboardController::class, 'dashboard']);
     $group->get('/', [DashboardController::class, 'dashboard']);
 
-    // 文章管理（列表 / 编辑器 / 保存 / 单行操作 / 批量）
+    // 文章管理（列表 / 编辑器 / 导入 / 保存 / 单行操作 / 批量）
     $group->get('/posts', [PostsController::class, 'index']);
+    $group->get('/posts/import', [PostsController::class, 'importPage']);
     $group->get('/posts/new', [PostsController::class, 'createEditor']);
     $group->get('/posts/{id}/edit', [PostsController::class, 'editEditor']);
     $group->post('/posts/save', [PostsController::class, 'save']);
@@ -82,3 +83,4 @@ $app->group('/admin', function ($group) {
 $app->post('/api/upload', [ApiController::class, 'upload']);
 $app->get('/api/uploads', [ApiController::class, 'uploads']);
 $app->post('/api/md-preview', [ApiController::class, 'mdPreview']);
+$app->post('/api/import-markdown', [ApiController::class, 'importMarkdown']);

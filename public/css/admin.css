@@ -1322,3 +1322,149 @@
     border-top: 1px solid var(--border);
   }
 }
+
+/* ---------- Markdown 批量导入页 ---------- */
+.admin-import {
+  max-width: 640px;
+}
+
+.admin-import-card {
+  padding: 24px;
+}
+
+.admin-import-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 36px 20px;
+  border: 2px dashed var(--border);
+  border-radius: 12px;
+  background: var(--accent-soft);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+  text-align: center;
+}
+
+.admin-import-drop:hover,
+.admin-import-drop.dragover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.admin-import-drop-icon {
+  color: var(--accent);
+}
+
+.admin-import-drop-main {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--title);
+  margin: 0;
+}
+
+.admin-import-drop-hint {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin: 0;
+}
+
+.admin-import-files {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.admin-import-file {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+}
+
+.admin-import-file-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 13.5px;
+  color: var(--fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-import-file-size {
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-import-error {
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--danger);
+}
+
+.admin-import-radio {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.admin-import-radio-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+  margin: 0 0 2px;
+}
+
+.admin-import-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.admin-import-result {
+  margin-top: 18px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--accent-soft);
+}
+
+.admin-import-result-head {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--title);
+}
+
+.admin-import-result-fails {
+  margin: 10px 0 0;
+  padding: 0 0 0 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--danger);
+}
+
+.admin-back-link {
+  display: inline-block;
+  margin-top: 16px;
+  font-size: 13.5px;
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.admin-back-link:hover {
+  color: var(--accent);
+}

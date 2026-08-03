@@ -114,6 +114,18 @@ final class PostsController extends AdminController
 
     // ---------- 编辑器 ----------
 
+    /** Markdown 批量导入页（对齐 Node /admin/posts/import，POST 走 /api/import-markdown） */
+    public function importPage(Request $request, Response $response): Response
+    {
+        $this->guardCanManage();
+        $html = $this->render('import', [
+            'uploadUrl' => Url::to('/api/import-markdown'),
+            'csrf' => \Pafish\Core\Session::csrfToken(),
+        ], '导入 Markdown');
+        $response->getBody()->write($html);
+        return $response;
+    }
+
     public function createEditor(Request $request, Response $response): Response
     {
         $this->guardCanManage();
@@ -492,8 +504,8 @@ final class PostsController extends AdminController
         return null;
     }
 
-    /** 标签解析：按名称匹配已有，否则新建（slug 去冲突），返回 id 数组 */
-    private static function resolveNewTags(array $names): array
+    /** 标签解析：按名称匹配已有，否则新建（slug 去冲突），返回 id 数组（M3d 导入复用） */
+    public static function resolveNewTags(array $names): array
     {
         $ids = [];
         foreach ($names as $name) {
@@ -525,8 +537,8 @@ final class PostsController extends AdminController
         return (int) DB::pdo()->lastInsertId();
     }
 
-    /** 全量重建文章标签关联 */
-    private static function replaceTags(int $postId, array $tagIds): void
+    /** 全量重建文章标签关联（M3d 导入复用） */
+    public static function replaceTags(int $postId, array $tagIds): void
     {
         DB::execute('DELETE FROM post_tags WHERE post_id = ?', [$postId]);
         if ($tagIds !== []) {

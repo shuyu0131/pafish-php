@@ -6,9 +6,12 @@ namespace Pafish\Admin;
 
 use Pafish\Core\Auth;
 use Pafish\Core\DB;
+use Pafish\Core\Session;
 use Pafish\Core\Url;
 use Pafish\Http\Comments;
 use Pafish\Services\Settings;
+use Psr\Http\Message\ResponseInterface as Response;
+use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
  * 后台控制器基类：导航（角色过滤）+ 布局渲染 + 管理员守卫
@@ -79,9 +82,52 @@ abstract class AdminController
             'unreadNotifications' => (int) DB::value('SELECT COUNT(*) FROM notifications WHERE `read` = 0'),
             'currentPath' => $this->currentPath(),
             'title' => $title,
+            'flash' => $this->takeFlash(),
         ];
         $content = self::renderView($view, array_merge($ctx, $data));
         return self::renderView('layout', array_merge($ctx, ['content' => $content]));
+    }
+
+    /** 设置一条后台 flash 消息（重定向后显示一次） */
+    protected function flash(string $type, string $message): void
+    {
+        Session::set('admin_flash', ['type' => $type, 'message' => $message]);
+    }
+
+    /** 内容管理守卫（ADMIN+EDITOR；无权限回工作台） */
+    protected function guardCanManage(): void
+    {
+        Auth::requireLogin();
+        if (!Auth::canManagePosts()) {
+            header('Location: ' . Url::to('/admin'));
+            exit;
+        }
+    }
+
+    /** 是否 AJAX 请求（写操作按此返回 JSON 或重定向） */
+    protected function isAjax(Request $request): bool
+    {
+        return strtoupper((string) $request->getHeaderLine('X-Requested-With')) === 'XMLHTTPREQUEST';
+    }
+
+    /** 统一 JSON 响应（对齐现有 API 控制器） */
+    protected function json(Response $response, array $data, int $status = 200): Response
+    {
+        $response->getBody()->write(json_encode($data, JSON_UNESCAPED_UNICODE));
+        return $response
+            ->withStatus($status)
+            ->withHeader('Content-Type', 'application/json');
+    }
+
+    /** 读取并清除 flash */
+    private function takeFlash(): ?array
+    {
+        $flash = Session::get('admin_flash');
+        if (is_array($flash)) {
+            Session::remove('admin_flash');
+            return $flash;
+        }
+        return null;
     }
 
     /** 仅管理员页守卫（非 ADMIN 重定向回工作台，对齐 Node 页面级 requireAdmin） */

@@ -17,6 +17,8 @@ use Pafish\Http\AuthApiController;
 use Pafish\Http\CommentApiController;
 use Pafish\Admin\AdminAuthMiddleware;
 use Pafish\Admin\DashboardController;
+use Pafish\Admin\PostsController;
+use Pafish\Admin\ApiController;
 
 /**
  * 路由注册（$app 来自 bootstrap.php include 上下文）
@@ -63,5 +65,20 @@ $app->post('/api/comments/like', [CommentApiController::class, 'like']);
 $app->group('/admin', function ($group) {
     $group->get('', [DashboardController::class, 'dashboard']);
     $group->get('/', [DashboardController::class, 'dashboard']);
-    // 后续页面随 M3/M4 里程碑注册
+
+    // 文章管理（列表 / 编辑器 / 保存 / 单行操作 / 批量）
+    $group->get('/posts', [PostsController::class, 'index']);
+    $group->get('/posts/new', [PostsController::class, 'createEditor']);
+    $group->get('/posts/{id}/edit', [PostsController::class, 'editEditor']);
+    $group->post('/posts/save', [PostsController::class, 'save']);
+    $group->post('/posts/{id}/save', [PostsController::class, 'save']);
+    $group->post('/posts/{id}/delete', [PostsController::class, 'delete']);
+    $group->post('/posts/{id}/restore', [PostsController::class, 'restore']);
+    $group->post('/posts/{id}/purge', [PostsController::class, 'purge']);
+    $group->post('/posts/batch', [PostsController::class, 'batch']);
 })->add(AdminAuthMiddleware::class);
+
+// ---- M3：编辑器配套 API（登录 + 内容权限 + CSRF，控制器内自检） ----
+$app->post('/api/upload', [ApiController::class, 'upload']);
+$app->get('/api/uploads', [ApiController::class, 'uploads']);
+$app->post('/api/md-preview', [ApiController::class, 'mdPreview']);

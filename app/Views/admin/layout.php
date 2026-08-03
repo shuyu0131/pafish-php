@@ -99,6 +99,12 @@ $roleLabel = match ((string) ($user['role'] ?? '')) {
   <!-- 内容区 -->
   <main class="admin-main">
     <div class="admin-content">
+      <?php if (is_array($flash ?? null) && ($flash['message'] ?? '') !== ''): ?>
+        <div class="admin-flash admin-flash-<?= e($flash['type'] ?? 'info') ?>">
+          <?= e($flash['message']) ?>
+          <button type="button" class="admin-flash-close" aria-label="关闭"><?= admin_icon('x', 13) ?></button>
+        </div>
+      <?php endif; ?>
       <?= $content ?>
     </div>
   </main>
@@ -140,6 +146,11 @@ $roleLabel = match ((string) ($user['role'] ?? '')) {
         .then(function () { location.href = f.dataset.home || '/'; })
         .catch(function () { location.href = f.dataset.home || '/'; });
     });
+  });
+
+  // flash 提示关闭
+  document.querySelectorAll('.admin-flash-close').forEach(function (b) {
+    b.addEventListener('click', function () { b.closest('.admin-flash').remove(); });
   });
 })();
 </script>

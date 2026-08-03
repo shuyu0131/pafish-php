@@ -1,0 +1,18 @@
+[
+    {
+        "name": "demo-nord",
+        "title": "北欧极简（演示）",
+        "version": "1.0.0",
+        "description": "演示主题：极简北欧风格，浅色为主。",
+        "author": "pafish",
+        "zip": "\/store\/demo-nord.zip"
+    },
+    {
+        "name": "m5c-theme",
+        "title": "测试主题",
+        "version": "1.0.0",
+        "description": "M5c 端到端测试主题。",
+        "author": "pafish",
+        "zip": "\/store\/m5c-theme.zip"
+    }
+]

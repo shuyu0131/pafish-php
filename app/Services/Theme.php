@@ -295,32 +295,28 @@ final class Theme
             if (is_dir(self::root() . '/' . $top)) {
                 throw new \RuntimeException('主题"' . $top . '"已存在，请先在主题列表卸载后再安装');
             }
-            // 解压到临时目录 → manifest 校验 → 原子 rename
-            $tmpDir = self::root() . '/.tmp-install-' . bin2hex(random_bytes(4));
-            if (!@mkdir($tmpDir, 0755, true) || !@$zip->extractTo($tmpDir)) {
-                self::rmDir($tmpDir);
+            // Windows 兼容：不采用「临时目录 + rename」的原子方案——PHP 8.5 + Windows 下
+            // 任何 stat 调用（is_dir/is_file 等）会打开目录/文件句柄，导致随后 rename 返回
+            // 「拒绝访问」且时好时坏；改为 extractTo 直接解压到 themes/ 根（顶层目录名即
+            // 主题名，已在上面校验），失败/校验不过时用 SPL rmDir 递归清理残留
+            $target = self::root() . '/' . $top;
+            $extracted = @$zip->extractTo(self::root());
+            if (!$extracted) {
+                $zip->close();
+                self::rmDir($target);
                 throw new \RuntimeException('解压失败（已回滚）');
             }
             $zip->close();
-            if (!is_dir($tmpDir . '/' . $top)) {
-                self::rmDir($tmpDir);
-                throw new \RuntimeException('解压失败（已回滚）');
-            }
-            if (!is_file($tmpDir . '/' . $top . '/theme.json')) {
-                self::rmDir($tmpDir);
+            if (!is_file($target . '/theme.json')) {
+                self::rmDir($target);
                 throw new \RuntimeException('安装失败：缺少 theme.json（已回滚）');
             }
-            $json = json_decode((string) file_get_contents($tmpDir . '/' . $top . '/theme.json'), true);
+            $json = json_decode((string) file_get_contents($target . '/theme.json'), true);
             $error = is_array($json) ? self::validateManifest($json, (string) $top) : 'theme.json 不是合法 JSON';
             if ($error !== null) {
-                self::rmDir($tmpDir);
+                self::rmDir($target);
                 throw new \RuntimeException('安装失败：' . $error . '（已回滚）');
             }
-            if (!@rename($tmpDir . '/' . $top, self::root() . '/' . $top)) {
-                self::rmDir($tmpDir);
-                throw new \RuntimeException('解压失败（已回滚）');
-            }
-            self::rmDir($tmpDir);
             self::reset();
             return [
                 'name' => (string) $top,
@@ -463,25 +459,30 @@ final class Theme
         return $shared;
     }
 
-    /** 递归删除目录（解压回滚/卸载用） */
+    /** 递归删除目录（SPL 迭代器：避免 Windows 上 PHP 8.5 中 stat 句柄导致 rmdir「拒绝访问」） */
     private static function rmDir(string $dir): bool
     {
         if (!is_dir($dir)) {
             return true;
         }
-        $ok = true;
-        foreach (scandir($dir) ?: [] as $entry) {
-            if ($entry === '.' || $entry === '..') {
-                continue;
+        try {
+            $items = new \RecursiveIteratorIterator(
+                new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS),
+                \RecursiveIteratorIterator::CHILD_FIRST
+            );
+            foreach ($items as $item) {
+                if ($item->isDir()) {
+                    if (!@rmdir($item->getPathname())) {
+                        return false;
+                    }
+                } elseif (!@unlink($item->getPathname())) {
+                    return false;
+                }
             }
-            $path = $dir . '/' . $entry;
-            if (is_dir($path)) {
-                $ok = self::rmDir($path) && $ok;
-            } else {
-                $ok = @unlink($path) && $ok;
-            }
+        } catch (\UnexpectedValueException $e) {
+            return !is_dir($dir);
         }
-        return @rmdir($dir) && $ok;
+        return @rmdir($dir);
     }
 
     private static function isValidName(string $name): bool

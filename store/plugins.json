@@ -1,0 +1,18 @@
+[
+    {
+        "name": "hello-pafish",
+        "title": "Hello, pafish",
+        "version": "1.0.1",
+        "description": "应用商店安装演示插件：打招呼日志、登录监听、卡片模板与前台页面。",
+        "author": "pafish",
+        "zip": "\/store\/hello-pafish.zip"
+    },
+    {
+        "name": "m5c-plugin",
+        "title": "测试插件",
+        "version": "1.0.0",
+        "description": "M5c 端到端测试插件。",
+        "author": "pafish",
+        "zip": "\/store\/m5c-plugin.zip"
+    }
+]

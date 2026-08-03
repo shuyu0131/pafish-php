@@ -59,6 +59,8 @@ final class ErrorHandler extends SlimErrorHandler
 
     protected function logError(string $error): void
     {
-        error_log('[pafish-error] ' . $error);
+        // 写 runtime/error.log（php -S 终端 / 虚拟主机 stderr 不可见；log_errors 关闭时
+        // error_log() 会被丢弃，文件日志保证可排查）
+        @file_put_contents(PAFISH_ROOT . '/runtime/error.log', '[' . date('Y-m-d H:i:s') . '] ' . $error . PHP_EOL, FILE_APPEND);
     }
 }

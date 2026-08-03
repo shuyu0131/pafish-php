@@ -34,6 +34,7 @@ use Pafish\Admin\ProfileController;
 use Pafish\Admin\BackupController;
 use Pafish\Admin\AppearanceController;
 use Pafish\Admin\PluginsController;
+use Pafish\Admin\StoreController;
 use Pafish\Admin\ApiController;
 
 /**
@@ -204,6 +205,11 @@ $app->group('/admin', function ($group) {
     $group->post('/plugins/uninstall', [PluginsController::class, 'uninstall']);
     $group->post('/plugins/save-settings', [PluginsController::class, 'saveSettings']);
     $group->post('/plugins/install', [PluginsController::class, 'install']);
+
+    // 应用商店（仅 ADMIN：目录双 Tab / 安装 / 更新·回滚）
+    $group->get('/store', [StoreController::class, 'index']);
+    $group->post('/store/install', [StoreController::class, 'install']);
+    $group->post('/store/update', [StoreController::class, 'update']);
 })->add(AdminAuthMiddleware::class);
 
 // ---- M3：编辑器配套 API（登录 + 内容权限 + CSRF，控制器内自检） ----

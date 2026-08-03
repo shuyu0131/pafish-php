@@ -12,6 +12,9 @@ use Pafish\Http\PageController;
 use Pafish\Http\RssController;
 use Pafish\Http\SitemapController;
 use Pafish\Http\RobotsController;
+use Pafish\Http\AuthPageController;
+use Pafish\Http\AuthApiController;
+use Pafish\Http\CommentApiController;
 
 /**
  * 路由注册（$app 来自 bootstrap.php include 上下文）
@@ -35,3 +38,21 @@ $app->get('/pages/{slug}', [PageController::class, 'show']);
 $app->get('/rss.xml', [RssController::class, 'index']);
 $app->get('/sitemap.xml', [SitemapController::class, 'index']);
 $app->get('/robots.txt', [RobotsController::class, 'index']);
+
+// ---- M2：登录 / 注册 / 找回密码 ----
+$app->get('/login', [AuthPageController::class, 'login']);
+$app->get('/register', [AuthPageController::class, 'register']);
+$app->get('/forgot-password', [AuthPageController::class, 'forgot']);
+$app->get('/reset-password', [AuthPageController::class, 'reset']);
+$app->post('/api/auth/login', [AuthApiController::class, 'login']);
+$app->post('/api/auth/logout', [AuthApiController::class, 'logout']);
+$app->post('/api/auth/send-code', [AuthApiController::class, 'sendCode']);
+$app->post('/api/auth/register', [AuthApiController::class, 'register']);
+$app->post('/api/auth/reset-by-code', [AuthApiController::class, 'resetByCode']);
+$app->post('/api/auth/reset', [AuthApiController::class, 'reset']);
+$app->post('/api/auth/forgot', [AuthApiController::class, 'forgot']);
+
+// ---- M2：评论（验证码 / 提交 / 点赞） ----
+$app->get('/api/captcha', [CommentApiController::class, 'captcha']);
+$app->post('/api/comments', [CommentApiController::class, 'create']);
+$app->post('/api/comments/like', [CommentApiController::class, 'like']);

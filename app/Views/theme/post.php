@@ -118,6 +118,21 @@ get_header();
       <?= render_partial('related-posts', ['posts' => $related ?? []]) ?>
     <?php endif; ?>
 
+    <?php /* 评论区（评论功能关闭时整块隐藏；对齐 Node CommentSection） */ ?>
+    <?php if (!empty($commentsEnabled)): ?>
+      <?= render_partial('comment-section', [
+          'postId' => (int) $post['id'],
+          'commentPage' => $commentPage ?? 1,
+          'commentRoots' => $commentRoots ?? [],
+          'commentTotal' => $commentTotal ?? 0,
+          'commentTotalPages' => $commentTotalPages ?? 1,
+          'needReview' => $needReview ?? true,
+          'captchaEnabled' => (string) settings('comments_captcha_enabled', 'true') !== 'false',
+          'user' => current_user(),
+          'post' => $post,
+      ]) ?>
+    <?php endif; ?>
+
     <?php /* 结构化数据：Google/必应 富结果（BlogPosting） */ ?>
     <script type="application/ld+json">
     <?= json_encode([

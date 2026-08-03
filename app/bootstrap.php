@@ -41,7 +41,8 @@ AppFactory::setContainer($container);
 $app = AppFactory::create();
 $app->setBasePath(Url::base());
 
-// 6. 中间件：?p= 查询串兜底路由（pretty_urls=false 或无伪静态主机）
+// 6. 中间件：JSON/表单请求体解析（Slim 4 默认不解析，需显式启用）+ ?p= 查询串兜底路由
+$app->addBodyParsingMiddleware();
 $app->add(function ($request, $handler) {
     $p = $_GET['p'] ?? null;
     if (is_string($p) && $p !== '') {

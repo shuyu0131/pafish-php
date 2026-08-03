@@ -6,8 +6,7 @@ namespace Pafish\Http;
 
 use Pafish\Core\DB;
 use Pafish\Services\Markdown;
-use Pafish\Services\Settings;
-use Psr\Http\Message\ResponseInterface as Response;
+use Pafish\Services\Settings;use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
@@ -86,6 +85,13 @@ final class PostController
         // ---- 自定义字段解析（坏数据容错为空） ----
         $customFields = $this->parseCustomFields($post['custom_fields'] ?? null);
 
+        // ---- 评论区数据（对齐 Node CommentSection；评论功能关闭时整块隐藏） ----
+        $commentsEnabled = (string) Settings::get('comments_enabled', 'true') !== 'false';
+        $needReview = (string) Settings::get('comments_need_review', 'true') !== 'false';
+        $comments = $commentsEnabled
+            ? Comments::section((int) $post['id'], $commentPage)
+            : ['roots' => [], 'total' => 0, 'totalPages' => 1];
+
         $neighbors = $this->neighbors($post);
         $related = $showRelated ? $this->related($post) : [];
 
@@ -102,6 +108,11 @@ final class PostController
             'prevPost' => $neighbors[0],
             'nextPost' => $neighbors[1],
             'related' => $related,
+            'commentsEnabled' => $commentsEnabled,
+            'needReview' => $needReview,
+            'commentRoots' => $comments['roots'],
+            'commentTotal' => $comments['total'],
+            'commentTotalPages' => $comments['totalPages'],
         ], $neighbors);
     }
 

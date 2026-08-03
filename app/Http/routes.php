@@ -24,6 +24,9 @@ use Pafish\Admin\TagsController;
 use Pafish\Admin\MediaController;
 use Pafish\Admin\CommentsController;
 use Pafish\Admin\NotificationsController;
+use Pafish\Admin\LinksController;
+use Pafish\Admin\NavController;
+use Pafish\Admin\WidgetsController;
 use Pafish\Admin\ApiController;
 
 /**
@@ -123,6 +126,30 @@ $app->group('/admin', function ($group) {
     // 通知（20/页 / 全部已读）
     $group->get('/notifications', [NotificationsController::class, 'index']);
     $group->post('/notifications/read-all', [NotificationsController::class, 'readAll']);
+
+    // 友情链接（列表 / 保存 / 删除 / 显隐 / 上下移动）
+    $group->get('/links', [LinksController::class, 'index']);
+    $group->post('/links/save', [LinksController::class, 'save']);
+    $group->post('/links/{id}/save', [LinksController::class, 'save']);
+    $group->post('/links/{id}/delete', [LinksController::class, 'delete']);
+    $group->post('/links/{id}/toggle', [LinksController::class, 'toggle']);
+    $group->post('/links/{id}/move', [LinksController::class, 'move']);
+
+    // 导航菜单（列表 / 保存 / 删除 / 显隐 / 上下移动）
+    $group->get('/nav', [NavController::class, 'index']);
+    $group->post('/nav/save', [NavController::class, 'save']);
+    $group->post('/nav/{id}/save', [NavController::class, 'save']);
+    $group->post('/nav/{id}/delete', [NavController::class, 'delete']);
+    $group->post('/nav/{id}/toggle', [NavController::class, 'toggle']);
+    $group->post('/nav/{id}/move', [NavController::class, 'move']);
+
+    // 侧边栏组件（列表 / 保存 / 删除 / 显隐 / 上下移动）
+    $group->get('/widgets', [WidgetsController::class, 'index']);
+    $group->post('/widgets/save', [WidgetsController::class, 'save']);
+    $group->post('/widgets/{id}/save', [WidgetsController::class, 'save']);
+    $group->post('/widgets/{id}/delete', [WidgetsController::class, 'delete']);
+    $group->post('/widgets/{id}/toggle', [WidgetsController::class, 'toggle']);
+    $group->post('/widgets/{id}/move', [WidgetsController::class, 'move']);
 })->add(AdminAuthMiddleware::class);
 
 // ---- M3：编辑器配套 API（登录 + 内容权限 + CSRF，控制器内自检） ----

@@ -16,6 +16,7 @@ $typeTitles = [
     'recent_posts' => '最新文章',
     'hot_posts' => '热门文章',
     'recent_comments' => '最新评论',
+    'custom' => '自定义',
 ];
 
 foreach ($widgets as $widget):
@@ -91,9 +92,14 @@ foreach ($widgets as $widget):
             break;
 
         case 'custom':
-            if (trim((string) ($widget['content'] ?? '')) !== ''):
-                echo '<div class="widget-custom">' . nl2br(e($widget['content'])) . '</div>';
-            endif;
+            // 逐行渲染：整行是 [文本](http(s)://或mailto:链接) 则渲染外链，否则纯文本（对齐 Node 版）
+            foreach (preg_split('/\r?\n/', (string) $widget['content']) as $line) {
+                if (preg_match('/^\[(.+)\]\((https?:\/\/[^)\s]+|mailto:[^)\s]+)\)$/', $line, $m)) {
+                    echo '<p class="widget-custom-line"><a href="' . e($m[2]) . '" target="_blank" rel="noreferrer">' . e($m[1]) . '</a></p>';
+                } else {
+                    echo '<p class="widget-custom-line">' . e($line) . '</p>';
+                }
+            }
             break;
     }
     echo '</div>';

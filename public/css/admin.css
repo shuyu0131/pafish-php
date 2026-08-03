@@ -1989,3 +1989,62 @@ a.admin-pg-btn:hover {
     flex-direction: column;
   }
 }
+
+/* ---------- 友链 / 导航 / 组件列表（M4b） ---------- */
+.admin-check-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 4px;
+  font-size: 13.5px;
+  color: var(--fg);
+  cursor: pointer;
+}
+.admin-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.admin-list-row {
+  padding: 12px 16px;
+}
+.admin-list-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.admin-list-name {
+  font-weight: 600;
+  color: var(--title);
+  font-size: 14px;
+}
+.admin-list-main .admin-muted {
+  flex-basis: 100%;
+  word-break: break-all;
+}
+.admin-list-main .admin-muted a {
+  color: var(--accent);
+  text-decoration: none;
+}
+.admin-list-main .admin-muted a:hover {
+  text-decoration: underline;
+}
+.admin-list-ops {
+  display: flex;
+  gap: 2px;
+  margin-top: 8px;
+}
+.admin-list-ops .admin-icon-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.admin-list-edit {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border);
+}
+.admin-inline-edit .admin-cat-form-actions {
+  margin-top: 12px;
+}

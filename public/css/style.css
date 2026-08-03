@@ -761,6 +761,25 @@ input[type="radio"]:focus-visible {
   line-height: 1.7;
   word-break: break-word;
 }
+.widget-custom-line {
+  margin: 0;
+  text-align: center;
+  font-size: 0.875rem;
+  color: var(--side);
+  line-height: 1.7;
+  word-break: break-word;
+}
+.widget-custom-line + .widget-custom-line {
+  margin-top: 0.5rem;
+}
+.widget-custom-line a {
+  color: var(--side);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+.widget-custom-line a:hover {
+  color: var(--accent);
+}
 
 /* ============ 顶栏搜索（折叠式） ============ */
 .site-search {

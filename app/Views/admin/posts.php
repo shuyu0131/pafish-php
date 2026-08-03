@@ -167,8 +167,8 @@ $canEdit = in_array($role ?? '', ['ADMIN', 'EDITOR'], true);
               <a class="admin-post-title" href="<?= e(url_to('/admin/posts/' . $p['id'] . '/edit')) ?>">
                 <?php if ($p['is_pinned']): ?><span class="badge badge-accent">置顶</span><?php endif; ?>
                 <?php if ($p['category_pinned']): ?><span class="badge admin-badge-cat-pin">分类置顶</span><?php endif; ?>
-                <?php if ($p['password']): ?><span class="admin-mini-badge" title="需要密码访问">🔒</span><?php endif; ?>
-                <?php if ($p['external_url']): ?><span class="admin-mini-badge" title="外链文章，点击标题跳转外链">↗</span><?php endif; ?>
+                <?php if ($p['password']): ?><span class="admin-mini-badge" title="需要密码访问"><?= admin_icon('lock', 12) ?></span><?php endif; ?>
+                <?php if ($p['external_url']): ?><span class="admin-mini-badge" title="外链文章，点击标题跳转外链"><?= admin_icon('external-link', 12) ?></span><?php endif; ?>
                 <span class="admin-post-title-text"><?= e($p['title']) ?></span>
               </a>
               <div class="admin-post-meta">

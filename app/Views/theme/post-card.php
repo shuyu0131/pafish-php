@@ -14,9 +14,9 @@ $hasPassword = (bool) ($post['password'] ?? false);
   <h2 class="post-card-title">
     <?php if ($isPinned): ?><span class="post-badge">置顶</span><?php endif; ?>
     <?php if ($isCategoryPinned): ?><span class="post-badge post-badge-dim">分类置顶</span><?php endif; ?>
-    <?php if ($hasPassword): ?><span class="post-lock" title="该文章需要密码访问">🔒</span><?php endif; ?>
+    <?php if ($hasPassword): ?><span class="post-lock" title="该文章需要密码访问"><?= admin_icon('lock', 13) ?></span><?php endif; ?>
     <?php if ($isExternal !== ''): ?>
-      <a href="<?= e($isExternal) ?>" target="_blank" rel="noopener noreferrer" class="post-card-link"><?= e($post['title']) ?><span class="post-external">↗</span></a>
+      <a href="<?= e($isExternal) ?>" target="_blank" rel="noopener noreferrer" class="post-card-link"><?= e($post['title']) ?><span class="post-external"><?= admin_icon('external-link', 13) ?></span></a>
     <?php else: ?>
       <a href="<?= e(url_to('/post/' . rawurlencode((string) $post['slug']))) ?>" class="post-card-link"><?= e($post['title']) ?></a>
     <?php endif; ?>

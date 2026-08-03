@@ -5,7 +5,7 @@
  */
 ?>
 <form class="site-search" action="<?= e(url_to('/search')) ?>" method="get" role="search">
-  <button type="button" class="site-search-toggle btn btn-ghost" aria-label="搜索" title="搜索" hidden>🔍</button>
+  <button type="button" class="site-search-toggle btn btn-ghost" aria-label="搜索" title="搜索" hidden><?= admin_icon('search', 17) ?></button>
   <input type="search" name="q" class="input site-search-input" placeholder="搜索文章…"
          aria-label="搜索文章" autocomplete="off" maxlength="100">
   <button type="submit" class="site-search-submit" aria-label="提交搜索">↵</button>

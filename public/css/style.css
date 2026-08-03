@@ -560,6 +560,8 @@ input[type="radio"]:focus-visible {
   color: var(--accent);
 }
 .post-external {
+  display: inline-flex;
+  align-items: center;
   margin-left: 0.375rem;
   font-size: 0.75rem;
   font-weight: 400;
@@ -1245,8 +1247,8 @@ input[type="radio"]:focus-visible {
   color: var(--fg);
 }
 .post-action-icon {
-  font-size: 0.9rem;
-  line-height: 1;
+  display: inline-flex;
+  align-items: center;
 }
 .post-action-count {
   font-variant-numeric: tabular-nums;
@@ -1392,6 +1394,9 @@ input[type="radio"]:focus-visible {
   text-align: center;
 }
 .password-gate-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
   margin: 0 0 0.5rem;
   font-size: 1.375rem;
   font-weight: 600;

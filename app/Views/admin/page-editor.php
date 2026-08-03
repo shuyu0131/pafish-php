@@ -49,8 +49,8 @@ $template = $isEdit ? (string) $page['template'] : 'default';
             <button type="button" class="admin-md-btn" data-md="ul" title="无序列表">• 列表</button>
             <button type="button" class="admin-md-btn" data-md="ol" title="有序列表">1. 列表</button>
             <span class="admin-md-sep"></span>
-            <button type="button" class="admin-md-btn" data-md="link" title="链接">🔗</button>
-            <button type="button" class="admin-md-btn" data-md="image" title="图片">🖼️</button>
+            <button type="button" class="admin-md-btn" data-md="link" title="链接"><?= admin_icon('link', 15) ?></button>
+            <button type="button" class="admin-md-btn" data-md="image" title="图片"><?= admin_icon('image', 15) ?></button>
             <button type="button" class="admin-md-btn" data-md="table" title="表格">⊞</button>
             <button type="button" class="admin-md-btn" data-md="hr" title="分隔线">―</button>
             <span class="admin-md-spacer"></span>

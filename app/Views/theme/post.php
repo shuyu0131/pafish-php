@@ -31,7 +31,7 @@ get_header();
   <?php if ($locked): ?>
     <?php /* 密码门：解锁 cookie 24h */ ?>
     <div class="password-gate card">
-      <h1 class="password-gate-title">🔒 <?= e($post['title']) ?></h1>
+      <h1 class="password-gate-title"><?= admin_icon('lock', 18) ?> <?= e($post['title']) ?></h1>
       <p class="password-gate-tip">这篇文章需要密码才能查看</p>
       <?php if (!empty($passwordError)): ?>
         <p class="password-gate-error"><?= e($passwordError) ?></p>
@@ -48,17 +48,17 @@ get_header();
     <header class="post-head">
       <h1 class="editorial post-title"><?= e($post['title']) ?></h1>
       <div class="post-meta">
-        <span class="post-meta-item">👤 <?= e($post['author_name'] ?? '') ?></span>
-        <span class="post-meta-item">📅 <?= e(format_date($post['published_at'] ?? null)) ?></span>
+        <span class="post-meta-item"><?= admin_icon('user', 14) ?> <?= e($post['author_name'] ?? '') ?></span>
+        <span class="post-meta-item"><?= admin_icon('calendar', 14) ?> <?= e(format_date($post['published_at'] ?? null)) ?></span>
         <button type="button" class="post-action" data-action="like" data-id="<?= (int) $post['id'] ?>" data-active="<?= !empty($liked) ? '1' : '0' ?>">
-          <span class="post-action-icon"><?= !empty($liked) ? '❤️' : '🤍' ?></span>
+          <span class="post-action-icon"><?= admin_icon('heart', 15, !empty($liked)) ?></span>
           <span class="post-action-count"><?= (int) ($post['like_count'] ?? 0) ?></span>
         </button>
         <button type="button" class="post-action" data-action="favorite" data-id="<?= (int) $post['id'] ?>" data-active="<?= !empty($favorited) ? '1' : '0' ?>">
-          <span class="post-action-icon"><?= !empty($favorited) ? '⭐' : '☆' ?></span>
+          <span class="post-action-icon"><?= admin_icon('star', 15, !empty($favorited)) ?></span>
           <span class="post-action-count"><?= (int) ($post['favorite_count'] ?? 0) ?></span>
         </button>
-        <span class="post-meta-item post-views">👁 <?= (int) ($post['view_count'] ?? 0) ?> 次浏览</span>
+        <span class="post-meta-item post-views"><?= admin_icon('eye', 14) ?> <?= (int) ($post['view_count'] ?? 0) ?> 次浏览</span>
         <?php if (!empty($post['tags'])): ?>
           <span class="post-meta-tags">
             <?php foreach ($post['tags'] as $tag): ?>
@@ -69,7 +69,7 @@ get_header();
       </div>
       <?php if (!empty($post['external_url'])): ?>
         <a href="<?= e($post['external_url']) ?>" target="_blank" rel="noopener noreferrer" class="post-original">
-          查看原文 ↗
+          <?= admin_icon('external-link', 14) ?> 查看原文
         </a>
       <?php endif; ?>
     </header>
@@ -152,9 +152,13 @@ get_header();
     ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>
     </script>
 
-    <?php /* 点赞/收藏：cookie 幂等切换 + DB 计数 */ ?>
+    <?php /* 点赞/收藏：cookie 幂等切换 + DB 计数（图标随激活态在描边/实心间切换） */ ?>
     <script>
     (function () {
+      var icons = {
+        like: { on: '<?= admin_icon('heart', 15, true) ?>', off: '<?= admin_icon('heart', 15) ?>' },
+        favorite: { on: '<?= admin_icon('star', 15, true) ?>', off: '<?= admin_icon('star', 15) ?>' }
+      };
       var btns = document.querySelectorAll('.post-action');
       btns.forEach(function (btn) {
         btn.addEventListener('click', function () {
@@ -164,8 +168,7 @@ get_header();
             .then(function (res) {
               if (!res.ok) return;
               btn.dataset.active = res.active ? '1' : '0';
-              btn.querySelector('.post-action-icon').textContent =
-                action === 'like' ? (res.active ? '❤️' : '🤍') : (res.active ? '⭐' : '☆');
+              btn.querySelector('.post-action-icon').innerHTML = icons[action][res.active ? 'on' : 'off'];
               btn.querySelector('.post-action-count').textContent = res.count;
             })
             .catch(function () {});

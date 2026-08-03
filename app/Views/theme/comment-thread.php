@@ -23,14 +23,14 @@ $renderItem = function (array $node, int $depth) use (&$renderItem, $postId, $ne
         <?php endif; ?>
         <span class="comment-author"><?= e($node['authorName']) ?></span>
         <?php if (!empty($node['isPinned']) && $depth === 0): ?>
-          <span class="comment-pinned">📌 置顶</span>
+          <span class="comment-pinned"><?= admin_icon('pin', 13) ?> 置顶</span>
         <?php endif; ?>
         <span class="comment-date"><?= e($node['createdAtLabel']) ?></span>
         <button type="button" class="comment-reply-btn" data-reply-toggle><?= $depth > 0 ? '回复' : '回复' ?></button>
         <button type="button" class="comment-like<?= !empty($node['liked']) ? ' liked' : '' ?>"
                 data-comment-id="<?= $id ?>" data-liked="<?= !empty($node['liked']) ? '1' : '0' ?>"
                 title="<?= !empty($node['liked']) ? '取消点赞' : '点赞' ?>">
-          <span class="comment-like-icon">👍</span>
+          <span class="comment-like-icon"><?= admin_icon('thumbs-up', 14) ?></span>
           <?php if ((int) $node['likeCount'] > 0): ?>
             <span class="comment-like-count"><?= (int) $node['likeCount'] ?></span>
           <?php endif; ?>

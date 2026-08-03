@@ -2612,3 +2612,11 @@ a.admin-pg-btn:hover {
   color: var(--accent);
   border-bottom-color: var(--accent);
 }
+
+/* 文章列表内嵌小徽标（内联 SVG 图标，与 emoji 时代同尺寸对齐） */
+.admin-mini-badge {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  color: var(--muted);
+}

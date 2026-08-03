@@ -38,7 +38,7 @@ final class AdminAuthMiddleware
                     . '<body style="font-family:system-ui, sans-serif;display:grid;place-items:center;'
                     . 'min-height:100vh;margin:0;background:#f6f7f9;color:#333">'
                     . '<div style="text-align:center;max-width:420px;padding:24px">'
-                    . '<p style="font-size:44px;margin:0">🛡️</p>'
+                    . '<p style="font-size:44px;margin:0">' . admin_icon('shield', 44) . '</p>'
                     . '<h1 style="font-size:18px;margin:14px 0 8px">CSRF 校验失败</h1>'
                     . '<p style="color:#71717a;font-size:14px;line-height:1.7">表单已过期或令牌无效，'
                     . '请返回上一页刷新后重试。</p>'

@@ -78,14 +78,14 @@ $roleLabel = match ((string) ($user['role'] ?? '')) {
     </nav>
 
     <div class="admin-sidebar-foot">
-      <div class="admin-user">
+      <a class="admin-user" href="<?= e(url_to('/admin/profile')) ?>" title="个人资料">
         <img class="admin-avatar" src="<?= e($user['avatar_url'] ?: admin_gravatar((string) $user['email'])) ?>"
              alt="" width="32" height="32">
         <div class="admin-user-meta">
           <p class="admin-user-name"><?= e($user['nickname'] ?: $user['username']) ?></p>
           <p class="admin-user-sub"><?= e($roleLabel) ?> · <?= e($user['username']) ?></p>
         </div>
-      </div>
+      </a>
       <div class="admin-user-actions">
         <a class="admin-icon-btn" href="<?= e(url_to('/')) ?>" title="查看博客前台"><?= admin_icon('home', 17) ?></a>
         <form class="admin-logout" method="post" action="<?= e(url_to('/api/auth/logout')) ?>">

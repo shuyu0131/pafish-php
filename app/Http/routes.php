@@ -28,6 +28,8 @@ use Pafish\Admin\LinksController;
 use Pafish\Admin\NavController;
 use Pafish\Admin\WidgetsController;
 use Pafish\Admin\SettingsController;
+use Pafish\Admin\UsersController;
+use Pafish\Admin\ProfileController;
 use Pafish\Admin\ApiController;
 
 /**
@@ -157,6 +159,17 @@ $app->group('/admin', function ($group) {
     $group->post('/settings/save', [SettingsController::class, 'save']);
     $group->post('/settings/test-smtp', [SettingsController::class, 'testSmtp']);
     $group->post('/settings/regenerate-key', [SettingsController::class, 'regenerateApiKey']);
+
+    // 用户管理（仅 ADMIN：角色/禁用/重置密码）
+    $group->get('/users', [UsersController::class, 'index']);
+    $group->post('/users/{id}/role', [UsersController::class, 'updateRole']);
+    $group->post('/users/{id}/toggle', [UsersController::class, 'toggleDisabled']);
+    $group->post('/users/{id}/reset-password', [UsersController::class, 'resetPassword']);
+
+    // 个人资料（任何登录用户）
+    $group->get('/profile', [ProfileController::class, 'index']);
+    $group->post('/profile/save', [ProfileController::class, 'save']);
+    $group->post('/profile/password', [ProfileController::class, 'changePassword']);
 })->add(AdminAuthMiddleware::class);
 
 // ---- M3：编辑器配套 API（登录 + 内容权限 + CSRF，控制器内自检） ----

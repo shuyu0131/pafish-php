@@ -24,6 +24,13 @@ $fullTitle = $pageTitle !== '' && $pageTitle !== '首页' && $pageTitle !== site
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= e($fullTitle) ?></title>
 <?php if ($desc !== ''): ?><meta name="description" content="<?= e($desc) ?>"><?php endif; ?>
+<?php /* OG / canonical（文章/页面等控制器传入 $og 数组） */ if (is_array($og ?? null)): ?>
+<meta property="og:type" content="<?= e($og['type'] ?? 'website') ?>">
+<meta property="og:title" content="<?= e($og['title'] ?? $fullTitle) ?>">
+<?php if (!empty($og['description'])): ?><meta property="og:description" content="<?= e($og['description']) ?>"><?php endif; ?>
+<?php if (!empty($og['url'])): ?><meta property="og:url" content="<?= e($og['url']) ?>"><link rel="canonical" href="<?= e($og['url']) ?>"><?php endif; ?>
+<?php if (!empty($og['image'])): ?><meta property="og:image" content="<?= e($og['image']) ?>"><?php endif; ?>
+<?php endif; ?>
 <script>
 /* 首帧防闪烁：渲染前按 localStorage / 系统偏好决定 .dark */
 (function () {

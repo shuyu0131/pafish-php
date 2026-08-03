@@ -169,12 +169,12 @@ function inst_seed(PDO $pdo, string $siteName, string $adminUser, string $adminE
         ->execute(['editor', 'editor@pafish.cn', $hash('Editor@12345'), 'EDITOR']);
     $editorId = (int) $pdo->lastInsertId();
 
-    // 分类 / 标签
+    // 分类 / 标签（注意：lastInsertId 要立刻捕获，不能连续取两次）
     $pdo->prepare('INSERT INTO categories (name, slug, description) VALUES (?, ?, ?)')
         ->execute(['技术', 'tech', '编程、架构与工程实践']);
+    $techId = (int) $pdo->lastInsertId();
     $pdo->prepare('INSERT INTO categories (name, slug, description) VALUES (?, ?, ?)')
         ->execute(['生活', 'life', '日常记录与思考']);
-    $techId = (int) $pdo->lastInsertId();
     $lifeId = (int) $pdo->lastInsertId();
 
     $tagIds = [];

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Pafish\Http\HomeController;
+use Pafish\Http\PostController;
 
 /**
  * 路由注册（$app 来自 bootstrap.php include 上下文）
@@ -10,3 +11,7 @@ use Pafish\Http\HomeController;
  */
 
 $app->get('/', [HomeController::class, 'index']);
+
+// ---- M2：文章详情与互动 ----
+$app->get('/post/{slug}', [PostController::class, 'show']);
+$app->post('/api/post/{id}/{kind}', [PostController::class, 'toggle']); // kind: like | favorite

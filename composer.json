@@ -12,7 +12,11 @@
     "autoload": {
         "psr-4": {
             "Pafish\\": "app/"
-        }
+        },
+        "files": [
+            "app/Lib/Parsedown.php",
+            "app/Lib/ParsedownExtra.php"
+        ]
     },
     "config": {
         "optimize-autoloader": true,

@@ -69,11 +69,17 @@ function format_date(mixed $date, string $fmt = 'Y年n月j日'): string
     return $ts ? date($fmt, $ts) : '';
 }
 
-/** 渲染主题模板（主题覆盖 → 系统 fallback）并返回 HTML */
+/** 渲染主题模板（主题覆盖 → 系统 fallback）并返回 HTML
+ *  数据通过全局上下文在 header/footer/partial 之间共享：
+ *  控制器传的 $title/$og/$description 等在 get_header() 中同样可见，
+ *  局部模板传入的数据优先于上下文 */
 function render(string $template, array $data = []): string
 {
+    $context = $GLOBALS['pafish_tpl_ctx'] ?? [];
+    $vars = array_merge($context, $data);
+    $GLOBALS['pafish_tpl_ctx'] = $vars;
     $file = Theme::template($template);
-    extract($data, EXTR_SKIP);
+    extract($vars, EXTR_SKIP);
     ob_start();
     include $file;
     return (string) ob_get_clean();

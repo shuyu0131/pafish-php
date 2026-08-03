@@ -65,3 +65,41 @@
     }
   });
 })();
+
+/**
+ * 文章图片放大预览（对应 Node 版 markdown-render 的图片缩放）：
+ * 点击 .md-content 内图片弹出全屏遮罩，ESC / 点遮罩关闭
+ */
+(function () {
+  "use strict";
+  var overlay = null;
+
+  function close() {
+    if (!overlay) return;
+    overlay.remove();
+    overlay = null;
+  }
+
+  function open(src, alt) {
+    close();
+    overlay = document.createElement("div");
+    overlay.className = "img-zoom";
+    overlay.setAttribute("role", "dialog");
+    overlay.setAttribute("aria-label", "图片预览");
+    overlay.addEventListener("click", close);
+    var img = document.createElement("img");
+    img.src = src;
+    img.alt = alt || "";
+    img.addEventListener("click", function (e) { e.stopPropagation(); });
+    overlay.appendChild(img);
+    document.body.appendChild(overlay);
+  }
+
+  document.addEventListener("click", function (e) {
+    var img = e.target.closest ? e.target.closest(".md-content img") : null;
+    if (img && img.src) open(img.src, img.alt);
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") close();
+  });
+})();

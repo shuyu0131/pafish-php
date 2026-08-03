@@ -59,14 +59,18 @@ function is_admin(): bool
     return Auth::isAdmin();
 }
 
-/** 中文日期（Node 版 date-fns zhCN 风格） */
+/** 中文日期（Node 版 date-fns zhCN 风格；兼容 yyyy/MM/dd 等 date-fns token） */
 function format_date(mixed $date, string $fmt = 'Y年n月j日'): string
 {
     if (!$date) {
         return '';
     }
     $ts = $date instanceof DateTimeInterface ? $date->getTimestamp() : strtotime((string) $date);
-    return $ts ? date($fmt, $ts) : '';
+    if (!$ts) {
+        return '';
+    }
+    static $tokens = ['yyyy' => 'Y', 'MM' => 'm', 'dd' => 'd', 'HH' => 'H', 'mm' => 'i', 'ss' => 's'];
+    return date(strtr($fmt, $tokens), $ts);
 }
 
 /** 渲染主题模板（主题覆盖 → 系统 fallback）并返回 HTML

@@ -1,0 +1,38 @@
+{
+  "name": "default",
+  "title": "默认主题",
+  "version": "1.0.0",
+  "description": "pafish 默认主题：Anatole 风格，白 / 极简 / 蓝链接。",
+  "author": "pafish",
+  "settings": [
+    {
+      "key": "footer_text",
+      "label": "页脚文案",
+      "type": "text",
+      "group": "内容",
+      "default": "",
+      "placeholder": "留空使用默认（© 年份 站点名 · 用 PHP 构建）"
+    },
+    {
+      "key": "show_custom_fields",
+      "label": "文章页显示自定义字段",
+      "type": "checkbox",
+      "group": "内容",
+      "default": "1"
+    },
+    {
+      "key": "sidebar_enabled",
+      "label": "显示桌面侧边栏",
+      "type": "checkbox",
+      "group": "布局",
+      "default": "1"
+    },
+    {
+      "key": "show_related_posts",
+      "label": "文章页显示相关推荐",
+      "type": "checkbox",
+      "group": "布局",
+      "default": "1"
+    }
+  ]
+}

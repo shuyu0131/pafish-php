@@ -121,6 +121,15 @@ function inst_run(array $post, string $root): array
         $pdo = new PDO($dsn, $db['username'], $db['password'], [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
         ]);
+        // 会话时区对齐应用时区（否则 CURRENT_TIMESTAMP 默认值按 MySQL 时区存，混用两种墙钟）
+        $offset = (new DateTimeZone((string) ($db['timezone'] ?? 'Asia/Shanghai')))->getOffset(new DateTimeImmutable());
+        $sign = $offset >= 0 ? '+' : '-';
+        $pdo->exec(sprintf(
+            "SET time_zone = '%s%02d:%02d'",
+            $sign,
+            intdiv(abs($offset), 3600),
+            intdiv(abs($offset) % 3600, 60)
+        ));
         $pdo->exec(sprintf(
             'CREATE DATABASE IF NOT EXISTS `%s` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci',
             str_replace('`', '', $db['database'])

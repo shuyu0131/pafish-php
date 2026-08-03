@@ -1532,3 +1532,21 @@ input[type="radio"]:focus-visible {
   font-size: 0.75rem;
   color: var(--meta);
 }
+
+/* ============ 独立页面（pages/{slug} 与首页页面共用） ============ */
+.page-header {
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+.page-title {
+  font-size: 1.875rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--title);
+}
+.page-updated {
+  margin-top: 0.75rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+}

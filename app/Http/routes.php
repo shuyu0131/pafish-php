@@ -8,6 +8,10 @@ use Pafish\Http\CategoryController;
 use Pafish\Http\TagController;
 use Pafish\Http\ArchiveController;
 use Pafish\Http\SearchController;
+use Pafish\Http\PageController;
+use Pafish\Http\RssController;
+use Pafish\Http\SitemapController;
+use Pafish\Http\RobotsController;
 
 /**
  * 路由注册（$app 来自 bootstrap.php include 上下文）
@@ -25,3 +29,9 @@ $app->get('/category/{slug}', [CategoryController::class, 'show']);
 $app->get('/tag/{slug}', [TagController::class, 'show']);
 $app->get('/archives', [ArchiveController::class, 'index']);
 $app->get('/search', [SearchController::class, 'index']);
+
+// ---- M2：独立页面 / RSS / sitemap / robots ----
+$app->get('/pages/{slug}', [PageController::class, 'show']);
+$app->get('/rss.xml', [RssController::class, 'index']);
+$app->get('/sitemap.xml', [SitemapController::class, 'index']);
+$app->get('/robots.txt', [RobotsController::class, 'index']);

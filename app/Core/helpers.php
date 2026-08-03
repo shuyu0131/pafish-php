@@ -101,6 +101,12 @@ function csrf_field(): string
     return '<input type="hidden" name="_csrf" value="' . e(Session::csrfToken()) . '">';
 }
 
+/** Markdown → HTML（ParsedownExtra，主题模板可直接调用） */
+function md(string $markdown): string
+{
+    return \Pafish\Services\Markdown::render($markdown);
+}
+
 /** 站点绝对 URL */
 function absolute_url(string $path = ''): string
 {

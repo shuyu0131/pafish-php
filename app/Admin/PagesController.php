@@ -7,6 +7,7 @@ namespace Pafish\Admin;
 use Pafish\Core\DB;
 use Pafish\Services\Settings;
 use Pafish\Services\Slug;
+use Pafish\Services\Theme;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -21,7 +22,10 @@ final class PagesController extends AdminController
     public static function templateOptions(): array
     {
         $options = ['default' => '默认模板'];
-        // TODO(M5)：合并主题 theme.json pageTemplates 与插件注册的页面模板
+        foreach (Theme::pageTemplates(Theme::active()) as $tpl) {
+            $options[$tpl['name']] = $tpl['title'];
+        }
+        // TODO(M5b)：插件注册的页面模板
         return $options;
     }
 

@@ -31,6 +31,7 @@ use Pafish\Admin\SettingsController;
 use Pafish\Admin\UsersController;
 use Pafish\Admin\ProfileController;
 use Pafish\Admin\BackupController;
+use Pafish\Admin\AppearanceController;
 use Pafish\Admin\ApiController;
 
 /**
@@ -179,6 +180,16 @@ $app->group('/admin', function ($group) {
     $group->post('/backup/upload', [BackupController::class, 'upload']);
     $group->post('/backup/restore', [BackupController::class, 'restore']);
     $group->post('/backup/delete', [BackupController::class, 'delete']);
+
+    // 主题与外观（ADMIN+EDITOR：列表/启用/保存设置/安装 zip/卸载/导入导出）
+    $group->get('/appearance', [AppearanceController::class, 'index']);
+    $group->get('/appearance/export', [AppearanceController::class, 'export']);
+    $group->get('/appearance/{name}', [AppearanceController::class, 'settings']);
+    $group->post('/appearance/save', [AppearanceController::class, 'save']);
+    $group->post('/appearance/activate', [AppearanceController::class, 'activate']);
+    $group->post('/appearance/uninstall', [AppearanceController::class, 'uninstall']);
+    $group->post('/appearance/install', [AppearanceController::class, 'install']);
+    $group->post('/appearance/import', [AppearanceController::class, 'import']);
 })->add(AdminAuthMiddleware::class);
 
 // ---- M3：编辑器配套 API（登录 + 内容权限 + CSRF，控制器内自检） ----

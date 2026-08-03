@@ -54,6 +54,16 @@ final class Settings
         }
     }
 
+    /** 删单键（返回是否存在） */
+    public static function remove(string $key): bool
+    {
+        $exists = DB::execute('DELETE FROM settings WHERE `key` = ?', [$key]) > 0;
+        if ($exists) {
+            unset(self::$cache[$key]);
+        }
+        return $exists;
+    }
+
     /** 清缓存（外部直改库后调用） */
     public static function reset(): void
     {

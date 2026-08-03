@@ -27,6 +27,7 @@ use Pafish\Admin\NotificationsController;
 use Pafish\Admin\LinksController;
 use Pafish\Admin\NavController;
 use Pafish\Admin\WidgetsController;
+use Pafish\Admin\SettingsController;
 use Pafish\Admin\ApiController;
 
 /**
@@ -150,6 +151,12 @@ $app->group('/admin', function ($group) {
     $group->post('/widgets/{id}/delete', [WidgetsController::class, 'delete']);
     $group->post('/widgets/{id}/toggle', [WidgetsController::class, 'toggle']);
     $group->post('/widgets/{id}/move', [WidgetsController::class, 'move']);
+
+    // 站点设置（7 卡片表单 / 保存 / SMTP 测试 / API Key 重新生成）
+    $group->get('/settings', [SettingsController::class, 'index']);
+    $group->post('/settings/save', [SettingsController::class, 'save']);
+    $group->post('/settings/test-smtp', [SettingsController::class, 'testSmtp']);
+    $group->post('/settings/regenerate-key', [SettingsController::class, 'regenerateApiKey']);
 })->add(AdminAuthMiddleware::class);
 
 // ---- M3：编辑器配套 API（登录 + 内容权限 + CSRF，控制器内自检） ----

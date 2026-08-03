@@ -2048,3 +2048,53 @@ a.admin-pg-btn:hover {
 .admin-inline-edit .admin-cat-form-actions {
   margin-top: 12px;
 }
+
+/* ---------- 站点设置（M4c） ---------- */
+.admin-field-narrow {
+  max-width: 320px;
+}
+.admin-input-w32 {
+  width: 6.5rem;
+}
+.admin-input-w40 {
+  width: 8.5rem;
+}
+.admin-input-block {
+  min-height: 76px;
+  resize: vertical;
+  font-family: inherit;
+}
+.admin-key-row {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+}
+.admin-key-input {
+  flex: 1;
+  min-width: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: 0.02em;
+}
+.admin-key-btn {
+  flex-shrink: 0;
+}
+.admin-settings-msg {
+  margin: 10px 0 4px;
+  font-size: 13px;
+  color: var(--success, #16a34a);
+}
+.admin-code-block {
+  margin: 10px 0 0;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--fg) 5%, transparent);
+  border: 1px solid var(--border);
+  color: var(--fg);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 1.7;
+  overflow-x: auto;
+}
+.admin-settings-form .card + .card {
+  margin-top: 16px;
+}

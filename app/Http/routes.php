@@ -15,6 +15,8 @@ use Pafish\Http\RobotsController;
 use Pafish\Http\AuthPageController;
 use Pafish\Http\AuthApiController;
 use Pafish\Http\CommentApiController;
+use Pafish\Admin\AdminAuthMiddleware;
+use Pafish\Admin\DashboardController;
 
 /**
  * 路由注册（$app 来自 bootstrap.php include 上下文）
@@ -56,3 +58,10 @@ $app->post('/api/auth/forgot', [AuthApiController::class, 'forgot']);
 $app->get('/api/captcha', [CommentApiController::class, 'captcha']);
 $app->post('/api/comments', [CommentApiController::class, 'create']);
 $app->post('/api/comments/like', [CommentApiController::class, 'like']);
+
+// ---- M3：后台（守卫中间件：未登录跳 /login?from=，POST 校验 CSRF） ----
+$app->group('/admin', function ($group) {
+    $group->get('', [DashboardController::class, 'dashboard']);
+    $group->get('/', [DashboardController::class, 'dashboard']);
+    // 后续页面随 M3/M4 里程碑注册
+})->add(AdminAuthMiddleware::class);

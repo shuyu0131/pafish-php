@@ -22,6 +22,8 @@ use Pafish\Admin\PagesController;
 use Pafish\Admin\CategoriesController;
 use Pafish\Admin\TagsController;
 use Pafish\Admin\MediaController;
+use Pafish\Admin\CommentsController;
+use Pafish\Admin\NotificationsController;
 use Pafish\Admin\ApiController;
 
 /**
@@ -108,6 +110,19 @@ $app->group('/admin', function ($group) {
     $group->get('/uploads', [MediaController::class, 'index']);
     $group->post('/uploads/{id}/delete', [MediaController::class, 'delete']);
     $group->post('/uploads/external', [MediaController::class, 'external']);
+
+    // 评论审核（4 Tab 20/页 / 状态流转 / 管理员回复 / 置顶 / 按 IP 删 / 拉黑）
+    $group->get('/comments', [CommentsController::class, 'index']);
+    $group->post('/comments/{id}/status', [CommentsController::class, 'status']);
+    $group->post('/comments/{id}/reply', [CommentsController::class, 'reply']);
+    $group->post('/comments/{id}/pin', [CommentsController::class, 'pin']);
+    $group->post('/comments/{id}/delete', [CommentsController::class, 'delete']);
+    $group->post('/comments/delete-by-ip', [CommentsController::class, 'deleteByIp']);
+    $group->post('/comments/block-ip', [CommentsController::class, 'blockIp']);
+
+    // 通知（20/页 / 全部已读）
+    $group->get('/notifications', [NotificationsController::class, 'index']);
+    $group->post('/notifications/read-all', [NotificationsController::class, 'readAll']);
 })->add(AdminAuthMiddleware::class);
 
 // ---- M3：编辑器配套 API（登录 + 内容权限 + CSRF，控制器内自检） ----

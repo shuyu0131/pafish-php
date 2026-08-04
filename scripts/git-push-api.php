@@ -32,7 +32,7 @@ if ($token === '' || $repo === '') {
 }
 
 // ---------- 工具 ----------
-function api(string $method, string $url, array|string|null $body = null): array
+function api(string $method, string $url, array|string|null $body = null, int $attempt = 1): array
 {
     global $token;
     $ch = curl_init($url);
@@ -48,6 +48,8 @@ function api(string $method, string $url, array|string|null $body = null): array
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_CUSTOMREQUEST => $method,
         CURLOPT_HTTPHEADER => $headers,
+        CURLOPT_CONNECTTIMEOUT => 30,
+        CURLOPT_TIMEOUT => 120,
     ];
     if ($body !== null) {
         $opts[CURLOPT_POSTFIELDS] = is_array($body) ? json_encode($body) : $body;
@@ -56,6 +58,11 @@ function api(string $method, string $url, array|string|null $body = null): array
     $resp = (string) curl_exec($ch);
     $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
     $json = json_decode($resp, true);
+    // 网络错误 / 5xx / 限流 → 重试（最多 4 次，指数退避）
+    if (($status === 0 || $status >= 500 || $status === 429) && $attempt <= 4) {
+        usleep(500000 * $attempt);
+        return api($method, $url, $body, $attempt + 1);
+    }
     return [$status, is_array($json) ? $json : ['raw' => $resp]];
 }
 

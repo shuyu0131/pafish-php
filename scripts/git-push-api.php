@@ -51,6 +51,11 @@ function api(string $method, string $url, array|string|null $body = null, int $a
         CURLOPT_CONNECTTIMEOUT => 30,
         CURLOPT_TIMEOUT => 120,
     ];
+    // 本机 PHP 可能未配置 CA 包（curl.cainfo 为空）：优先用 ~/.cacert.pem
+    $cacert = getenv('USERPROFILE') . '/.cacert.pem';
+    if (is_file($cacert)) {
+        $opts[CURLOPT_CAINFO] = $cacert;
+    }
     if ($body !== null) {
         $opts[CURLOPT_POSTFIELDS] = is_array($body) ? json_encode($body) : $body;
     }

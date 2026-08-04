@@ -191,10 +191,10 @@ echo "commit：{$commitSha}\n";
 $r = api('POST', "https://api.github.com/repos/{$repo}/git/refs", ['ref' => 'refs/heads/main', 'sha' => $commitSha]);
 $status = $r[0];
 if ($status === 422) {
-    // 已存在 → PATCH 快进
-    $r = api('PATCH', "https://api.github.com/repos/{$repo}/git/refs/heads/main", ['sha' => $commitSha, 'force' => false]);
+    // 已存在（如 contents API 的 init commit）→ force 覆盖：本地历史即权威
+    $r = api('PATCH', "https://api.github.com/repos/{$repo}/git/refs/heads/main", ['sha' => $commitSha, 'force' => true]);
     checkApi($r, 'PATCH main');
-    echo "refs/heads/main 已更新\n";
+    echo "refs/heads/main 已覆盖更新\n";
 } else {
     checkApi($r, 'refs/heads/main');
     echo "refs/heads/main 已创建\n";

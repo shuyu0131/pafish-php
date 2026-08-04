@@ -151,8 +151,18 @@ function inst_run(array $post, string $root): array
         ));
         $pdo->exec('USE `' . str_replace('`', '', $db['database']) . '`');
 
-        // 2. 建表
-        $warnings = inst_exec_schema($pdo, $root . '/app/install/schema.sql');
+        // 2. 已有数据检测（上次安装中断 / config.php 丢失后重装）：提示但不阻断，种子会跳过已存在记录
+        $warnings = [];
+        try {
+            if ((int) $pdo->query('SELECT COUNT(*) FROM users')->fetchColumn() > 0) {
+                $warnings[] = '检测到该数据库已有 pafish 数据（可能上次安装未完成，或 config.php 丢失）：将跳过已存在的种子数据，不会覆盖、不会清空任何内容';
+            }
+        } catch (PDOException $e) {
+            // users 表不存在 → 全新安装
+        }
+
+        // 3. 建表
+        $warnings = array_merge($warnings, inst_exec_schema($pdo, $root . '/app/install/schema.sql'));
 
         // 3. 种子数据
         $pdo->beginTransaction();
@@ -181,64 +191,105 @@ function inst_run(array $post, string $root): array
 }
 
 // ---------- 种子数据（与 Node 版 prisma/seed.ts 一致） ----------
+// 幂等：已存在的记录一律跳过（重复安装 / 中断重试 / config.php 丢失后重装均不报错，
+// 不会覆盖用户改过的数据，缺什么补什么）
 function inst_seed(PDO $pdo, string $siteName, string $adminUser, string $adminEmail, string $adminPass): void
 {
     $hash = static fn (string $pw): string => password_hash($pw, PASSWORD_BCRYPT, ['cost' => 12]);
 
-    // 用户
-    $pdo->prepare('INSERT INTO users (username, email, password_hash, role) VALUES (?, ?, ?, ?)')
-        ->execute([$adminUser, $adminEmail, $hash($adminPass), 'ADMIN']);
-    $adminId = (int) $pdo->lastInsertId();
-    $pdo->prepare('INSERT INTO users (username, email, password_hash, role) VALUES (?, ?, ?, ?)')
-        ->execute(['editor', 'editor@pafish.cn', $hash('Editor@12345'), 'EDITOR']);
-    $editorId = (int) $pdo->lastInsertId();
-
-    // 分类 / 标签（注意：lastInsertId 要立刻捕获，不能连续取两次）
-    $pdo->prepare('INSERT INTO categories (name, slug, description) VALUES (?, ?, ?)')
-        ->execute(['技术', 'tech', '编程、架构与工程实践']);
-    $techId = (int) $pdo->lastInsertId();
-    $pdo->prepare('INSERT INTO categories (name, slug, description) VALUES (?, ?, ?)')
-        ->execute(['生活', 'life', '日常记录与思考']);
-    $lifeId = (int) $pdo->lastInsertId();
-
-    $tagIds = [];
-    foreach ([['Next.js', 'nextjs'], ['MySQL', 'mysql'], ['设计', 'design']] as [$name, $slug]) {
-        $pdo->prepare('INSERT INTO tags (name, slug) VALUES (?, ?)')->execute([$name, $slug]);
-        $tagIds[$slug] = (int) $pdo->lastInsertId();
+    // 用户（已存在则跳过，保留原密码）
+    $selUser = $pdo->prepare('SELECT id FROM users WHERE username = ?');
+    $selUser->execute([$adminUser]);
+    $adminId = (int) $selUser->fetchColumn();
+    if ($adminId === 0) {
+        $pdo->prepare('INSERT INTO users (username, email, password_hash, role) VALUES (?, ?, ?, ?)')
+            ->execute([$adminUser, $adminEmail, $hash($adminPass), 'ADMIN']);
+        $adminId = (int) $pdo->lastInsertId();
+    }
+    $selUser->execute(['editor']);
+    $editorId = (int) $selUser->fetchColumn();
+    if ($editorId === 0) {
+        $pdo->prepare('INSERT INTO users (username, email, password_hash, role) VALUES (?, ?, ?, ?)')
+            ->execute(['editor', 'editor@pafish.cn', $hash('Editor@12345'), 'EDITOR']);
+        $editorId = (int) $pdo->lastInsertId();
     }
 
-    // 示例文章
+    // 分类（按 slug 判重）
+    $selCat = $pdo->prepare('SELECT id FROM categories WHERE slug = ?');
+    $selCat->execute(['tech']);
+    $techId = (int) $selCat->fetchColumn();
+    if ($techId === 0) {
+        $pdo->prepare('INSERT INTO categories (name, slug, description) VALUES (?, ?, ?)')
+            ->execute(['技术', 'tech', '编程、架构与工程实践']);
+        $techId = (int) $pdo->lastInsertId();
+    }
+    $selCat->execute(['life']);
+    $lifeId = (int) $selCat->fetchColumn();
+    if ($lifeId === 0) {
+        $pdo->prepare('INSERT INTO categories (name, slug, description) VALUES (?, ?, ?)')
+            ->execute(['生活', 'life', '日常记录与思考']);
+        $lifeId = (int) $pdo->lastInsertId();
+    }
+
+    // 标签（按 slug 判重）
+    $selTag = $pdo->prepare('SELECT id FROM tags WHERE slug = ?');
+    $tagIds = [];
+    foreach ([['Next.js', 'nextjs'], ['MySQL', 'mysql'], ['设计', 'design']] as [$name, $slug]) {
+        $selTag->execute([$slug]);
+        $id = (int) $selTag->fetchColumn();
+        if ($id === 0) {
+            $pdo->prepare('INSERT INTO tags (name, slug) VALUES (?, ?)')->execute([$name, $slug]);
+            $id = (int) $pdo->lastInsertId();
+        }
+        $tagIds[$slug] = $id;
+    }
+
+    // 示例文章（按 slug 判重；已存在则整篇跳过——post_tags 是复合主键，仅新文章建立标签关联）
     $helloContent = "# 欢迎来到纸鱼博客\n\n这是一篇由种子脚本创建的示例文章。\n\n## 功能一览\n\n- **Markdown 编辑**：后台使用 Markdown 编辑器\n- **分类与标签**：灵活组织内容\n- **全文搜索**：基于 MySQL ngram 中文分词\n- **评论审核**：游客评论需审核后展示\n\n```ts\nconsole.log(\"Hello, Pafish Blog!\");\n```\n\n感谢阅读！";
     $designContent = "# 极简设计随笔\n\n好的设计是不打扰读者的设计。\n\n## 留白\n\n留白不是浪费，而是呼吸。\n\n## 对比\n\n对比制造层次，层次引导阅读。\n\n> 少即是多。 —— Ludwig Mies van der Rohe";
 
     $insPost = $pdo->prepare(
         'INSERT INTO posts (title, slug, excerpt, content, status, published_at, author_id, category_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
     );
-    $insPost->execute([
-        '你好，纸鱼博客', 'hello-pafish',
-        '欢迎来到纸鱼博客！这是一篇示例文章，介绍本博客系统的能力。',
-        $helloContent, 'PUBLISHED', date('Y-m-d H:i:s'), $adminId, $techId,
-    ]);
-    $helloId = (int) $pdo->lastInsertId();
-    $insPost->execute([
-        '极简设计随笔', 'minimalist-design-notes',
-        '关于极简主义设计的一些思考：留白、对比与克制。',
-        $designContent, 'PUBLISHED', date('Y-m-d H:i:s', time() - 86400), $editorId, $lifeId,
-    ]);
-    $designId = (int) $pdo->lastInsertId();
-    $insPost->execute([
-        '一篇未完成的草稿', 'draft-example',
-        '这篇文章还在写作中……',
-        '草稿内容，尚未发布。', 'DRAFT', null, $adminId, $techId,
-    ]);
-
-    // 文章-标签
     $insPt = $pdo->prepare('INSERT INTO post_tags (post_id, tag_id) VALUES (?, ?)');
-    $insPt->execute([$helloId, $tagIds['nextjs']]);
-    $insPt->execute([$helloId, $tagIds['mysql']]);
-    $insPt->execute([$designId, $tagIds['design']]);
+    $selPost = $pdo->prepare('SELECT id FROM posts WHERE slug = ?');
 
-    // 默认设置
+    $selPost->execute(['hello-pafish']);
+    $helloId = (int) $selPost->fetchColumn();
+    if ($helloId === 0) {
+        $insPost->execute([
+            '你好，纸鱼博客', 'hello-pafish',
+            '欢迎来到纸鱼博客！这是一篇示例文章，介绍本博客系统的能力。',
+            $helloContent, 'PUBLISHED', date('Y-m-d H:i:s'), $adminId, $techId,
+        ]);
+        $helloId = (int) $pdo->lastInsertId();
+        $insPt->execute([$helloId, $tagIds['nextjs']]);
+        $insPt->execute([$helloId, $tagIds['mysql']]);
+    }
+
+    $selPost->execute(['minimalist-design-notes']);
+    $designId = (int) $selPost->fetchColumn();
+    if ($designId === 0) {
+        $insPost->execute([
+            '极简设计随笔', 'minimalist-design-notes',
+            '关于极简主义设计的一些思考：留白、对比与克制。',
+            $designContent, 'PUBLISHED', date('Y-m-d H:i:s', time() - 86400), $editorId, $lifeId,
+        ]);
+        $designId = (int) $pdo->lastInsertId();
+        $insPt->execute([$designId, $tagIds['design']]);
+    }
+
+    $selPost->execute(['draft-example']);
+    if ((int) $selPost->fetchColumn() === 0) {
+        $insPost->execute([
+            '一篇未完成的草稿', 'draft-example',
+            '这篇文章还在写作中……',
+            '草稿内容，尚未发布。', 'DRAFT', null, $adminId, $techId,
+        ]);
+    }
+
+    // 默认设置（缺失才补，已存在的键不覆盖）
+    $selSetting = $pdo->prepare('SELECT COUNT(*) FROM settings WHERE `key` = ?');
     $insSetting = $pdo->prepare('INSERT INTO settings (`key`, `value`) VALUES (?, ?)');
     $defaults = [
         'site_name' => $siteName !== '' ? $siteName : '纸鱼博客',
@@ -251,27 +302,42 @@ function inst_seed(PDO $pdo, string $siteName, string $adminUser, string $adminE
         'active_theme' => 'default',
     ];
     foreach ($defaults as $k => $v) {
-        $insSetting->execute([$k, $v]);
+        $selSetting->execute([$k]);
+        if ((int) $selSetting->fetchColumn() === 0) {
+            $insSetting->execute([$k, $v]);
+        }
     }
 
     // 关于页
-    $pdo->prepare('INSERT INTO pages (title, slug, content, status, published_at) VALUES (?, ?, ?, ?, ?)')
-        ->execute([
-            '关于', 'about',
-            "纸鱼博客是一个极简风格的博客系统，支持 Markdown 写作、全文搜索与评论审核。\n\n在这里记录技术、设计与生活的点滴。",
-            'PUBLISHED', date('Y-m-d H:i:s'),
-        ]);
-
-    // 默认导航
-    $insNav = $pdo->prepare('INSERT INTO nav_items (label, url, sort_order) VALUES (?, ?, ?)');
-    foreach ([['首页', '/', 1], ['归档', '/archives', 2], ['关于', '/pages/about', 3]] as [$label, $url, $order]) {
-        $insNav->execute([$label, $url, $order]);
+    $selPage = $pdo->prepare('SELECT id FROM pages WHERE slug = ?');
+    $selPage->execute(['about']);
+    if ((int) $selPage->fetchColumn() === 0) {
+        $pdo->prepare('INSERT INTO pages (title, slug, content, status, published_at) VALUES (?, ?, ?, ?, ?)')
+            ->execute([
+                '关于', 'about',
+                "纸鱼博客是一个极简风格的博客系统，支持 Markdown 写作、全文搜索与评论审核。\n\n在这里记录技术、设计与生活的点滴。",
+                'PUBLISHED', date('Y-m-d H:i:s'),
+            ]);
     }
 
-    // 默认侧边栏组件
+    // 默认导航（同 label+url 判重）
+    $selNav = $pdo->prepare('SELECT COUNT(*) FROM nav_items WHERE label = ? AND url = ?');
+    $insNav = $pdo->prepare('INSERT INTO nav_items (label, url, sort_order) VALUES (?, ?, ?)');
+    foreach ([['首页', '/', 1], ['归档', '/archives', 2], ['关于', '/pages/about', 3]] as [$label, $url, $order]) {
+        $selNav->execute([$label, $url]);
+        if ((int) $selNav->fetchColumn() === 0) {
+            $insNav->execute([$label, $url, $order]);
+        }
+    }
+
+    // 默认侧边栏组件（同 type+sort_order 判重）
+    $selWidget = $pdo->prepare('SELECT COUNT(*) FROM widgets WHERE type = ? AND sort_order = ?');
     $insWidget = $pdo->prepare('INSERT INTO widgets (type, sort_order) VALUES (?, ?)');
     foreach ([['categories', 1], ['recent_posts', 2], ['tags', 3]] as [$type, $order]) {
-        $insWidget->execute([$type, $order]);
+        $selWidget->execute([$type, $order]);
+        if ((int) $selWidget->fetchColumn() === 0) {
+            $insWidget->execute([$type, $order]);
+        }
     }
 }
 

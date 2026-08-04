@@ -17,3 +17,6 @@ Thumbs.db
 
 # 日志
 *.log
+
+# 构建产物（发布包，随 GitHub Release 分发）
+/dist/

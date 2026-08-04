@@ -25,9 +25,9 @@ function inst_redirect(string $url): void
     exit;
 }
 
-function inst_check_result(bool $ok, string $label, string $detail = ''): array
+function inst_check_result(bool $ok, string $label, string $detail = '', bool $warn = false): array
 {
-    return ['ok' => $ok, 'label' => $label, 'detail' => $detail];
+    return ['ok' => $ok, 'label' => $label, 'detail' => $detail, 'warn' => $warn];
 }
 
 // ---------- 环境检查 ----------
@@ -47,6 +47,21 @@ function inst_checks(string $root): array
         $checks[] = inst_check_result(is_dir($p) && is_writable($p), "目录可写 {$dir}/", is_writable($p) ? '可写' : '不可写（请检查权限）');
     }
     $checks[] = inst_check_result(is_writable($root), '根目录可写（生成 config.php）', is_writable($root) ? '可写' : '不可写');
+    // 上传限制（警告级，不阻塞安装）：主题/插件 zip 包上限 10MB，post_max_size 需 ≥ 16M 才能正常上传
+    $postMax = (int) (ini_get('post_max_size') ?: 0);
+    $uploadMax = (int) (ini_get('upload_max_filesize') ?: 0);
+    $checks[] = inst_check_result(
+        $postMax >= 16,
+        'PHP post_max_size ≥ 16M（应用商店/主题安装）',
+        '当前 ' . ini_get('post_max_size') . '（修改 php.ini 后需重启 Web 服务）',
+        $postMax < 10
+    );
+    $checks[] = inst_check_result(
+        $uploadMax >= 12,
+        'PHP upload_max_filesize ≥ 12M（应用商店/主题安装）',
+        '当前 ' . ini_get('upload_max_filesize') . '（修改 php.ini 后需重启 Web 服务）',
+        $uploadMax < 10
+    );
     return $checks;
 }
 
@@ -286,6 +301,7 @@ function inst_layout(string $title, string $inner, string $extra = ''): string
   .row:last-child { border-bottom: none; }
   .ok { color: #2f9e63; font-weight: 600; }
   .bad { color: #b4543f; font-weight: 600; }
+  .warn { color: #b98a1f; font-weight: 600; font-size: 13px; }
   .detail { color: #bbbbbb; font-size: .82rem; }
   label { display: block; font-size: .85rem; color: #8f8f8f; margin: 14px 0 6px; }
   input[type=text], input[type=password], input[type=email], input[type=number] {
@@ -338,11 +354,22 @@ HTML);
 
 if ($action === 'check') {
     $checks = inst_checks($root);
-    $allOk = !in_array(false, array_column($checks, 'ok'), true);
+    $allOk = true;
+    foreach ($checks as $c) {
+        if (!$c['ok'] && !($c['warn'] ?? false)) {
+            $allOk = false;
+        }
+    }
     $rows = '';
     foreach ($checks as $c) {
-        $rows .= '<div class="row"><span>' . inst_e($c['label']) . '</span>'
-            . '<span class="' . ($c['ok'] ? 'ok' : 'bad') . '">' . inst_e($c['ok'] ? '✓' : '✗ ' . $c['detail']) . '</span></div>';
+        if ($c['ok']) {
+            $cell = '<span class="ok">✓</span>';
+        } elseif (!empty($c['warn'])) {
+            $cell = '<span class="warn">⚠ ' . inst_e($c['detail']) . '</span>';
+        } else {
+            $cell = '<span class="bad">✗ ' . inst_e($c['detail']) . '</span>';
+        }
+        $rows .= '<div class="row"><span>' . inst_e($c['label']) . '</span>' . $cell . '</div>';
     }
     $next = $allOk ? '<a class="btn" href="install.php?step=form">下一步：填写配置</a>'
         : '<button class="btn" disabled>请先解决以上问题</button>';

@@ -1,0 +1,26 @@
+[
+    {
+        "name": "hello-pafish",
+        "title": "Hello, pafish",
+        "version": "1.0.1",
+        "description": "应用商店安装演示插件：启用时记录打招呼日志、监听登录事件；提供页面模板 card 与前台页面 \/plugin\/hello-pafish\/hello。",
+        "author": "pafish",
+        "zip": "\/store\/hello-pafish.zip"
+    },
+    {
+        "name": "demo-hooks",
+        "title": "演示·事件钩子",
+        "version": "1.0.0",
+        "description": "演示事件钩子：文章发布\/更新\/删除\/清除、评论提交\/审核\/删除\/回复、用户登录\/登出\/注册时记录日志到插件数据，可在插件列表“查看插件数据”中查看。",
+        "author": "pafish",
+        "zip": "\/store\/demo-hooks.zip"
+    },
+    {
+        "name": "binfen-storage",
+        "title": "缤纷云存储",
+        "version": "1.0.0",
+        "description": "云存储后端：媒体上传自动存入缤纷云 S4 存储桶（S3 协议兼容），释放服务器磁盘；上传失败自动回退本地磁盘，删除媒体时同步删除云端文件。",
+        "author": "pafish",
+        "zip": "\/store\/binfen-storage.zip"
+    }
+]

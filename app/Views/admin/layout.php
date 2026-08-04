@@ -1,0 +1,158 @@
+<?php
+/**
+ * 后台布局（对齐 Node app/admin/layout.tsx）：
+ * 桌面：固定左侧栏（品牌 → 分组导航 → 用户信息/退出/查看前台）+ 内容区
+ * 移动端：顶栏 + 抽屉（遮罩点击/Esc 关闭）；分组折叠状态记忆于 localStorage admin_nav_collapsed
+ * 变量：$title $siteName $user $nav $unreadNotifications $currentPath $content
+ */
+
+function admin_nav_active(array $item, string $currentPath): bool
+{
+    if (!empty($item['exact'])) {
+        return $currentPath === $item['href'];
+    }
+    return $currentPath === $item['href']
+        || str_starts_with($currentPath, rtrim($item['href'], '/') . '/');
+}
+$roleLabel = match ((string) ($user['role'] ?? '')) {
+    'ADMIN' => '管理员',
+    'EDITOR' => '编辑',
+    default => '用户',
+};
+?>
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title><?= e($title) ?> - <?= e($siteName) ?></title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="stylesheet" href="<?= e(url_to('/css/style.css')) ?>">
+<link rel="stylesheet" href="<?= e(url_to('/css/admin.css')) ?>">
+</head>
+<body class="admin-body">
+  <!-- 移动端顶栏 -->
+  <header class="admin-topbar">
+    <button type="button" class="admin-drawer-toggle admin-icon-btn" aria-label="打开菜单"><?= admin_icon('menu', 20) ?></button>
+    <a class="admin-topbar-brand" href="<?= e(url_to('/admin')) ?>"><?= e($siteName) ?></a>
+    <img class="admin-avatar-sm" src="<?= e($user['avatar_url'] ?: admin_gravatar((string) $user['email'])) ?>" alt="" width="28" height="28">
+  </header>
+  <div class="admin-drawer-backdrop" hidden></div>
+
+  <!-- 侧边栏 -->
+  <aside class="admin-sidebar" id="adminSidebar">
+    <a class="admin-brand" href="<?= e(url_to('/admin')) ?>"><?= e($siteName) ?></a>
+
+    <nav class="admin-nav">
+      <?php foreach ($nav['top'] as $item): ?>
+        <a class="admin-nav-item<?= admin_nav_active($item, $currentPath) ? ' active' : '' ?>"
+           href="<?= e(url_to($item['href'])) ?>">
+          <?= admin_icon($item['icon']) ?>
+          <span><?= e($item['label']) ?></span>
+          <?php if (($item['href'] ?? '') === '/admin/notifications' && $unreadNotifications > 0): ?>
+            <span class="admin-nav-badge"><?= $unreadNotifications > 99 ? '99+' : $unreadNotifications ?></span>
+          <?php endif; ?>
+        </a>
+      <?php endforeach; ?>
+
+      <?php foreach ($nav['groups'] as $group): ?>
+        <div class="admin-nav-group" data-group-id="<?= e($group['id']) ?>">
+          <button type="button" class="admin-nav-group-toggle">
+            <span><?= e($group['label']) ?></span>
+            <?= admin_icon('chevron', 14) ?>
+          </button>
+          <div class="admin-nav-group-items">
+            <?php foreach ($group['items'] as $item): ?>
+              <a class="admin-nav-item<?= admin_nav_active($item, $currentPath) ? ' active' : '' ?>"
+                 href="<?= e(url_to($item['href'])) ?>">
+                <?= admin_icon($item['icon']) ?>
+                <span><?= e($item['label']) ?></span>
+                <?php if (($item['href'] ?? '') === '/admin/notifications' && $unreadNotifications > 0): ?>
+                  <span class="admin-nav-badge"><?= $unreadNotifications > 99 ? '99+' : $unreadNotifications ?></span>
+                <?php endif; ?>
+              </a>
+            <?php endforeach; ?>
+          </div>
+        </div>
+      <?php endforeach; ?>
+    </nav>
+
+    <div class="admin-sidebar-foot">
+      <a class="admin-user" href="<?= e(url_to('/admin/profile')) ?>" title="个人资料">
+        <img class="admin-avatar" src="<?= e($user['avatar_url'] ?: admin_gravatar((string) $user['email'])) ?>"
+             alt="" width="32" height="32">
+        <div class="admin-user-meta">
+          <p class="admin-user-name"><?= e($user['nickname'] ?: $user['username']) ?></p>
+          <p class="admin-user-sub"><?= e($roleLabel) ?> · <?= e($user['username']) ?></p>
+        </div>
+      </a>
+      <div class="admin-user-actions">
+        <a class="admin-icon-btn" href="<?= e(url_to('/')) ?>" title="查看博客前台"><?= admin_icon('home', 17) ?></a>
+        <form class="admin-logout" method="post" action="<?= e(url_to('/api/auth/logout')) ?>">
+          <?= csrf_field() ?>
+          <button type="submit" class="admin-icon-btn" title="退出登录"><?= admin_icon('logout', 17) ?></button>
+        </form>
+      </div>
+    </div>
+  </aside>
+
+  <!-- 内容区 -->
+  <main class="admin-main">
+    <div class="admin-content">
+      <?php if (is_array($flash ?? null) && ($flash['message'] ?? '') !== ''): ?>
+        <div class="admin-flash admin-flash-<?= e($flash['type'] ?? 'info') ?>">
+          <?= e($flash['message']) ?>
+          <button type="button" class="admin-flash-close" aria-label="关闭"><?= admin_icon('x', 13) ?></button>
+        </div>
+      <?php endif; ?>
+      <?= $content ?>
+    </div>
+  </main>
+
+<script>
+(function () {
+  // 移动端抽屉
+  var body = document.body;
+  var backdrop = document.querySelector('.admin-drawer-backdrop');
+  function open() { body.classList.add('admin-drawer-open'); if (backdrop) backdrop.hidden = false; }
+  function close() { body.classList.remove('admin-drawer-open'); if (backdrop) backdrop.hidden = true; }
+  document.querySelectorAll('.admin-drawer-toggle').forEach(function (b) { b.addEventListener('click', open); });
+  if (backdrop) backdrop.addEventListener('click', close);
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
+
+  // 导航分组折叠（localStorage 记忆，key 与 Node 版一致）
+  var key = 'admin_nav_collapsed';
+  var saved = [];
+  try { saved = JSON.parse(localStorage.getItem(key) || '[]'); } catch (err) {}
+  document.querySelectorAll('.admin-nav-group').forEach(function (g) {
+    var id = g.dataset.groupId;
+    if (saved.indexOf(id) !== -1) g.classList.add('collapsed');
+    g.querySelector('.admin-nav-group-toggle').addEventListener('click', function () {
+      g.classList.toggle('collapsed');
+      var arr = [];
+      try { arr = JSON.parse(localStorage.getItem(key) || '[]'); } catch (err) {}
+      var i = arr.indexOf(id);
+      if (g.classList.contains('collapsed')) { if (i === -1) arr.push(id); }
+      else if (i !== -1) arr.splice(i, 1);
+      localStorage.setItem(key, JSON.stringify(arr));
+    });
+  });
+
+  // 退出登录（POST + CSRF，成功后回首页）
+  document.querySelectorAll('.admin-logout').forEach(function (f) {
+    f.addEventListener('submit', function (e) {
+      e.preventDefault();
+      fetch(f.action, { method: 'POST', body: new FormData(f) })
+        .then(function () { location.href = f.dataset.home || '/'; })
+        .catch(function () { location.href = f.dataset.home || '/'; });
+    });
+  });
+
+  // flash 提示关闭
+  document.querySelectorAll('.admin-flash-close').forEach(function (b) {
+    b.addEventListener('click', function () { b.closest('.admin-flash').remove(); });
+  });
+})();
+</script>
+</body>
+</html>

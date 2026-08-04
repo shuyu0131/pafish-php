@@ -1,0 +1,19 @@
+{
+  "name": "hello-pafish",
+  "title": "Hello, pafish",
+  "version": "1.0.1",
+  "description": "应用商店安装演示插件：启用时记录打招呼日志、监听登录事件；提供页面模板 card 与前台页面 /plugin/hello-pafish/hello。",
+  "author": "pafish",
+  "pageTemplates": [
+    {
+      "name": "card",
+      "title": "卡片页（插件模板）"
+    }
+  ],
+  "pages": [
+    {
+      "path": "hello",
+      "title": "打招呼页"
+    }
+  ]
+}

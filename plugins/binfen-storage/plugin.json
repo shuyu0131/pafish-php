@@ -1,0 +1,64 @@
+{
+  "name": "binfen-storage",
+  "title": "缤纷云存储",
+  "version": "1.0.0",
+  "description": "云存储后端：媒体上传自动存入缤纷云 S4 存储桶（S3 协议兼容），释放服务器磁盘；上传失败自动回退本地磁盘，删除媒体时同步删除云端文件。",
+  "author": "pafish",
+  "storage": {
+    "title": "缤纷云 S4"
+  },
+  "settings": [
+    {
+      "key": "endpoint",
+      "label": "接入地址 (Endpoint)",
+      "type": "text",
+      "default": "https://s3.bitiful.net",
+      "placeholder": "https://s3.bitiful.net",
+      "group": "连接"
+    },
+    {
+      "key": "region",
+      "label": "区域 (Region)",
+      "type": "text",
+      "default": "us-east-1",
+      "placeholder": "us-east-1",
+      "group": "连接"
+    },
+    {
+      "key": "accessKey",
+      "label": "AccessKey",
+      "type": "text",
+      "placeholder": "缤纷云控制台创建密钥",
+      "group": "认证"
+    },
+    {
+      "key": "secretKey",
+      "label": "SecretKey",
+      "type": "password",
+      "placeholder": "仅保存在服务器设置中",
+      "group": "认证"
+    },
+    {
+      "key": "bucket",
+      "label": "存储桶",
+      "type": "text",
+      "placeholder": "如 my-blog-media",
+      "group": "存储"
+    },
+    {
+      "key": "pathPrefix",
+      "label": "路径前缀（可选）",
+      "type": "text",
+      "default": "uploads/",
+      "placeholder": "uploads/（留空 = 桶根目录）",
+      "group": "存储"
+    },
+    {
+      "key": "publicUrl",
+      "label": "公开访问地址（可选）",
+      "type": "text",
+      "placeholder": "如 https://cdn.example.com/{key}；留空自动取 {endpoint}/{bucket}/{key}",
+      "group": "存储"
+    }
+  ]
+}

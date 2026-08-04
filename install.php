@@ -405,13 +405,30 @@ HTML;
 // ---------- 分发 ----------
 $action = $_GET['step'] ?? ($_SERVER['REQUEST_METHOD'] === 'POST' ? 'install' : 'check');
 
+// 入口链接：首页用相对 ./（伪静态下由 Nginx try_files / 目录索引执行 index.php，
+// 非伪静态下由 DirectoryIndex 执行，子目录部署同样正确——不能用写死的 index.php，
+// 部分 Nginx 对 .php 直连未配置 fastcgi 会 404）；后台按伪静态开关区分路径
+function inst_links(string $root): array
+{
+    $pretty = true;
+    if (is_file($root . '/config.php')) {
+        $cfg = (array) @require $root . '/config.php';
+        $pretty = (bool) ($cfg['pretty_urls'] ?? true);
+    }
+    return [
+        'home'  => './',
+        'admin' => $pretty ? './admin/' : './index.php?p=admin',
+    ];
+}
+
 if ($installed && $action !== 'install') {
     // 已安装：引导直接使用（不展示安装表单，防误重装）
+    $links = inst_links($root);
     echo inst_layout('已安装', <<<HTML
 <div class="card">
   <h2>系统已安装</h2>
   <p class="info">检测到 config.php 已存在。请直接访问站点：
-  <a href="index.php">前往首页</a>，或 <a href="login.php">登录后台</a>。</p>
+  <a href="{$links['home']}">前往首页</a>，或 <a href="{$links['admin']}">登录后台</a>。</p>
   <p class="warn">如需重装：删除根目录 config.php 后重新打开本页（会清空已有数据）。</p>
 </div>
 HTML);
@@ -503,6 +520,7 @@ if ($action === 'install') {
     if (!empty($result['warnings'])) {
         $warnHtml = '<div class="warn">部分建表语句未执行（多为全文索引兼容性提示）：<br>' . inst_e(implode("\n", array_slice($result['warnings'], 0, 5))) . '</div>';
     }
+    $links = inst_links($root);
     echo inst_layout('安装完成', <<<HTML
 <div class="card done">
   <div class="big">🎉</div>
@@ -514,7 +532,7 @@ if ($action === 'install') {
   </p>
   {$warnHtml}
   <p class="warn">安全提示：请立即删除根目录的 <b>install.php</b>，防止他人重装系统。</p>
-  <a class="btn" href="index.php">前往首页</a>
+  <a class="btn" href="{$links['home']}">前往首页</a>
 </div>
 HTML);
     exit;

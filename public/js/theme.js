@@ -31,11 +31,16 @@
 
   apply();
 
-  var toggle = document.querySelector(".theme-toggle");
-  if (!toggle) return;
+  // 桌面端顶栏与移动端顶栏各渲染一个 .theme-toggle，全部绑定并同步状态
+  // （querySelector 只取第一个会导致移动端按钮无反应）
+  var toggles = document.querySelectorAll(".theme-toggle");
+  if (!toggles.length) return;
 
-  toggle.hidden = false;
-  var icon = toggle.querySelector(".theme-toggle-icon");
+  var icons = [];
+  for (var i = 0; i < toggles.length; i++) {
+    toggles[i].hidden = false;
+    icons.push(toggles[i].querySelector(".theme-toggle-icon"));
+  }
   // lucide Moon/Sun 内联 SVG（与后端 admin_icon() 输出同款，避免依赖图标字体/CDN）
   var SVG_MOON = '<svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>';
   var SVG_SUN = '<svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>';
@@ -43,21 +48,25 @@
   function render() {
     var isDark = resolved() === "dark";
     var label = isDark ? "切换到亮色" : "切换到暗色";
-    toggle.setAttribute("aria-label", label);
-    toggle.setAttribute("title", label);
-    if (icon) icon.innerHTML = isDark ? SVG_SUN : SVG_MOON;
+    for (var i = 0; i < toggles.length; i++) {
+      toggles[i].setAttribute("aria-label", label);
+      toggles[i].setAttribute("title", label);
+      if (icons[i]) icons[i].innerHTML = isDark ? SVG_SUN : SVG_MOON;
+    }
   }
 
   render();
 
-  toggle.addEventListener("click", function () {
-    var next = resolved() === "dark" ? "light" : "dark";
-    try {
-      localStorage.setItem(STORAGE_KEY, next);
-    } catch (e) { /* 隐私模式等场景忽略 */ }
-    apply();
-    render();
-  });
+  for (var i = 0; i < toggles.length; i++) {
+    toggles[i].addEventListener("click", function () {
+      var next = resolved() === "dark" ? "light" : "dark";
+      try {
+        localStorage.setItem(STORAGE_KEY, next);
+      } catch (e) { /* 隐私模式等场景忽略 */ }
+      apply();
+      render();
+    });
+  }
 
   // 未手动选择时跟随系统切换
   mq.addEventListener("change", function () {

@@ -164,7 +164,7 @@ $avatar = !empty($me['avatar_url']) ? $me['avatar_url'] : admin_gravatar((string
     var fd = new FormData();
     fd.append("file", fileInput.files[0]);
     fd.append("_csrf", CSRF);
-    post("/api/upload", fd, function (j) {
+    post(pafishApi("/upload"), fd, function (j) {
       urlInput.value = j.url;
       preview.src = j.url;
       fileInput.value = "";

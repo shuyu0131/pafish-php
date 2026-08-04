@@ -15,7 +15,7 @@ $footerDefault = '© ' . date('Y') . ' ' . $siteName . ' · 用 PHP 构建';
 
 </div>
 </div>
-<script src="<?= e(url_to('/js/highlight.min.js')) ?>" defer></script>
+<script src="<?= e(asset_url('/js/highlight.min.js')) ?>" defer></script>
 <script>
 /* 代码高亮（hljs 类已在 style.css 定义配色） */
 document.addEventListener('DOMContentLoaded', function () {
@@ -24,6 +24,6 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 });
 </script>
-<script src="<?= e(url_to('/js/theme.js')) ?>" defer></script>
+<script src="<?= e(asset_url('/js/theme.js')) ?>" defer></script>
 </body>
 </html>

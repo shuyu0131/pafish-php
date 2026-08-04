@@ -300,7 +300,7 @@ $description = is_string($manifest['description'] ?? null) ? $manifest['descript
 
   function loadLib() {
     libGrid.innerHTML = '<p class="admin-muted admin-modal-hint">加载中…</p>';
-    fetch("/api/uploads?page=" + libPage + "&q=" + encodeURIComponent(libQ.value.trim()))
+    fetch(pafishApi("/uploads?page=") + libPage + "&q=" + encodeURIComponent(libQ.value.trim()))
       .then(function (r) { return r.json(); })
       .then(function (j) {
         libGrid.innerHTML = "";

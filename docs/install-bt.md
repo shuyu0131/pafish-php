@@ -55,14 +55,27 @@
 宝塔建站默认已配置 `try_files`，一般无需额外操作。若站点使用了其他 Nginx 配置，确认包含：
 
 ```nginx
+# 伪静态：所有前台路径交给 index.php
 location / {
     try_files $uri $uri/ /index.php?$query_string;
 }
+
+# 静态资源在 public/ 下，对外保持根路径（css/ js/ uploads/）：
+# 请求 /css/style.css → 站点根/public/css/style.css
+# 若忽略本规则，资源将由 PHP 兜底服务（稍慢），功能不受影响
+location ~ ^/(css|js|uploads)/ {
+    root /www/wwwroot/你的站点/public;
+    try_files $uri =404;
+}
+
+# 禁止直接访问敏感文件/目录
 location ~ ^/(config\.php|runtime/|backups/) { deny all; }
 ```
 
-Apache（.htaccess）已随发布包内置，无需配置。
-若服务器无法启用伪静态，可重新运行安装向导时取消勾选「启用伪静态」，或编辑 `config.php` 关闭 `pretty_urls`。
+> **排查提示**：若页面能打开但 CSS/JS 加载不出来（样式全丢），通常是缺少上面的「静态资源」规则、且使用了未含兜底逻辑的旧版本。v0.1.1 起内置 PHP 静态兜底（即便没有该规则 CSS 也会由 PHP 返回，只是稍慢），建议仍按上表配置以获得最佳性能。
+
+Apache（.htaccess）已随发布包内置（含静态资源重写），无需配置。
+若服务器无法启用伪静态，可重新运行安装向导时取消勾选「启用伪静态」，或编辑 `config.php` 关闭 `pretty_urls`——该模式下链接自动使用 `index.php?p=xxx` 形式，**无需任何重写规则**。
 
 ## 七、安全建议
 

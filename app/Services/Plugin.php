@@ -782,24 +782,39 @@ final class Plugin
     /** 递归删除目录（SPL 迭代器：避免 Windows 上 PHP 8.5 中 stat 句柄导致 rename/rmdir「拒绝访问」） */
     private static function rmDir(string $dir): bool
     {
+        $paths = [];
         try {
             $items = new \RecursiveIteratorIterator(
                 new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS),
                 \RecursiveIteratorIterator::CHILD_FIRST
             );
             foreach ($items as $item) {
-                if ($item->isDir()) {
-                    if (!@rmdir($item->getPathname())) {
-                        return false;
-                    }
-                } elseif (!@unlink($item->getPathname())) {
-                    return false;
-                }
+                $paths[] = [$item->getPathname(), $item->isDir()];
             }
         } catch (\UnexpectedValueException $e) {
             return !is_dir($dir);
         }
-        return @rmdir($dir);
+        foreach ($paths as [$path, $isDir]) {
+            if (!self::rmRemove($path, $isDir)) {
+                return false;
+            }
+        }
+        return self::rmRemove($dir, true);
+    }
+
+    /** 删除文件/空目录；失败时换名重删——Windows 下 PHP 进程 include 过的文件会以
+     *  路径级句柄占用（无 DELETE 共享，任何进程都无法删除原路径），rename 换名后
+     *  原路径即释放，删除新名即可成功（实测 php -S 服务器 include 插件后即出现） */
+    private static function rmRemove(string $path, bool $isDir): bool
+    {
+        if ($isDir ? @rmdir($path) : @unlink($path)) {
+            return true;
+        }
+        $tmp = dirname($path) . '/.' . basename($path) . '.del' . bin2hex(random_bytes(3));
+        if (!@rename($path, $tmp)) {
+            return false;
+        }
+        return $isDir ? @rmdir($tmp) : @unlink($tmp);
     }
 
     /** 清空全部静态缓存（安装/卸载后调用，保持测试与请求内一致性） */

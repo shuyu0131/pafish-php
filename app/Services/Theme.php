@@ -465,24 +465,37 @@ final class Theme
         if (!is_dir($dir)) {
             return true;
         }
+        $paths = [];
         try {
             $items = new \RecursiveIteratorIterator(
                 new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS),
                 \RecursiveIteratorIterator::CHILD_FIRST
             );
             foreach ($items as $item) {
-                if ($item->isDir()) {
-                    if (!@rmdir($item->getPathname())) {
-                        return false;
-                    }
-                } elseif (!@unlink($item->getPathname())) {
-                    return false;
-                }
+                $paths[] = [$item->getPathname(), $item->isDir()];
             }
         } catch (\UnexpectedValueException $e) {
             return !is_dir($dir);
         }
-        return @rmdir($dir);
+        foreach ($paths as [$path, $isDir]) {
+            if (!self::rmRemove($path, $isDir)) {
+                return false;
+            }
+        }
+        return self::rmRemove($dir, true);
+    }
+
+    /** 删除文件/空目录；失败时换名重删（同 Plugin::rmRemove，见其注释） */
+    private static function rmRemove(string $path, bool $isDir): bool
+    {
+        if ($isDir ? @rmdir($path) : @unlink($path)) {
+            return true;
+        }
+        $tmp = dirname($path) . '/.' . basename($path) . '.del' . bin2hex(random_bytes(3));
+        if (!@rename($path, $tmp)) {
+            return false;
+        }
+        return $isDir ? @rmdir($tmp) : @unlink($tmp);
     }
 
     private static function isValidName(string $name): bool

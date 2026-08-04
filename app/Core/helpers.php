@@ -43,6 +43,18 @@ function url_to(string $path): string
     return Url::to($path);
 }
 
+/** 静态资源直链（public/ 下文件；不随 pretty_urls 变化） */
+function asset_url(string $path): string
+{
+    return Url::asset($path);
+}
+
+/** API 路径（含 query 适配，见 Url::api） */
+function api_url(string $path): string
+{
+    return Url::api($path);
+}
+
 /** 当前登录用户（数组或 null） */
 function current_user(): ?array
 {
@@ -268,5 +280,6 @@ function admin_icon(string $name, int $size = 16, bool $fill = false): string
 
 class_alias(\Pafish\Core\DB::class, 'DB');
 class_alias(\Pafish\Core\Url::class, 'Url');
+class_alias(\Pafish\Core\Config::class, 'Config');
 class_alias(\Pafish\Services\Theme::class, 'Theme');
 class_alias(\Pafish\Core\Hooks::class, 'Hooks');

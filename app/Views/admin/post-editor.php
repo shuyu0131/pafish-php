@@ -232,4 +232,4 @@ $editorData = [
 window.PAFISH_EDITOR_DATA = <?= json_encode($editorData, JSON_UNESCAPED_UNICODE) ?>;
 window.PAFISH_EDITOR_CSRF = <?= json_encode(\Pafish\Core\Session::csrfToken()) ?>;
 </script>
-<script src="<?= e(url_to('/js/admin-editor.js')) ?>"></script>
+<script src="<?= e(asset_url('/js/admin-editor.js')) ?>"></script>

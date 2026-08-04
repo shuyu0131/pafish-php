@@ -50,15 +50,30 @@ php -S localhost:8000 router.php
 
 ### Web 服务器配置
 
-- **Apache**：已内置 `.htaccess`（伪静态 + 禁止直接访问 `config.php` / `runtime/` / `backups/`），默认即可
+- **Apache**：已内置 `.htaccess`（伪静态 + 静态资源重写 + 禁止直接访问 `config.php` / `runtime/` / `backups/`），默认即可
 - **Nginx**：
 
 ```nginx
+# 伪静态：所有前台路径交给 index.php
 location / {
     try_files $uri $uri/ /index.php?$query_string;
 }
+
+# 静态资源在 public/ 下，对外保持根路径（css/ js/ uploads/）：
+# 请求 /css/style.css → 站点根/public/css/style.css
+# 若忽略本规则，资源将由 PHP 兜底服务（稍慢），功能不受影响
+location ~ ^/(css|js|uploads)/ {
+    root /www/wwwroot/你的站点/public;
+    try_files $uri =404;
+}
+
+# 禁止直接访问敏感文件/目录
 location ~ ^/(config\.php|runtime/|backups/) { deny all; }
 ```
+
+> **两种部署模式**（安装向导可勾选）：
+> - **启用伪静态**（默认）：按上表配置 Nginx，或使用 Apache（`.htaccess` 已内置），链接为 `/post/xxx` 形式
+> - **关闭伪静态**：无需任何重写规则，链接自动使用 `/index.php?p=post/xxx` 形式（`config.php` 中 `pretty_urls` 设为 `false`）
 
 ## 定时发布（可选）
 

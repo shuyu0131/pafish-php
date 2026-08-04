@@ -163,7 +163,7 @@ get_header();
       btns.forEach(function (btn) {
         btn.addEventListener('click', function () {
           var action = btn.dataset.action, id = btn.dataset.id, active = btn.dataset.active === '1';
-          fetch('/api/post/' + id + '/' + action, { method: 'POST' })
+          fetch(pafishApi('/post/' + id + '/' + action), { method: 'POST' })
             .then(function (r) { return r.json(); })
             .then(function (res) {
               if (!res.ok) return;

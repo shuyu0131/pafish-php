@@ -232,4 +232,4 @@ $canEdit = in_array($role ?? '', ['ADMIN', 'EDITOR'], true);
   <?php endif; ?>
 </div>
 
-<script src="<?= e(url_to('/js/admin-posts.js')) ?>"></script>
+<script src="<?= e(asset_url('/js/admin-posts.js')) ?>"></script>

@@ -67,7 +67,7 @@ $sep = str_contains($baseUrl, '?') ? '&' : '?';
     return form.dataset.loggedIn !== '1' && form.querySelector('[data-captcha-refresh]') !== null;
   }
   function fetchCaptcha(form, then) {
-    return fetch('/api/captcha')
+    return fetch(pafishApi('/captcha'))
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (d) {
         if (d && document.body.contains(form)) {
@@ -126,7 +126,7 @@ $sep = str_contains($baseUrl, '?') ? '&' : '?';
     var label = submitBtn.textContent;
     submitBtn.textContent = '提交中…';
 
-    postJSON('/api/comments', body).then(function (res) {
+    postJSON(pafishApi('/comments'), body).then(function (res) {
       if (!res.ok) {
         showError(res.error || '提交失败');
         // 验证码错误（或作废）时刷新验证码，方便重新输入
@@ -197,7 +197,7 @@ $sep = str_contains($baseUrl, '?') ? '&' : '?';
     if (countEl) {
       countEl.textContent = next > 0 ? next : '';
     }
-    postJSON('/api/comments/like', { commentId: id }).then(function (res) {
+    postJSON(pafishApi('/comments/like'), { commentId: id }).then(function (res) {
       if (!res || typeof res.liked === 'undefined') {
         btn.dataset.liked = prev.liked ? '1' : '0';
         btn.classList.toggle('liked', prev.liked);

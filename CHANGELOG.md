@@ -1,5 +1,17 @@
 # 变更日志
 
+## v0.1.1（2026-08-04）
+
+线上部署修复与加固（针对 Nginx 场景 CSS/JS 加载失败、后台登录网络错误）：
+
+### 修复
+
+- **静态资源加载失败**：静态资源统一走 `public/` 直链（`css/ js/ uploads/`），不再依赖伪静态重写；新增 Slim 静态兜底路由（`StaticFileController`），Nginx 未配置静态规则时也由 PHP 正常返回资源
+- **API 请求路径错误**（后台登录/操作提示「网络错误」）：前端 API 调用改为 `pafishApi()` 统一入口，自动适配伪静态/非伪静态两种 URL 形式
+- **模板缺失 Config 类别名**（全站 500）：`helpers.php` 补充 `class_alias`，模板内 `Config::get()` 恢复正常
+- **Windows 下卸载/删除插件目录失败**：`Plugin/Theme/Store` 删除逻辑升级为「换名后重删」兜底，规避 PHP 进程对 include 过文件的路径级句柄占用
+- 文档补充 Nginx 静态资源规则与两种部署模式说明（README / docs/install-bt.md）
+
 ## v0.1.0（2026-08-04）
 
 pafish 博客 CMS（PHP 版）首个发布版本。功能/界面/数据层与 Node 版 v1.1.0 对齐。

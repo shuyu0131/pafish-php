@@ -40,6 +40,31 @@ final class Url
         return self::base() . '/index.php?p=' . $path;
     }
 
+    /**
+     * 静态资源直链（css/js/uploads 等 public/ 下文件）：
+     * 无论 pretty_urls 开关，资源始终对外保持根路径（Web 服务器直连；
+     * 无静态配置的环境由 Slim 静态兜底路由服务），仅需带上子目录前缀。
+     */
+    public static function asset(string $path): string
+    {
+        return self::base() . '/' . ltrim($path, '/');
+    }
+
+    /**
+     * API 路径（含 query 适配）：pretty 模式 /api/xxx?q=1；
+     * 非 pretty 模式 /index.php?p=api/xxx&q=1（?p= 后不能出现 '?'，query 改用 & 拼接）
+     */
+    public static function api(string $path): string
+    {
+        $pretty = (bool) Config::get('pretty_urls', true);
+        [$pathPart, $query] = array_pad(explode('?', $path, 2), 2, '');
+        $pathPart = ltrim($pathPart, '/');
+        if ($pretty) {
+            return self::base() . '/api/' . $pathPart . ($query !== '' ? '?' . $query : '');
+        }
+        return self::base() . '/index.php?p=api/' . $pathPart . ($query !== '' ? '&' . $query : '');
+    }
+
     /** 站点绝对 URL（RSS / sitemap / OG 用） */
     public static function absolute(string $path = ''): string
     {

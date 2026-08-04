@@ -59,4 +59,4 @@
 <script>
   window.PAFISH_IMPORT_CSRF = <?= json_encode($csrf) ?>;
 </script>
-<script src="<?= e(url_to('/js/admin-import.js')) ?>"></script>
+<script src="<?= e(asset_url('/js/admin-import.js')) ?>"></script>

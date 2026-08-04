@@ -124,4 +124,4 @@ window.PAFISH_PAGE_EDITOR = {
   csrf: <?= json_encode(csrf_token()) ?>
 };
 </script>
-<script src="<?= e(url_to('/js/admin-page-editor.js')) ?>"></script>
+<script src="<?= e(asset_url('/js/admin-page-editor.js')) ?>"></script>

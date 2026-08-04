@@ -41,9 +41,18 @@ $fullTitle = $pageTitle !== '' && $pageTitle !== '首页' && $pageTitle !== site
   } catch (e) {}
 })();
 </script>
-<link rel="stylesheet" href="<?= e(url_to('/css/style.css')) ?>">
+<link rel="stylesheet" href="<?= e(asset_url('/css/style.css')) ?>">
 <?php if ($themeCss): ?><style data-theme="<?= e($activeTheme) ?>"><?= $themeCss ?></style><?php endif; ?>
 <?php /* 插件 head 注入（M5） */ do_action('head_inject'); ?>
+<script>
+/* API 路径适配：pretty_urls=false 时请求走 index.php?p=api/...，query 用 & 拼接 */
+window.pafishApi = function (p) {
+  var q = p.indexOf('?');
+  var path = q >= 0 ? p.slice(0, q) : p;
+  var query = q >= 0 ? p.slice(q + 1) : '';
+  return <?= json_encode(url_to('/api')) ?> + path + (query ? <?= json_encode(Config::get('pretty_urls', true) ? '?' : '&') ?> + query : '');
+};
+</script>
 </head>
 <body>
 <div class="app-shell">

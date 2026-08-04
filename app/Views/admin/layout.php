@@ -27,8 +27,17 @@ $roleLabel = match ((string) ($user['role'] ?? '')) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= e($title) ?> - <?= e($siteName) ?></title>
 <meta name="robots" content="noindex,nofollow">
-<link rel="stylesheet" href="<?= e(url_to('/css/style.css')) ?>">
-<link rel="stylesheet" href="<?= e(url_to('/css/admin.css')) ?>">
+<link rel="stylesheet" href="<?= e(asset_url('/css/style.css')) ?>">
+<link rel="stylesheet" href="<?= e(asset_url('/css/admin.css')) ?>">
+<script>
+/* API 路径适配：pretty_urls=false 时请求走 index.php?p=api/...，query 用 & 拼接 */
+window.pafishApi = function (p) {
+  var q = p.indexOf('?');
+  var path = q >= 0 ? p.slice(0, q) : p;
+  var query = q >= 0 ? p.slice(q + 1) : '';
+  return <?= json_encode(url_to('/api')) ?> + path + (query ? <?= json_encode(Config::get('pretty_urls', true) ? '?' : '&') ?> + query : '');
+};
+</script>
 </head>
 <body class="admin-body">
   <!-- 移动端顶栏 -->

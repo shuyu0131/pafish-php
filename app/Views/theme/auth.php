@@ -21,7 +21,16 @@ $title = $titleMap[$mode] ?? '登录';
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= e($title . ' · ' . $siteName) ?></title>
-<link rel="stylesheet" href="<?= e(url_to('/css/style.css')) ?>">
+<link rel="stylesheet" href="<?= e(asset_url('/css/style.css')) ?>">
+<script>
+/* API 路径适配：pretty_urls=false 时请求走 index.php?p=api/...，query 用 & 拼接 */
+window.pafishApi = function (p) {
+  var q = p.indexOf('?');
+  var path = q >= 0 ? p.slice(0, q) : p;
+  var query = q >= 0 ? p.slice(q + 1) : '';
+  return <?= json_encode(url_to('/api')) ?> + path + (query ? <?= json_encode(Config::get('pretty_urls', true) ? '?' : '&') ?> + query : '');
+};
+</script>
 </head>
 <body class="auth-body">
 <div class="auth-page">
@@ -214,7 +223,7 @@ $title = $titleMap[$mode] ?? '登录';
         body = { token: <?= json_encode($token) ?>, password: r1 };
       }
       setLoading(submitBtn, true, MODE === 'login' ? '登录中…' : '提交中…');
-      postJSON('/api/auth/' + (MODE === 'reset' ? 'reset' : MODE), body).then(function (res) {
+      postJSON(pafishApi('/auth/' + (MODE === 'reset' ? 'reset' : MODE)), body).then(function (res) {
         if (!res.ok) { showError(errBox, res.data.error || '操作失败'); return; }
         if (MODE === 'reset') {
           form.hidden = true;
@@ -245,7 +254,7 @@ $title = $titleMap[$mode] ?? '登录';
     var re = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
     if (!re.test(email)) { showError(errBox, '请先输入正确的邮箱'); return Promise.reject(); }
     btn.dataset.orig = btn.textContent;
-    return postJSON('/api/auth/send-code', { email: email, purpose: purpose }).then(function (res) {
+    return postJSON(pafishApi('/auth/send-code'), { email: email, purpose: purpose }).then(function (res) {
       if (!res.ok) { showError(errBox, res.data.error || '发送失败'); return false; }
       startCountdown(btn);
       return true;
@@ -270,7 +279,7 @@ $title = $titleMap[$mode] ?? '登录';
       var email = document.getElementById('forgot-email').value;
       hideError(errBox);
       setLoading(btn, true, '发送中…');
-      postJSON('/api/auth/send-code', { email: email, purpose: 'reset' }).then(function (res) {
+      postJSON(pafishApi('/auth/send-code'), { email: email, purpose: 'reset' }).then(function (res) {
         if (!res.ok) { showError(errBox, res.data.error || '发送失败'); return; }
         forgotEmail = email;
         sendForm.hidden = true;
@@ -295,7 +304,7 @@ $title = $titleMap[$mode] ?? '登录';
       if (p1 !== p2) { showError(errBox, '两次输入的密码不一致'); return; }
       hideError(errBox);
       setLoading(btn, true, '提交中…');
-      postJSON('/api/auth/reset-by-code', {
+      postJSON(pafishApi('/auth/reset-by-code'), {
         email: forgotEmail || '',
         code: document.getElementById('forgot-code').value,
         newPassword: p1,

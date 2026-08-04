@@ -36,6 +36,7 @@ use Pafish\Admin\AppearanceController;
 use Pafish\Admin\PluginsController;
 use Pafish\Admin\StoreController;
 use Pafish\Admin\ApiController;
+use Pafish\Api\V1Controller;
 
 /**
  * 路由注册（$app 来自 bootstrap.php include 上下文）
@@ -217,3 +218,10 @@ $app->post('/api/upload', [ApiController::class, 'upload']);
 $app->get('/api/uploads', [ApiController::class, 'uploads']);
 $app->post('/api/md-preview', [ApiController::class, 'mdPreview']);
 $app->post('/api/import-markdown', [ApiController::class, 'importMarkdown']);
+
+// ---- M6：开放 API v1（X-API-Key 鉴权，见 Core/ApiKey） ----
+$app->get('/api/v1/posts', [V1Controller::class, 'posts']);
+$app->get('/api/v1/posts/{slug}', [V1Controller::class, 'postDetail']);
+$app->get('/api/v1/categories', [V1Controller::class, 'categories']);
+$app->get('/api/v1/tags', [V1Controller::class, 'tags']);
+$app->get('/api/v1/comments', [V1Controller::class, 'comments']);

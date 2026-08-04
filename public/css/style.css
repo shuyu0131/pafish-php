@@ -706,12 +706,14 @@ input[type="radio"]:focus-visible {
   font-weight: 500;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+  text-align: center;
   color: var(--meta);
 }
 .widget-list {
   list-style: none;
   margin: 0;
   padding: 0;
+  text-align: center;
 }
 .widget-list li {
   padding: 0.35rem 0;
@@ -728,10 +730,11 @@ input[type="radio"]:focus-visible {
 .widget-cat {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
+  gap: 0.75rem;
 }
 .widget-cat-child {
-  padding-left: 1rem;
+  padding-left: 0;
 }
 .widget-count {
   font-size: 0.75rem;
@@ -740,6 +743,7 @@ input[type="radio"]:focus-visible {
 .widget-tags {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 0.5rem;
 }
 .widget-tag {
@@ -1187,7 +1191,6 @@ input[type="radio"]:focus-visible {
 
 .post-head {
   margin-bottom: 2rem;
-  text-align: center;
 }
 .post-title {
   margin: 0;
@@ -1204,7 +1207,6 @@ input[type="radio"]:focus-visible {
 .post-meta {
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
   align-items: center;
   gap: 0.375rem 1.25rem;
   margin-top: 1.25rem;
@@ -1215,6 +1217,9 @@ input[type="radio"]:focus-visible {
   display: inline-flex;
   align-items: center;
   gap: 0.375rem;
+}
+.post-views {
+  margin-left: auto;
 }
 .post-meta-tags {
   display: inline-flex;

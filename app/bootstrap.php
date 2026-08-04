@@ -62,6 +62,14 @@ $errorMiddleware->setDefaultErrorHandler(
 //（PHP 每请求新进程，天然无缓存/节流问题；boot 内部 try/catch，DB 不可用时不阻断前台）
 \Pafish\Services\Plugin::boot();
 
+// 7.6 定时发布兜底：无 cron 环境时由请求低频触发（runtime/scheduler.lock 60s 限频），
+// 让后台文章状态及时同步；有 cron 时该调用几乎不执行查询。失败不阻断请求。
+try {
+    \Pafish\Services\Scheduler::maybeRun();
+} catch (\Throwable $e) {
+    // 定时发布兜底失败不影响本次请求
+}
+
 // 8. 路由
 require __DIR__ . '/Http/routes.php';
 

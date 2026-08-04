@@ -73,8 +73,8 @@ final class MediaController extends AdminController
         DB::execute('DELETE FROM uploads WHERE id = ?', [$id]);
 
         $url = (string) $row['url'];
-        if (!str_contains($url, '/uploads/')) {
-            // 云存储：第一个声明 storage 且实现 deleteFile 的激活插件（M5 接入），失败静默记日志
+        if (preg_match('/^https?:\/\//i', $url) === 1) {
+            // 云端文件（完整 http(s) URL，云存储插件托管）→ 调插件删除（对齐 Node deleteUpload）
             apply_filters('upload_delete_from_cloud', null, ['url' => $url]);
         } else {
             // 本地：base 子路径校验防路径穿越后删除（失败忽略，与 Node 一致）

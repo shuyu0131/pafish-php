@@ -10,6 +10,7 @@ use Pafish\Core\Session;
 use Pafish\Core\Url;
 use Pafish\Http\Comments;
 use Pafish\Services\Settings;
+use Pafish\Services\Upgrade;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -63,6 +64,7 @@ abstract class AdminController
                 ['href' => '/admin/settings', 'label' => '站点设置', 'icon' => 'settings', 'require' => 'edit'],
                 ['href' => '/admin/store', 'label' => '应用商店', 'icon' => 'store', 'require' => 'admin'],
                 ['href' => '/admin/plugins', 'label' => '插件管理', 'icon' => 'puzzle', 'require' => 'admin'],
+                ['href' => '/admin/upgrade', 'label' => '系统更新', 'icon' => 'refresh', 'require' => 'admin'],
                 ['href' => '/admin/users', 'label' => '用户管理', 'icon' => 'users', 'require' => 'admin'],
                 ['href' => '/admin/backup', 'label' => '数据备份', 'icon' => 'database', 'require' => 'admin'],
             ],
@@ -80,6 +82,8 @@ abstract class AdminController
             'siteName' => (string) (Settings::get('site_name', '') ?: '纸鱼博客'),
             'nav' => $this->navForRole($role),
             'unreadNotifications' => (int) DB::value('SELECT COUNT(*) FROM notifications WHERE `read` = 0'),
+            // 系统更新红点（仅读 24h 缓存，不触网零延迟；实际检查由布局内静默 fetch 完成）
+            'upgradeAvailable' => $role === 'ADMIN' && (bool) (Upgrade::cached()['hasUpdate'] ?? false),
             'currentPath' => $this->currentPath(),
             'title' => $title,
             'flash' => $this->takeFlash(),

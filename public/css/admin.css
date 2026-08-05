@@ -2483,3 +2483,73 @@ a.admin-pg-btn:hover {
   vertical-align: middle;
   color: var(--muted);
 }
+
+/* ========== 系统更新页 ========== */
+.admin-upgrade-box {
+  padding: 20px;
+}
+.admin-upgrade-row {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+.admin-upgrade-col {
+  min-width: 120px;
+}
+.admin-upgrade-arrow {
+  color: var(--muted);
+  font-size: 20px;
+}
+.admin-upgrade-version {
+  margin: 4px 0 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--title);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.admin-upgrade-notes {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.admin-upgrade-notes-body {
+  margin-top: 8px;
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--body);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.admin-upgrade-ops {
+  margin-top: 20px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* 工作台系统版本行 */
+.admin-version-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+}
+.admin-version-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+@media (max-width: 640px) {
+  .admin-upgrade-row {
+    gap: 10px;
+  }
+  .admin-upgrade-arrow {
+    display: none;
+  }
+}

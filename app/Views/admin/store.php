@@ -13,7 +13,7 @@ function store_kind_label(string $kind): string
   <div class="admin-page-head">
     <div>
       <h1 class="admin-h1">应用商店</h1>
-      <p class="admin-page-sub">从商店一键安装主题与插件。安装包校验唯一顶层目录与路径安全，更新失败会自动恢复旧版本。商店源可在「站点设置 → 商店」中配置。</p>
+      <p class="admin-page-sub">从商店一键安装主题与插件。安装包校验唯一顶层目录与路径安全，更新失败会自动恢复旧版本。商店由官方内置（store.waikanl.cn）。</p>
     </div>
   </div>
   <p class="admin-backup-msg" id="storeMsg" hidden></p>
@@ -22,13 +22,8 @@ function store_kind_label(string $kind): string
   <?php endif; ?>
 
   <div class="admin-store-source">
-    <?php if ($storeUrl !== ''): ?>
-      <span class="badge badge-primary">远程商店</span>
-      <span class="admin-muted"><?= e($storeUrl) ?></span>
-    <?php else: ?>
-      <span class="badge">未配置</span>
-      <span class="admin-muted">未配置远程商店地址，请在「站点设置 → 应用商店」中填写后使用。</span>
-    <?php endif; ?>
+    <span class="badge badge-primary">内置官方商店</span>
+    <span class="admin-muted"><?= e($storeUrl) ?></span>
   </div>
 
   <div class="admin-tabs" role="tablist">
@@ -39,7 +34,7 @@ function store_kind_label(string $kind): string
   <?php foreach (['theme' => $themeCat, 'plugin' => $pluginCat] as $kind => $cat): ?>
     <div class="admin-store-pane" data-pane="<?= e($kind) ?>"<?= $kind === 'theme' ? '' : ' hidden' ?>>
       <?php if ($cat['items'] === []): ?>
-        <div class="card admin-empty">该分类暂无可用条目<?= $storeUrl !== '' ? '（远程商店可能尚未提供' . store_kind_label($kind) . '目录）' : '，请先配置远程商店地址' ?>。</div>
+        <div class="card admin-empty">该分类暂无可用条目（官方商店可能尚未提供<?= store_kind_label($kind) ?>，远程不可用时自动回退内置商店）。</div>
       <?php else: ?>
         <div class="admin-theme-grid">
           <?php foreach ($cat['items'] as $item): ?>

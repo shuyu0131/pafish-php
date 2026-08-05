@@ -71,14 +71,18 @@ window.pafishApi = function (p) {
             <span><?= e($group['label']) ?></span>
             <?= admin_icon('chevron', 14) ?>
           </button>
-          <div class="admin-nav-group-items">
+            <div class="admin-nav-group-items">
             <?php foreach ($group['items'] as $item): ?>
               <a class="admin-nav-item<?= admin_nav_active($item, $currentPath) ? ' active' : '' ?>"
-                 href="<?= e(url_to($item['href'])) ?>">
+                 href="<?= e(url_to($item['href'])) ?>"
+                 <?= ($item['href'] ?? '') === '/admin/upgrade' ? 'data-upgrade-nav' : '' ?>>
                 <?= admin_icon($item['icon']) ?>
                 <span><?= e($item['label']) ?></span>
                 <?php if (($item['href'] ?? '') === '/admin/notifications' && $unreadNotifications > 0): ?>
                   <span class="admin-nav-badge"><?= $unreadNotifications > 99 ? '99+' : $unreadNotifications ?></span>
+                <?php endif; ?>
+                <?php if (($item['href'] ?? '') === '/admin/upgrade' && !empty($upgradeAvailable)): ?>
+                  <span class="admin-nav-badge" data-upgrade-badge>!</span>
                 <?php endif; ?>
               </a>
             <?php endforeach; ?>
@@ -162,6 +166,31 @@ window.pafishApi = function (p) {
   document.querySelectorAll('.admin-flash-close').forEach(function (b) {
     b.addEventListener('click', function () { b.closest('.admin-flash').remove(); });
   });
+
+  // 系统更新静默检查（服务端 24h 缓存，不阻塞页面；有新版本 → 导航「系统更新」加红点徽标）
+  (function () {
+    var item = document.querySelector('[data-upgrade-nav]');
+    if (!item) { return; }
+    var fd = new FormData();
+    fd.append('_csrf', <?= json_encode(csrf_token()) ?>);
+    fetch(<?= json_encode(url_to('/admin/upgrade/check')) ?>, {
+      method: 'POST',
+      body: fd,
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (!j || !j.hasUpdate) { return; }
+        if (!item.querySelector('[data-upgrade-badge]')) {
+          var b = document.createElement('span');
+          b.className = 'admin-nav-badge';
+          b.setAttribute('data-upgrade-badge', '');
+          b.textContent = '!';
+          item.appendChild(b);
+        }
+      })
+      .catch(function () {});
+  })();
 })();
 </script>
 </body>

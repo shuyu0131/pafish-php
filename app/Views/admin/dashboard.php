@@ -112,4 +112,19 @@
       <?php endforeach; ?>
     </div>
   </div>
+
+  <!-- 系统版本 -->
+  <div class="card admin-version-row">
+    <div class="admin-version-main">
+      <span class="badge badge-primary">v<?= e($current) ?></span>
+      <span class="admin-muted">纸鱼博客系统版本</span>
+    </div>
+    <?php if (!empty($canUpgrade)): ?>
+      <?php if (!empty($upgradeInfo['hasUpdate'])): ?>
+        <a class="btn btn-primary btn-sm" href="<?= e(url_to('/admin/upgrade')) ?>">发现新版本 v<?= e($upgradeInfo['latest']) ?>，前往更新</a>
+      <?php else: ?>
+        <a class="btn btn-sm" href="<?= e(url_to('/admin/upgrade')) ?>">系统更新</a>
+      <?php endif; ?>
+    <?php endif; ?>
+  </div>
 </div>

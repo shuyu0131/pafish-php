@@ -4,6 +4,12 @@
 
 线上部署修复与加固（针对 Nginx 场景 CSS/JS 加载失败、后台登录网络错误）：
 
+### 新增
+
+- **内置官方应用商店（store.waikanl.cn）**：商店地址硬编码官方域名，用户零配置；直接消费官网 `/api/catalog` 目录与 `/downloads/apps/{id}` 下载；目录拉取失败自动回退内置商店，商店永不自挂
+- **系统在线更新**：后台「系统更新」页检查/升级，更新包与版本信息托管在 store.waikanl.cn；升级前自动整站备份（排除 runtime/backups/public/uploads 与 config.php），失败自动回滚；支持包内 `upgrade.php` 迁移脚本；导航角标提醒新版本（24h 缓存）
+- **更新/删除的 Windows 兼容加固**：删除前先清除只读属性（git 对象等只读文件在 Windows 下 rename/unlink 会被拒绝）
+
 ### 修复
 
 - **静态资源加载失败**：静态资源统一走 `public/` 直链（`css/ js/ uploads/`），不再依赖伪静态重写；新增 Slim 静态兜底路由（`StaticFileController`），Nginx 未配置静态规则时也由 PHP 正常返回资源

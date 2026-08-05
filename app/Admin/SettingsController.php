@@ -21,10 +21,9 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  */
 final class SettingsController extends AdminController
 {
-    /** 保存白名单（对齐 Node updateSettings 的 allowed Set，23 键） */
+    /** 保存白名单（对齐 Node updateSettings 的 allowed Set；商店地址已内置官方源不再可配） */
     private const ALLOWED_KEYS = [
         'site_name', 'site_subtitle', 'site_description', 'site_icp',
-        'store_url', 'store_token',
         'comments_enabled', 'comments_need_review', 'comments_captcha_enabled',
         'posts_per_page', 'blocked_ips',
         'upload_max_mb',

@@ -6,6 +6,8 @@ namespace Pafish\Admin;
 
 use Pafish\Core\Auth;
 use Pafish\Core\DB;
+use Pafish\Core\Version;
+use Pafish\Services\Upgrade;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -87,6 +89,9 @@ final class DashboardController extends AdminController
             'catRows' => $catRows,
             'latest' => $latest,
             'totalTrend' => array_sum(array_column($trend, 'count')),
+            'current' => Version::current(),
+            'canUpgrade' => (string) ($user['role'] ?? '') === 'ADMIN',
+            'upgradeInfo' => Upgrade::cached(),
         ], '工作台');
 
         $response->getBody()->write($html);

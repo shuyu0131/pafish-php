@@ -4,9 +4,13 @@ declare(strict_types=1);
 
 /**
  * 构建发布 zip（预打包 vendor，用户零命令行安装）：
- *   php scripts/build-release.php [--tag=v0.1.0]
- * 产物：dist/pafish-php-{tag}.zip，顶层目录 pafish/（WordPress 式，解压后把 pafish/
- * 内容上传到网站根目录即可）。
+ *   php scripts/build-release.php [--tag=v0.1.0] [--notes=...] [--min=0.1.0]
+ * 产物：
+ *   dist/pafish-php-{tag}.zip            发布包，顶层目录 pafish/（WordPress 式）
+ *   dist/store-php/pafish-php.json       在线更新元数据（version/notes/zip/min_version）
+ *   dist/store-php/pafish-php-{tag}.zip  更新包（与发布包同一份）
+ * 部署：把 store-php/ 下两个文件上传到官网 public/pafish-php/（store.waikanl.cn），
+ * 更新系统按元数据目录解析 zip 相对路径。notes 默认取自 CHANGELOG.md 的「## {tag}」小节。
  *
  * 排除：.git、本地 config.php、运行时产物（runtime/*、public/uploads/*、backups/*）、
  * 测试文件、编辑器文件。vendor/ 完整打包。
@@ -149,3 +153,41 @@ $leaks = array_values(array_filter($entries, static fn (string $e): bool =>
 ));
 echo "vendor 条目数：" . count(array_filter($entries, static fn (string $e): bool => str_contains($e, 'pafish/vendor/'))) . "\n";
 echo $leaks === [] ? "敏感文件检查：无泄漏\n" : "警告：发现疑似泄漏条目：\n" . implode("\n", array_slice($leaks, 0, 10)) . "\n";
+
+// ---- 更新元数据（托管到官网 store.waikanl.cn/pafish-php/，静态文件，不改官网代码） ----
+// 在线更新协议：GET {base}/pafish-php/pafish-php.json → { version, notes, zip, min_version }
+// zip 为相对路径，基于元数据 URL 目录解析；zip 与发布包同一份（顶层 pafish/）
+$notes = '';
+if (is_file($root . '/CHANGELOG.md')) {
+    $changelog = (string) file_get_contents($root . '/CHANGELOG.md');
+    // 提取「## {tag}」小节正文（标题行可带日期，到下一个 ## 或文末）
+    if (preg_match('/^##\s+' . preg_quote($tag, '/') . '[^\n]*\n(.*?)(?=^##\s|\z)/ms', $changelog, $m)) {
+        $notes = trim($m[1]);
+    }
+}
+$minVer = '0.1.0';
+foreach ($argv as $arg) {
+    if (str_starts_with($arg, '--notes=')) {
+        $notes = substr($arg, 8);
+    } elseif (str_starts_with($arg, '--min=')) {
+        $minVer = substr($arg, 6);
+    }
+}
+$storeDir = $outDir . '/store-php';
+if (!is_dir($storeDir)) {
+    mkdir($storeDir, 0755, true);
+}
+$meta = [
+    'version' => ltrim($tag, 'v'),
+    'notes' => $notes,
+    'zip' => 'pafish-php-' . $tag . '.zip',
+    'min_version' => $minVer,
+];
+file_put_contents(
+    $storeDir . '/pafish-php.json',
+    json_encode($meta, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n"
+);
+copy($outPath, $storeDir . '/' . $meta['zip']);
+echo "[ok] {$storeDir}/pafish-php.json（version {$meta['version']}，min {$minVer}）\n";
+echo "[ok] {$storeDir}/{$meta['zip']}（" . round(filesize($storeDir . '/' . $meta['zip']) / 1024 / 1024, 2) . " MB）\n";
+echo "部署：将 store-php/ 下两个文件上传到官网 public/pafish-php/ 目录\n";

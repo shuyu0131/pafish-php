@@ -4,36 +4,37 @@ declare(strict_types=1);
 namespace Pafish\Services;
 
 /**
- * 应用商店（对齐 Node 版 store.ts 协议）：
- * - 设置键 store_url（远程商店地址）与 store_token（Bearer）
- * - 目录：{base}/themes.json、{base}/plugins.json（顶层数组，条目含 name/title/version/zip）
- * - 未配置远程地址 → 空目录；远程失败 → 空目录 + error 提示（不内置本地源）
- * - 名称正则 /^[a-z0-9_-]{1,50}$/；zip 相对路径拼 base，http(s) 直用
+ * 应用商店（官方源硬编码，零配置）：
+ * - 官方源：https://store.waikanl.cn（官网 pafish-web 的商店 API，无需用户填写地址）
+ * - 远程协议：GET {base}/api/catalog → {name, version, apps:[...]}，按 type 过滤
+ *   （theme / extension），字段映射：slug→name（安装目录名）、name→title、version→version、
+ *   author/description 直取、download_url→zip（相对路径拼 base）、screenshots[0]→preview
+ * - 远程目录失败 → 自动回退本地内置源 public/store/{themes,plugins}.json（zip 本地直读），
+ *   商店页永不自挂（对齐 Node 三级源策略的本地兜底）
+ * - 名称正则 /^[a-z0-9_-]{1,50}$/；zip 相对路径拼 base，http(s) 直用；本地兜底走文件直读
  * - 版本比较：数字分段（容忍 v 前缀，非数字段按 0）
  * - 安装拒绝已存在（提示直接更新）；更新 = 备份旧版 → 移除 → 装新版，失败自动恢复旧版
  * - Windows 兼容：全程 SPL 递归复制/删除，不依赖 rename（PHP 8.5 + Windows 上
  *   stat 句柄会导致 rename/rmdir「拒绝访问」且时好时坏）
+ * - PAFISH_STORE_URL 环境变量可覆盖官方源（仅测试注入用，生产零配置）
  */
 final class Store
 {
+    /** 官方商店（官网 pafish-web 部署域名），测试可用环境变量覆盖 */
+    private const OFFICIAL_STORE_URL = 'https://store.waikanl.cn';
+
     private const NAME_PATTERN = '/^[a-z0-9_-]{1,50}$/';
     private const MAX_ZIP_BYTES = 10 * 1024 * 1024;
     private const KIND_FILE = ['theme' => 'themes.json', 'plugin' => 'plugins.json'];
 
-    /** 商店地址（未配置或非 http(s) → ''，表示未启用远程商店） */
+    /** 商店地址（官方源硬编码；仅测试注入可覆盖） */
     public static function baseUrl(): string
     {
-        $url = trim((string) Settings::get('store_url', ''));
-        if ($url === '' || preg_match('#^https?://#i', $url) !== 1) {
-            return '';
+        $env = trim((string) getenv('PAFISH_STORE_URL'));
+        if ($env !== '' && preg_match('#^https?://#i', $env) === 1) {
+            return rtrim($env, '/');
         }
-        return rtrim($url, '/');
-    }
-
-    /** 商店访问令牌（下载私有包时带 Authorization: Bearer） */
-    public static function token(): string
-    {
-        return trim((string) Settings::get('store_token', ''));
+        return self::OFFICIAL_STORE_URL;
     }
 
     /** 数字分段版本比较：$a < $b → -1，相等 → 0，$a > $b → 1（对齐 Node compareVersions） */
@@ -62,25 +63,24 @@ final class Store
     }
 
     /**
-     * 拉取目录：未配置 store_url → 空目录（提示配置）；远程失败 → 空目录 + error。
-     * 返回 ['items' => 条目数组, 'base' => 源地址, 'error'? => 失败原因]
+     * 拉取目录：官方源（store.waikanl.cn）优先；远程失败 → 回退本地内置源 public/store。
+     * 返回 ['items' => 条目数组, 'base' => 源地址（远程=官网，本地兜底=''）, 'error'? => 回退原因]
      */
     public static function fetchCatalog(string $kind): array
     {
-        $file = self::KIND_FILE[$kind] ?? 'themes.json';
         $base = self::baseUrl();
-        if ($base === '') {
-            return ['items' => [], 'base' => ''];
-        }
+        $label = '官方商店';
         try {
-            return ['items' => self::parseCatalog(self::httpGet($base . '/' . $file)), 'base' => $base];
+            return ['items' => self::parseRemoteCatalog(self::httpGet($base . '/api/catalog'), $kind), 'base' => $base];
         } catch (\Throwable $e) {
-            return [
-                'items' => [],
-                'base' => '',
-                'error' => '远程商店不可用：' . $e->getMessage(),
-            ];
+            $fallbackHint = $label . '目录获取失败：' . $e->getMessage();
         }
+        // 回退：本地内置商店（public/store，zip 本地直读）
+        return [
+            'items' => self::readLocalCatalog($kind),
+            'base' => '',
+            'error' => $fallbackHint . '，已回退内置商店（public/store）',
+        ];
     }
 
     /** 已安装版本（未安装返回 null） */
@@ -153,7 +153,10 @@ final class Store
         }
     }
 
-    /** 下载 zip 包（远程带 Bearer token；未配置远程商店时直接拒绝） */
+    /**
+     * 下载 zip 包：base=''（本地兜底）→ 从 public/store 直读；否则相对路径拼 base，
+     * http(s) 直用。远程下载失败也尝试本地兜底（目录来自远程但 zip 失效时）
+     */
     private static function downloadZip(string $base, array $item): string
     {
         $zip = (string) ($item['zip'] ?? '');
@@ -163,10 +166,95 @@ final class Store
         if (preg_match('#^https?://#i', $zip) === 1) {
             return self::httpGet($zip);
         }
-        if ($base === '') {
-            throw new \RuntimeException('未配置远程商店地址，无法下载');
+        if ($base !== '') {
+            try {
+                return self::httpGet(rtrim($base, '/') . '/' . ltrim($zip, '/'));
+            } catch (\Throwable $e) {
+                // 远程 zip 失效 → 尝试本地兜底
+                $local = self::readLocalZip($zip);
+                if ($local === null) {
+                    throw $e;
+                }
+                return $local;
+            }
         }
-        return self::httpGet(rtrim($base, '/') . '/' . ltrim($zip, '/'));
+        $local = self::readLocalZip($zip);
+        if ($local === null) {
+            throw new \RuntimeException('内置商店缺少安装包：' . $zip);
+        }
+        return $local;
+    }
+
+    /** 从 public/store 读取本地安装包（zip 路径如 /store/demo-nord.zip 或 demo-nord.zip） */
+    private static function readLocalZip(string $zip): ?string
+    {
+        $name = ltrim($zip, '/');
+        if (str_starts_with($name, 'store/')) {
+            $name = substr($name, strlen('store/'));
+        }
+        $path = dirname(__DIR__, 2) . '/public/store/' . $name;
+        if (!is_file($path)) {
+            return null;
+        }
+        $data = @file_get_contents($path);
+        return $data === false ? null : $data;
+    }
+
+    /** 读取本地内置商店目录（public/store，直读文件；损坏时返回空） */
+    private static function readLocalCatalog(string $kind): array
+    {
+        $file = self::KIND_FILE[$kind] ?? 'themes.json';
+        $path = dirname(__DIR__, 2) . '/public/store/' . $file;
+        $body = @file_get_contents($path);
+        if ($body === false) {
+            return [];
+        }
+        return self::parseCatalog($body);
+    }
+
+    /**
+     * 解析官网目录响应：{name, version, apps:[{type, slug, name, version, author,
+     * description, download_url, screenshots, ...}]} → 统一条目格式
+     * kind：theme → type=theme；plugin → type=extension
+     */
+    private static function parseRemoteCatalog(string $body, string $kind): array
+    {
+        $raw = json_decode($body, true);
+        if (!is_array($raw) || !isset($raw['apps']) || !is_array($raw['apps'])) {
+            throw new \RuntimeException('目录格式不正确');
+        }
+        $expectType = $kind === 'theme' ? 'theme' : 'extension';
+        $items = [];
+        foreach ($raw['apps'] as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            if (($entry['type'] ?? '') !== $expectType) {
+                continue;
+            }
+            $name = (string) ($entry['slug'] ?? '');
+            $title = (string) ($entry['name'] ?? '');
+            $version = (string) ($entry['version'] ?? '');
+            $zip = (string) ($entry['download_url'] ?? '');
+            if ($name === '' || $title === '' || $version === '' || $zip === '') {
+                continue;
+            }
+            if (preg_match(self::NAME_PATTERN, $name) !== 1) {
+                continue;
+            }
+            $shots = $entry['screenshots'] ?? [];
+            $preview = is_array($shots) && isset($shots[0]) ? (string) $shots[0] : '';
+            $items[] = [
+                'name' => $name,
+                'title' => $title,
+                'version' => $version,
+                'description' => isset($entry['description']) ? (string) $entry['description'] : '',
+                'author' => isset($entry['author']) ? (string) $entry['author'] : '',
+                'zip' => $zip,
+                'preview' => $preview,
+            ];
+        }
+        return $items;
     }
 
     /**
@@ -227,11 +315,6 @@ final class Store
 
     private static function httpGet(string $url): string
     {
-        $headers = [];
-        $token = self::token();
-        if ($token !== '') {
-            $headers[] = 'Authorization: Bearer ' . $token;
-        }
         $ch = curl_init($url);
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
@@ -239,7 +322,6 @@ final class Store
             CURLOPT_TIMEOUT => 30,
             CURLOPT_CONNECTTIMEOUT => 10,
             CURLOPT_USERAGENT => 'pafish-store/1.0',
-            CURLOPT_HTTPHEADER => $headers,
         ]);
         $body = curl_exec($ch);
         $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
@@ -253,7 +335,7 @@ final class Store
         return (string) $body;
     }
 
-    /** 解析目录 JSON：非法条目（缺字段/名称不合法）跳过 */
+    /** 解析本地目录 JSON：非法条目（缺字段/名称不合法）跳过 */
     private static function parseCatalog(string $body): array
     {
         $raw = json_decode($body, true);

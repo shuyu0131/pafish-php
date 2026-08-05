@@ -57,16 +57,7 @@ try {
           <span class="label">ICP 备案号</span>
           <input class="input" type="text" name="site_icp" value="<?= e($textVal('site_icp')) ?>" placeholder="如：京ICP备xxxxxxxx号" maxlength="100">
         </div>
-        <div class="admin-field">
-          <span class="label">应用商店地址</span>
-          <input class="input" type="text" name="store_url" value="<?= e($textVal('store_url')) ?>" placeholder="https://store.example.com" maxlength="500">
-          <p class="admin-field-hint">远程商店基础地址，需提供 themes.json 与 plugins.json；留空则不启用应用商店。</p>
-        </div>
-        <div class="admin-field">
-          <span class="label">商店访问令牌</span>
-          <input class="input" type="password" name="store_token" value="<?= e($textVal('store_token')) ?>" placeholder="公开源留空" autocomplete="new-password" maxlength="500">
-          <p class="admin-field-hint">私有源鉴权，请求目录与 zip 下载携带 Authorization: Bearer 头；留空=公开源；令牌只存服务器。</p>
-        </div>
+        <p class="admin-field-hint">应用商店由官方内置（store.waikanl.cn），无需配置。</p>
       </div>
     </div>
 

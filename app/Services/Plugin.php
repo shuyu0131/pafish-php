@@ -814,13 +814,22 @@ final class Plugin
      *  共享），任何进程都无法删除原路径；实测 php -S 服务器对「被本进程 include 过
      *  的 .php」直接 unlink 时，在长时间运行后会出现进程级无声崩溃（无错误无日志，
      *  可能是 360/Defender 的 minifilter 与 PHP 内部清理交互所致），而 rename 换名
-     *  后原路径即释放，删除新名稳定成功。rename 失败（源被独占）才回退直接删 */
+     *  后原路径即释放。rename 成功即视为删除完成：安全软件（如 360 文件保护）会
+     *  拦截 PHP 内容文件的 unlink，此时新名残留为 .del 文件，不影响原路径与功能。
+     *  rename 失败（源被独占）才回退直接删 */
     private static function rmRemove(string $path, bool $isDir): bool
     {
+        // Windows：git 对象等文件带只读属性，rename/unlink 会被拒绝，先清只读位
+        if (!$isDir) {
+            @chmod($path, 0666);
+        }
         $tmp = dirname($path) . '/.' . basename($path) . '.del' . bin2hex(random_bytes(3));
         for ($i = 0; $i < 3; $i++) {
             if (@rename($path, $tmp)) {
-                return $isDir ? @rmdir($tmp) : @unlink($tmp);
+                if ($isDir) {
+                    return @rmdir($tmp) || !is_dir($tmp);
+                }
+                return @unlink($tmp) || !is_file($tmp);
             }
             if ($i < 2) {
                 usleep(150000);

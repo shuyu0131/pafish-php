@@ -35,6 +35,7 @@ use Pafish\Admin\BackupController;
 use Pafish\Admin\AppearanceController;
 use Pafish\Admin\PluginsController;
 use Pafish\Admin\StoreController;
+use Pafish\Admin\UpgradeController;
 use Pafish\Admin\ApiController;
 use Pafish\Api\V1Controller;
 use Pafish\Http\StaticFileController;
@@ -212,6 +213,11 @@ $app->group('/admin', function ($group) {
     $group->get('/store', [StoreController::class, 'index']);
     $group->post('/store/install', [StoreController::class, 'install']);
     $group->post('/store/update', [StoreController::class, 'update']);
+
+    // 系统更新（仅 ADMIN：检查 / 执行，失败自动回滚）
+    $group->get('/upgrade', [UpgradeController::class, 'index']);
+    $group->post('/upgrade/check', [UpgradeController::class, 'check']);
+    $group->post('/upgrade/run', [UpgradeController::class, 'run']);
 })->add(AdminAuthMiddleware::class);
 
 // ---- M3：编辑器配套 API（登录 + 内容权限 + CSRF，控制器内自检） ----

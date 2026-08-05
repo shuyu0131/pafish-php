@@ -1,12 +1,12 @@
 /**
  * 文章编辑器（对齐 Node post-editor.tsx + category-select.tsx + media-picker.tsx）：
- * - Markdown 工具栏（加粗/斜体/删除线/标题/引用/代码/列表/链接/图片/表格/分隔线）
- * - 编辑 / 分栏 / 预览 三模式（预览走 /api/md-preview 服务端渲染）
+ * - Markdown 编辑：@uiw/react-md-editor（中文工具栏/分栏预览/全屏，react18 内置单文件），对齐 Node 版
+ * - 拖拽/粘贴图片上传（/api/upload，GD 压缩入库）；非图片文件插入下载链接
  * - slug 联动（未手动修改时随标题生成）、标签点选+新建、封面上传/媒体库
  * - 高级选项：定时发布、置顶、访问密码、外链、分类内置顶、自定义字段
  * - 提交校验 → AJAX 保存 → 跳转编辑页（对齐 Node redirect）
  * - Ctrl+S 快速存草稿；编辑模式每 60 秒自动保存（dirty 检测）
- * - 拖拽/粘贴图片上传；媒体弹窗（本地上传 / 媒体库 24/页 + 500ms 防抖搜索）
+ * - 媒体弹窗（本地上传 / 媒体库 24/页 + 500ms 防抖搜索）
  */
 (function () {
   "use strict";
@@ -55,9 +55,6 @@
   var lastSavedAt = null;      // 'HH:mm'
   var autosaveFailed = false;
   var currentCategory = String(initial.categoryId || "");
-  var mode = "live";           // edit | live | preview
-  var previewTimer = null;
-  var lastRendered = null;
   var modal = { open: false, mode: "insert", tab: "upload", page: 1, q: "", total: 0, loading: false, searchTimer: null };
   var catOpen = false;
   var catQuery = "";
@@ -70,8 +67,6 @@
     slug: $("#fSlug"),
     excerpt: $("#fExcerpt"),
     content: $("#fContent"),
-    preview: $(".admin-md-preview"),
-    mdBody: $(".admin-md-body"),
     coverUrl: $("#fCoverUrl"),
     coverPreview: $("[data-cover-preview]"),
     coverImg: $("[data-cover-preview] img"),
@@ -99,6 +94,128 @@
     mediaFile: $("#mediaFile"),
   };
 
+  // ---------- 编辑器（@uiw/react-md-editor，React 挂载） ----------
+  // 编辑器当前值：React onChange 实时同步回 #fContent（原生表单兜底 / FormData 读取）
+  function editorValue() {
+    return els.content.value;
+  }
+  // 光标处插入（媒体弹窗 / 拖拽粘贴上传用）：优先编辑器 API（对齐 Node api.replaceSelection）
+  function editorInsert(md) {
+    var api = window.__pafishMdApi;
+    if (api && typeof api.replaceSelection === "function") {
+      try {
+        api.replaceSelection(md);
+        return;
+      } catch (e) { /* 回退 DOM 方式 */ }
+    }
+    var real = $(".w-md-editor-text-input");
+    if (real) {
+      var start = real.selectionStart != null ? real.selectionStart : real.value.length;
+      var end = real.selectionEnd != null ? real.selectionEnd : start;
+      var before = real.value.slice(0, start);
+      var insert = (before === "" || /(?:\n\n|\n)$/.test(before)) ? md + "\n" : "\n\n" + md + "\n";
+      real.setRangeText(insert, start, end, "end");
+      real.dispatchEvent(new Event("input", { bubbles: true })); // 触发 React onChange
+      real.focus();
+      return;
+    }
+    els.content.value += md;
+  }
+
+  // 资源缺失兜底：显示原生 textarea 直接编辑
+  function editorFallback() {
+    var mount = $("#mdEditorMount");
+    if (mount) mount.style.display = "none";
+    els.content.hidden = false;
+    els.content.style.height = "520px";
+    els.content.style.width = "100%";
+    els.content.style.padding = "12px";
+  }
+
+  function initEditor() {
+    var mount = $("#mdEditorMount");
+    if (!mount) return;
+    var MDEditor = window.MDEditor, React = window.React, ReactDOM = window.ReactDOM;
+    if (!MDEditor || !React || !ReactDOM) { editorFallback(); return; }
+
+    var Comp = MDEditor.default || MDEditor;
+    var cn = window.PAFISH_MD_CN || { commands: [], extra: [] };
+
+    // 媒体插入命令：工具栏按钮打开弹窗（本地上传 / 媒体库），选择后光标处插入（对齐 Node insertMediaCommand）
+    var insertMediaCommand = {
+      name: "insert-media",
+      keyCommand: "insert-media",
+      buttonProps: { "aria-label": "插入媒体", title: "插入媒体（本地上传或媒体库）" },
+      icon: React.createElement("svg", { viewBox: "0 0 24 24", width: 14, height: 14, fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" },
+        React.createElement("path", { d: "M16 5h6" }),
+        React.createElement("path", { d: "M19 2v6" }),
+        React.createElement("path", { d: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h10" }),
+        React.createElement("path", { d: "m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" })
+      ),
+      execute: function (_state, api) {
+        window.__pafishMdApi = api;
+        openModal("insert");
+      },
+    };
+
+    // 图片/文件上传并插入（拖拽与粘贴共用）
+    function handleFile(f, isDrag) {
+      if (!f) return;
+      uploadFile(f)
+        .then(function (j) {
+          if (isImage(f.type)) {
+            editorInsert("![图片](" + j.url + ")");
+          } else {
+            var label = (f.name || "").replace(/\.[^.]+$/, "") || "文件";
+            editorInsert("[" + label + "](" + j.url + ")");
+          }
+        })
+        .catch(function (err) { showError(err.message || "上传失败"); });
+    }
+
+    // 包装组件：受控循环（@uiw 内部 state 与 value prop 同步，不回传会导致输入被回滚）
+    var PafishEditor = function (props) {
+      var st = React.useState(props.initialValue);
+      var value = st[0];
+      var setValue = st[1];
+      return React.createElement(Comp, Object.assign({}, props.mdProps, {
+        value: value,
+        onChange: function (v) {
+          setValue(v || "");
+          props.onChange(v || "");
+        },
+      }));
+    };
+
+    var el = React.createElement(PafishEditor, {
+      initialValue: initial.content || "",
+      onChange: function (v) { els.content.value = v || ""; },
+      mdProps: {
+        height: 560,
+        preview: "edit",
+        commands: (cn.commands || []).concat([insertMediaCommand]),
+        extraCommands: cn.extra || [],
+        visibleDragbar: false,
+        textareaProps: { placeholder: "开始写作…（支持拖拽/粘贴图片上传）" },
+        onPaste: function (e) {
+          var files = e.clipboardData && e.clipboardData.files;
+          if (!files || !files.length) return;
+          e.preventDefault();
+          handleFile(files[0], false);
+        },
+        onDrop: function (e) {
+          var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+          if (!f) return;
+          e.preventDefault();
+          handleFile(f, true);
+        },
+      },
+    });
+
+    var root = ReactDOM.createRoot(mount);
+    root.render(el);
+  }
+
   // ---------- 表单值 / 脏检测（对齐 Node dirty 计算） ----------
   function collectCustomFields() {
     return $$("[data-cf-key]", els.customFields).map(function (row) {
@@ -109,7 +226,7 @@
     return els.title.value !== (initial.title || "") ||
       els.slug.value !== (initial.slug || "") ||
       els.excerpt.value !== (initial.excerpt || "") ||
-      els.content.value !== (initial.content || "") ||
+      editorValue() !== (initial.content || "") ||
       els.coverUrl.value !== (initial.coverUrl || "") ||
       currentCategory !== (initial.categoryId || "") ||
       JSON.stringify(tagIds) !== JSON.stringify(initial.tagIds || []) ||
@@ -156,118 +273,6 @@
     }
   }
 
-  // ---------- Markdown 插入（光标处） ----------
-  function insertMd(md) {
-    var ta = els.content;
-    var start = ta.selectionStart != null ? ta.selectionStart : ta.value.length;
-    var end = ta.selectionEnd != null ? ta.selectionEnd : start;
-    var before = ta.value.slice(0, start);
-    var insert = (before === "" || /(?:\n\n|\n)$/.test(before)) ? md + "\n" : "\n\n" + md + "\n";
-    ta.setRangeText(insert, start, end, "end");
-    ta.focus();
-    refreshSoon();
-  }
-
-  // 行级变换（选区为空时作用于光标所在行）
-  function applyBlock(fn) {
-    var ta = els.content;
-    var start = ta.selectionStart, end = ta.selectionEnd;
-    var v = ta.value;
-    var ls = v.lastIndexOf("\n", start - 1) + 1;
-    var le = v.indexOf("\n", end);
-    if (le === -1) le = v.length;
-    var lines = v.slice(ls, le).split("\n");
-    var out = fn(lines);
-    if (out === null) return; // 命令放弃（如已是列表项）
-    ta.setRangeText(out.join("\n"), ls, le, "end");
-    ta.focus();
-    refreshSoon();
-  }
-
-  var TOOLBAR = {
-    bold: function () { wrapSel("**", "**", "加粗文字"); },
-    italic: function () { wrapSel("*", "*", "斜体文字"); },
-    strike: function () { wrapSel("~~", "~~", "删除线文字"); },
-    "inline-code": function () { wrapSel("`", "`", "code"); },
-    link: function () { wrapSel("[", "](https://)", "链接文字"); },
-    image: function () { wrapSel("![", "](https://)", "图片描述"); },
-    quote: function () { applyBlock(function (lines) { return lines.map(function (l) { return l ? "> " + l : l; }); }); },
-    code: function () { applyBlock(function (lines) { return ["```", lines.join("\n"), "```"]; }); },
-    ul: function () { applyBlock(function (lines) {
-      var any = lines.some(function (l) { return /^\s*[-*+]\s+/.test(l); });
-      if (any) return null;
-      return lines.map(function (l) { return l ? "- " + l : l; });
-    }); },
-    ol: function () { applyBlock(function (lines) {
-      var any = lines.some(function (l) { return /^\s*\d+\.\s+/.test(l); });
-      if (any) return null;
-      var n = 0;
-      return lines.map(function (l) { return l ? (++n) + ". " + l : l; });
-    }); },
-    table: function () { applyBlock(function (lines) {
-      return lines.length <= 1 && lines[0] === ""
-        ? ["| 列 1 | 列 2 |", "| --- | --- |", "| 内容 | 内容 |"]
-        : [lines.join("\n"), "", "| 列 1 | 列 2 |", "| --- | --- |", "| 内容 | 内容 |"];
-    }); },
-    hr: function () { insertMd("---"); },
-    heading: function (n) { applyBlock(function (lines) {
-      if (n === "p") {
-        return lines.map(function (l) { return l.replace(/^#{1,6}\s+/, ""); });
-      }
-      var mark = Array(parseInt(n, 10) + 1).join("#");
-      return lines.map(function (l) { return l ? mark + " " + l.replace(/^#{1,6}\s+/, "") : l; });
-    }); },
-  };
-
-  function wrapSel(pre, post, placeholder) {
-    var ta = els.content;
-    var start = ta.selectionStart, end = ta.selectionEnd;
-    var sel = ta.value.slice(start, end) || placeholder;
-    ta.setRangeText(pre + sel + post, start, end, "end");
-    if (!ta.value.slice(start, end)) {
-      var innerStart = start + pre.length;
-      ta.setSelectionRange(innerStart, innerStart + placeholder.length);
-    }
-    ta.focus();
-    refreshSoon();
-  }
-
-  // ---------- 预览（服务端 Parsedown） ----------
-  function refreshSoon() { schedulePreview(400); }
-  function schedulePreview(delay) {
-    if (mode === "edit") return;
-    var content = els.content.value;
-    if (content === lastRendered) return;
-    clearTimeout(previewTimer);
-    previewTimer = setTimeout(doPreview, delay);
-  }
-  function doPreview() {
-    var content = els.content.value;
-    lastRendered = content;
-    fetch(DATA.previewUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Requested-With": "XMLHttpRequest" },
-      body: JSON.stringify({ content: content, _csrf: CSRF }),
-    })
-      .then(function (r) { return r.json(); })
-      .then(function (d) {
-        if (d && d.html != null) els.preview.innerHTML = d.html;
-      })
-      .catch(function () { /* 预览失败不打扰 */ });
-  }
-
-  function setMode(m) {
-    mode = m;
-    $$(".admin-md-btn[data-mode]").forEach(function (b) {
-      b.classList.toggle("admin-md-mode-active", b.getAttribute("data-mode") === m);
-    });
-    els.mdBody.classList.remove("admin-md-mode-edit", "admin-md-mode-live", "admin-md-mode-preview");
-    els.mdBody.classList.add("admin-md-mode-" + m);
-    els.content.hidden = m === "preview";
-    els.preview.hidden = m === "edit";
-    if (m !== "edit") doPreview();
-  }
-
   // ---------- 保存 ----------
   function buildPayload(action) {
     var p = new URLSearchParams();
@@ -276,7 +281,7 @@
     p.set("title", els.title.value.trim());
     p.set("slug", els.slug.value.trim());
     p.set("excerpt", els.excerpt.value.trim());
-    p.set("content", els.content.value);
+    p.set("content", editorValue());
     p.set("cover_url", els.coverUrl.value.trim());
     p.set("category_id", currentCategory !== "" && currentCategory !== "__new__" ? currentCategory : "");
     p.set("new_category", currentCategory === "__new__" ? els.newCatInput.value.trim() : "");
@@ -296,7 +301,7 @@
     if (pending) return;
     clearError();
     if (!els.title.value.trim()) { showError("请填写标题"); return; }
-    if (!els.content.value.trim()) { showError("请填写正文内容"); return; }
+    if (!editorValue().trim()) { showError("请填写正文内容"); return; }
     if (action === "schedule" && !els.scheduledAt.value) { showError("请选择定时发布时间"); return; }
     pending = action;
     updatePendingUI();
@@ -322,7 +327,7 @@
   // 自动保存：仅编辑模式，每 60 秒（dirty 且标题/正文非空时）
   function checkAutosave() {
     if (!isEdit || pending) return;
-    if (!isDirty() || !els.title.value.trim() || !els.content.value.trim()) return;
+    if (!isDirty() || !els.title.value.trim() || !editorValue().trim()) return;
     pending = "auto";
     updateAutosave();
     fetch(DATA.saveUrl, {
@@ -627,7 +632,7 @@
     }
     var label = String(name || "").replace(/\.[^.]+$/, "") || "媒体";
     var md = isImage(mime) ? "![" + label + "](" + url + ")" : "[" + label + "](" + url + ")";
-    insertMd(md);
+    editorInsert(md);
     closeModal();
   }
 
@@ -636,7 +641,6 @@
     // 初始值
     els.slug.value = initial.slug || "";
     els.excerpt.value = initial.excerpt || "";
-    els.content.value = initial.content || "";
     els.coverUrl.value = initial.coverUrl || "";
     els.scheduledAt.value = DATA.scheduledAt || "";
     els.externalUrl.value = initial.externalUrl || "";
@@ -648,28 +652,8 @@
     renderCatSelect();
     renderCustomFields();
 
-    // 工具栏
-    $$("[data-md]").forEach(function (b) {
-      b.addEventListener("click", function () {
-        var cmd = b.getAttribute("data-md");
-        if (cmd === "media") { openModal("insert"); return; }
-        if (TOOLBAR[cmd]) TOOLBAR[cmd]();
-      });
-    });
-    var headingSel = $(".admin-md-select");
-    if (headingSel) {
-      headingSel.addEventListener("change", function () {
-        var v = headingSel.value;
-        headingSel.value = "h2";
-        if (TOOLBAR.heading) TOOLBAR.heading(v);
-      });
-    }
-
-    // 模式切换
-    $$(".admin-md-btn[data-mode]").forEach(function (b) {
-      b.addEventListener("click", function () { setMode(b.getAttribute("data-mode")); });
-    });
-    setMode("live");
+    // Markdown 编辑器（@uiw/react-md-editor，读取 textarea 初始内容）
+    initEditor();
 
     // 标题 → slug 联动
     els.title.addEventListener("input", function () {
@@ -677,27 +661,17 @@
     });
     els.slug.addEventListener("input", function () { slugTouched = true; });
 
-    // 正文输入 → 预览刷新
-    els.content.addEventListener("input", refreshSoon);
-
     // 提交按钮
     $$("[data-save]").forEach(function (b) {
       b.addEventListener("click", function () { submit(b.getAttribute("data-save")); });
     });
     els.form.addEventListener("submit", function (e) { e.preventDefault(); });
 
-    // Ctrl+S 存草稿 / Ctrl+B 加粗 / Ctrl+I 斜体
+    // Ctrl+S 存草稿
     window.addEventListener("keydown", function (e) {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
         e.preventDefault();
         submit("draft");
-      }
-    });
-    els.content.addEventListener("keydown", function (e) {
-      if (e.ctrlKey || e.metaKey) {
-        var k = e.key.toLowerCase();
-        if (k === "b") { e.preventDefault(); TOOLBAR.bold(); }
-        else if (k === "i") { e.preventDefault(); TOOLBAR.italic(); }
       }
     });
 
@@ -762,49 +736,9 @@
       if (e.key === "Escape" && modal.open) closeModal();
     });
 
-    // 编辑器区域拖拽/粘贴上传
-    var mdBody = els.mdBody;
-    ["dragenter", "dragover"].forEach(function (ev) {
-      mdBody.addEventListener(ev, function (e) {
-        if (hasFiles(e)) { e.preventDefault(); mdBody.classList.add("admin-drop-over"); }
-      });
-    });
-    ["dragleave", "drop"].forEach(function (ev) {
-      mdBody.addEventListener(ev, function (e) {
-        mdBody.classList.remove("admin-drop-over");
-        if (hasFiles(e)) {
-          e.preventDefault();
-          var f = e.dataTransfer.files[0];
-          uploadFile(f)
-            .then(function (j) {
-              var label = (f.name || "").replace(/\.[^.]+$/, "") || "图片";
-              insertMd(isImage(j.mime) ? "![" + label + "](" + j.url + ")" : "[" + label + "](" + j.url + ")");
-            })
-            .catch(function (err) { showError(err.message || "上传失败"); });
-        }
-      });
-    });
-    els.content.addEventListener("paste", function (e) {
-      var files = e.clipboardData && e.clipboardData.files;
-      if (files && files.length > 0) {
-        e.preventDefault();
-        var f = files[0];
-        uploadFile(f)
-          .then(function (j) {
-            var label = (f.name || "").replace(/\.[^.]+$/, "") || "图片";
-            insertMd("![" + label + "](" + j.url + ")");
-          })
-          .catch(function (err) { showError(err.message || "上传失败"); });
-      }
-    });
-
     // 自动保存
     if (isEdit) setInterval(checkAutosave, 60000);
     updateAutosave();
-  }
-
-  function hasFiles(e) {
-    return e.dataTransfer && e.dataTransfer.types && Array.prototype.indexOf.call(e.dataTransfer.types, "Files") !== -1;
   }
 
   // 点击外部关闭分类面板

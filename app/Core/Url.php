@@ -65,9 +65,12 @@ final class Url
         return self::base() . '/index.php?p=api/' . $pathPart . ($query !== '' ? '&' . $query : '');
     }
 
-    /** 站点绝对 URL（RSS / sitemap / OG 用） */
+    /** 站点绝对 URL（RSS / sitemap / OG / 媒体复制链接用）；已含协议的外链原样返回 */
     public static function absolute(string $path = ''): string
     {
+        if (preg_match('#^https?://#i', $path)) {
+            return $path;
+        }
         $base = rtrim((string) Config::get('site_url', ''), '/');
         if ($base === '') {
             $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';

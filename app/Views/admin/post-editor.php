@@ -47,47 +47,11 @@ $editorData = [
         <input class="admin-editor-title" type="text" id="fTitle" name="title"
                value="<?= e($post['title']) ?>" placeholder="文章标题" maxlength="255">
 
-        <!-- Markdown 编辑器 -->
-        <div class="admin-md-editor">
-          <div class="admin-md-toolbar">
-            <button type="button" class="admin-md-btn" data-md="bold" title="加粗 (Ctrl+B)"><b>B</b></button>
-            <button type="button" class="admin-md-btn" data-md="italic" title="斜体 (Ctrl+I)"><i>I</i></button>
-            <button type="button" class="admin-md-btn" data-md="strike" title="删除线">S̶</button>
-            <span class="admin-md-sep"></span>
-            <select class="admin-md-select" data-md="heading" title="标题">
-              <option value="h2">标题 2</option>
-              <option value="h1">标题 1</option>
-              <option value="h3">标题 3</option>
-              <option value="h4">标题 4</option>
-              <option value="h5">标题 5</option>
-              <option value="h6">标题 6</option>
-              <option value="p">正文</option>
-            </select>
-            <span class="admin-md-sep"></span>
-            <button type="button" class="admin-md-btn" data-md="quote" title="引用">❝</button>
-            <button type="button" class="admin-md-btn" data-md="code" title="代码块">&lt;/&gt;</button>
-            <button type="button" class="admin-md-btn" data-md="inline-code" title="行内代码">`code`</button>
-            <button type="button" class="admin-md-btn" data-md="ul" title="无序列表">• 列表</button>
-            <button type="button" class="admin-md-btn" data-md="ol" title="有序列表">1. 列表</button>
-            <span class="admin-md-sep"></span>
-            <button type="button" class="admin-md-btn" data-md="link" title="链接"><?= admin_icon('link', 15) ?></button>
-            <button type="button" class="admin-md-btn" data-md="image" title="图片"><?= admin_icon('image', 15) ?></button>
-            <button type="button" class="admin-md-btn" data-md="table" title="表格">⊞</button>
-            <button type="button" class="admin-md-btn" data-md="hr" title="分隔线">―</button>
-            <span class="admin-md-sep"></span>
-            <button type="button" class="admin-md-btn admin-md-btn-accent" data-md="media" title="插入媒体（图片/文件）">+ 媒体</button>
-            <span class="admin-md-spacer"></span>
-            <span class="admin-md-mode admin-md-mode-group" role="group" aria-label="编辑模式">
-              <button type="button" class="admin-md-btn" data-mode="edit" title="编辑模式">编辑</button>
-              <button type="button" class="admin-md-btn admin-md-mode-active" data-mode="live" title="分栏预览">分栏</button>
-              <button type="button" class="admin-md-btn" data-mode="preview" title="预览">预览</button>
-            </span>
-          </div>
-          <div class="admin-md-body">
-            <textarea class="admin-md-textarea" id="fContent" name="content"
-                      placeholder="开始写作…（支持拖拽/粘贴图片上传）" maxlength="16000000"><?= e($post['content']) ?></textarea>
-            <div class="admin-md-preview md-content" hidden></div>
-          </div>
+        <!-- Markdown 编辑器（@uiw/react-md-editor：工具栏/分栏预览/全屏/拖拽粘贴上传，对齐 Node 版） -->
+        <div class="admin-md-editor" data-color-mode="light">
+          <div id="mdEditorMount"></div>
+          <textarea id="fContent" name="content" hidden
+                    maxlength="16000000"><?= e($post['content']) ?></textarea>
         </div>
       </div>
 
@@ -232,4 +196,5 @@ $editorData = [
 window.PAFISH_EDITOR_DATA = <?= json_encode($editorData, JSON_UNESCAPED_UNICODE) ?>;
 window.PAFISH_EDITOR_CSRF = <?= json_encode(\Pafish\Core\Session::csrfToken()) ?>;
 </script>
+<script src="<?= e(asset_url('/vendor/md-editor/pafish-md-editor.min.js')) ?>"></script>
 <script src="<?= e(asset_url('/js/admin-editor.js')) ?>"></script>

@@ -59,6 +59,7 @@ final class PagesController extends AdminController
             'isEdit' => false,
             'page' => null,
             'templateOptions' => self::templateOptions(),
+            'headExtra' => editor_head_extra(),
         ], '新建页面'));
         return $response;
     }
@@ -76,6 +77,7 @@ final class PagesController extends AdminController
             'isEdit' => true,
             'page' => $page,
             'templateOptions' => self::templateOptions(),
+            'headExtra' => editor_head_extra(),
         ], '编辑页面'));
         return $response;
     }

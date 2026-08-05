@@ -29,6 +29,7 @@ $roleLabel = match ((string) ($user['role'] ?? '')) {
 <meta name="robots" content="noindex,nofollow">
 <link rel="stylesheet" href="<?= e(asset_url('/css/style.css')) ?>">
 <link rel="stylesheet" href="<?= e(asset_url('/css/admin.css')) ?>">
+<?php if (!empty($headExtra)): ?><?= $headExtra ?><?php endif; ?>
 <script>
 /* API 路径适配：pretty_urls=false 时请求走 index.php?p=api/...，query 用 & 拼接 */
 window.pafishApi = function (p) {

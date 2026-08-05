@@ -95,7 +95,7 @@ $accept = 'image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip,.rar
               <?= $formatSize((int) $u['size']) ?> · <?= e(format_date($u['created_at'], 'yyyy-MM-dd HH:mm')) ?>
             </p>
             <div class="admin-media-ops">
-              <button type="button" class="admin-icon-btn" data-copy-url="<?= e($u['url']) ?>" title="复制 URL"><?= admin_icon('copy', 14) ?></button>
+              <button type="button" class="admin-icon-btn" data-copy-url="<?= e(absolute_url($u['url'])) ?>" title="复制完整 URL（含域名）"><?= admin_icon('copy', 14) ?></button>
               <a class="admin-icon-btn" href="<?= e($u['url']) ?>" target="_blank" rel="noopener" title="新窗口打开"><?= admin_icon('external-link', 14) ?></a>
               <button type="button" class="admin-icon-btn admin-icon-danger" data-delete-media="<?= (int) $u['id'] ?>"
                       data-name="<?= e($u['original_name']) ?>" title="删除"><?= admin_icon('trash', 14) ?></button>

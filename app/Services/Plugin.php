@@ -779,42 +779,54 @@ final class Plugin
         self::$activeCache = $list;
     }
 
-    /** 递归删除目录（SPL 迭代器：避免 Windows 上 PHP 8.5 中 stat 句柄导致 rename/rmdir「拒绝访问」） */
+    /** 递归删除目录（scandir 快照递归：SPL RDI 在 Windows 上遍历刚被杀软/Defender
+     *  锁定的目录时会无声拖垮 PHP 进程（无错误、无日志直接消失），scandir 返回
+     *  数组快照不走迭代器状态，更稳；文档手工删除同理） */
     private static function rmDir(string $dir): bool
     {
-        $paths = [];
-        try {
-            $items = new \RecursiveIteratorIterator(
-                new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS),
-                \RecursiveIteratorIterator::CHILD_FIRST
-            );
-            foreach ($items as $item) {
-                $paths[] = [$item->getPathname(), $item->isDir()];
-            }
-        } catch (\UnexpectedValueException $e) {
+        return self::rmRecursive($dir);
+    }
+
+    private static function rmRecursive(string $dir): bool
+    {
+        $items = @scandir($dir);
+        if ($items === false) {
             return !is_dir($dir);
         }
-        foreach ($paths as [$path, $isDir]) {
-            if (!self::rmRemove($path, $isDir)) {
+        foreach ($items as $name) {
+            if ($name === '.' || $name === '..') {
+                continue;
+            }
+            $path = $dir . '/' . $name;
+            if (is_dir($path)) {
+                if (!self::rmRecursive($path)) {
+                    return false;
+                }
+            } elseif (!self::rmRemove($path, false)) {
                 return false;
             }
         }
         return self::rmRemove($dir, true);
     }
 
-    /** 删除文件/空目录；失败时换名重删——Windows 下 PHP 进程 include 过的文件会以
-     *  路径级句柄占用（无 DELETE 共享，任何进程都无法删除原路径），rename 换名后
-     *  原路径即释放，删除新名即可成功（实测 php -S 服务器 include 插件后即出现） */
+    /** 删除文件/空目录。策略：永远先 rename 换名（释放原路径句柄），再删新名——
+     *  Windows 下 PHP 进程 include 过的文件会以路径级句柄占用原路径（无 DELETE
+     *  共享），任何进程都无法删除原路径；实测 php -S 服务器对「被本进程 include 过
+     *  的 .php」直接 unlink 时，在长时间运行后会出现进程级无声崩溃（无错误无日志，
+     *  可能是 360/Defender 的 minifilter 与 PHP 内部清理交互所致），而 rename 换名
+     *  后原路径即释放，删除新名稳定成功。rename 失败（源被独占）才回退直接删 */
     private static function rmRemove(string $path, bool $isDir): bool
     {
-        if ($isDir ? @rmdir($path) : @unlink($path)) {
-            return true;
-        }
         $tmp = dirname($path) . '/.' . basename($path) . '.del' . bin2hex(random_bytes(3));
-        if (!@rename($path, $tmp)) {
-            return false;
+        for ($i = 0; $i < 3; $i++) {
+            if (@rename($path, $tmp)) {
+                return $isDir ? @rmdir($tmp) : @unlink($tmp);
+            }
+            if ($i < 2) {
+                usleep(150000);
+            }
         }
-        return $isDir ? @rmdir($tmp) : @unlink($tmp);
+        return $isDir ? @rmdir($path) : @unlink($path);
     }
 
     /** 清空全部静态缓存（安装/卸载后调用，保持测试与请求内一致性） */

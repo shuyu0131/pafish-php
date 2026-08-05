@@ -26,45 +26,11 @@ $template = $isEdit ? (string) $page['template'] : 'default';
         <input class="admin-editor-title" type="text" id="fTitle" name="title"
                value="<?= e($title) ?>" placeholder="页面标题" maxlength="100">
 
-        <!-- Markdown 编辑器（复用文章编辑器工具栏/预览，精简版 JS） -->
-        <div class="admin-md-editor">
-          <div class="admin-md-toolbar">
-            <button type="button" class="admin-md-btn" data-md="bold" title="加粗 (Ctrl+B)"><b>B</b></button>
-            <button type="button" class="admin-md-btn" data-md="italic" title="斜体 (Ctrl+I)"><i>I</i></button>
-            <button type="button" class="admin-md-btn" data-md="strike" title="删除线">S̶</button>
-            <span class="admin-md-sep"></span>
-            <select class="admin-md-select" data-md="heading" title="标题">
-              <option value="h2">标题 2</option>
-              <option value="h1">标题 1</option>
-              <option value="h3">标题 3</option>
-              <option value="h4">标题 4</option>
-              <option value="h5">标题 5</option>
-              <option value="h6">标题 6</option>
-              <option value="p">正文</option>
-            </select>
-            <span class="admin-md-sep"></span>
-            <button type="button" class="admin-md-btn" data-md="quote" title="引用">❝</button>
-            <button type="button" class="admin-md-btn" data-md="code" title="代码块">&lt;/&gt;</button>
-            <button type="button" class="admin-md-btn" data-md="inline-code" title="行内代码">`code`</button>
-            <button type="button" class="admin-md-btn" data-md="ul" title="无序列表">• 列表</button>
-            <button type="button" class="admin-md-btn" data-md="ol" title="有序列表">1. 列表</button>
-            <span class="admin-md-sep"></span>
-            <button type="button" class="admin-md-btn" data-md="link" title="链接"><?= admin_icon('link', 15) ?></button>
-            <button type="button" class="admin-md-btn" data-md="image" title="图片"><?= admin_icon('image', 15) ?></button>
-            <button type="button" class="admin-md-btn" data-md="table" title="表格">⊞</button>
-            <button type="button" class="admin-md-btn" data-md="hr" title="分隔线">―</button>
-            <span class="admin-md-spacer"></span>
-            <span class="admin-md-mode admin-md-mode-group" role="group" aria-label="编辑模式">
-              <button type="button" class="admin-md-btn" data-mode="edit" title="编辑模式">编辑</button>
-              <button type="button" class="admin-md-btn admin-md-mode-active" data-mode="live" title="分栏预览">分栏</button>
-              <button type="button" class="admin-md-btn" data-mode="preview" title="预览">预览</button>
-            </span>
-          </div>
-          <div class="admin-md-body">
-            <textarea class="admin-md-textarea" id="fContent" name="content"
-                      placeholder="页面内容（Markdown）…" maxlength="16000000"><?= e($content) ?></textarea>
-            <div class="admin-md-preview md-content" hidden></div>
-          </div>
+        <!-- Markdown 编辑器（@uiw/react-md-editor：工具栏/分栏预览/全屏/拖拽粘贴上传，对齐 Node 版） -->
+        <div class="admin-md-editor" data-color-mode="light">
+          <div id="mdEditorMount"></div>
+          <textarea id="fContent" name="content" hidden
+                    maxlength="16000000"><?= e($content) ?></textarea>
         </div>
       </div>
 
@@ -114,14 +80,43 @@ $template = $isEdit ? (string) $page['template'] : 'default';
   </form>
 </div>
 
+<!-- 媒体选择弹窗（对齐 Node MediaPicker） -->
+<div class="admin-modal-backdrop" id="mediaModal" hidden>
+  <div class="admin-modal" role="dialog" aria-modal="true" aria-label="插入媒体">
+    <div class="admin-modal-head">
+      <div class="admin-modal-tabs">
+        <button type="button" class="admin-modal-tab active" data-mtab="upload">本地上传</button>
+        <button type="button" class="admin-modal-tab" data-mtab="library">媒体库</button>
+      </div>
+      <button type="button" class="admin-icon-btn" data-close-modal aria-label="关闭"><?= admin_icon('x', 16) ?></button>
+    </div>
+    <div class="admin-modal-body">
+      <div data-mpanel="upload">
+        <input type="file" class="input" id="mediaFile"
+               accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip,.rar,.7z,.tar,.gz,.mp3,.wav,.ogg,.m4a,.flac,.mp4,.webm,.mov,.mkv">
+        <p class="admin-field-hint admin-modal-hint" data-mupload-hint>图片插入为 Markdown 图片，其他文件插入为下载链接</p>
+        <div class="admin-modal-error" data-mupload-error hidden></div>
+      </div>
+      <div data-mpanel="library" hidden>
+        <input class="input admin-lib-search" type="search" placeholder="搜索媒体…" data-lib-q>
+        <div class="admin-lib-grid" data-lib-grid></div>
+        <div class="admin-pager admin-lib-pager" data-lib-pager hidden></div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 window.PAFISH_PAGE_EDITOR = {
   saveUrl: <?= json_encode(url_to($isEdit ? '/admin/pages/' . $pageId . '/save' : '/admin/pages/save')) ?>,
   listUrl: <?= json_encode(url_to('/admin/pages')) ?>,
   previewUrl: <?= json_encode(url_to('/api/md-preview')) ?>,
+  uploadUrl: <?= json_encode(url_to('/api/upload')) ?>,
+  uploadsUrl: <?= json_encode(url_to('/api/uploads')) ?>,
   isEdit: <?= $isEdit ? 'true' : 'false' ?>,
   initialSlug: <?= json_encode($slug) ?>,
   csrf: <?= json_encode(csrf_token()) ?>
 };
 </script>
+<script src="<?= e(asset_url('/vendor/md-editor/pafish-md-editor.min.js')) ?>"></script>
 <script src="<?= e(asset_url('/js/admin-page-editor.js')) ?>"></script>

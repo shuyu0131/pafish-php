@@ -443,6 +443,7 @@ final class PostsController extends AdminController
             'hasPassword' => $isEdit && $initial['password'] !== null,
             'isScheduled' => $isEdit && $initial['status'] === 'SCHEDULED',
             'statusLabel' => self::STATUS_LABEL,
+            'headExtra' => editor_head_extra(),
         ], $isEdit ? '编辑文章' : '写文章');
 
         $response->getBody()->write($html);

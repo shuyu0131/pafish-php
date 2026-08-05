@@ -2,7 +2,7 @@
 /**
  * PHP 内置服务器路由器（开发/无伪静态环境）：
  *   php -S 0.0.0.0:8000 router.php
- * - 静态资源（css/ js/ uploads/）映射到 public/
+ * - 静态资源（css/ js/ uploads/ vendor/）映射到 public/
  * - 真实文件（index.php / install.php / cron.php）正常执行
  * - 其余路径统一交给 index.php（伪静态路由）
  * 生产环境请用 Apache（.htaccess）或 Nginx，忽略本文件。
@@ -11,7 +11,7 @@ $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?? '/';
 $rel = ltrim($path, '/');
 
 // 静态资源 → public/
-foreach (['css', 'js', 'uploads'] as $dir) {
+foreach (['css', 'js', 'uploads', 'vendor'] as $dir) {
     if (str_starts_with($rel, $dir . '/')) {
         $file = __DIR__ . '/public/' . $rel;
         if (is_file($file)) {

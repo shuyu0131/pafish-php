@@ -85,6 +85,10 @@ abstract class AdminController
             'flash' => $this->takeFlash(),
         ];
         $content = self::renderView($view, array_merge($ctx, $data));
+        // headExtra（编辑器 CSS 等）随布局注入 <head>
+        if (isset($data['headExtra'])) {
+            $ctx['headExtra'] = $data['headExtra'];
+        }
         return self::renderView('layout', array_merge($ctx, ['content' => $content]));
     }
 

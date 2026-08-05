@@ -585,6 +585,13 @@
   .admin-drawer-backdrop[hidden] {
     display: none;
   }
+
+  /* 筛选 tab 栏：移动端允许换行/横滑，避免按钮溢出视口撑破页面 */
+  .admin-tabs {
+    flex-wrap: wrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
 }
 
 /* ================= M3c：文章编辑器 ================= */

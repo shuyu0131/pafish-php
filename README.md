@@ -59,13 +59,14 @@ location / {
     try_files $uri $uri/ /index.php?$query_string;
 }
 
-# 静态资源在 public/ 下，对外保持根路径（css/ js/ uploads/）：
-# 请求 /css/style.css → 站点根/public/css/style.css
-# 若忽略本规则，资源将由 PHP 兜底服务（稍慢），功能不受影响
-location ~ ^/(css|js|uploads)/ {
-    root /www/wwwroot/你的站点/public;
-    try_files $uri =404;
-}
+# 静态资源在 public/ 下，对外保持根路径（css/ js/ uploads/ vendor/）。
+# v0.1.2+ 已内置 PHP 兜底：仅上面一条 try_files 即可让 /css/… 等资源正常加载
+#（框架在会话/路由启动前按原内容直出，功能与视觉不受影响）。
+# 以下 location 仅为性能优化（让 Nginx 直接读盘、绕过 PHP），可按需添加：
+# location ~ ^/(css|js|uploads|vendor)/ {
+#     root /www/wwwroot/你的站点/public;
+#     try_files $uri =404;
+# }
 
 # 禁止直接访问敏感文件/目录
 location ~ ^/(config\.php|runtime/|backups/) { deny all; }

@@ -41,9 +41,9 @@ final class Url
     }
 
     /**
-     * 静态资源直链（css/js/uploads 等 public/ 下文件）：
+     * 静态资源直链（css/js/uploads/vendor 等 public/ 下文件）：
      * 无论 pretty_urls 开关，资源始终对外保持根路径（Web 服务器直连；
-     * 无静态配置的环境由 Slim 静态兜底路由服务），仅需带上子目录前缀。
+     * 无静态配置的环境由框架入口的 PHP 兜底直出），仅需带上子目录前缀。
      */
     public static function asset(string $path): string
     {

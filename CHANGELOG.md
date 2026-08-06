@@ -1,5 +1,17 @@
 # 变更日志
 
+## v0.1.2（2026-08-06）
+
+部署修复：静态资源 PHP 兜底真正落地（v0.1.1 的声明实际未实现，Nginx 未配静态规则时 CSS/JS 仍 404）：
+
+### 修复
+
+- **静态资源 PHP 兜底落地**：框架入口（`index.php` → `bootstrap.php`）在会话/路由启动**之前**直出 `public/` 下的 `css/ js/ uploads/ vendor/`（正确 Content-Type / Content-Length / Cache-Control，子目录部署自动剥站点前缀），不再依赖 Web 服务器静态规则
+  - Nginx 只需一条伪静态 `try_files $uri $uri/ /index.php?$query_string;`，配不配静态 `location` 样式都能加载（配了则由 Nginx 直接读盘，性能更佳）
+  - Apache 不变（`.htaccess` 已内置静态重写，兜底仅作保底）
+  - 静态请求零框架开销：不启动 session、不触发插件钩子
+- 文档同步：README / docs/install-bt.md 的 Nginx 静态规则降为「可选性能优化」
+
 ## v0.1.1（2026-08-04）
 
 线上部署修复与加固（针对 Nginx 场景 CSS/JS 加载失败、后台登录网络错误）：

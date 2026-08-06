@@ -71,6 +71,7 @@ $app->get('/login', [AuthPageController::class, 'login']);
 $app->get('/register', [AuthPageController::class, 'register']);
 $app->get('/forgot-password', [AuthPageController::class, 'forgot']);
 $app->get('/reset-password', [AuthPageController::class, 'reset']);
+$app->get('/logout', [AuthPageController::class, 'logout']); // 兼容主题遗留链接；标准退出走 POST /api/auth/logout
 $app->post('/api/auth/login', [AuthApiController::class, 'login']);
 $app->post('/api/auth/logout', [AuthApiController::class, 'logout']);
 $app->post('/api/auth/send-code', [AuthApiController::class, 'sendCode']);

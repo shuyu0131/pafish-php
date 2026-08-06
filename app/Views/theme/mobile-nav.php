@@ -23,7 +23,10 @@ $loggedIn = (bool) ($loggedIn ?? false);
       <hr>
       <?php if ($loggedIn): ?>
         <a href="<?= e(url_to('/admin')) ?>">后台</a>
-        <a href="<?= e(url_to('/logout')) ?>">退出登录</a>
+        <form class="mobile-nav-logout" method="post" action="<?= e(url_to('/api/auth/logout')) ?>">
+          <?= csrf_field() ?>
+          <button type="submit">退出登录</button>
+        </form>
       <?php else: ?>
         <a href="<?= e(url_to('/login')) ?>">登录</a>
       <?php endif; ?>
@@ -31,3 +34,16 @@ $loggedIn = (bool) ($loggedIn ?? false);
   </div>
   <label for="mobile-nav-toggle" class="mobile-nav-mask" aria-hidden="true"></label>
 </div>
+<?php if ($loggedIn): ?>
+<script>
+  // 退出登录（POST + CSRF，成功后回首页；对齐后台退出逻辑）
+  document.querySelectorAll('.mobile-nav-logout').forEach(function (f) {
+    f.addEventListener('submit', function (e) {
+      e.preventDefault();
+      fetch(f.action, { method: 'POST', body: new FormData(f) })
+        .then(function () { window.location.href = '/'; })
+        .catch(function () { window.location.href = '/'; });
+    });
+  });
+</script>
+<?php endif; ?>

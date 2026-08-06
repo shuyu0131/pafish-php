@@ -916,6 +916,28 @@ input[type="radio"]:focus-visible {
   background: var(--accent-soft);
   color: var(--fg);
 }
+.mobile-nav-list .mobile-nav-logout {
+  margin: 0;
+}
+.mobile-nav-list .mobile-nav-logout button {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  border: none;
+  background: none;
+  border-radius: 0.625rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  font-family: inherit;
+  color: var(--muted);
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.mobile-nav-list .mobile-nav-logout button:hover {
+  background: var(--accent-soft);
+  color: var(--fg);
+}
 .mobile-nav-list hr {
   border: none;
   border-top: 1px solid var(--border);

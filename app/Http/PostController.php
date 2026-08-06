@@ -124,6 +124,10 @@ final class PostController
         if (!in_array($kind, ['like', 'favorite'], true)) {
             return $this->json($response, ['error' => '参数错误'], 400);
         }
+        // 收藏需要登录后才可使用（点赞保持匿名，与 Node 版一致）
+        if ($kind === 'favorite' && !\is_logged_in()) {
+            return $this->json($response, ['error' => '请先登录后再收藏', 'login_url' => \url_to('/login')], 401);
+        }
         $post = DB::fetchOne('SELECT id FROM posts WHERE id = ?', [$id]);
         if (!$post) {
             return $this->json($response, ['error' => 'Not Found'], 404);

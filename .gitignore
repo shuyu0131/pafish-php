@@ -1,0 +1,22 @@
+# pafish (PHP) 忽略规则
+/vendor/
+/config.php
+/runtime/*
+!/runtime/.gitkeep
+/public/uploads/*
+!/public/uploads/.gitkeep
+/backups/*
+!/backups/.gitkeep
+
+# 编辑器/系统
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# 日志
+*.log
+
+# 构建产物（发布包，随 GitHub Release 分发）
+/dist/

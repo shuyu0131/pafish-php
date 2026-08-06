@@ -1,0 +1,435 @@
+<?php
+declare(strict_types=1);
+
+namespace Pafish\Services;
+
+/**
+ * 应用商店（官方源硬编码，零配置）：
+ * - 官方源：https://store.waikanl.cn（官网 pafish-web 的商店 API，无需用户填写地址）
+ * - 远程协议：GET {base}/api/catalog → {name, version, apps:[...]}，按 type 过滤
+ *   （theme / extension），字段映射：slug→name（安装目录名）、name→title、version→version、
+ *   author/description 直取、download_url→zip（相对路径拼 base）、screenshots[0]→preview
+ * - 远程目录失败 → 自动回退本地内置源 public/store/{themes,plugins}.json（zip 本地直读），
+ *   商店页永不自挂（对齐 Node 三级源策略的本地兜底）
+ * - 名称正则 /^[a-z0-9_-]{1,50}$/；zip 相对路径拼 base，http(s) 直用；本地兜底走文件直读
+ * - 版本比较：数字分段（容忍 v 前缀，非数字段按 0）
+ * - 安装拒绝已存在（提示直接更新）；更新 = 备份旧版 → 移除 → 装新版，失败自动恢复旧版
+ * - Windows 兼容：全程 SPL 递归复制/删除，不依赖 rename（PHP 8.5 + Windows 上
+ *   stat 句柄会导致 rename/rmdir「拒绝访问」且时好时坏）
+ * - PAFISH_STORE_URL 环境变量可覆盖官方源（仅测试注入用，生产零配置）
+ */
+final class Store
+{
+    /** 官方商店（官网 pafish-web 部署域名），测试可用环境变量覆盖 */
+    private const OFFICIAL_STORE_URL = 'https://store.waikanl.cn';
+
+    private const NAME_PATTERN = '/^[a-z0-9_-]{1,50}$/';
+    private const MAX_ZIP_BYTES = 10 * 1024 * 1024;
+    private const KIND_FILE = ['theme' => 'themes.json', 'plugin' => 'plugins.json'];
+
+    /** 商店地址（官方源硬编码；仅测试注入可覆盖） */
+    public static function baseUrl(): string
+    {
+        $env = trim((string) getenv('PAFISH_STORE_URL'));
+        if ($env !== '' && preg_match('#^https?://#i', $env) === 1) {
+            return rtrim($env, '/');
+        }
+        return self::OFFICIAL_STORE_URL;
+    }
+
+    /** 数字分段版本比较：$a < $b → -1，相等 → 0，$a > $b → 1（对齐 Node compareVersions） */
+    public static function compareVersions(string $a, string $b): int
+    {
+        $pa = self::versionParts($a);
+        $pb = self::versionParts($b);
+        $n = max(count($pa), count($pb));
+        for ($i = 0; $i < $n; $i++) {
+            $x = $pa[$i] ?? 0;
+            $y = $pb[$i] ?? 0;
+            if ($x < $y) {
+                return -1;
+            }
+            if ($x > $y) {
+                return 1;
+            }
+        }
+        return 0;
+    }
+
+    private static function versionParts(string $v): array
+    {
+        $v = ltrim(trim($v), 'vV');
+        return array_map(static fn (string $s): int => ctype_digit($s) ? (int) $s : 0, explode('.', $v));
+    }
+
+    /**
+     * 拉取目录：官方源（store.waikanl.cn）优先；远程失败 → 回退本地内置源 public/store。
+     * 返回 ['items' => 条目数组, 'base' => 源地址（远程=官网，本地兜底=''）, 'error'? => 回退原因]
+     */
+    public static function fetchCatalog(string $kind): array
+    {
+        $base = self::baseUrl();
+        $label = '官方商店';
+        try {
+            return ['items' => self::parseRemoteCatalog(self::httpGet($base . '/api/catalog'), $kind), 'base' => $base];
+        } catch (\Throwable $e) {
+            $fallbackHint = $label . '目录获取失败：' . $e->getMessage();
+        }
+        // 回退：本地内置商店（public/store，zip 本地直读）
+        return [
+            'items' => self::readLocalCatalog($kind),
+            'base' => '',
+            'error' => $fallbackHint . '，已回退内置商店（public/store）',
+        ];
+    }
+
+    /** 已安装版本（未安装返回 null） */
+    public static function getInstalledVersion(string $kind, string $name): ?string
+    {
+        $manifest = $kind === 'theme' ? Theme::manifest($name) : Plugin::manifest($name);
+        if ($manifest === null) {
+            return null;
+        }
+        $v = $manifest['version'] ?? null;
+        return is_string($v) && $v !== '' ? $v : null;
+    }
+
+    /** 从商店安装（已安装 → 拒绝，提示直接更新） */
+    public static function installFromStore(string $kind, string $name, string $base, array $item): array
+    {
+        self::assertValidName($name);
+        if (self::getInstalledVersion($kind, $name) !== null) {
+            throw new \RuntimeException('已安装，可直接更新');
+        }
+        $buffer = self::downloadZip($base, $item);
+        self::validateZip($buffer, $name);
+        if ($kind === 'theme') {
+            return Theme::installFromBuffer($buffer);
+        }
+        return Plugin::installFromBuffer($buffer, $name . '@store');
+    }
+
+    /**
+     * 从商店更新：备份旧版本 → 移除 → 安装新版；失败自动恢复旧版本（对齐 Node
+     * updateFromStore 的 .bak 回滚语义，但不依赖 rename——SPL 复制/删除）
+     */
+    public static function updateFromStore(string $kind, string $name, string $base, array $item): array
+    {
+        self::assertValidName($name);
+        if (self::getInstalledVersion($kind, $name) === null) {
+            throw new \RuntimeException('未安装，请先安装');
+        }
+        $buffer = self::downloadZip($base, $item);
+        self::validateZip($buffer, $name);
+        $root = $kind === 'theme' ? Theme::root() : Plugin::root();
+        $target = $root . '/' . $name;
+        $bak = $root . '/.bak-store-' . bin2hex(random_bytes(4));
+        if (!self::copyDir($target, $bak)) {
+            throw new \RuntimeException('更新失败：无法备份旧版本');
+        }
+        try {
+            if (!self::rmDir($target)) {
+                throw new \RuntimeException('无法移除旧版本');
+            }
+            $result = $kind === 'theme'
+                ? Theme::installFromBuffer($buffer)
+                : Plugin::installFromBuffer($buffer, $name . '@store');
+        } catch (\Throwable $e) {
+            self::rmDir($target);
+            self::copyDir($bak, $target);
+            self::rmDir($bak);
+            throw new \RuntimeException('更新失败：' . $e->getMessage() . '（已恢复旧版本）');
+        }
+        self::rmDir($bak);
+        return $result;
+    }
+
+    // ---------- 内部 ----------
+
+    private static function assertValidName(string $name): void
+    {
+        if (preg_match(self::NAME_PATTERN, $name) !== 1) {
+            throw new \RuntimeException('商店条目名称不合法');
+        }
+    }
+
+    /**
+     * 下载 zip 包：base=''（本地兜底）→ 从 public/store 直读；否则相对路径拼 base，
+     * http(s) 直用。远程下载失败也尝试本地兜底（目录来自远程但 zip 失效时）
+     */
+    private static function downloadZip(string $base, array $item): string
+    {
+        $zip = (string) ($item['zip'] ?? '');
+        if ($zip === '') {
+            throw new \RuntimeException('商店条目缺少 zip 地址');
+        }
+        if (preg_match('#^https?://#i', $zip) === 1) {
+            return self::httpGet($zip);
+        }
+        if ($base !== '') {
+            try {
+                return self::httpGet(rtrim($base, '/') . '/' . ltrim($zip, '/'));
+            } catch (\Throwable $e) {
+                // 远程 zip 失效 → 尝试本地兜底
+                $local = self::readLocalZip($zip);
+                if ($local === null) {
+                    throw $e;
+                }
+                return $local;
+            }
+        }
+        $local = self::readLocalZip($zip);
+        if ($local === null) {
+            throw new \RuntimeException('内置商店缺少安装包：' . $zip);
+        }
+        return $local;
+    }
+
+    /** 从 public/store 读取本地安装包（zip 路径如 /store/demo-nord.zip 或 demo-nord.zip） */
+    private static function readLocalZip(string $zip): ?string
+    {
+        $name = ltrim($zip, '/');
+        if (str_starts_with($name, 'store/')) {
+            $name = substr($name, strlen('store/'));
+        }
+        $path = dirname(__DIR__, 2) . '/public/store/' . $name;
+        if (!is_file($path)) {
+            return null;
+        }
+        $data = @file_get_contents($path);
+        return $data === false ? null : $data;
+    }
+
+    /** 读取本地内置商店目录（public/store，直读文件；损坏时返回空） */
+    private static function readLocalCatalog(string $kind): array
+    {
+        $file = self::KIND_FILE[$kind] ?? 'themes.json';
+        $path = dirname(__DIR__, 2) . '/public/store/' . $file;
+        $body = @file_get_contents($path);
+        if ($body === false) {
+            return [];
+        }
+        return self::parseCatalog($body);
+    }
+
+    /**
+     * 解析官网目录响应：{name, version, apps:[{type, slug, name, version, author,
+     * description, download_url, screenshots, ...}]} → 统一条目格式
+     * kind：theme → type=theme；plugin → type=extension
+     */
+    private static function parseRemoteCatalog(string $body, string $kind): array
+    {
+        $raw = json_decode($body, true);
+        if (!is_array($raw) || !isset($raw['apps']) || !is_array($raw['apps'])) {
+            throw new \RuntimeException('目录格式不正确');
+        }
+        $expectType = $kind === 'theme' ? 'theme' : 'extension';
+        $items = [];
+        foreach ($raw['apps'] as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            if (($entry['type'] ?? '') !== $expectType) {
+                continue;
+            }
+            $name = (string) ($entry['slug'] ?? '');
+            $title = (string) ($entry['name'] ?? '');
+            $version = (string) ($entry['version'] ?? '');
+            $zip = (string) ($entry['download_url'] ?? '');
+            if ($name === '' || $title === '' || $version === '' || $zip === '') {
+                continue;
+            }
+            if (preg_match(self::NAME_PATTERN, $name) !== 1) {
+                continue;
+            }
+            $shots = $entry['screenshots'] ?? [];
+            $preview = is_array($shots) && isset($shots[0]) ? (string) $shots[0] : '';
+            $items[] = [
+                'name' => $name,
+                'title' => $title,
+                'version' => $version,
+                'description' => isset($entry['description']) ? (string) $entry['description'] : '',
+                'author' => isset($entry['author']) ? (string) $entry['author'] : '',
+                'zip' => $zip,
+                'preview' => $preview,
+            ];
+        }
+        return $items;
+    }
+
+    /**
+     * 下载包预校验：唯一顶层目录且等于条目名、无穿越、大小合法
+     * （对齐 Node validateZip；installFromBuffer 会再做一遍完整校验）
+     */
+    private static function validateZip(string $buffer, string $name): void
+    {
+        if (strlen($buffer) <= 0 || strlen($buffer) > self::MAX_ZIP_BYTES) {
+            throw new \RuntimeException('包大小需在 10MB 以内');
+        }
+        $tmp = tempnam(sys_get_temp_dir(), 'pfstore');
+        if ($tmp === false || @file_put_contents($tmp, $buffer) === false) {
+            throw new \RuntimeException('包校验失败：无法写入临时文件');
+        }
+        $zip = new \ZipArchive();
+        try {
+            if ($zip->open($tmp) !== true) {
+                throw new \RuntimeException('不是有效的 zip 压缩包');
+            }
+            $count = $zip->numFiles;
+            if ($count <= 0) {
+                throw new \RuntimeException('zip 包为空');
+            }
+            $top = null;
+            for ($i = 0; $i < $count; $i++) {
+                $entryName = (string) $zip->getNameIndex($i);
+                $normalized = str_replace('\\', '/', $entryName);
+                $trimmed = rtrim($normalized, '/');
+                if ($trimmed === '') {
+                    throw new \RuntimeException('商店包包含意外路径：' . $entryName);
+                }
+                $parts = explode('/', $trimmed);
+                if ($top === null) {
+                    $top = $parts[0];
+                } elseif ($top !== $parts[0]) {
+                    throw new \RuntimeException('商店包必须只含一个顶层目录');
+                }
+                foreach ($parts as $seg) {
+                    if ($seg === '..' || $seg === '') {
+                        throw new \RuntimeException('商店包包含意外路径：' . $entryName);
+                    }
+                    if (str_contains($seg, ':')) {
+                        throw new \RuntimeException('商店包包含非法路径：' . $entryName);
+                    }
+                }
+            }
+            if ($top !== $name) {
+                throw new \RuntimeException('包顶层目录与条目名称不符（' . $top . ' ≠ ' . $name . '）');
+            }
+        } finally {
+            if ($zip->status !== \ZipArchive::ER_OK) {
+                @$zip->close();
+            }
+            @unlink($tmp);
+        }
+    }
+
+    private static function httpGet(string $url): string
+    {
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_TIMEOUT => 30,
+            CURLOPT_CONNECTTIMEOUT => 10,
+            CURLOPT_USERAGENT => 'pafish-store/1.0',
+        ]);
+        $body = curl_exec($ch);
+        $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+        // 不调 curl_close（PHP 8.5 起 deprecated，输出会污染响应体）
+        if ($body === false) {
+            throw new \RuntimeException('下载失败（连接错误）');
+        }
+        if ($status !== 200) {
+            throw new \RuntimeException('下载失败（HTTP ' . $status . '）');
+        }
+        return (string) $body;
+    }
+
+    /** 解析本地目录 JSON：非法条目（缺字段/名称不合法）跳过 */
+    private static function parseCatalog(string $body): array
+    {
+        $raw = json_decode($body, true);
+        if (!is_array($raw)) {
+            return [];
+        }
+        $items = [];
+        foreach ($raw as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            $name = (string) ($entry['name'] ?? '');
+            $title = (string) ($entry['title'] ?? '');
+            $version = (string) ($entry['version'] ?? '');
+            $zip = (string) ($entry['zip'] ?? '');
+            if ($name === '' || $title === '' || $version === '' || $zip === '') {
+                continue;
+            }
+            if (preg_match(self::NAME_PATTERN, $name) !== 1) {
+                continue;
+            }
+            $items[] = [
+                'name' => $name,
+                'title' => $title,
+                'version' => $version,
+                'description' => isset($entry['description']) ? (string) $entry['description'] : '',
+                'author' => isset($entry['author']) ? (string) $entry['author'] : '',
+                'zip' => $zip,
+                'preview' => isset($entry['preview']) ? (string) $entry['preview'] : '',
+            ];
+        }
+        return $items;
+    }
+
+    /** SPL 递归复制目录（Windows 上不依赖 rename） */
+    private static function copyDir(string $src, string $dst): bool
+    {
+        if (!is_dir($src) || !@mkdir($dst, 0755, true)) {
+            return false;
+        }
+        try {
+            $items = new \RecursiveIteratorIterator(
+                new \RecursiveDirectoryIterator($src, \FilesystemIterator::SKIP_DOTS),
+                \RecursiveIteratorIterator::SELF_FIRST
+            );
+            foreach ($items as $item) {
+                $to = $dst . '/' . $items->getSubPathname();
+                if ($item->isDir()) {
+                    if (!@mkdir($to, 0755, true)) {
+                        return false;
+                    }
+                } elseif (!@copy($item->getPathname(), $to)) {
+                    return false;
+                }
+            }
+        } catch (\UnexpectedValueException $e) {
+            return false;
+        }
+        return true;
+    }
+
+    /** SPL 递归删除目录（不存在/成功 → true；失败 → false） */
+    private static function rmDir(string $dir): bool
+    {
+        $paths = [];
+        try {
+            $items = new \RecursiveIteratorIterator(
+                new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS),
+                \RecursiveIteratorIterator::CHILD_FIRST
+            );
+            foreach ($items as $item) {
+                $paths[] = [$item->getPathname(), $item->isDir()];
+            }
+        } catch (\UnexpectedValueException $e) {
+            return !is_dir($dir);
+        }
+        foreach ($paths as [$path, $isDir]) {
+            if (!self::rmRemove($path, $isDir)) {
+                return false;
+            }
+        }
+        return self::rmRemove($dir, true);
+    }
+
+    /** 删除文件/空目录；失败时换名重删（同 Plugin::rmRemove，见其注释） */
+    private static function rmRemove(string $path, bool $isDir): bool
+    {
+        if ($isDir ? @rmdir($path) : @unlink($path)) {
+            return true;
+        }
+        $tmp = dirname($path) . '/.' . basename($path) . '.del' . bin2hex(random_bytes(3));
+        if (!@rename($path, $tmp)) {
+            return false;
+        }
+        return $isDir ? @rmdir($tmp) : @unlink($tmp);
+    }
+}

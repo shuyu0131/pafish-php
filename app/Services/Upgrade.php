@@ -1,0 +1,563 @@
+<?php
+declare(strict_types=1);
+
+namespace Pafish\Services;
+
+use Pafish\Core\Version;
+
+/**
+ * 系统在线更新（参考 emlog / prain 的官方源 + update.php 迁移脚本机制）：
+ * - 更新源硬编码：https://store.waikanl.cn/pafish-php/pafish-php.json（零配置）
+ *   元数据：{ version, notes, zip, min_version? }，zip 与发布包同一份（顶层 pafish/）
+ * - PAFISH_UPDATE_URL 环境变量可覆盖元数据地址（仅测试注入，生产零配置）；
+ *   PAFISH_UPGRADE_ROOT 可覆盖更新根目录（测试子目录演练用）
+ * - 检查结果缓存 runtime/update_check.json（24h TTL，后台加载静默检查不拖慢页面）
+ * - 执行：下载 → 校验（≤50MB / 全部条目位于 pafish/ 顶层 / 逐段防穿越）→ 整站备份
+ *   （排除 public/uploads、backups、runtime）→ 清空非保留项 → 解压覆盖 → 执行包内
+ *   upgrade.php（迁移脚本，执行后删除）→ 失败自动整体回滚
+ * - Windows 兼容：删除一律「先 rename 换名再删」（同 Plugin::rmRemove，避免被 include
+ *   的 .php 直接 unlink 在长时运行后引发进程级无声崩溃）；复制用 SPL 递归
+ */
+final class Upgrade
+{
+    private const DEFAULT_META_URL = 'https://store.waikanl.cn/pafish-php/pafish-php.json';
+    private const MAX_ZIP_BYTES = 50 * 1024 * 1024;
+    private const CACHE_TTL = 86400; // 24h
+    private const CACHE_FILE = 'update_check.json';
+
+    // ---------- 公开 ----------
+
+    /** 更新元数据地址（硬编码官方源；仅测试注入可覆盖） */
+    public static function metaUrl(): string
+    {
+        $env = trim((string) getenv('PAFISH_UPDATE_URL'));
+        if ($env !== '' && preg_match('#^https?://#i', $env) === 1) {
+            return rtrim($env, '/');
+        }
+        return self::DEFAULT_META_URL;
+    }
+
+    /** 更新目标根目录（默认站点根；PAFISH_UPGRADE_ROOT 仅测试注入） */
+    public static function root(): string
+    {
+        $env = trim((string) getenv('PAFISH_UPGRADE_ROOT'));
+        return $env !== '' ? rtrim($env, '/\\') : PAFISH_ROOT;
+    }
+
+    /**
+     * 检查更新：读远程元数据 → 与当前版本比较。force=true 跳过 24h 缓存。
+     * 返回：['hasUpdate'=>bool, 'current'=>, 'latest'=>, 'notes'=>, 'zip'=>, 'error'?=>]
+     */
+    public static function check(bool $force = false): array
+    {
+        $current = Version::current();
+        $cached = $force ? null : self::readCache();
+        $meta = null;
+        $error = '';
+        if ($cached !== null && is_array($cached['meta'] ?? null)) {
+            $meta = $cached['meta'];
+            $error = (string) ($cached['error'] ?? '');
+        } else {
+            try {
+                $body = self::httpGet(self::metaUrl());
+                $raw = json_decode($body, true);
+                if (!is_array($raw)) {
+                    throw new \RuntimeException('元数据格式不正确');
+                }
+                $meta = [
+                    'version' => (string) ($raw['version'] ?? ''),
+                    'notes' => (string) ($raw['notes'] ?? ''),
+                    'zip' => (string) ($raw['zip'] ?? ''),
+                    'min_version' => (string) ($raw['min_version'] ?? ''),
+                ];
+                if ($meta['version'] === '' || $meta['zip'] === '') {
+                    throw new \RuntimeException('元数据缺少版本或安装包地址');
+                }
+            } catch (\Throwable $e) {
+                $error = $e->getMessage();
+            }
+            self::writeCache($meta, $error);
+        }
+        if ($meta === null) {
+            return ['hasUpdate' => false, 'current' => $current, 'error' => $error !== '' ? $error : '检查失败'];
+        }
+        $latest = $meta['version'];
+        return [
+            'hasUpdate' => self::compareVersions($latest, $current) > 0,
+            'current' => $current,
+            'latest' => $latest,
+            'notes' => $meta['notes'],
+            'zip' => $meta['zip'],
+            'minVersion' => $meta['min_version'],
+            'error' => $error !== '' ? $error : '',
+        ];
+    }
+
+    /** 仅读缓存的检查结果（不触网，零延迟；用于后台布局/工作台渲染红点徽标） */
+    public static function cached(): array
+    {
+        $current = Version::current();
+        $cached = self::readCache();
+        if ($cached === null || !is_array($cached['meta'] ?? null)) {
+            return ['hasUpdate' => false, 'current' => $current, 'error' => ''];
+        }
+        $meta = $cached['meta'];
+        return [
+            'hasUpdate' => self::compareVersions((string) $meta['version'], $current) > 0,
+            'current' => $current,
+            'latest' => (string) $meta['version'],
+            'notes' => (string) $meta['notes'],
+            'zip' => (string) $meta['zip'],
+            'minVersion' => (string) $meta['min_version'],
+            'error' => (string) ($cached['error'] ?? ''),
+        ];
+    }
+
+    /**
+     * 执行更新：下载 → 校验 → 备份 → 清空 → 解压 → upgrade.php → 完成/回滚。
+     * 返回：['ok'=>true, 'current'=>, 'latest'=>]；失败抛异常（已回滚）
+     */
+    public static function run(): array
+    {
+        $info = self::check(true); // 强制拉最新元数据
+        if (isset($info['error']) && $info['error'] !== '' && ($info['latest'] ?? '') === '') {
+            throw new \RuntimeException('无法获取更新信息：' . $info['error']);
+        }
+        if (($info['latest'] ?? '') === '' || !$info['hasUpdate']) {
+            throw new \RuntimeException('已是最新版本（v' . Version::current() . '）');
+        }
+        $minVersion = (string) ($info['minVersion'] ?? '');
+        if ($minVersion !== '' && self::compareVersions(Version::current(), $minVersion) < 0) {
+            throw new \RuntimeException('当前版本 v' . Version::current() . ' 过低，请先升级到 v' . $minVersion);
+        }
+
+        set_time_limit(300);
+        $root = self::root();
+        // 并发锁：同一站点同时只允许一个更新任务。Windows 上多进程同时覆盖同一
+        // 目录会互相踩踏（一个进程解压、另一个进程正在清理/备份同一文件 → 部分
+        // 写入失败、备份不完整），flock 在 PHP 进程间互斥，抢不到锁直接拒绝
+        $lockPath = $root . '/runtime/upgrade.lock';
+        $lock = @fopen($lockPath, 'c');
+        if ($lock === false || !flock($lock, LOCK_EX | LOCK_NB)) {
+            if (is_resource($lock)) {
+                fclose($lock);
+            }
+            throw new \RuntimeException('已有更新任务正在进行中，请稍后再试');
+        }
+        $zipUrl = self::resolveZipUrl((string) $info['zip']);
+        $tmpZip = tempnam(sys_get_temp_dir(), 'pfup');
+        $bak = $root . '/runtime/.upgrade-bak-' . bin2hex(random_bytes(4));
+        try {
+            if ($tmpZip === false) {
+                throw new \RuntimeException('无法创建临时文件');
+            }
+            // 1. 下载
+            $buffer = self::httpGet($zipUrl);
+            if (@file_put_contents($tmpZip, $buffer) === false) {
+                throw new \RuntimeException('无法写入更新包临时文件');
+            }
+            // 2. 校验
+            self::validatePackage($tmpZip);
+            // 3. 备份（排除 public/uploads、backups、runtime；config.php 一并备份）
+            if (!self::copyDirFiltered($root, $bak, self::KEEP_DIRS)) {
+                throw new \RuntimeException('更新失败：无法备份站点（' . $bak . '）');
+            }
+            // 4. 清空非保留项
+            if (!self::clearRoot($root)) {
+                throw new \RuntimeException('更新失败：无法清理旧文件');
+            }
+            try {
+                // 5. 解压覆盖（剥掉 pafish/ 顶层）
+                self::extractPackage($tmpZip, $root);
+                // 6. 执行包内迁移脚本 upgrade.php（执行后删除）
+                self::runUpgradeScript($root);
+            } catch (\Throwable $e) {
+                try {
+                    self::rollback($root, $bak);
+                } catch (\Throwable $re) {
+                    throw new \RuntimeException('更新失败：' . $e->getMessage()
+                        . '；自动回滚也失败：' . $re->getMessage()
+                        . '（备份保留在 ' . $bak . '，请手动恢复）');
+                }
+                throw new \RuntimeException('更新失败：' . $e->getMessage() . '（已恢复旧版本）');
+            }
+        } catch (\Throwable $e) {
+            // 校验/下载/备份阶段失败：备份目录可能不存在或未完成
+            if (is_dir($bak) && self::isEmptyDir($bak) === false) {
+                try {
+                    self::rollback($root, $bak);
+                } catch (\Throwable $re) {
+                    throw new \RuntimeException($e->getMessage()
+                        . '；自动回滚也失败：' . $re->getMessage()
+                        . '（备份保留在 ' . $bak . '，请手动恢复）');
+                }
+            }
+            throw $e;
+        } finally {
+            @unlink($tmpZip);
+            if (is_dir($bak) && self::isEmptyDir($bak)) {
+                self::rmDir($bak);
+            }
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
+        // 7. 成功：删除备份、清静态缓存
+        self::rmDir($bak);
+        self::resetCache();
+        return ['ok' => true, 'current' => Version::current(), 'latest' => (string) $info['latest']];
+    }
+
+    // ---------- 内部 ----------
+
+    /** 更新包内的保留目录（不覆盖、不清空、不备份——用户数据区） */
+    private const KEEP_DIRS = ['runtime', 'backups', 'public/uploads'];
+
+    /** 解析 zip 下载地址：相对路径基于元数据 URL 的目录解析，http(s) 直用 */
+    private static function resolveZipUrl(string $zip): string
+    {
+        if (preg_match('#^https?://#i', $zip) === 1) {
+            return $zip;
+        }
+        $meta = self::metaUrl();
+        $pos = strrpos($meta, '/');
+        return ($pos !== false ? substr($meta, 0, $pos + 1) : $meta . '/') . ltrim($zip, '/');
+    }
+
+    /** 下载 zip 地址（元数据 zip 是相对路径，相对元数据目录解析） */
+    private static function httpGet(string $url): string
+    {
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_TIMEOUT => 60,
+            CURLOPT_CONNECTTIMEOUT => 10,
+            CURLOPT_USERAGENT => 'pafish-upgrade/' . Version::current(),
+        ]);
+        $body = curl_exec($ch);
+        $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+        // 不调 curl_close（PHP 8.5 起 deprecated，输出会污染响应体）
+        if ($body === false) {
+            throw new \RuntimeException('下载失败（连接错误）');
+        }
+        if ($status !== 200) {
+            throw new \RuntimeException('下载失败（HTTP ' . $status . '）');
+        }
+        return (string) $body;
+    }
+
+    /** 更新包校验：大小 ≤50MB、全部条目位于 pafish/ 顶层、逐段防 '..'/空段/冒号、关键文件存在 */
+    private static function validatePackage(string $tmpZip): void
+    {
+        if (filesize($tmpZip) > self::MAX_ZIP_BYTES) {
+            throw new \RuntimeException('更新包超过 50MB 限制');
+        }
+        $zip = new \ZipArchive();
+        if ($zip->open($tmpZip) !== true) {
+            throw new \RuntimeException('更新包不是有效的 zip 压缩包');
+        }
+        try {
+            $count = $zip->numFiles;
+            if ($count <= 0) {
+                throw new \RuntimeException('更新包为空');
+            }
+            $hasIndex = false;
+            $hasBootstrap = false;
+            for ($i = 0; $i < $count; $i++) {
+                $entryName = (string) $zip->getNameIndex($i);
+                $normalized = str_replace('\\', '/', $entryName);
+                $trimmed = rtrim($normalized, '/');
+                if ($trimmed === '') {
+                    throw new \RuntimeException('更新包包含意外路径：' . $entryName);
+                }
+                $parts = explode('/', $trimmed);
+                if (($parts[0] ?? '') !== 'pafish') {
+                    throw new \RuntimeException('更新包必须全部位于 pafish/ 顶层目录');
+                }
+                foreach ($parts as $seg) {
+                    if ($seg === '..' || $seg === '') {
+                        throw new \RuntimeException('更新包包含意外路径：' . $entryName);
+                    }
+                    if (str_contains($seg, ':')) {
+                        throw new \RuntimeException('更新包包含非法路径：' . $entryName);
+                    }
+                }
+                if ($trimmed === 'pafish/index.php') {
+                    $hasIndex = true;
+                }
+                if ($trimmed === 'pafish/app/bootstrap.php') {
+                    $hasBootstrap = true;
+                }
+            }
+            if (!$hasIndex || !$hasBootstrap) {
+                throw new \RuntimeException('更新包缺少关键文件（index.php / app/bootstrap.php）');
+            }
+        } finally {
+            @$zip->close();
+        }
+    }
+
+    /** 解压更新包：extractTo 根目录（生成 pafish/），合并到根后删除 pafish/ */
+    private static function extractPackage(string $tmpZip, string $root): void
+    {
+        $zip = new \ZipArchive();
+        if ($zip->open($tmpZip) !== true) {
+            throw new \RuntimeException('更新包无法解压');
+        }
+        if (!$zip->extractTo($root)) {
+            @$zip->close();
+            throw new \RuntimeException('更新包解压失败');
+        }
+        @$zip->close();
+        $pafishDir = $root . '/pafish';
+        if (!is_dir($pafishDir)) {
+            throw new \RuntimeException('更新包缺少 pafish/ 目录');
+        }
+        // 合并 pafish/* → 根（存在目录跳过，文件覆盖）
+        if (!self::mergeDir($pafishDir, $root)) {
+            throw new \RuntimeException('更新包文件合并失败');
+        }
+        if (!self::rmDir($pafishDir)) {
+            throw new \RuntimeException('无法清理更新包临时目录');
+        }
+    }
+
+    /** 执行包内迁移脚本 upgrade.php（若存在；执行后删除）。脚本可用 $pdo / PAFISH_ROOT */
+    private static function runUpgradeScript(string $root): void
+    {
+        $script = $root . '/upgrade.php';
+        if (!is_file($script)) {
+            return;
+        }
+        try {
+            include $script;
+        } finally {
+            self::rmRemove($script, false);
+        }
+    }
+
+    /** 回滚：清空当前非保留项 → 从备份整体复制回根 → 删备份（失败抛异常，备份保留） */
+    private static function rollback(string $root, string $bak): void
+    {
+        self::clearRoot($root);
+        if (!self::copyDirFiltered($bak, $root, [])) {
+            throw new \RuntimeException('无法从备份恢复文件');
+        }
+        self::rmDir($bak);
+    }
+
+    /** 清空根目录非保留项（保留 runtime/、backups/、public/uploads/、config.php） */
+    private static function clearRoot(string $root): bool
+    {
+        $items = @scandir($root);
+        if ($items === false) {
+            return false;
+        }
+        foreach ($items as $name) {
+            if ($name === '.' || $name === '..') {
+                continue;
+            }
+            if ($name === 'config.php') {
+                continue;
+            }
+            if (in_array($name, ['runtime', 'backups'], true)) {
+                continue;
+            }
+            if ($name === 'public' && is_dir($root . '/public')) {
+                // public 只保留 uploads 子目录
+                $sub = @scandir($root . '/public');
+                if ($sub !== false) {
+                    foreach ($sub as $subName) {
+                        if ($subName === '.' || $subName === '..' || $subName === 'uploads') {
+                            continue;
+                        }
+                        if (!self::rmDir($root . '/public/' . $subName)) {
+                            return false;
+                        }
+                    }
+                }
+                continue;
+            }
+            if (!self::rmDir($root . '/' . $name)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** 复制目录（跳过排除前缀相对路径；目录跳过创建，文件覆盖） */
+    private static function copyDirFiltered(string $src, string $dst, array $exclude): bool
+    {
+        return self::copyRecursive($src, $dst, '', $exclude);
+    }
+
+    private static function copyRecursive(string $src, string $dst, string $rel, array $exclude): bool
+    {
+        if (!is_dir($src)) {
+            return false;
+        }
+        if (!is_dir($dst) && !@mkdir($dst, 0755, true)) {
+            return false;
+        }
+        $items = @scandir($src);
+        if ($items === false) {
+            return false;
+        }
+        foreach ($items as $name) {
+            if ($name === '.' || $name === '..') {
+                continue;
+            }
+            $childRel = $rel === '' ? $name : $rel . '/' . $name;
+            $skip = false;
+            foreach ($exclude as $prefix) {
+                if ($childRel === $prefix) {
+                    $skip = true;
+                    break;
+                }
+            }
+            if ($skip) {
+                continue;
+            }
+            $from = $src . '/' . $name;
+            $to = $dst . '/' . $name;
+            if (is_dir($from)) {
+                if (!self::copyRecursive($from, $to, $childRel, $exclude)) {
+                    return false;
+                }
+            } elseif (is_file($to) && !@chmod($to, 0666)) {
+                // Windows 只读目标（如 git 对象）先清只读位再覆盖
+                return false;
+            } elseif (!@copy($from, $to)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** 合并 src 目录到 dst（目录跳过创建，文件覆盖） */
+    private static function mergeDir(string $src, string $dst): bool
+    {
+        $items = @scandir($src);
+        if ($items === false) {
+            return false;
+        }
+        foreach ($items as $name) {
+            if ($name === '.' || $name === '..') {
+                continue;
+            }
+            $from = $src . '/' . $name;
+            $to = $dst . '/' . $name;
+            if (is_dir($from)) {
+                if (!is_dir($to) && !@mkdir($to, 0755, true)) {
+                    return false;
+                }
+                if (!self::mergeDir($from, $to)) {
+                    return false;
+                }
+            } elseif (is_file($to) && !@chmod($to, 0666)) {
+                return false;
+            } elseif (!@copy($from, $to)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** 目录是否为空 */
+    private static function isEmptyDir(string $dir): bool
+    {
+        $items = @scandir($dir);
+        return $items === false || count($items) <= 2;
+    }
+
+    /** 递归删除（scandir 快照 + rename 换名再删，Windows 兼容，同 Plugin::rmRemove） */
+    private static function rmDir(string $dir): bool
+    {
+        $items = @scandir($dir);
+        if ($items === false) {
+            return !is_dir($dir);
+        }
+        foreach ($items as $name) {
+            if ($name === '.' || $name === '..') {
+                continue;
+            }
+            $path = $dir . '/' . $name;
+            if (is_dir($path)) {
+                if (!self::rmDir($path)) {
+                    return false;
+                }
+            } elseif (!self::rmRemove($path, false)) {
+                return false;
+            }
+        }
+        return self::rmRemove($dir, true);
+    }
+
+    /** 删除文件/空目录：先 rename 换名（释放被 include 文件的路径句柄）再删新名 */
+    /**
+     * 删除文件/空目录。策略：永远先 rename 换名（释放原路径句柄），再删新名——
+     * Windows 下 PHP 进程 include 过的文件会以路径级句柄占用原路径，直接 unlink
+     * 可能失败甚至引发进程级无声崩溃；rename 换名后原路径即释放。
+     * rename 成功即视为删除完成：安全软件（如 360 文件保护）会拦截 PHP 内容文件的
+     * unlink（minifilter 级拒绝，无句柄可查），此时新名残留为 .del 文件，不影响
+     * 原路径与功能；真实服务器（Linux）上 unlink 正常。rename 失败（源被独占）
+     * 才回退直接删。
+     */
+    private static function rmRemove(string $path, bool $isDir): bool
+    {
+        // Windows：git 对象等文件带只读属性，rename/unlink 会被拒绝（ACCESS_DENIED），
+        // 先清除只读位（chmod 在 Windows 上仅影响只读属性，目录的只读位含义不同，跳过）
+        if (!$isDir) {
+            @chmod($path, 0666);
+        }
+        $tmp = dirname($path) . '/.' . basename($path) . '.del' . bin2hex(random_bytes(3));
+        for ($i = 0; $i < 3; $i++) {
+            if (@rename($path, $tmp)) {
+                if ($isDir) {
+                    return @rmdir($tmp) || !is_dir($tmp);
+                }
+                return @unlink($tmp) || !is_file($tmp);
+            }
+            if ($i < 2) {
+                usleep(150000);
+            }
+        }
+        return $isDir ? @rmdir($path) : @unlink($path);
+    }
+
+    /** 数字分段版本比较（统一走 Version::compare） */
+    private static function compareVersions(string $a, string $b): int
+    {
+        return Version::compare($a, $b);
+    }
+
+    /** 读取检查缓存（24h TTL 内有效） */
+    private static function readCache(): ?array
+    {
+        $path = PAFISH_ROOT . '/runtime/' . self::CACHE_FILE;
+        $raw = @file_get_contents($path);
+        if ($raw === false) {
+            return null;
+        }
+        $data = json_decode($raw, true);
+        if (!is_array($data) || !isset($data['at'])) {
+            return null;
+        }
+        if (time() - (int) $data['at'] > self::CACHE_TTL) {
+            return null;
+        }
+        return $data;
+    }
+
+    private static function writeCache(?array $meta, string $error): void
+    {
+        $path = PAFISH_ROOT . '/runtime/' . self::CACHE_FILE;
+        $data = ['at' => time(), 'meta' => $meta, 'error' => $error];
+        @file_put_contents($path, json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), LOCK_EX);
+    }
+
+    private static function resetCache(): void
+    {
+        @unlink(PAFISH_ROOT . '/runtime/' . self::CACHE_FILE);
+    }
+}

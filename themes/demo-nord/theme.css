@@ -1,0 +1,36 @@
+/* ==========================================================================
+   demo-nord：Nord 配色（北极蓝灰）语义变量覆盖
+   变量名与系统内置一致（亮 11 个 + .dark 11 个），后台始终用默认配色，本文件只作用于前台
+   ========================================================================== */
+:root {
+  --bg: #eceff4;
+  --fg: #4c566a;
+  --muted: #7b8396;
+  --card: #ffffff;
+  --border: #d8dee9;
+  --accent: #5e81ac;
+  --accent-soft: rgba(94, 129, 172, 0.1);
+  --danger: #bf616a;
+  --title: #3b4252;
+  --meta: #9aa3b2;
+  --side: #5b6478;
+}
+
+.dark {
+  --bg: #2e3440;
+  --fg: #d8dee9;
+  --muted: #8f98ab;
+  --card: #3b4252;
+  --border: #434c5e;
+  --accent: #88c0d0;
+  --accent-soft: rgba(136, 192, 208, 0.12);
+  --danger: #d08770;
+  --title: #eceff4;
+  --meta: #616c85;
+  --side: #a3b1c6;
+}
+
+/* 页面模板分发：theme.json pageTemplates 声明 wide（宽版页） */
+[data-page-template="wide"] {
+  max-width: 1100px;
+}

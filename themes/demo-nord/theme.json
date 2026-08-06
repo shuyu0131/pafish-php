@@ -1,0 +1,76 @@
+{
+  "name": "demo-nord",
+  "title": "Nord 演示主题",
+  "version": "1.0.0",
+  "description": "演示主题：站标图片、开关、单选项、颜色与页面模板等高级设置项。",
+  "author": "pafish",
+  "pageTemplates": [
+    {
+      "name": "wide",
+      "title": "宽版页",
+      "description": "页面内容区放宽到 1100px（纯 CSS 模板，主题层分发）"
+    }
+  ],
+  "settings": [
+    {
+      "key": "logo_image",
+      "label": "站标图片",
+      "type": "image",
+      "placeholder": "/uploads/xxx 或外部图片 URL"
+    },
+    {
+      "key": "show_badge",
+      "label": "显示徽标",
+      "type": "switcher",
+      "default": "1"
+    },
+    {
+      "key": "badge_text",
+      "label": "徽标文字",
+      "type": "text",
+      "default": "NORD",
+      "show_if": { "key": "show_badge", "value": "1" }
+    },
+    {
+      "key": "layout_style",
+      "label": "版式",
+      "type": "radio",
+      "options": { "wide": "宽版", "narrow": "窄版" },
+      "default": "narrow"
+    },
+    {
+      "key": "accent_color",
+      "label": "强调色",
+      "type": "color",
+      "default": "#5e81ac"
+    },
+    {
+      "key": "footer_text",
+      "label": "页脚文案",
+      "type": "text",
+      "group": "内容",
+      "placeholder": "留空使用默认页脚"
+    },
+    {
+      "key": "show_custom_fields",
+      "label": "文章页显示自定义字段",
+      "type": "checkbox",
+      "group": "内容",
+      "default": "1"
+    },
+    {
+      "key": "sidebar_enabled",
+      "label": "显示桌面侧边栏",
+      "type": "checkbox",
+      "group": "布局",
+      "default": "1"
+    },
+    {
+      "key": "show_related_posts",
+      "label": "文章页显示相关推荐",
+      "type": "checkbox",
+      "group": "布局",
+      "default": "1"
+    }
+  ]
+}

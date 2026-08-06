@@ -1,0 +1,55 @@
+# 变更日志
+
+## v0.1.2（2026-08-06）
+
+部署修复：静态资源 PHP 兜底真正落地（v0.1.1 的声明实际未实现，Nginx 未配静态规则时 CSS/JS 仍 404）：
+
+### 修复
+
+- **静态资源 PHP 兜底落地**：框架入口（`index.php` → `bootstrap.php`）在会话/路由启动**之前**直出 `public/` 下的 `css/ js/ uploads/ vendor/`（正确 Content-Type / Content-Length / Cache-Control，子目录部署自动剥站点前缀），不再依赖 Web 服务器静态规则
+  - Nginx 只需一条伪静态 `try_files $uri $uri/ /index.php?$query_string;`，配不配静态 `location` 样式都能加载（配了则由 Nginx 直接读盘，性能更佳）
+  - Apache 不变（`.htaccess` 已内置静态重写，兜底仅作保底）
+  - 静态请求零框架开销：不启动 session、不触发插件钩子
+- 文档同步：README / docs/install-bt.md 的 Nginx 静态规则降为「可选性能优化」
+
+## v0.1.1（2026-08-04）
+
+线上部署修复与加固（针对 Nginx 场景 CSS/JS 加载失败、后台登录网络错误）：
+
+### 新增
+
+- **内置官方应用商店（store.waikanl.cn）**：商店地址硬编码官方域名，用户零配置；直接消费官网 `/api/catalog` 目录与 `/downloads/apps/{id}` 下载；目录拉取失败自动回退内置商店，商店永不自挂
+- **系统在线更新**：后台「系统更新」页检查/升级，更新包与版本信息托管在 store.waikanl.cn；升级前自动整站备份（排除 runtime/backups/public/uploads 与 config.php），失败自动回滚；支持包内 `upgrade.php` 迁移脚本；导航角标提醒新版本（24h 缓存）
+- **更新/删除的 Windows 兼容加固**：删除前先清除只读属性（git 对象等只读文件在 Windows 下 rename/unlink 会被拒绝）
+
+### 修复
+
+- **静态资源加载失败**：静态资源统一走 `public/` 直链（`css/ js/ uploads/`），不再依赖伪静态重写；新增 Slim 静态兜底路由（`StaticFileController`），Nginx 未配置静态规则时也由 PHP 正常返回资源
+- **API 请求路径错误**（后台登录/操作提示「网络错误」）：前端 API 调用改为 `pafishApi()` 统一入口，自动适配伪静态/非伪静态两种 URL 形式
+- **模板缺失 Config 类别名**（全站 500）：`helpers.php` 补充 `class_alias`，模板内 `Config::get()` 恢复正常
+- **Windows 下卸载/删除插件目录失败**：`Plugin/Theme/Store` 删除逻辑升级为「换名后重删」兜底，规避 PHP 进程对 include 过文件的路径级句柄占用
+- 文档补充 Nginx 静态资源规则与两种部署模式说明（README / docs/install-bt.md）
+
+## v0.1.0（2026-08-04）
+
+pafish 博客 CMS（PHP 版）首个发布版本。功能/界面/数据层与 Node 版 v1.1.0 对齐。
+
+### 核心功能
+
+- Web 安装向导（环境检查 → 建库建表 → 种子数据 → 生成配置，零命令行）
+- 前台：文章/分类/标签/搜索/归档/页面/RSS/sitemap/robots、评论楼中楼、密码门、点赞收藏、相关推荐、侧边栏组件、亮暗主题
+- 后台 18 页：工作台（SVG 图表）、文章（Markdown 编辑器/批量导入/回收站/定时发布）、分类树、标签、媒体库（GD 压缩）、评论审核、通知、友链/导航/组件、外观（主题设置/导入导出）、站点设置（SMTP 测试/开放 API）、商店、插件、用户、备份（双模式）、个人资料
+- 认证：登录/注册/忘记密码（双通道）、邮箱验证、CSRF、会话 7 天
+
+### 扩展
+
+- 主题系统：theme.json + 语义 CSS 变量（与 Node 版主题包兼容）+ 可选 PHP 模板覆盖
+- 插件系统：11 个事件钩子、云存储管线、前台页面/页面模板、应用商店安装更新回滚
+- 内置应用商店（demo-nord / hello-pafish / demo-hooks / binfen-storage）
+
+### 运维
+
+- 定时发布双通道：cron.php（宝塔计划任务）+ 前台请求低频兜底
+- 开放 API v1（X-API-Key 鉴权）
+- 缤纷云 S4 云存储插件（SigV4 签名）
+- 发布包预打包 vendor，上传解压即用

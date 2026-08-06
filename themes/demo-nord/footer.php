@@ -1,0 +1,34 @@
+<?php
+/**
+ * 前台页脚（demo-nord 主题覆盖系统 fallback：演示 PHP 模板覆盖机制）
+ * 主题目录的 footer.php 完整替换系统模板，get_footer() 渲染本文件
+ */
+$siteName = site_name();
+$footerText = (string) theme_value('footer_text');
+$footerDefault = '© ' . date('Y') . ' ' . $siteName . ' · 用 PHP 构建';
+$badge = (string) theme_value('show_badge') === '1' ? (string) theme_value('badge_text', 'NORD') : '';
+?>
+  </main>
+
+  <footer class="app-footer" data-theme-footer="demo-nord">
+    <p><?= e($footerText !== '' ? $footerText : $footerDefault) ?></p>
+    <?php if ($badge !== ''): ?>
+      <p class="app-footer-badge" style="color: <?= e(theme_value('accent_color', '#5e81ac')) ?>"><?= e($badge) ?></p>
+    <?php endif; ?>
+    <?php /* 插件页脚注入（M5） */ do_action('footer_inject'); ?>
+  </footer>
+
+</div>
+</div>
+<script src="<?= e(url_to('/js/highlight.min.js')) ?>" defer></script>
+<script>
+/* 代码高亮（hljs 类已在 style.css 定义配色） */
+document.addEventListener('DOMContentLoaded', function () {
+  if (window.hljs && document.querySelector('.md-content pre code')) {
+    hljs.highlightAll();
+  }
+});
+</script>
+<script src="<?= e(url_to('/js/theme.js')) ?>" defer></script>
+</body>
+</html>

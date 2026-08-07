@@ -41,13 +41,14 @@ final class Url
     }
 
     /**
-     * 静态资源直链（css/js/uploads/vendor 等 public/ 下文件）：
-     * 无论 pretty_urls 开关，资源始终对外保持根路径（Web 服务器直连；
-     * 无静态配置的环境由框架入口的 PHP 兜底直出），仅需带上子目录前缀。
+     * 静态资源直链（css/js/uploads/vendor 等 public/ 下文件）。
+     * 开箱即用：URL 带 /public/ 前缀直接指向真实文件，Web 服务器（Nginx/Apache）
+     * 任何配置下都能直接读盘返回，无需 try_files / PHP 兜底 / .htaccess 静态重写。
+     * 前台主题布局样式由 Theme 服务内联注入，不经过此处。
      */
     public static function asset(string $path): string
     {
-        return self::base() . '/' . ltrim($path, '/');
+        return self::base() . '/public/' . ltrim($path, '/');
     }
 
     /**

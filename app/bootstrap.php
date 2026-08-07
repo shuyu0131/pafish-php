@@ -33,6 +33,10 @@ $__base = basename($__scriptName) === 'index.php'
 if ($__base !== '' && str_starts_with($__path, $__base . '/')) {
     $__path = substr($__path, strlen($__base));
 }
+// asset() 输出 /public/ 前缀：剥掉前缀后匹配（兼容 /css/ 直链与 /public/css/ 两种）
+if (str_starts_with($__path, '/public/')) {
+    $__path = substr($__path, strlen('/public'));
+}
 $__dir = null;
 foreach (['css', 'js', 'uploads', 'vendor'] as $__candidate) {
     if (str_starts_with($__path, '/' . $__candidate . '/')) {

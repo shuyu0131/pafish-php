@@ -10,6 +10,7 @@ $siteName = site_name();
 $subtitle = (string) settings('site_subtitle', '');
 $activeTheme = Theme::active();
 $themeCss = Theme::css($activeTheme);
+$layoutCss = Theme::layoutCss($activeTheme);
 $showSidebar = theme_value('sidebar_enabled', '1') !== '0';
 $navItems = nav_items();
 $loggedIn = is_logged_in();
@@ -41,8 +42,10 @@ $fullTitle = $pageTitle !== '' && $pageTitle !== '首页' && $pageTitle !== site
   } catch (e) {}
 })();
 </script>
-<link rel="stylesheet" href="<?= e(asset_url('/css/style.css')) ?>">
-<?php if ($themeCss): ?><style data-theme="<?= e($activeTheme) ?>"><?= $themeCss ?></style><?php endif; ?>
+<?php /* 布局样式 + 主题变量内联注入：主题自包含、不依赖 Web 服务器静态配置，开箱即用 */ ?>
+<?php if ($layoutCss !== null || $themeCss !== null): ?>
+<style data-theme="<?= e($activeTheme) ?>"><?= $layoutCss ?? '' ?><?= $themeCss ?? '' ?></style>
+<?php endif; ?>
 <?php /* 插件 head 注入（M5） */ do_action('head_inject'); ?>
 <script>
 /* API 路径适配：pretty_urls=false 时请求走 index.php?p=api/...，query 用 & 拼接 */

@@ -19,6 +19,7 @@ $roleLabel = match ((string) ($user['role'] ?? '')) {
     'EDITOR' => '编辑',
     default => '用户',
 };
+$layoutCss = Theme::layoutCss(Theme::active());
 ?>
 <!doctype html>
 <html lang="zh-CN">
@@ -27,7 +28,7 @@ $roleLabel = match ((string) ($user['role'] ?? '')) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= e($title) ?> - <?= e($siteName) ?></title>
 <meta name="robots" content="noindex,nofollow">
-<link rel="stylesheet" href="<?= e(asset_url('/css/style.css')) ?>">
+<?php if ($layoutCss !== null): ?><style><?= $layoutCss ?></style><?php endif; ?>
 <link rel="stylesheet" href="<?= e(asset_url('/css/admin.css')) ?>">
 <?php if (!empty($headExtra)): ?><?= $headExtra ?><?php endif; ?>
 <script>

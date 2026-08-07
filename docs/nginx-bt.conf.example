@@ -1,0 +1,55 @@
+# pafish 博客系统 · 宝塔 Nginx 站点配置完整示例
+# ----------------------------------------------------------------
+# 用法(二选一):
+#   A) 最简:在你宝塔现有的站点配置里,只加下面【1】【2】两个 location
+#      (保留宝塔原有的 PHP 块、日志、SSL),reload nginx 即可
+#   B) 完整:把本文件整个作为站点配置(需替换 域名 / 站点目录 / PHP socket)
+# 替换占位:你的域名、你的站点目录(/www/wwwroot/域名)、PHP 版本 socket
+# ----------------------------------------------------------------
+
+server {
+    listen 80;
+    server_name 你的域名;
+
+    root /www/wwwroot/你的站点目录;
+    index index.php index.html index.htm;
+
+    # access_log /www/wwwlogs/你的域名.log;
+    # error_log  /www/wwwlogs/你的域名.error.log;
+
+    # 【1】静态资源:Nginx 直接从 public/ 读盘(绕过 PHP,最稳,不受 opcache/兜底影响)
+    #     /css/style.css → public/css/style.css
+    location ~ ^/(css|js|uploads|vendor)/ {
+        root /www/wwwroot/你的站点目录/public;
+        try_files $uri =404;
+        expires 7d;
+        access_log off;
+    }
+
+    # 【2】伪静态:不存在的请求回退到 index.php(让 /post/xxx 等路由生效)
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    # 【3】PHP:执行 index.php / install.php / cron.php
+    #     宝塔不同 PHP 版本 socket 不同;若用方案 B,请保留宝塔原有的 fastcgi_pass
+    #     PHP 8.1 示例 socket:/tmp/php-cgi-81.sock;或 TCP:127.0.0.1:9000
+    location ~ [^/]\.php(/|$) {
+        fastcgi_pass unix:/tmp/php-cgi-81.sock;
+        fastcgi_index index.php;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        include fastcgi_params;
+        fastcgi_param PHP_VALUE "upload_max_filesize=20M\n post_max_size=24M\n memory_limit=256M";
+    }
+
+    # 【4】敏感文件/目录禁止外部访问
+    location ~ ^/(config\.php|composer\.(json|lock)|\.env) { deny all; }
+    location ^~ /runtime/ { deny all; }
+    location ^~ /backups/ { deny all; }
+
+    # 【5】安装完成后取消注释,禁止他人访问 install.php 重装
+    # location = /install.php { deny all; }
+
+    # 【6】上传大小(应用商店/主题插件 zip、备份导入)
+    client_max_body_size 50m;
+}

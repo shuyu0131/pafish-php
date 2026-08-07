@@ -14,6 +14,9 @@ $from = (string) ($from ?? '/admin');
 $token = (string) ($token ?? '');
 $titleMap = ['login' => '登录', 'register' => '注册', 'forgot' => '找回密码', 'reset' => '重置密码'];
 $title = $titleMap[$mode] ?? '登录';
+$activeTheme = Theme::active();
+$themeCss = Theme::css($activeTheme);
+$layoutCss = Theme::layoutCss($activeTheme);
 ?>
 <!doctype html>
 <html lang="zh-CN">
@@ -21,7 +24,9 @@ $title = $titleMap[$mode] ?? '登录';
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= e($title . ' · ' . $siteName) ?></title>
-<link rel="stylesheet" href="<?= e(asset_url('/css/style.css')) ?>">
+<?php if ($layoutCss !== null || $themeCss !== null): ?>
+<style><?= $layoutCss ?? '' ?><?= $themeCss ?? '' ?></style>
+<?php endif; ?>
 <script>
 /* API 路径适配：pretty_urls=false 时请求走 index.php?p=api/...，query 用 & 拼接 */
 window.pafishApi = function (p) {

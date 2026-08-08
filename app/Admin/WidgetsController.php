@@ -14,7 +14,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  * - 列表 sort_order ASC, id ASC；行内编辑可改 type；新建 max(sort_order)+1
  * - title 留空用类型默认标题；content 仅 custom 类型保存，其余强制 NULL
  * - 显隐切换；上下移动=相邻交换；删除两步确认物理删
- * 权限：ADMIN+EDITOR（guardCanManage）；CSRF 由 AdminAuthMiddleware 统一校验
+ * 权限：仅 ADMIN（guardAdmin，参考 emlog 编辑不可改外观）；CSRF 由 AdminAuthMiddleware 统一校验
  */
 final class WidgetsController extends AdminController
 {
@@ -44,7 +44,7 @@ final class WidgetsController extends AdminController
     /** GET /admin/widgets */
     public function index(Request $request, Response $response): Response
     {
-        $this->guardCanManage();
+        $this->guardAdmin();
         $items = DB::fetchAll('SELECT * FROM widgets ORDER BY sort_order ASC, id ASC');
         $response->getBody()->write($this->render('widgets', [
             'items' => $items,
@@ -58,7 +58,7 @@ final class WidgetsController extends AdminController
     /** POST /admin/widgets/save 或 /admin/widgets/{id}/save（新建/编辑共用） */
     public function save(Request $request, Response $response, array $args): Response
     {
-        $this->guardCanManage();
+        $this->guardAdmin();
         $id = isset($args['id']) ? (int) $args['id'] : 0;
         try {
             $type = (string) ($request->getParsedBody()['type'] ?? '');
@@ -101,7 +101,7 @@ final class WidgetsController extends AdminController
     /** POST /admin/widgets/{id}/delete：物理删除 */
     public function delete(Request $request, Response $response, array $args): Response
     {
-        $this->guardCanManage();
+        $this->guardAdmin();
         DB::execute('DELETE FROM widgets WHERE id = ?', [(int) ($args['id'] ?? 0)]);
         return $this->json($response, ['ok' => true]);
     }
@@ -109,7 +109,7 @@ final class WidgetsController extends AdminController
     /** POST /admin/widgets/{id}/toggle：显隐切换 */
     public function toggle(Request $request, Response $response, array $args): Response
     {
-        $this->guardCanManage();
+        $this->guardAdmin();
         DB::execute('UPDATE widgets SET visible = 1 - visible WHERE id = ?', [(int) ($args['id'] ?? 0)]);
         return $this->json($response, ['ok' => true]);
     }
@@ -117,7 +117,7 @@ final class WidgetsController extends AdminController
     /** POST /admin/widgets/{id}/move：与相邻项交换 sort_order（dir: up|down） */
     public function move(Request $request, Response $response, array $args): Response
     {
-        $this->guardCanManage();
+        $this->guardAdmin();
         $id = (int) ($args['id'] ?? 0);
         $dir = ($request->getParsedBody()['dir'] ?? '') === 'up' ? 'up' : 'down';
         DB::transaction(function () use ($id, $dir): void {

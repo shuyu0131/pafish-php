@@ -5,11 +5,15 @@
 $siteName = site_name();
 $footerText = (string) theme_value('footer_text');
 $footerDefault = '© ' . date('Y') . ' ' . $siteName . ' · 用 PHP 构建';
+$icp = (string) settings('site_icp', '');
 ?>
   </main>
 
   <footer class="app-footer">
     <p><?= e($footerText !== '' ? $footerText : $footerDefault) ?></p>
+    <?php if ($icp !== ''): ?>
+      <p class="app-footer-icp"><?= e($icp) ?></p>
+    <?php endif; ?>
     <?php /* 插件页脚注入（M5） */ do_action('footer_inject'); ?>
   </footer>
 

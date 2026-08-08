@@ -6,12 +6,16 @@
 $siteName = site_name();
 $footerText = (string) theme_value('footer_text');
 $footerDefault = '© ' . date('Y') . ' ' . $siteName . ' · 用 PHP 构建';
+$icp = (string) settings('site_icp', '');
 $badge = (string) theme_value('show_badge') === '1' ? (string) theme_value('badge_text', 'NORD') : '';
 ?>
   </main>
 
   <footer class="app-footer" data-theme-footer="demo-nord">
     <p><?= e($footerText !== '' ? $footerText : $footerDefault) ?></p>
+    <?php if ($icp !== ''): ?>
+      <p class="app-footer-icp"><?= e($icp) ?></p>
+    <?php endif; ?>
     <?php if ($badge !== ''): ?>
       <p class="app-footer-badge" style="color: <?= e(theme_value('accent_color', '#5e81ac')) ?>"><?= e($badge) ?></p>
     <?php endif; ?>
@@ -20,7 +24,7 @@ $badge = (string) theme_value('show_badge') === '1' ? (string) theme_value('badg
 
 </div>
 </div>
-<script src="<?= e(url_to('/js/highlight.min.js')) ?>" defer></script>
+<script src="<?= e(asset_url('/js/highlight.min.js')) ?>" defer></script>
 <script>
 /* 代码高亮（hljs 类已在 style.css 定义配色） */
 document.addEventListener('DOMContentLoaded', function () {

@@ -17,7 +17,8 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 /**
  * 后台控制器基类：导航（角色过滤）+ 布局渲染 + 管理员守卫
  * 对齐 Node 版 src/lib/admin-nav.tsx + app/admin/layout.tsx
- * 权限模型：ADMIN 全权；EDITOR 内容/互动/外观/站点设置；商店/插件/用户/备份仅 ADMIN
+ * 权限模型（参考 emlog）：ADMIN 全权；EDITOR 仅内容/互动（文章/页面/分类/标签/媒体/评论/通知/友链）；
+ * 外观（导航/组件/主题）、站点设置、商店/插件/用户/备份仅 ADMIN
  */
 abstract class AdminController
 {
@@ -52,16 +53,16 @@ abstract class AdminController
             'id' => 'appearance',
             'label' => '外观',
             'items' => [
-                ['href' => '/admin/nav', 'label' => '导航菜单', 'icon' => 'menu', 'require' => 'edit'],
-                ['href' => '/admin/widgets', 'label' => '侧边栏组件', 'icon' => 'layout', 'require' => 'edit'],
-                ['href' => '/admin/appearance', 'label' => '主题与外观', 'icon' => 'palette', 'require' => 'edit'],
+                ['href' => '/admin/nav', 'label' => '导航菜单', 'icon' => 'menu', 'require' => 'admin'],
+                ['href' => '/admin/widgets', 'label' => '侧边栏组件', 'icon' => 'layout', 'require' => 'admin'],
+                ['href' => '/admin/appearance', 'label' => '主题与外观', 'icon' => 'palette', 'require' => 'admin'],
             ],
         ],
         [
             'id' => 'system',
             'label' => '系统',
             'items' => [
-                ['href' => '/admin/settings', 'label' => '站点设置', 'icon' => 'settings', 'require' => 'edit'],
+                ['href' => '/admin/settings', 'label' => '站点设置', 'icon' => 'settings', 'require' => 'admin'],
                 ['href' => '/admin/store', 'label' => '应用商店', 'icon' => 'store', 'require' => 'admin'],
                 ['href' => '/admin/plugins', 'label' => '插件管理', 'icon' => 'puzzle', 'require' => 'admin'],
                 ['href' => '/admin/upgrade', 'label' => '系统更新', 'icon' => 'refresh', 'require' => 'admin'],

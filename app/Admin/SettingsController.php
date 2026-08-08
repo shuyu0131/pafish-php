@@ -17,7 +17,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  * - 保存：22 键白名单整体 upsert，空串覆盖，无校验（对齐 Node updateSettings）
  * - SMTP 测试：用表单当前值直接发信（未保存也能测），收件人=登录账号邮箱或 notify_email
  * - 开放 API：api_enabled 开关 + api_key 重新生成（32 位 hex，X-API-Key 头鉴权）
- * 权限：ADMIN+EDITOR（guardCanManage）；CSRF 由 AdminAuthMiddleware 统一校验
+ * 权限：仅 ADMIN（guardAdmin，参考 emlog 编辑不可改站点设置）；CSRF 由 AdminAuthMiddleware 统一校验
  */
 final class SettingsController extends AdminController
 {
@@ -36,7 +36,7 @@ final class SettingsController extends AdminController
     /** GET /admin/settings */
     public function index(Request $request, Response $response): Response
     {
-        $this->guardCanManage();
+        $this->guardAdmin();
         $all = Settings::all();
         $response->getBody()->write($this->render('settings', [
             'all' => $all,
@@ -47,7 +47,7 @@ final class SettingsController extends AdminController
     /** POST /admin/settings/save：白名单整体 upsert（对齐 Node updateSettings） */
     public function save(Request $request, Response $response): Response
     {
-        $this->guardCanManage();
+        $this->guardAdmin();
         $body = $request->getParsedBody() ?? [];
         $pairs = [];
         foreach (self::ALLOWED_KEYS as $key) {
@@ -67,7 +67,7 @@ final class SettingsController extends AdminController
     /** POST /admin/settings/test-smtp：用表单当前值发送测试邮件（未保存也能测） */
     public function testSmtp(Request $request, Response $response): Response
     {
-        $this->guardCanManage();
+        $this->guardAdmin();
         $body = $request->getParsedBody() ?? [];
         $cfg = [
             'host' => trim((string) ($body['host'] ?? '')),
@@ -102,7 +102,7 @@ final class SettingsController extends AdminController
     /** POST /admin/settings/regenerate-key：重新生成 API Key（32 位 hex，旧 Key 作废） */
     public function regenerateApiKey(Request $request, Response $response): Response
     {
-        $this->guardCanManage();
+        $this->guardAdmin();
         $key = bin2hex(random_bytes(16));
         Settings::set('api_key', $key);
         return $this->json($response, ['ok' => true, 'key' => $key]);

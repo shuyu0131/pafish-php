@@ -37,6 +37,7 @@
 
 * {
   box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent; /* 去掉移动端点击灰色高亮 */
 }
 
 html {
@@ -284,9 +285,9 @@ img {
   }
 }
 
-/* 页脚：仅桌面显示 */
+/* 页脚：移动端与桌面均显示（备案号/默认文案移动端也要可见） */
 .app-footer {
-  display: none;
+  display: block;
   border-top: 1px solid var(--border);
   padding: 1.5rem 0;
   text-align: center;
@@ -296,10 +297,8 @@ img {
 .app-footer p {
   margin: 0;
 }
-@media (min-width: 1024px) {
-  .app-footer {
-    display: block;
-  }
+.app-footer .app-footer-icp {
+  margin-top: 0.35rem;
 }
 
 /* 内容容器（对应 page.tsx 的 max-w-3xl + 内外边距） */
@@ -430,15 +429,15 @@ img {
 select.input {
   appearance: none;
   -webkit-appearance: none;
-  background-image: linear-gradient(currentColor, currentColor);
-  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
-  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
-  -webkit-mask-repeat: no-repeat;
-  mask-repeat: no-repeat;
-  -webkit-mask-position: right 0.85rem center;
-  mask-position: right 0.85rem center;
-  -webkit-mask-size: 0.95em;
-  mask-size: 0.95em;
+  /* 下拉箭头：双渐变三角绘制（原 mask 方案会裁掉整个元素，导致选项文字不可见） */
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position:
+    calc(100% - 1.1rem) center,
+    calc(100% - 0.8rem) center;
+  background-size: 0.3em 0.3em, 0.3em 0.3em;
+  background-repeat: no-repeat;
   padding-right: 2.4rem;
   cursor: pointer;
 }

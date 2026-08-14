@@ -95,6 +95,7 @@ foreach ($packs as [$kind, $dir, $name]) {
         'description' => (string) ($m['description'] ?? ''),
         'author' => (string) ($m['author'] ?? ''),
         'zip' => '/store/' . $name . '.zip',
+        'sha256' => hash_file('sha256', $zipPath),
         // preview: 可放 /store/{name}.png 作为缩略图（暂无资源则不输出）
     ];
     echo "[ok] {$kind} {$name} v{$m['version']} → " . ($zipPath) . "\n";

@@ -748,11 +748,11 @@ final class Plugin
         }
     }
 
-    /** URL 安装（对齐 Node installFromUrl）：仅 http(s)；下载失败返回状态码 */
+    /** URL 安装（对齐 Node installFromUrl）：仅 https（防中间人篡改）；下载失败返回状态码 */
     public static function installFromUrl(string $url): array
     {
-        if (preg_match('/^https?:\/\//i', $url) !== 1) {
-            throw new \RuntimeException('URL 需以 http:// 或 https:// 开头');
+        if (preg_match('/^https:\/\//i', $url) !== 1) {
+            throw new \RuntimeException('URL 需以 https:// 开头');
         }
         $ch = curl_init($url);
         curl_setopt_array($ch, [

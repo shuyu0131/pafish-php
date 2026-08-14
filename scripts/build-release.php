@@ -30,6 +30,42 @@ if (!extension_loaded('zip')) {
     exit(1);
 }
 
+// ---- 版本同步：唯一维护点 app/Core/Version.php 常量，自动写回 composer.json（防元数据漂移） ----
+$versionSrc = (string) file_get_contents($root . '/app/Core/Version.php');
+if (preg_match("/VERSION\s*=\s*'([^']+)'/", $versionSrc, $m) !== 1 || $m[1] === '') {
+    fwrite(STDERR, "无法读取 app/Core/Version.php 的 VERSION 常量\n");
+    exit(1);
+}
+$codeVersion = $m[1];
+$composerPath = $root . '/composer.json';
+$composer = json_decode((string) file_get_contents($composerPath), true);
+if (!is_array($composer)) {
+    fwrite(STDERR, "composer.json 解析失败\n");
+    exit(1);
+}
+if (($composer['version'] ?? '') !== $codeVersion) {
+    $composer['version'] = $codeVersion;
+    file_put_contents($composerPath, json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n");
+    echo "[ok] composer.json version 同步为 {$codeVersion}\n";
+} else {
+    echo "[ok] composer.json version 已一致（{$codeVersion}）\n";
+}
+
+// ---- 迁移基线一致性：migrations/0001_initial.sql 与 app/install/schema.sql 必须同步 ----
+// （忽略注释行/空行后比较结构——0001 文件头允许附迁移机制说明注释）
+$migrationBase = $root . '/migrations/0001_initial.sql';
+$schemaFile = $root . '/app/install/schema.sql';
+if (is_file($migrationBase) && is_file($schemaFile)) {
+    $stripSql = static fn (string $sql): string => implode("\n", array_filter(
+        preg_split('/\r?\n/', $sql) ?: [],
+        static fn (string $line): bool => trim($line) !== '' && !str_starts_with(ltrim($line), '--')
+    ));
+    if ($stripSql((string) file_get_contents($migrationBase)) !== $stripSql((string) file_get_contents($schemaFile))) {
+        fwrite(STDERR, "migrations/0001_initial.sql 与 app/install/schema.sql 结构不一致，请先同步\n");
+        exit(1);
+    }
+}
+
 /** 需要保留的空目录（zip 内建立空目录，运行时自动写入） */
 $keepDirs = ['runtime', 'backups', 'public/uploads'];
 
@@ -181,6 +217,7 @@ $meta = [
     'version' => ltrim($tag, 'v'),
     'notes' => $notes,
     'zip' => 'pafish-php-' . $tag . '.zip',
+    'sha256' => hash_file('sha256', $outPath),
     'min_version' => $minVer,
 ];
 file_put_contents(

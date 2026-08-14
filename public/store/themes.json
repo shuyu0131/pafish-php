@@ -5,6 +5,7 @@
         "version": "1.0.0",
         "description": "演示主题：站标图片、开关、单选项、颜色与页面模板等高级设置项。",
         "author": "pafish",
-        "zip": "\/store\/demo-nord.zip"
+        "zip": "\/store\/demo-nord.zip",
+        "sha256": "50081ae581a09188800fa5b89ece6031e564d91a15807c592fc80c9af8c1e274"
     }
 ]

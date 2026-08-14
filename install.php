@@ -164,6 +164,16 @@ function inst_run(array $post, string $root): array
         // 3. 建表
         $warnings = array_merge($warnings, inst_exec_schema($pdo, $root . '/app/install/schema.sql'));
 
+        // 3.5 迁移基线登记（v0.1.6 起）：schema.sql 已建全部表，标记 0001_initial
+        // 为已应用基线；此后数据库结构演进一律走 migrations/0002_*.sql 增量
+        require_once $root . '/app/Services/Migrator.php';
+        try {
+            \Pafish\Services\Migrator::ensureTable($pdo);
+            \Pafish\Services\Migrator::markApplied($pdo, '0001_initial');
+        } catch (Throwable $e) {
+            $warnings[] = '迁移登记失败（不影响本次安装，后续版本升级需手工处理）：' . $e->getMessage();
+        }
+
         // 3. 种子数据
         $pdo->beginTransaction();
         inst_seed($pdo, $siteName, $adminUser, $adminEmail, $adminPass);

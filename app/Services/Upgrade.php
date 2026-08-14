@@ -156,7 +156,8 @@ final class Upgrade
             if (@file_put_contents($tmpZip, $buffer) === false) {
                 throw new \RuntimeException('无法写入更新包临时文件');
             }
-            // 2. 校验
+            // 2. 校验（元数据声明 sha256 时先验哈希，防下载篡改/损坏）
+            self::verifySha256($buffer, (string) ($info['sha256'] ?? ''));
             self::validatePackage($tmpZip);
             // 3. 备份（排除 public/uploads、backups、runtime；config.php 一并备份）
             if (!self::copyDirFiltered($root, $bak, self::KEEP_DIRS)) {
@@ -244,6 +245,21 @@ final class Upgrade
             throw new \RuntimeException('下载失败（HTTP ' . $status . '）');
         }
         return (string) $body;
+    }
+
+    /** 元数据声明 sha256 时校验下载完整性（旧元数据无该字段则跳过） */
+    private static function verifySha256(string $buffer, string $expected): void
+    {
+        $expected = strtolower(trim($expected));
+        if ($expected === '') {
+            return;
+        }
+        if (preg_match('/^[0-9a-f]{64}$/', $expected) !== 1) {
+            throw new \RuntimeException('更新元数据 sha256 格式不合法');
+        }
+        if (!hash_equals($expected, hash('sha256', $buffer))) {
+            throw new \RuntimeException('更新包校验失败（sha256 不匹配），请重试或联系官方');
+        }
     }
 
     /** 更新包校验：大小 ≤50MB、全部条目位于 pafish/ 顶层、逐段防 '..'/空段/冒号、关键文件存在 */

@@ -89,6 +89,16 @@ try {
       </div>
     </div>
 
+    <!-- 文章与内容 -->
+    <div class="card admin-form-card">
+      <h2 class="admin-card-title">文章与内容</h2>
+      <label class="admin-check-row">
+        <input type="checkbox" name="md_allow_raw_html" value="true" <?= $boolVal('md_allow_raw_html', 'false') ? 'checked' : '' ?>>
+        <span>允许文章中的原始 HTML</span>
+      </label>
+      <p class="admin-field-hint">默认关闭：文章 Markdown 里的原始 HTML 会转义为文本展示（与官方 Node 版一致，防止文章内容注入脚本造成存储型 XSS）。开启后按原样渲染，仅在内容完全可信时建议开启。</p>
+    </div>
+
     <!-- 上传与媒体库 -->
     <div class="card admin-form-card">
       <h2 class="admin-card-title">上传与媒体库</h2>

@@ -12,7 +12,10 @@ namespace Pafish\Services;
  * - GFM 任务列表 → 复选框
  * - 代码块交给前台 highlight.js 上色（.hljs 样式已在 style.css）
  *
- * 注意：内容由后台作者编写，不启用 safe mode；游客评论等用户输入不走本服务
+ * 安全：默认开启 Parsedown safe mode（原始 HTML 转义为文本、危险链接协议清洗），
+ * 对齐 Node 版 react-markdown（默认不渲染原始 HTML），防止文章内容存储型 XSS。
+ * 后台设置 md_allow_raw_html=1（仅管理员可改）时放行原始 HTML。
+ * 游客评论等用户输入不走本服务。
  */
 final class Markdown
 {
@@ -27,6 +30,8 @@ final class Markdown
         if (self::$parser === null) {
             self::$parser = new \ParsedownExtra();
         }
+        // 默认安全模式（对齐 Node react-markdown）；md_allow_raw_html=1 时放行原始 HTML
+        self::$parser->setSafeMode((string) settings('md_allow_raw_html', '0') !== '1');
         $html = self::$parser->text($md);
 
         // 全部链接新窗口（与 Node 版 a 组件一致）

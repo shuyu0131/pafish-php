@@ -164,25 +164,43 @@ final class Store
             throw new \RuntimeException('商店条目缺少 zip 地址');
         }
         if (preg_match('#^https?://#i', $zip) === 1) {
-            return self::httpGet($zip);
-        }
-        if ($base !== '') {
+            $buffer = self::httpGet($zip);
+        } elseif ($base !== '') {
             try {
-                return self::httpGet(rtrim($base, '/') . '/' . ltrim($zip, '/'));
+                $buffer = self::httpGet(rtrim($base, '/') . '/' . ltrim($zip, '/'));
             } catch (\Throwable $e) {
                 // 远程 zip 失效 → 尝试本地兜底
                 $local = self::readLocalZip($zip);
                 if ($local === null) {
                     throw $e;
                 }
-                return $local;
+                $buffer = $local;
             }
+        } else {
+            $local = self::readLocalZip($zip);
+            if ($local === null) {
+                throw new \RuntimeException('内置商店缺少安装包：' . $zip);
+            }
+            $buffer = $local;
         }
-        $local = self::readLocalZip($zip);
-        if ($local === null) {
-            throw new \RuntimeException('内置商店缺少安装包：' . $zip);
+        // 目录声明 sha256 时校验包完整性（防下载篡改/损坏；旧目录无该字段则跳过）
+        self::verifySha256($buffer, (string) ($item['sha256'] ?? ''));
+        return $buffer;
+    }
+
+    /** 目录声明 sha256 时校验包完整性（旧目录无该字段则跳过） */
+    private static function verifySha256(string $buffer, string $expected): void
+    {
+        $expected = strtolower(trim($expected));
+        if ($expected === '') {
+            return;
         }
-        return $local;
+        if (preg_match('/^[0-9a-f]{64}$/', $expected) !== 1) {
+            throw new \RuntimeException('商店条目 sha256 格式不合法');
+        }
+        if (!hash_equals($expected, hash('sha256', $buffer))) {
+            throw new \RuntimeException('安装包校验失败（sha256 不匹配），可能已被篡改，请勿安装');
+        }
     }
 
     /** 从 public/store 读取本地安装包（zip 路径如 /store/demo-nord.zip 或 demo-nord.zip） */

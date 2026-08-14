@@ -5,7 +5,8 @@
         "version": "1.0.2",
         "description": "应用商店安装演示插件：启用时记录打招呼日志、监听登录事件；提供页面模板 card 与前台页面 \/plugin\/hello-pafish\/hello。",
         "author": "pafish",
-        "zip": "\/store\/hello-pafish.zip"
+        "zip": "\/store\/hello-pafish.zip",
+        "sha256": "04d5f3667871ab3256986db45dad4549e697aee10a5e6e944312e11aec44a177"
     },
     {
         "name": "demo-hooks",
@@ -13,7 +14,8 @@
         "version": "1.0.0",
         "description": "演示事件钩子：文章发布\/更新\/删除\/清除、评论提交\/审核\/删除\/回复、用户登录\/登出\/注册时记录日志到插件数据，可在插件列表“查看插件数据”中查看。",
         "author": "pafish",
-        "zip": "\/store\/demo-hooks.zip"
+        "zip": "\/store\/demo-hooks.zip",
+        "sha256": "6cd3d39247b5558b8eac3b7b2502355329b635856d94aa6ef39f96f1e0effd23"
     },
     {
         "name": "binfen-storage",
@@ -21,6 +23,7 @@
         "version": "1.0.0",
         "description": "云存储后端：媒体上传自动存入缤纷云 S4 存储桶（S3 协议兼容），释放服务器磁盘；上传失败自动回退本地磁盘，删除媒体时同步删除云端文件。",
         "author": "pafish",
-        "zip": "\/store\/binfen-storage.zip"
+        "zip": "\/store\/binfen-storage.zip",
+        "sha256": "25d42dd308e5d4f443622735c57725637da066faaa52acd4f4b098cbff10409f"
     }
 ]

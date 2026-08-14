@@ -26,6 +26,7 @@ final class SettingsController extends AdminController
         'site_name', 'site_subtitle', 'site_description', 'site_icp',
         'comments_enabled', 'comments_need_review', 'comments_captcha_enabled',
         'posts_per_page', 'blocked_ips',
+        'md_allow_raw_html',
         'upload_max_mb',
         'allow_registration', 'require_email_verify',
         'smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass', 'smtp_from',

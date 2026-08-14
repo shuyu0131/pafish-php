@@ -347,11 +347,11 @@ final class Theme
         }
     }
 
-    /** 从 URL 下载并安装（30s 超时） */
+    /** 从 URL 下载并安装（30s 超时；仅 https，防中间人篡改） */
     public static function installFromUrl(string $url): array
     {
-        if (preg_match('#^https?://#', $url) !== 1) {
-            throw new \RuntimeException('仅支持 http(s) 下载地址');
+        if (preg_match('#^https://#', $url) !== 1) {
+            throw new \RuntimeException('仅支持 https 下载地址');
         }
         $ctx = stream_context_create(['http' => [
             'timeout' => 30,

@@ -55,6 +55,7 @@ window.pafishApi = function (p) {
         <label class="label" for="auth-password">密码</label>
         <input id="auth-password" type="password" class="input" placeholder="请输入密码" autocomplete="current-password" required>
       </div>
+      <?= \Pafish\Services\Plugin::renderInjection('login_form', ['mode' => 'login']) ?>
       <p class="auth-error" hidden></p>
       <button type="submit" class="btn btn-primary auth-submit">登 录</button>
       <p class="auth-links">
@@ -101,6 +102,7 @@ window.pafishApi = function (p) {
         <label class="label" for="reg-confirm">确认密码</label>
         <input id="reg-confirm" type="password" class="input" placeholder="再次输入密码" autocomplete="new-password" required>
       </div>
+      <?= \Pafish\Services\Plugin::renderInjection('register_form', ['mode' => 'register']) ?>
       <p class="auth-error" hidden></p>
       <button type="submit" class="btn btn-primary auth-submit">注 册</button>
       <p class="auth-links auth-center">
@@ -202,6 +204,17 @@ window.pafishApi = function (p) {
     }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); });
   }
 
+  function collectPluginFields(form) {
+    var plugins = {};
+    new FormData(form).forEach(function (value, key) {
+      var m = /^plugins\[([a-z0-9_-]+)\]\[([a-z0-9_-]+)\]$/.exec(key);
+      if (!m || typeof value !== 'string') return;
+      if (!plugins[m[1]]) plugins[m[1]] = {};
+      plugins[m[1]][m[2]] = value;
+    });
+    return plugins;
+  }
+
   // 登录 / 注册 / 令牌重置 通用提交
   var form = document.getElementById('auth-form');
   if (form) {
@@ -227,6 +240,8 @@ window.pafishApi = function (p) {
         if (r1 !== r2) { showError(errBox, '两次输入的密码不一致'); return; }
         body = { token: <?= json_encode($token) ?>, password: r1 };
       }
+      var pluginFields = collectPluginFields(form);
+      if (Object.keys(pluginFields).length) body.plugins = pluginFields;
       setLoading(submitBtn, true, MODE === 'login' ? '登录中…' : '提交中…');
       postJSON(pafishApi('/auth/' + (MODE === 'reset' ? 'reset' : MODE)), body).then(function (res) {
         if (!res.ok) { showError(errBox, res.data.error || '操作失败'); return; }

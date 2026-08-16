@@ -36,6 +36,13 @@ $needCaptcha = !$loggedIn && $captchaEnabled;
 
   <textarea class="input comment-textarea" name="content" placeholder="写下你的想法…" maxlength="2000" required></textarea>
 
+  <?= \Pafish\Services\Plugin::renderInjection('comment_form', [
+      'postId' => $postId,
+      'parentId' => $parentId !== '' ? $parentId : null,
+      'compact' => $compact,
+      'loggedIn' => $loggedIn,
+  ]) ?>
+
   <?php if ($needCaptcha): ?>
     <div class="comment-captcha">
       <button type="button" class="comment-captcha-svg" title="看不清？点击刷新" data-captcha-refresh></button>

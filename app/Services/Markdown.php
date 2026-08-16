@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Pafish\Services;
 
+use Pafish\Core\Hooks;
+
 /**
  * Markdown 渲染（ParsedownExtra：GFM 表格/删除线/围栏代码等）
  * 与 Node 版 markdown-render.tsx 对齐：
@@ -52,6 +54,10 @@ final class Markdown
             $html
         );
 
-        return $html;
+        $filtered = Hooks::applyFilters('markdown_html', $html, [
+            'markdown' => $md,
+            'safeMode' => (string) settings('md_allow_raw_html', '0') !== '1',
+        ]);
+        return is_string($filtered) ? $filtered : $html;
     }
 }

@@ -154,6 +154,11 @@ $editorData = [
                 <div class="admin-custom-fields" id="customFields"></div>
                 <button type="button" class="btn btn-outline admin-add-field" id="btnAddField">+ 添加字段</button>
               </div>
+              <?= \Pafish\Services\Plugin::renderInjection('post_editor', [
+                  'post' => $post,
+                  'isEdit' => $isEdit,
+                  'postId' => $postId,
+              ]) ?>
             </div>
           </details>
         </div>

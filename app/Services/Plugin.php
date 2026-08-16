@@ -12,16 +12,21 @@ use Pafish\Core\Hooks;
  * - manifest 校验：名称白名单 / title+version 必填 / settings 9 类型过滤（非法字段忽略）
  *   / injects 白名单 / pageTemplates·pages 白名单（声明但过滤后为空 = 声明无效）/ storage 非法忽略
  * - 生命周期：activate（写列表 + 注册钩子 + onActivate）→ deactivate（移除 + 注销钩子 + onDeactivate）
- *   → uninstall（停用 + 删数据键 + onUninstall + 删目录）
+ *   → uninstall（停用 + onUninstall + 删数据键 + 删目录）
  * - 注入：head（白名单标签过滤）/ footer / sidebar 即时渲染（PHP 每请求新进程，无缓存/节流问题）
  * - 云存储：激活插件首个声明 storage 且实现 storeFile 者生效（Upload 经 apply_filters 接入），失败回退本地
  */
 final class Plugin
 {
+    public const API_VERSION = 2;
+
     private const NAME_PATTERN = '/^[a-z0-9_-]{1,50}$/';
     private const TEMPLATE_NAME_PATTERN = '/^[a-z0-9-]{1,40}$/';
     private const PAGE_PATH_PATTERN = '/^[a-z0-9_-]{1,50}$/';
-    private const INJECT_TARGETS = ['head', 'footer', 'sidebar'];
+    private const INJECT_TARGETS = [
+        'head', 'footer', 'sidebar',
+        'comment_form', 'login_form', 'register_form', 'post_editor',
+    ];
     private const SETTING_TYPES = ['text', 'textarea', 'checkbox', 'select', 'color', 'switcher', 'radio', 'image', 'password'];
     private const MAX_ZIP_BYTES = 10 * 1024 * 1024;
     private const MAX_LOGS = 50;
@@ -129,6 +134,11 @@ final class Plugin
         }
         if (!is_string($json['title'] ?? null) || !is_string($json['version'] ?? null)) {
             return '缺少 title 或 version';
+        }
+        if (array_key_exists('apiVersion', $json)) {
+            if (!is_int($json['apiVersion']) || $json['apiVersion'] < 1 || $json['apiVersion'] > self::API_VERSION) {
+                return 'apiVersion 不受支持';
+            }
         }
         if (array_key_exists('pageTemplates', $json)) {
             if (!is_array($json['pageTemplates'])) {
@@ -241,8 +251,10 @@ final class Plugin
             'name' => $json['name'],
             'title' => $json['title'],
             'version' => $json['version'],
+            'apiVersion' => is_int($json['apiVersion'] ?? null) ? $json['apiVersion'] : 1,
             'description' => is_string($json['description'] ?? null) ? $json['description'] : '',
             'author' => is_string($json['author'] ?? null) ? $json['author'] : '',
+            'requires' => is_array($json['requires'] ?? null) ? $json['requires'] : [],
             'settings' => $settings,
             'injects' => $injects,
             'pageTemplates' => $pageTemplates,
@@ -282,18 +294,27 @@ final class Plugin
         if (isset(self::$contexts[$name])) {
             return self::$contexts[$name];
         }
-        return self::$contexts[$name] = new class ($name) {
-            private string $name;
+        $apiVersion = (int) (self::manifest($name)['apiVersion'] ?? 1);
+        return self::$contexts[$name] = new class ($name, $apiVersion) {
+            public readonly string $name;
+            public readonly int $apiVersion;
 
-            public function __construct(string $name)
+            public function __construct(string $name, int $apiVersion)
             {
                 $this->name = $name;
+                $this->apiVersion = $apiVersion;
             }
 
             /** 注册事件钩子，返回注销函数（tag 归入 plugin:{name}，停用时整批移除） */
             public function on(string $hook, callable $fn, int $priority = 10): callable
             {
                 return Hooks::addAction($hook, $fn, $priority, 'plugin:' . $this->name);
+            }
+
+            /** 注册过滤器，停用插件时与 action 一起按 tag 批量注销（API v2） */
+            public function filter(string $hook, callable $fn, int $priority = 10): callable
+            {
+                return Hooks::addFilter($hook, $fn, $priority, 'plugin:' . $this->name);
             }
 
             /** 读写插件自有数据（JSON 对象，settings plugin_data:{name}） */
@@ -427,15 +448,15 @@ final class Plugin
         self::runLifecycle($name, 'onDeactivate');
     }
 
-    /** 卸载插件（对齐 uninstallPlugin：停用（若激活）→ 删数据/设置键 → onUninstall → 删目录） */
+    /** 卸载插件：先执行 onUninstall，使清理逻辑仍能读取插件设置/数据，再删除持久化数据和目录。 */
     public static function uninstall(string $name): void
     {
         if (self::isActive($name)) {
             self::deactivate($name);
         }
+        self::runLifecycle($name, 'onUninstall');
         Settings::remove('plugin_data:' . $name);
         Settings::remove('plugin_settings:' . $name);
-        self::runLifecycle($name, 'onUninstall');
         if (!self::rmDir(self::root() . '/' . $name)) {
             throw new \RuntimeException('删除插件目录失败');
         }
@@ -475,19 +496,28 @@ final class Plugin
      * 渲染指定注入点 HTML：激活插件 renderInjection(target, ctx) 依次拼接
      * head 走白名单标签过滤（script/meta/link/style，对齐 Node parseInjectionTags）；footer/sidebar 原样
      */
-    public static function renderInjection(string $target): string
+    public static function renderInjection(string $target, array $context = []): string
     {
         if (!in_array($target, self::INJECT_TARGETS, true)) {
             return '';
         }
         $parts = [];
         foreach (self::activeNames() as $name) {
+            $manifest = self::manifest($name);
+            if ($manifest === null) {
+                continue;
+            }
+            // v1 插件保持历史行为；v2 插件必须显式声明 injects，避免越权注入未声明位置。
+            if ((int) ($manifest['apiVersion'] ?? 1) >= 2
+                && !in_array($target, (array) ($manifest['injects'] ?? []), true)) {
+                continue;
+            }
             $mod = self::module($name);
             if ($mod === null || !is_callable($mod['renderInjection'] ?? null)) {
                 continue;
             }
             try {
-                $html = $mod['renderInjection']($target, self::context($name));
+                $html = $mod['renderInjection']($target, self::context($name), $context);
                 if (is_string($html) && trim($html) !== '') {
                     $parts[] = $html;
                 }
@@ -646,9 +676,9 @@ final class Plugin
     public static function boot(): void
     {
         try {
-            add_action('head_inject', static fn () => print self::renderInjection('head'), 0, 'core');
-            add_action('sidebar_inject', static fn () => print self::renderInjection('sidebar'), 0, 'core');
-            add_action('footer_inject', static fn () => print self::renderInjection('footer'), 0, 'core');
+            add_action('head_inject', static fn (array $context = []) => print self::renderInjection('head', $context), 0, 'core');
+            add_action('sidebar_inject', static fn (array $context = []) => print self::renderInjection('sidebar', $context), 0, 'core');
+            add_action('footer_inject', static fn (array $context = []) => print self::renderInjection('footer', $context), 0, 'core');
             add_filter('upload_store_to_cloud', static fn (mixed $prev, array $file) => self::storeToCloud($file) ?? $prev, 10, 'core');
             add_filter('upload_delete_from_cloud', static function (mixed $prev, array $args) {
                 self::deleteFromCloud((string) ($args['url'] ?? ''));

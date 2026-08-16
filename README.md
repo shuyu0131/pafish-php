@@ -124,9 +124,10 @@ location ~ ^/(config\.php|runtime/|backups/) { deny all; }
 
 ## 插件与应用商店
 
-- 插件 = `plugin.json` + `index.php`，11 个事件钩子（登录/登出/注册、文章增删改、评论全流程）
+- 插件 = `plugin.json` + `index.php`；API v2 支持 action/filter、发布事件、SEO/Markdown/上传过滤器，以及评论/认证/文章编辑器插槽（完整规范见 [`docs/plugins.md`](docs/plugins.md)）
 - 云存储插件（如缤纷云 S4，S3 协议 + SigV4 签名）：媒体上传自动入云，失败回退本地
 - 内置应用商店开箱即用（默认源内置在 `public/store/`），也可在站点设置配置自定义商店地址
+- 内置插件新增 SEO 主动推送（IndexNow/百度）与通知中心（Bark/Telegram/钉钉/飞书/企微/Webhook）
 
 ## 开发与测试
 
@@ -135,6 +136,7 @@ location ~ ^/(config\.php|runtime/|backups/) { deny all; }
 php -S 127.0.0.1:8123 router.php
 
 # 运行测试（runtime/ 下，需本地 3307 端口的 pafish_php 测试库）
+php scripts/test-plugin-api-v2.php
 php runtime/m5b_plugins_test.php
 php runtime/m6c_scheduler_test.php
 ```

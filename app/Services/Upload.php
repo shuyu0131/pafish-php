@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pafish\Services;
 
 use Pafish\Core\DB;
+use Pafish\Core\Hooks;
 
 /**
  * 媒体上传（对齐 Node src/app/api/upload/route.ts + src/lib/upload.ts）：
@@ -122,6 +123,25 @@ final class Upload
             if ($compressed !== null) {
                 [$buffer, $width, $height] = $compressed;
             }
+        }
+
+        // API v2：本地/云存储前统一预处理，可用于水印、图片优化、病毒扫描等。
+        $filePayload = Hooks::applyFilters('upload_file', [
+            'buffer' => $buffer,
+            'ext' => $ext,
+            'mime' => $mime,
+            'originalName' => $origName,
+            'size' => strlen($buffer),
+            'width' => $width,
+            'height' => $height,
+        ]);
+        if (is_array($filePayload) && is_string($filePayload['buffer'] ?? null) && $filePayload['buffer'] !== '') {
+            $buffer = $filePayload['buffer'];
+            $width = isset($filePayload['width']) ? (int) $filePayload['width'] : $width;
+            $height = isset($filePayload['height']) ? (int) $filePayload['height'] : $height;
+        }
+        if (strlen($buffer) > $maxMb * 1024 * 1024) {
+            throw new \RuntimeException("处理后的文件不能超过 {$maxMb}MB");
         }
 
         // 云存储插件优先（激活插件声明 storage 且实现 storeFile；M5 接入插件系统）

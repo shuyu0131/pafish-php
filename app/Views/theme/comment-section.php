@@ -62,6 +62,17 @@ $sep = str_contains($baseUrl, '?') ? '&' : '?';
     }).then(function (r) { return r.json(); });
   }
 
+  function collectPluginFields(form) {
+    var plugins = {};
+    new FormData(form).forEach(function (value, key) {
+      var m = /^plugins\[([a-z0-9_-]+)\]\[([a-z0-9_-]+)\]$/.exec(key);
+      if (!m || typeof value !== 'string') return;
+      if (!plugins[m[1]]) plugins[m[1]] = {};
+      plugins[m[1]][m[2]] = value;
+    });
+    return plugins;
+  }
+
   // ---- 验证码：每个表单独立获取（游客 + 开启验证码时） ----
   function needCaptcha(form) {
     return form.dataset.loggedIn !== '1' && form.querySelector('[data-captcha-refresh]') !== null;
@@ -121,6 +132,8 @@ $sep = str_contains($baseUrl, '?') ? '&' : '?';
       body.captchaToken = form.dataset.captchaToken || '';
       body.captchaAnswer = (form.querySelector('[name="captchaAnswer"]') || {}).value || '';
     }
+    var pluginFields = collectPluginFields(form);
+    if (Object.keys(pluginFields).length) body.plugins = pluginFields;
 
     submitBtn.disabled = true;
     var label = submitBtn.textContent;

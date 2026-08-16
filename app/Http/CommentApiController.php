@@ -134,6 +134,30 @@ final class CommentApiController
         }
 
         $needReview = (string) Settings::get('comments_need_review', 'true') !== 'false';
+        $commentDecision = \apply_filters('before_comment_submit', [
+            'allowed' => true,
+            'status' => $needReview ? 'PENDING' : 'APPROVED',
+            'httpStatus' => 403,
+            'error' => '评论提交被安全策略拒绝',
+        ], [
+            'postId' => (string) $post['id'],
+            'postTitle' => (string) $post['title'],
+            'author' => $name,
+            'email' => $email,
+            'content' => $content,
+            'parentId' => $parentId !== null ? (string) $parentId : null,
+            'userId' => $userId !== null ? (string) $userId : null,
+            'ip' => $ip,
+            'plugins' => is_array($body['plugins'] ?? null) ? $body['plugins'] : [],
+        ]);
+        if (is_array($commentDecision) && ($commentDecision['allowed'] ?? true) === false) {
+            $httpStatus = max(400, min(499, (int) ($commentDecision['httpStatus'] ?? 403)));
+            return $this->json($response, ['error' => (string) ($commentDecision['error'] ?? '评论提交被安全策略拒绝')], $httpStatus);
+        }
+        $commentStatus = is_array($commentDecision) ? (string) ($commentDecision['status'] ?? '') : '';
+        if (!in_array($commentStatus, ['PENDING', 'APPROVED', 'REJECTED'], true)) {
+            $commentStatus = $needReview ? 'PENDING' : 'APPROVED';
+        }
         DB::execute(
             'INSERT INTO comments (post_id, author_name, author_email, user_id, content, status, parent_id, notify_reply, ip)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
@@ -143,7 +167,7 @@ final class CommentApiController
                 $email,
                 $userId,
                 $content,
-                $needReview ? 'PENDING' : 'APPROVED',
+                $commentStatus,
                 $parentId,
                 $notifyReply ? 1 : 0,
                 $ip === 'unknown' ? null : $ip,
@@ -187,7 +211,7 @@ final class CommentApiController
             'author' => $name,
             'email' => $email,
             'content' => $content,
-            'status' => $needReview ? 'PENDING' : 'APPROVED',
+            'status' => $commentStatus,
             'parentId' => $parentId !== null ? (string) $parentId : null,
             'ip' => $ip,
         ]);

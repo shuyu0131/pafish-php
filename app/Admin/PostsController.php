@@ -197,10 +197,15 @@ final class PostsController extends AdminController
         }
         $op = (string) ($body['op'] ?? '');
         $in = implode(',', array_fill(0, count($ids), '?'));
+        $publishedRows = [];
 
         try {
             switch ($op) {
                 case 'publish':
+                    $publishedRows = DB::fetchAll(
+                        "SELECT * FROM posts WHERE id IN ({$in}) AND deleted_at IS NULL AND status <> 'PUBLISHED'",
+                        $ids
+                    );
                     DB::execute("UPDATE posts SET status = 'PUBLISHED', published_at = NOW() WHERE id IN ({$in}) AND deleted_at IS NULL", $ids);
                     break;
                 case 'draft':
@@ -234,6 +239,14 @@ final class PostsController extends AdminController
             }
         } catch (\Throwable $e) {
             return $this->json($response, ['error' => '操作失败'], 500);
+        }
+
+        foreach ($publishedRows as $row) {
+            $payload = self::postPayloadFromRow($row, 'batch', (string) $row['status']);
+            $payload['status'] = 'PUBLISHED';
+            $payload['publishedAt'] = date('Y-m-d H:i:s');
+            $payload['trigger'] = 'batch';
+            \do_action('after_post_published', $payload);
         }
 
         if (!$this->isAjax($request)) {
@@ -354,6 +367,8 @@ final class PostsController extends AdminController
 
         $authorId = \Pafish\Core\Auth::id();
         $now = date('Y-m-d H:i:s');
+        $extensions = self::pluginExtensions($body['plugins'] ?? []);
+        $previousStatus = null;
 
         if ($id === null) {
             $created = true;
@@ -371,13 +386,15 @@ final class PostsController extends AdminController
             ]);
             $id = (int) $pdo->lastInsertId();
             self::replaceTags($id, $tagIds);
-            \do_action('after_create_post', self::postPayload($id, $title, $slug, $status, $publishedAt, $categoryId, $externalUrl, $isPinned, $categoryPinned));
+            $payload = self::postPayload($id, $title, $slug, $status, $publishedAt, $categoryId, $externalUrl, $isPinned, $categoryPinned, $action, null);
+            \do_action('after_create_post', $payload);
         } else {
             $created = false;
             $existing = DB::fetchOne('SELECT * FROM posts WHERE id = ?', [$id]);
             if (!$existing) {
                 throw new \RuntimeException('文章不存在');
             }
+            $previousStatus = (string) $existing['status'];
             // auto（自动保存）：保留原状态与发布时间
             if ($action === 'auto') {
                 $status = $existing['status'];
@@ -399,8 +416,21 @@ final class PostsController extends AdminController
                 ]
             );
             self::replaceTags($id, $tagIds);
-            \do_action('after_update_post', self::postPayload($id, $title, $slug, $status, $publishedAt, $categoryId, $externalUrl, $isPinned, $categoryPinned));
+            $payload = self::postPayload($id, $title, $slug, $status, $publishedAt, $categoryId, $externalUrl, $isPinned, $categoryPinned, $action, $previousStatus);
+            \do_action('after_update_post', $payload);
         }
+
+        if ($status === 'PUBLISHED' && $previousStatus !== 'PUBLISHED') {
+            $publishedPayload = $payload;
+            $publishedPayload['trigger'] = $created ? 'create' : 'update';
+            \do_action('after_post_published', $publishedPayload);
+        }
+        \do_action('after_post_save', [
+            'post' => $payload,
+            'created' => $created,
+            'action' => $action,
+            'extensions' => $extensions,
+        ]);
 
         return ['id' => $id, 'status' => $status, 'created' => $created];
     }
@@ -595,7 +625,19 @@ final class PostsController extends AdminController
     }
 
     /** 钩子 payload（对齐 Node src/lib/hooks.ts postPayload） */
-    private static function postPayload(int $id, string $title, string $slug, string $status, ?string $publishedAt, ?int $categoryId, ?string $externalUrl, bool $isPinned, bool $categoryPinned): array
+    private static function postPayload(
+        int $id,
+        string $title,
+        string $slug,
+        string $status,
+        ?string $publishedAt,
+        ?int $categoryId,
+        ?string $externalUrl,
+        bool $isPinned,
+        bool $categoryPinned,
+        ?string $action = null,
+        ?string $previousStatus = null
+    ): array
     {
         return [
             'id' => (string) $id,
@@ -607,10 +649,12 @@ final class PostsController extends AdminController
             'externalUrl' => $externalUrl,
             'isPinned' => $isPinned,
             'categoryPinned' => $categoryPinned,
+            'action' => $action,
+            'previousStatus' => $previousStatus,
         ];
     }
 
-    private static function postPayloadFromRow(array $row): array
+    private static function postPayloadFromRow(array $row, ?string $action = null, ?string $previousStatus = null): array
     {
         return self::postPayload(
             (int) $row['id'],
@@ -621,8 +665,31 @@ final class PostsController extends AdminController
             $row['category_id'] ? (int) $row['category_id'] : null,
             $row['external_url'] ? (string) $row['external_url'] : null,
             (bool) $row['is_pinned'],
-            (bool) $row['category_pinned']
+            (bool) $row['category_pinned'],
+            $action,
+            $previousStatus
         );
+    }
+
+    /** API v2 插件编辑器字段：plugins[plugin-name][field]，仅保留标量字符串。 */
+    private static function pluginExtensions(mixed $raw): array
+    {
+        if (!is_array($raw)) {
+            return [];
+        }
+        $clean = [];
+        foreach ($raw as $plugin => $fields) {
+            if (!is_string($plugin) || preg_match('/^[a-z0-9_-]{1,50}$/', $plugin) !== 1 || !is_array($fields)) {
+                continue;
+            }
+            foreach ($fields as $key => $value) {
+                if (!is_string($key) || preg_match('/^[a-z0-9_-]{1,50}$/', $key) !== 1 || !is_scalar($value)) {
+                    continue;
+                }
+                $clean[$plugin][$key] = mb_substr((string) $value, 0, 10000);
+            }
+        }
+        return $clean;
     }
 
     private function notFound(Response $response): Response

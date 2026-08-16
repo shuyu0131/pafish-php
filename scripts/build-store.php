@@ -15,10 +15,7 @@ $manifestFile = ['theme' => 'theme.json', 'plugin' => 'plugin.json'];
 
 // [kind, 源目录, 包名]
 $packs = [
-    ['theme', $root . '/themes/demo-nord', 'demo-nord'],
     ['plugin', $root . '/plugins/hello-pafish', 'hello-pafish'],
-    ['plugin', $root . '/plugins/demo-hooks', 'demo-hooks'],
-    ['plugin', $root . '/plugins/binfen-storage', 'binfen-storage'],
 ];
 
 if (!extension_loaded('zip')) {

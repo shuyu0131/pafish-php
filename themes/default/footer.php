@@ -1,23 +1,19 @@
 <?php
 /**
- * 前台页脚（demo-nord 主题覆盖系统 fallback：演示 PHP 模板覆盖机制）
+ * 前台页脚（default 主题覆盖系统 fallback：演示 PHP 模板覆盖机制）
  * 主题目录的 footer.php 完整替换系统模板，get_footer() 渲染本文件
  */
 $siteName = site_name();
 $footerText = (string) theme_value('footer_text');
 $footerDefault = '© ' . date('Y') . ' ' . $siteName . ' · 用 PHP 构建';
 $icp = (string) settings('site_icp', '');
-$badge = (string) theme_value('show_badge') === '1' ? (string) theme_value('badge_text', 'NORD') : '';
 ?>
   </main>
 
-  <footer class="app-footer" data-theme-footer="demo-nord">
+  <footer class="app-footer" data-theme-footer="default">
     <p><?= e($footerText !== '' ? $footerText : $footerDefault) ?></p>
     <?php if ($icp !== ''): ?>
       <p class="app-footer-icp"><?= e($icp) ?></p>
-    <?php endif; ?>
-    <?php if ($badge !== ''): ?>
-      <p class="app-footer-badge" style="color: <?= e(theme_value('accent_color', '#5e81ac')) ?>"><?= e($badge) ?></p>
     <?php endif; ?>
     <?php /* 插件页脚注入（M5） */ do_action('footer_inject'); ?>
   </footer>

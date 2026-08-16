@@ -178,16 +178,16 @@ final class Theme
 
     /**
      * 主题布局样式（style.css 内容，前台 <style> 内联注入）；无文件返回 null。
-     * 第三方主题未提供 style.css 时回退默认主题 demo-nord 的布局，保证始终有样式。
+     * 第三方主题未提供 style.css 时回退默认主题 default 的布局，保证始终有样式。
      */
     public static function layoutCss(string $name): ?string
     {
         if (!self::isValidName($name)) {
-            $name = 'demo-nord';
+            $name = 'default';
         }
         $file = self::root() . '/' . $name . '/style.css';
         if (!is_file($file)) {
-            $file = self::root() . '/demo-nord/style.css';
+            $file = self::root() . '/default/style.css';
         }
         return is_file($file) ? (string) file_get_contents($file) : null;
     }

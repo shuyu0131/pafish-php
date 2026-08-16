@@ -135,10 +135,8 @@ location ~ ^/(config\.php|runtime/|backups/) { deny all; }
 # 启动开发服务器
 php -S 127.0.0.1:8123 router.php
 
-# 运行测试（runtime/ 下，需本地 3307 端口的 pafish_php 测试库）
+# 运行插件 API v2 测试（需本地 3307 端口的 pafish_php 测试库）
 php scripts/test-plugin-api-v2.php
-php runtime/m5b_plugins_test.php
-php runtime/m6c_scheduler_test.php
 ```
 
 ## 常见问题

@@ -7,7 +7,7 @@
 (function () {
   "use strict";
   var STORAGE_KEY = "pafish-theme";
-  var mq = window.matchMedia("(prefers-color-scheme: dark)");
+  var mq = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : { matches: false };
 
   function stored() {
     try {
@@ -69,13 +69,18 @@
   }
 
   // 未手动选择时跟随系统切换
-  mq.addEventListener("change", function () {
+  function followSystemTheme() {
     var s = stored();
     if (s !== "light" && s !== "dark") {
       apply();
       render();
     }
-  });
+  }
+  if (mq.addEventListener) {
+    mq.addEventListener("change", followSystemTheme);
+  } else if (mq.addListener) {
+    mq.addListener(followSystemTheme);
+  }
 })();
 
 /**

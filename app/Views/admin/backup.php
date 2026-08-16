@@ -84,6 +84,10 @@ $fmtSize = static function (int $bytes): string {
   var msg = document.getElementById("backupMsg");
 
   function showMsg(text, isError) {
+    if (typeof window.pafishToast === "function") {
+      window.pafishToast(text, isError ? "error" : "success");
+      return;
+    }
     msg.textContent = text;
     msg.className = "admin-backup-msg " + (isError ? "admin-backup-msg-error" : "admin-backup-msg-ok");
     msg.hidden = false;

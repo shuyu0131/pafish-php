@@ -87,6 +87,14 @@ function isExcluded(string $rel): bool
     if (preg_match('#^public/uploads/#', $rel) || preg_match('#^backups/#', $rel)) {
         return true;
     }
+    // 自产调试/测试脚本（scripts/ 下 test*、*_test*、*_dbg*）
+    if (preg_match('#scripts/(test|.*_test|.*_dbg)[^/]*\.php$#i', $rel)) {
+        return true;
+    }
+    // 第三方依赖自带的测试目录（tests/）与其配置文件
+    if (preg_match('#vendor/[^/]+/[^/]+/tests(/|$)|vendor/[^/]+/[^/]+/phpunit\.xml(\.dist)?$#i', $rel)) {
+        return true;
+    }
     return false;
 }
 

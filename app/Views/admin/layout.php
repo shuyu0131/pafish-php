@@ -30,6 +30,7 @@ $layoutCss = Theme::layoutCss(Theme::active());
 <meta name="robots" content="noindex,nofollow">
 <?php if ($layoutCss !== null): ?><style><?= $layoutCss ?></style><?php endif; ?>
 <link rel="stylesheet" href="<?= e(asset_url('/css/admin.css')) ?>">
+<script src="<?= e(asset_url('/js/admin-toast.js')) ?>"></script>
 <?php if (!empty($headExtra)): ?><?= $headExtra ?><?php endif; ?>
 <script>
 /* API 路径适配：pretty_urls=false 时请求走 index.php?p=api/...，query 用 & 拼接 */
@@ -172,28 +173,6 @@ window.pafishApi = function (p) {
         .catch(function () { location.href = f.dataset.home || '/'; });
     });
   });
-
-  // 弹窗提示：右上角滑入，4 秒自动消失，悬停暂停，可点击关闭
-  (function () {
-    document.querySelectorAll('[data-toast]').forEach(function (toast) {
-      var timer = null;
-      function start() {
-        toast.classList.add('admin-toast-show');
-        timer = setTimeout(dismiss, 4000);
-      }
-      function dismiss() {
-        if (timer) { clearTimeout(timer); timer = null; }
-        toast.classList.remove('admin-toast-show');
-        setTimeout(function () { toast.remove(); }, 240);
-      }
-      toast.addEventListener('mouseenter', function () { if (timer) { clearTimeout(timer); timer = null; } });
-      toast.addEventListener('mouseleave', function () { if (!timer) start(); });
-      var closeBtn = toast.querySelector('.admin-toast-close');
-      if (closeBtn) closeBtn.addEventListener('click', function (e) { e.stopPropagation(); dismiss(); });
-      toast.addEventListener('click', dismiss);
-      start();
-    });
-  })();
 
   // 系统更新静默检查（服务端 24h 缓存，不阻塞页面；有新版本 → 导航「系统更新」加红点徽标）
   (function () {

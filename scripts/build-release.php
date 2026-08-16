@@ -148,7 +148,7 @@ $packDir = static function (string $dir, string $zipPrefix) use (&$packDir, $zip
 $topItems = [
     'app', 'admin', 'themes', 'plugins', 'public', 'migrations', 'docs', 'scripts',
     'vendor', 'backups', 'runtime',
-    'index.php', 'install.php', 'cron.php', 'router.php', '.htaccess',
+    'index.php', 'install.php', 'cron.php', 'router.php', 'upgrade.php', '.htaccess',
     'composer.json', 'composer.lock', 'config.example.php', 'README.md', 'CHANGELOG.md',
 ];
 $zip->addEmptyDir('pafish/');

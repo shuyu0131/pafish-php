@@ -9,7 +9,6 @@
   <div class="admin-page-head">
     <div>
       <h1 class="admin-h1">主题与外观</h1>
-      <p class="admin-page-sub">主题存放在 themes/ 目录，每个主题由 theme.json 声明设置项，可选 theme.css 覆盖配色。切换后即时生效，点击当前主题的"设置"进入独立设置页。</p>
     </div>
   </div>
   <p class="admin-backup-msg" id="themeMsg" hidden></p>

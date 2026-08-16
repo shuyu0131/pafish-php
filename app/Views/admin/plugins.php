@@ -1,7 +1,7 @@
 <?php
 /**
  * 插件管理（对齐 Node admin/plugins/page.tsx + plugin-list + plugin-install）：
- * 说明 → 消息条 → 插件卡片（启用徽章/云存储后端/注入/设置项/错误标注/数据查看）→ 安装卡（上传 zip / URL 下载）
+ * 说明 → 消息条 → 插件卡片（启用徽章/云存储后端/注入/设置项/错误标注）→ 安装卡（上传 zip / URL 下载）
  * 变量：$plugins、$activeCount
  */
 ?>
@@ -9,7 +9,6 @@
   <div class="admin-page-head">
     <div>
       <h1 class="admin-h1">插件管理</h1>
-      <p class="admin-page-sub">插件存放在 plugins/ 目录，每个插件由 plugin.json 声明能力（钩子/注入/页面模板/前台页/云存储），index.php 提供实现。启用后立即生效，可随时停用或卸载。</p>
     </div>
   </div>
   <p class="admin-backup-msg" id="pluginMsg" hidden></p>
@@ -29,6 +28,7 @@
                 <span class="badge">未启用</span>
               <?php endif; ?>
               <?php if ($p['version'] !== ''): ?><span class="admin-theme-version">v<?= e($p['version']) ?></span><?php endif; ?>
+              <span class="badge">API v<?= (int) $p['apiVersion'] ?></span>
               <?php if ($p['storage'] !== null): ?><span class="badge badge-primary">云存储后端</span><?php endif; ?>
             </p>
             <p class="admin-theme-desc<?= $p['error'] !== null ? ' admin-text-danger' : '' ?>"><?= e($p['error'] ?? ($p['description'] !== '' ? $p['description'] : '该插件未提供描述')) ?></p>
@@ -42,7 +42,7 @@
             </p>
           </div>
           <div class="admin-theme-ops">
-            <?php if ($p['settingsCount'] > 0): ?>
+            <?php if ($p['active'] && $p['settingsCount'] > 0): ?>
               <a class="btn btn-primary btn-sm" href="<?= e(url_to('/admin/plugins/' . rawurlencode($p['name']))) ?>">设置</a>
             <?php endif; ?>
             <?php if ($p['active']): ?>
@@ -51,12 +51,11 @@
               <?php if ($p['error'] === null): ?>
                 <button type="button" class="btn btn-primary btn-sm admin-plugin-activate" data-name="<?= e($p['name']) ?>" data-title="<?= e($p['title']) ?>">启用</button>
               <?php endif; ?>
+              <?php if ($p['settingsCount'] > 0): ?>
+                <span class="admin-muted admin-theme-hint">启用后可配置</span>
+              <?php endif; ?>
             <?php endif; ?>
-            <button type="button" class="btn btn-ghost btn-sm admin-plugin-details" data-name="<?= e($p['name']) ?>">数据</button>
             <button type="button" class="btn btn-ghost btn-sm admin-plugin-uninstall" data-name="<?= e($p['name']) ?>" data-title="<?= e($p['title']) ?>">卸载</button>
-          </div>
-          <div class="admin-plugin-data" id="plugin-data-<?= e($p['name']) ?>" hidden>
-            <pre class="admin-plugin-data-pre"><?= e(json_encode($p['data'], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)) ?></pre>
           </div>
         </div>
       <?php endforeach; ?>
@@ -157,14 +156,6 @@
       post("/admin/plugins/uninstall", fd)
         .then(function () { persistMsg("已卸载 " + btn.dataset.title, false); location.reload(); })
         .catch(function (err) { showMsg(err.message, true); });
-    });
-  });
-
-  // ---- 查看插件数据 ----
-  document.querySelectorAll(".admin-plugin-details").forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      var box = document.getElementById("plugin-data-" + btn.dataset.name);
-      if (box) { box.hidden = !box.hidden; }
     });
   });
 

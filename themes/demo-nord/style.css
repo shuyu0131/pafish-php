@@ -355,26 +355,26 @@ img {
   font-size: 0.8125rem;
 }
 .btn-primary {
-  background: #424242;
+  background: #0f766e;
   color: #fff;
-  border-color: #424242;
+  border-color: #0f766e;
 }
 .btn-primary:hover {
-  background: #5a5a5a;
-  border-color: #5a5a5a;
+  background: #115e59;
+  border-color: #115e59;
   color: #fff;
 }
 .btn-primary:active {
   transform: scale(0.98);
 }
 .dark .btn-primary {
-  background: #d6d6d6;
+  background: #14b8a6;
   color: #161616;
-  border-color: #d6d6d6;
+  border-color: #14b8a6;
 }
 .dark .btn-primary:hover {
-  background: #fff;
-  border-color: #fff;
+  background: #2dd4bf;
+  border-color: #2dd4bf;
   color: #161616;
 }
 .btn-outline {

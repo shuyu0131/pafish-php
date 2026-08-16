@@ -11,7 +11,6 @@ $avatar = !empty($me['avatar_url']) ? $me['avatar_url'] : admin_gravatar((string
   <div class="admin-page-head">
     <div>
       <h1 class="admin-h1">个人资料</h1>
-      <p class="admin-page-sub">头像、昵称与密码设置</p>
     </div>
   </div>
 

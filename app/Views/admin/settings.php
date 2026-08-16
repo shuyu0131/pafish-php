@@ -32,7 +32,6 @@ try {
   <div class="admin-page-head">
     <div>
       <h1 class="admin-h1">站点设置</h1>
-      <p class="admin-page-sub">配置博客前台显示与评论规则</p>
     </div>
   </div>
 

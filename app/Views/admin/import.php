@@ -9,7 +9,6 @@
   <div class="admin-page-head">
     <div>
       <h1 class="admin-h1">导入 Markdown</h1>
-      <p class="admin-page-sub">批量导入 .md 文件为文章，支持 YAML frontmatter（title / date / tags）</p>
     </div>
   </div>
 

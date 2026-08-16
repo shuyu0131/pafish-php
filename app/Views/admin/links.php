@@ -17,7 +17,6 @@ foreach ($items as $l) {
   <div class="admin-page-head">
     <div>
       <h1 class="admin-h1">友情链接</h1>
-      <p class="admin-page-sub">展示在首页底部，共 <?= $count ?> 个（含隐藏 <?= $hidden ?> 个）</p>
     </div>
   </div>
 

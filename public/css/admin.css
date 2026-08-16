@@ -2723,24 +2723,3 @@ a.admin-pg-btn:hover {
   background: rgba(255,255,255,.08);
 }
 
-/* 后台主按钮配色：用 accent 与侧边栏高亮统一（覆盖主题 style.css 的 btn-primary） */
-.admin-body .btn-primary {
-  background: var(--accent);
-  color: #fff;
-  border-color: var(--accent);
-}
-.admin-body .btn-primary:hover {
-  background: color-mix(in srgb, var(--accent) 85%, #000);
-  border-color: color-mix(in srgb, var(--accent) 85%, #000);
-  color: #fff;
-}
-.dark .admin-body .btn-primary {
-  background: var(--accent);
-  color: #fff;
-  border-color: var(--accent);
-}
-.dark .admin-body .btn-primary:hover {
-  background: color-mix(in srgb, var(--accent) 82%, #000);
-  border-color: color-mix(in srgb, var(--accent) 82%, #000);
-  color: #fff;
-}

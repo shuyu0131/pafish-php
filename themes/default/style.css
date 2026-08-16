@@ -1137,6 +1137,37 @@ input[type="radio"]:focus-visible {
   font-weight: 600;
 }
 
+/* 数学公式（Vditor 写作对齐：行内 KaTeX 渲染、块级居中） */
+.md-math {
+  font-size: 0.95em;
+}
+.md-math .katex-display {
+  margin: 0.5em 0;
+}
+.md-math-block {
+  margin: 1.5rem auto;
+  overflow-x: auto;
+  text-align: center;
+}
+.md-math-block .katex-display {
+  margin: 0.5em 0;
+}
+
+/* mermaid/mindmap/flowchart 图表容器（前台脚本渲染为 SVG） */
+.md-mermaid {
+  margin: 1.5rem 0;
+  overflow-x: auto;
+  text-align: center;
+  font-family: var(--font-mono, "SFMono-Regular", Consolas, monospace);
+  font-size: 0.85rem;
+  color: var(--muted);
+  white-space: pre-wrap;
+}
+.md-mermaid svg {
+  max-width: 100%;
+  height: auto;
+}
+
 /* 代码高亮主题（github 暗色近似，M2 接入 Parsedown 后使用） */
 .hljs-comment,
 .hljs-quote {

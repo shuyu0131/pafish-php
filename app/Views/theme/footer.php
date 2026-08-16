@@ -20,6 +20,10 @@ $icp = (string) settings('site_icp', '');
 </div>
 </div>
 <script src="<?= e(asset_url('/js/highlight.min.js')) ?>" defer></script>
+<script src="<?= e(asset_url('/vendor/vditor/dist/js/katex/katex.min.js')) ?>" defer></script>
+<script src="<?= e(asset_url('/vendor/vditor/dist/js/mermaid/mermaid.min.js')) ?>" defer></script>
+<script>window.PAFISH_KATEX_CSS = <?= json_encode(asset_url('/vendor/vditor/dist/js/katex/katex.min.css')) ?>;</script>
+<script src="<?= e(asset_url('/js/frontend-render.js')) ?>" defer></script>
 <script>
 /* 代码高亮（hljs 类已在 style.css 定义配色） */
 document.addEventListener('DOMContentLoaded', function () {

@@ -9,6 +9,7 @@
   <div class="admin-page-head">
     <div>
       <h1 class="admin-h1">标签管理</h1>
+      <p class="admin-page-sub">共 <?= count($tags) ?> 个标签 · 按名称排序</p>
     </div>
   </div>
 

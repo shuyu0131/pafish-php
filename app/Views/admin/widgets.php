@@ -20,6 +20,7 @@ $labelJson = json_encode($typeLabels, JSON_UNESCAPED_UNICODE);
   <div class="admin-page-head">
     <div>
       <h1 class="admin-h1">侧边栏组件</h1>
+      <p class="admin-page-sub">共 <?= $count ?> 个（含隐藏 <?= $hidden ?> 个）· 组件按顺序显示在左侧栏</p>
     </div>
   </div>
 

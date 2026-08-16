@@ -11,6 +11,7 @@
   <div class="admin-page-head">
     <div>
       <h1 class="admin-h1">通知</h1>
+      <p class="admin-page-sub"><?= $unread > 0 ? $unread . ' 条未读' : '全部已读' ?> · 共 <?= $total ?> 条</p>
     </div>
     <?php if ($unread > 0): ?>
       <div class="admin-head-actions">

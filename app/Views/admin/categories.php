@@ -11,6 +11,7 @@ $canEdit = in_array($role ?? '', ['ADMIN', 'EDITOR'], true);
   <div class="admin-page-head">
     <div>
       <h1 class="admin-h1">分类管理</h1>
+      <p class="admin-page-sub">共 <?= count($tree) ?> 个分类 · 支持父子层级与同级排序</p>
     </div>
   </div>
 

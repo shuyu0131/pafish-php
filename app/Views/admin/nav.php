@@ -18,6 +18,7 @@ foreach ($items as $n) {
   <div class="admin-page-head">
     <div>
       <h1 class="admin-h1">导航菜单</h1>
+      <p class="admin-page-sub">配置顶部导航与移动端菜单（共 <?= $count ?> 项，含隐藏 <?= $hidden ?> 项）</p>
     </div>
   </div>
 

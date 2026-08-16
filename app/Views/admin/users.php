@@ -21,6 +21,7 @@ $roleLabel = static function (string $role): string {
   <div class="admin-page-head">
     <div>
       <h1 class="admin-h1">用户管理</h1>
+      <p class="admin-page-sub">共 <?= count($users) ?> 个用户</p>
     </div>
   </div>
 

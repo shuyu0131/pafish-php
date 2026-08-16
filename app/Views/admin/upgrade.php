@@ -9,6 +9,7 @@
   <div class="admin-page-head">
     <div>
       <h1 class="admin-h1">系统更新</h1>
+      <p class="admin-page-sub">检查并在线升级到官方最新版本。更新包内置官方源（store.waikanl.cn），升级前自动整站备份，失败自动恢复。核心文件 config.php、runtime、backups、public/uploads 不受影响。</p>
     </div>
   </div>
   <p class="admin-backup-msg" id="upgradeMsg" hidden></p>

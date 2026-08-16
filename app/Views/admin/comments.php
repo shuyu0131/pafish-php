@@ -15,6 +15,7 @@ $listUrl = url_to('/admin/comments') . '?status=' . $status;
   <div class="admin-page-head">
     <div>
       <h1 class="admin-h1">评论审核</h1>
+      <p class="admin-page-sub"><?= $total ?> 条<?= $tabs[$status] ?>评论 · 按时间倒序</p>
     </div>
   </div>
 

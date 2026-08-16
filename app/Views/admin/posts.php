@@ -40,6 +40,9 @@ $canEdit = in_array($role ?? '', ['ADMIN', 'EDITOR'], true);
   <div class="admin-page-head">
     <div>
       <h1 class="admin-h1">文章管理</h1>
+      <p class="admin-page-sub">
+        共 <?= $total ?> 篇<?= $params['q'] !== '' ? ' · 搜索“' . e($params['q']) . '”' : '' ?>
+      </p>
     </div>
     <?php if ($canEdit): ?>
       <div class="admin-head-actions">

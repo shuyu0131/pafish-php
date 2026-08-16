@@ -13,6 +13,7 @@ function store_kind_label(string $kind): string
   <div class="admin-page-head">
     <div>
       <h1 class="admin-h1">应用商店</h1>
+      <p class="admin-page-sub">从商店一键安装主题与插件。安装包校验唯一顶层目录与路径安全，更新失败会自动恢复旧版本。商店由官方内置（store.waikanl.cn）。</p>
     </div>
   </div>
   <p class="admin-backup-msg" id="storeMsg" hidden></p>

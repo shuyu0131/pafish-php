@@ -132,9 +132,9 @@ $listUrl = url_to('/admin/comments') . '?status=' . $status;
   function jsonOrAlert(r, failMsg) {
     return r.json().then(function (j) {
       if (j && j.ok) return j;
-      alert((j && j.error) || failMsg);
+     pafishNotify((j && j.error) || failMsg);
       return null;
-    }).catch(function () { alert("网络错误"); return null; });
+    }).catch(function () { pafishNotify("网络错误"); return null; });
   }
 
   // ---- 状态流转：通过 / 垃圾 ----
@@ -185,7 +185,7 @@ $listUrl = url_to('/admin/comments') . '?status=' . $status;
       post(listUrl + "/delete-by-ip", { ip: ip })
         .then(function (r) { return jsonOrAlert(r, "操作失败"); })
         .then(function (j) {
-          if (j) alert("已删除 " + (j.deleted || 0) + " 条评论");
+          if (j) pafishNotify("已删除 " + (j.deleted || 0) + " 条评论", false);
           if (j) location.reload();
         });
     });
@@ -198,7 +198,7 @@ $listUrl = url_to('/admin/comments') . '?status=' . $status;
       if (!confirm("拉黑该 IP？之后它提交的评论将被拒绝（403）。")) return;
       post(listUrl + "/block-ip", { ip: ip })
         .then(function (r) { return jsonOrAlert(r, "操作失败"); })
-        .then(function (j) { if (j) alert("已拉黑 " + ip); });
+        .then(function (j) { if (j) pafishNotify("已拉黑 " + ip, false); });
     });
   });
 
@@ -226,14 +226,14 @@ $listUrl = url_to('/admin/comments') . '?status=' . $status;
       var box = card.querySelector(".admin-comment-replybox");
       var input = box.querySelector("textarea");
       var content = input.value.trim();
-      if (!content) { alert("回复内容不能为空"); return; }
+      if (!content) { pafishNotify("回复内容不能为空"); return; }
       post(listUrl + "/" + btn.getAttribute("data-reply-submit") + "/reply", { content: content })
         .then(function (r) { return jsonOrAlert(r, "回复失败"); })
         .then(function (j) {
           if (j) {
             input.value = "";
             box.hidden = true;
-            alert("已回复，评论将直接显示在前台");
+           pafishNotify("已回复，评论将直接显示在前台", false);
             location.reload();
           }
         });

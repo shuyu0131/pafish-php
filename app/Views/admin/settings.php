@@ -223,6 +223,7 @@ curl -H "X-API-Key: &lt;你的Key&gt;" "https://你的域名/api/v1/comments?pos
   function showError(msg) {
     errBox.textContent = msg;
     errBox.hidden = false;
+    if (typeof window.pafishNotify === "function") window.pafishNotify(msg);
   }
   function clearError() {
     errBox.textContent = "";
@@ -262,7 +263,9 @@ curl -H "X-API-Key: &lt;你的Key&gt;" "https://你的域名/api/v1/comments?pos
       .filter(Boolean);
     fd.set("blocked_ips", JSON.stringify([...new Set(ips)]));
     post(form.action, fd, function () {
-      location.reload();
+      // 先让成功提示可见，再刷新页面反映新状态
+      if (typeof window.pafishNotify === "function") window.pafishNotify("设置已保存");
+      setTimeout(function () { location.reload(); }, 600);
     }).catch(function () { saveBtn.disabled = false; });
   });
 

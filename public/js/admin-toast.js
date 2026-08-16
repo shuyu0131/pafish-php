@@ -69,6 +69,11 @@
     bind(toast);
   };
 
+  /** 统一异步结果提示：true=错误（红）/ false=成功（绿），替代页面里零散的原生 alert */
+  window.pafishNotify = function (message, isError) {
+    window.pafishToast(String(message || ""), isError ? "error" : "success");
+  };
+
   function init() {
     document.querySelectorAll("[data-toast]").forEach(bind);
   }

@@ -169,7 +169,7 @@ $avatar = !empty($me['avatar_url']) ? $me['avatar_url'] : admin_gravatar((string
       preview.src = j.url;
       fileInput.value = "";
     }).catch(function (err) {
-      window.alert(err.message || "上传失败");
+      pafishNotify(err.message || "上传失败");
       fileInput.value = "";
     });
   });

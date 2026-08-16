@@ -150,9 +150,9 @@
         .then(function (r) { return r.json(); })
         .then(function (j) {
           if (j && j.ok) location.reload();
-          else alert((j && j.error) || "删除失败");
+          else pafishNotify((j && j.error) || "删除失败");
         })
-        .catch(function () { alert("网络错误"); });
+        .catch(function () { pafishNotify("网络错误"); });
     });
   });
 })();

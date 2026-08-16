@@ -95,9 +95,9 @@ $roleLabel = static function (string $role): string {
       .then(function (r) { return r.json(); })
       .then(function (j) {
         if (j && j.ok) onOk(j);
-        else window.alert((j && j.error) || "操作失败");
+        else pafishNotify((j && j.error) || "操作失败");
       })
-      .catch(function () { window.alert("操作失败"); });
+      .catch(function () { pafishNotify("操作失败"); });
   }
 
   // 角色下拉：变更即确认后提交，成功刷新列表（对齐 Node router.refresh）

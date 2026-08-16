@@ -178,9 +178,9 @@ foreach ($items as $l) {
         .then(function (r) { return r.json(); })
         .then(function (j) {
           if (j && j.ok) location.reload();
-          else alert((j && j.error) || "操作失败");
+          else pafishNotify((j && j.error) || "操作失败");
         })
-        .catch(function () { alert("网络错误"); });
+        .catch(function () { pafishNotify("网络错误"); });
     });
   });
 
@@ -191,7 +191,7 @@ foreach ($items as $l) {
       post(base + "/" + row.getAttribute("data-id") + "/move", { dir: btn.getAttribute("data-move") })
         .then(function (r) { return r.json(); })
         .then(function (j) { if (j && j.ok) location.reload(); })
-        .catch(function () { alert("网络错误"); });
+        .catch(function () { pafishNotify("网络错误"); });
     });
   });
 
@@ -213,9 +213,9 @@ foreach ($items as $l) {
         .then(function (r) { return r.json(); })
         .then(function (j) {
           if (j && j.ok) location.reload();
-          else alert((j && j.error) || "删除失败");
+          else pafishNotify((j && j.error) || "删除失败");
         })
-        .catch(function () { alert("网络错误"); });
+        .catch(function () { pafishNotify("网络错误"); });
     });
   });
 })();

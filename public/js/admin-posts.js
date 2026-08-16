@@ -98,10 +98,11 @@
       var op = submitter.value;
       if (op === "move") {
         var moveSel = batchBar.querySelector(".admin-batch-move");
-        if (!moveSel.value) { alert("请先选择要移动到的分类"); return; }
+        if (!moveSel.value) { pafishNotify("请先选择要移动到的分类"); return; }
       }
       var confirmText = submitter.dataset.batchConfirm || "";
       if (confirmText && !window.confirm(confirmText.replace(/\{n\}/g, String(ids.length)))) return;
+      submitter.disabled = true; // 提交期间防重复点击（成功刷新 / 失败恢复）
       var fd = new FormData(batchBar);
       fd.set("ids", JSON.stringify(ids));
       fd.set("op", op);
@@ -109,9 +110,13 @@
         .then(function (r) { return r.json().catch(function () { return {}; }); })
         .then(function (d) {
           if (d && d.ok) { location.reload(); return; }
-          alert((d && d.error) || "操作失败");
+          submitter.disabled = false;
+          pafishNotify((d && d.error) || "操作失败");
         })
-        .catch(function () { alert("网络错误，请重试"); });
+        .catch(function () {
+          submitter.disabled = false;
+          pafishNotify("网络错误，请重试");
+        });
     });
   }
 
@@ -133,17 +138,26 @@
         timer = setTimeout(function () { disarm(); }, 3000);
         return;
       }
+      if (btn) {
+        btn.disabled = true; // 提交期间防重复点击（成功刷新 / 失败恢复）
+        btn.textContent = "提交中…";
+      }
       fetch(f.action, { method: "POST", body: new FormData(f), headers: { "X-Requested-With": "XMLHttpRequest" } })
         .then(function (r) { return r.json().catch(function () { return {}; }); })
         .then(function (d) {
           if (d && d.ok) { location.reload(); return; }
-          alert((d && d.error) || "操作失败");
+          disarm();
+          pafishNotify((d && d.error) || "操作失败");
         })
-        .catch(function () { alert("网络错误，请重试"); });
+        .catch(function () {
+          disarm();
+          pafishNotify("网络错误，请重试");
+        });
     });
     function disarm() {
       armed = false;
       if (btn) {
+        btn.disabled = false;
         btn.classList.remove("admin-confirm-armed");
         btn.title = "";
         btn.innerHTML = original;

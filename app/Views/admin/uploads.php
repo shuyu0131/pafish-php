@@ -181,7 +181,7 @@ $accept = 'image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip,.rar
     uploadBtn.disabled = true;
     function next() {
       if (i >= files.length) {
-        if (failed) alert(failed + " 个文件上传失败（检查类型与大小限制）");
+        if (failed) pafishNotify(failed + " 个文件上传失败（检查类型与大小限制）");
         location.reload();
         return;
       }
@@ -232,9 +232,9 @@ $accept = 'image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip,.rar
         .then(function (r) { return r.json(); })
         .then(function (j) {
           if (j && j.ok) location.reload();
-          else alert((j && j.error) || "删除失败");
+          else pafishNotify((j && j.error) || "删除失败");
         })
-        .catch(function () { alert("网络错误"); });
+        .catch(function () { pafishNotify("网络错误"); });
     });
   });
 

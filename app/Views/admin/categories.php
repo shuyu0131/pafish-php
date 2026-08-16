@@ -197,8 +197,8 @@ window.PAFISH_CAT_DATA = <?= json_encode($catJs) ?>;
     btn.addEventListener("click", function () {
       post(D.moveUrl + "/" + btn.getAttribute("data-move-cat") + "/move", { dir: btn.getAttribute("data-dir") })
         .then(function (r) { return r.json(); })
-        .then(function (j) { if (j && j.ok) location.reload(); else alert((j && j.error) || "操作失败"); })
-        .catch(function () { alert("网络错误"); });
+        .then(function (j) { if (j && j.ok) location.reload(); else pafishNotify((j && j.error) || "操作失败"); })
+        .catch(function () { pafishNotify("网络错误"); });
     });
   });
 
@@ -211,9 +211,9 @@ window.PAFISH_CAT_DATA = <?= json_encode($catJs) ?>;
         .then(function (r) { return r.json(); })
         .then(function (j) {
           if (j && j.ok) location.reload();
-          else alert((j && j.error) || "删除失败");
+          else pafishNotify((j && j.error) || "删除失败");
         })
-        .catch(function () { alert("网络错误"); });
+        .catch(function () { pafishNotify("网络错误"); });
     });
   });
 })();

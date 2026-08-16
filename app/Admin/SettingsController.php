@@ -32,6 +32,7 @@ final class SettingsController extends AdminController
         'smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass', 'smtp_from',
         'notify_email_enabled', 'notify_email',
         'api_enabled', 'api_key',
+        'store_license',
     ];
 
     /** GET /admin/settings */

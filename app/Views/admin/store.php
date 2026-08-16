@@ -77,6 +77,9 @@ function store_kind_label(string $kind): string
                   <?php endif; ?>
                 <?php else: ?>
                   <button type="button" class="btn btn-primary btn-sm admin-store-install" data-kind="<?= e($kind) ?>" data-name="<?= e($item['name']) ?>" data-title="<?= e($item['title']) ?>" data-version="<?= e($item['version']) ?>" data-paid="<?= !empty($item['paid']) ? '1' : '0' ?>">安装</button>
+                  <?php if (!empty($item['paid'])): ?>
+                    <a class="btn btn-ghost btn-sm" href="<?= e(rtrim($storeUrl, '/') . '/store/' . ($kind === 'theme' ? 'themes' : 'extensions') . '/' . rawurlencode($item['name'])) ?>" target="_blank" rel="noopener">官网购买</a>
+                  <?php endif; ?>
                 <?php endif; ?>
               </div>
             </div>

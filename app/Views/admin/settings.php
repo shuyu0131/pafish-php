@@ -1,8 +1,9 @@
 <?php
 /**
  * 站点设置（对齐 Node app/admin/settings/）：
- * 7 张卡片：站点信息 / 评论与列表 / 上传与媒体库 / 账号与注册 / 邮件服务（SMTP）/
- * 邮件通知（新评论提醒）/ 开放 API；整页一个表单整体保存，底部 SMTP 测试与 Key 重新生成。
+ * 8 张卡片：站点信息 / 应用商店 / 评论与列表 / 上传与媒体库 / 账号与注册 /
+ * 邮件服务（SMTP）/ 邮件通知（新评论提醒）/ 开放 API；整页一个表单整体保存，
+ * 底部 SMTP 测试与 Key 重新生成。
  * 变量：$all（settings 全量键值）
  */
 $all = $all ?? [];
@@ -123,6 +124,16 @@ try {
         <span>注册需邮箱验证码（依赖下方 SMTP 配置）</span>
       </label>
       <p class="admin-field-hint">开启后访客可在 /register 自助注册，注册即登录；管理员可在「用户管理」中禁用/解禁账号。</p>
+    </div>
+
+    <!-- 应用商店 -->
+    <div class="card admin-form-card">
+      <h2 class="admin-card-title">应用商店</h2>
+      <div class="admin-field">
+        <span class="label">付费应用授权码</span>
+        <input class="input" type="password" name="store_license" value="<?= e($textVal('store_license')) ?>" placeholder="购买后粘贴授权码" autocomplete="new-password" maxlength="500">
+        <p class="admin-field-hint">用于当前站点安装和更新付费插件/主题，授权码由官网（store.waikanl.cn）购买后提供；未购买付费应用时无需填写。授权码仅保存在服务器，安装时自动携带，不会出现在页面源码。</p>
+      </div>
     </div>
 
     <!-- 邮件服务（SMTP） -->

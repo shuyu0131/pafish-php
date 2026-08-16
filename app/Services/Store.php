@@ -216,11 +216,20 @@ final class Store
         if ($zip === '') {
             throw new \RuntimeException('商店条目缺少 zip 地址');
         }
+        // 付费应用：携带站点授权码（store_license，官网购买后提供）与站点 URL（授权码站点绑定）
+        $query = '';
+        if (!empty($item['paid'])) {
+            $license = trim((string) Settings::get('store_license', ''));
+            if ($license === '') {
+                throw new \RuntimeException('该应用需要授权码，请先在「站点设置 → 应用商店」中填写付费应用授权码（官网购买后提供）');
+            }
+            $query = '?license=' . rawurlencode($license) . '&site_url=' . rawurlencode(self::siteUrl());
+        }
         if (preg_match('#^https?://#i', $zip) === 1) {
-            $buffer = self::httpGet($zip);
+            $buffer = self::httpGet($zip . $query);
         } elseif ($base !== '') {
             try {
-                $buffer = self::httpGet(rtrim($base, '/') . '/' . ltrim($zip, '/'));
+                $buffer = self::httpGet(rtrim($base, '/') . '/' . ltrim($zip, '/') . $query);
             } catch (\Throwable $e) {
                 // 远程 zip 失效 → 尝试本地兜底
                 $local = self::readLocalZip($zip);
@@ -239,6 +248,18 @@ final class Store
         // 目录声明 sha256 时校验包完整性（防下载篡改/损坏；旧目录无该字段则跳过）
         self::verifySha256($buffer, (string) ($item['sha256'] ?? ''));
         return $buffer;
+    }
+
+    /** 站点绝对 URL（付费授权码站点绑定用；SITE_URL 环境变量优先，缺省用请求 Host） */
+    private static function siteUrl(): string
+    {
+        $env = trim((string) getenv('SITE_URL'));
+        if ($env !== '') {
+            return rtrim($env, '/');
+        }
+        $https = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
+        $host = (string) ($_SERVER['HTTP_HOST'] ?? 'localhost');
+        return ($https ? 'https' : 'http') . '://' . $host;
     }
 
     /** 目录声明 sha256 时校验包完整性（旧目录无该字段则跳过） */

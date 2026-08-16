@@ -31,6 +31,10 @@ function store_kind_label(string $kind): string
     <button type="button" class="admin-tab" data-kind="plugin" role="tab">插件（<?= count($pluginCat['items']) ?>）</button>
   </div>
 
+  <div class="admin-store-toolbar">
+    <input type="search" id="storeSearch" class="input admin-store-search" placeholder="搜索已上架的主题与插件…" autocomplete="off">
+  </div>
+
   <?php foreach (['theme' => $themeCat, 'plugin' => $pluginCat] as $kind => $cat): ?>
     <div class="admin-store-pane" data-pane="<?= e($kind) ?>"<?= $kind === 'theme' ? '' : ' hidden' ?>>
       <?php if ($cat['items'] === []): ?>
@@ -38,9 +42,15 @@ function store_kind_label(string $kind): string
       <?php else: ?>
         <div class="admin-theme-grid">
           <?php foreach ($cat['items'] as $item): ?>
-            <div class="card admin-theme-card">
+            <div class="card admin-theme-card" data-search="<?= e(mb_strtolower(($item['title'] ?? '') . ' ' . ($item['description'] ?? ''))) ?>">
+              <?php if (($item['preview'] ?? '') !== ''): ?>
+                <div class="admin-store-thumb">
+                  <img src="<?= e($item['preview']) ?>" alt="<?= e($item['title']) ?>" loading="lazy" onerror="this.closest('.admin-store-thumb').hidden = true">
+                </div>
+              <?php endif; ?>
               <div class="admin-theme-head">
                 <p class="admin-theme-name"><?= e($item['title']) ?>
+                  <?php if (!empty($item['paid'])): ?><span class="badge badge-accent">付费</span><?php endif; ?>
                   <?php if ($item['installed']): ?>
                     <?php if ($item['updateAvailable']): ?>
                       <span class="badge badge-accent">可更新</span>
@@ -54,19 +64,19 @@ function store_kind_label(string $kind): string
                 <p class="admin-muted admin-theme-meta">
                   作者：<?= e($item['author'] !== '' ? $item['author'] : '未知') ?>
                   <?php if ($item['installed']): ?>
-                    　本地版本：<?= $item['updateAvailable'] ? 'v' . e($item['localVersion']) : 'v' . e($item['localVersion']) ?>（最新）
+                    　本地版本：v<?= e($item['localVersion']) ?><?= $item['updateAvailable'] ? '' : '（最新）' ?>
                   <?php endif; ?>
                 </p>
               </div>
               <div class="admin-theme-ops">
                 <?php if ($item['installed']): ?>
                   <?php if ($item['updateAvailable']): ?>
-                    <button type="button" class="btn btn-primary btn-sm admin-store-update" data-kind="<?= e($kind) ?>" data-name="<?= e($item['name']) ?>" data-title="<?= e($item['title']) ?>" data-version="<?= e($item['version']) ?>">更新到 v<?= e($item['version']) ?></button>
+                    <button type="button" class="btn btn-primary btn-sm admin-store-update" data-kind="<?= e($kind) ?>" data-name="<?= e($item['name']) ?>" data-title="<?= e($item['title']) ?>" data-version="<?= e($item['version']) ?>" data-changelog="<?= e($item['changelog'] ?? '') ?>">更新到 v<?= e($item['version']) ?></button>
                   <?php else: ?>
                     <span class="badge">已是最新版本</span>
                   <?php endif; ?>
                 <?php else: ?>
-                  <button type="button" class="btn btn-primary btn-sm admin-store-install" data-kind="<?= e($kind) ?>" data-name="<?= e($item['name']) ?>" data-title="<?= e($item['title']) ?>" data-version="<?= e($item['version']) ?>">安装</button>
+                  <button type="button" class="btn btn-primary btn-sm admin-store-install" data-kind="<?= e($kind) ?>" data-name="<?= e($item['name']) ?>" data-title="<?= e($item['title']) ?>" data-version="<?= e($item['version']) ?>" data-paid="<?= !empty($item['paid']) ? '1' : '0' ?>">安装</button>
                 <?php endif; ?>
               </div>
             </div>
@@ -127,21 +137,40 @@ function store_kind_label(string $kind): string
     });
   });
 
+  // ---- 搜索（当前 Tab 内按标题/描述过滤） ----
+  var search = document.getElementById("storeSearch");
+  search.addEventListener("input", function () {
+    var q = search.value.trim().toLowerCase();
+    document.querySelectorAll(".admin-store-pane:not([hidden]) .admin-theme-card").forEach(function (card) {
+      card.style.display = q === "" || (card.dataset.search || "").indexOf(q) !== -1 ? "" : "none";
+    });
+  });
+
   // ---- 安装 / 更新 ----
   document.querySelectorAll(".admin-store-install").forEach(function (btn) {
     btn.addEventListener("click", function () {
+      if (btn.dataset.paid === "1" && !window.confirm("该应用为付费应用，需先在官网购买获取授权码，否则下载将失败。\n确定继续安装吗？")) { return; }
       var fd = new FormData();
       fd.append("kind", btn.dataset.kind);
       fd.append("name", btn.dataset.name);
       fd.append("_csrf", CSRF);
       post("/admin/store/install", fd)
-        .then(function (j) { persistMsg("✓ 已安装 " + j.title + " v" + j.version, false); location.reload(); })
+        .then(function (j) {
+          var guide = btn.dataset.kind === "plugin"
+            ? "，可到「插件管理」中启用"
+            : "，可到「主题与外观」中启用";
+          persistMsg("✓ 已安装 " + j.title + " v" + j.version + guide, false);
+          location.reload();
+        })
         .catch(function (err) { showMsg(err.message, true); });
     });
   });
   document.querySelectorAll(".admin-store-update").forEach(function (btn) {
     btn.addEventListener("click", function () {
-      if (!window.confirm("将 " + btn.dataset.title + " 从 v" + btn.dataset.version + " 覆盖更新？\n更新失败会自动恢复旧版本。")) { return; }
+      var text = "将 " + btn.dataset.title + " 从 v" + btn.dataset.version + " 覆盖更新？\n更新失败会自动恢复旧版本。";
+      var log = btn.dataset.changelog || "";
+      if (log) { text += "\n\n更新内容：\n" + log; }
+      if (!window.confirm(text)) { return; }
       var fd = new FormData();
       fd.append("kind", btn.dataset.kind);
       fd.append("name", btn.dataset.name);

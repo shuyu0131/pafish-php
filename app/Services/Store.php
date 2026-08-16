@@ -3,15 +3,20 @@ declare(strict_types=1);
 
 namespace Pafish\Services;
 
+use Pafish\Core\Version;
+
 /**
  * 应用商店（官方源硬编码，零配置）：
  * - 官方源：https://store.waikanl.cn（官网 pafish-web 的商店 API，无需用户填写地址）
- * - 远程协议：GET {base}/api/catalog → {name, version, apps:[...]}，按 type 过滤
- *   （theme / extension），字段映射：slug→name（安装目录名）、name→title、version→version、
- *   author/description 直取、download_url→zip（相对路径拼 base）、screenshots[0]→preview
- * - 远程目录失败 → 自动回退本地内置源 public/store/{themes,plugins}.json（zip 本地直读），
+ * - 远程协议：GET {base}/api/runtime-store/v1/catalog?kind=theme|plugin → {protocol, items:[...]}
+ *   （与 Node 版 src/lib/store.ts 同一协议），字段映射：slug→name（安装目录名）、title→title、
+ *   packageSha256→sha256（下载后校验）、requiresPafish→requires（安装前版本门槛）、
+ *   licenseRequired→paid（付费标记）、changelog、screenshots[0]→preview
+ * - 目录缓存 runtime/store_catalog_{kind}.json（1h TTL，对齐 Upgrade 的更新检查缓存）；
+ *   远程目录失败 → 自动回退本地内置源 public/store/{themes,plugins}.json（zip 本地直读），
  *   商店页永不自挂（对齐 Node 三级源策略的本地兜底）
- * - 名称正则 /^[a-z0-9_-]{1,50}$/；zip 相对路径拼 base，http(s) 直用；本地兜底走文件直读
+ * - 名称正则 /^[a-z0-9][a-z0-9-]{1,48}[a-z0-9]$/（与服务端 slug 规则一致，仅长度上限 50）；
+ *   zip 相对路径拼 base，http(s) 直用；本地兜底走文件直读
  * - 版本比较：数字分段（容忍 v 前缀，非数字段按 0）
  * - 安装拒绝已存在（提示直接更新）；更新 = 备份旧版 → 移除 → 装新版，失败自动恢复旧版
  * - Windows 兼容：全程 SPL 递归复制/删除，不依赖 rename（PHP 8.5 + Windows 上
@@ -23,9 +28,10 @@ final class Store
     /** 官方商店（官网 pafish-web 部署域名），测试可用环境变量覆盖 */
     private const OFFICIAL_STORE_URL = 'https://store.waikanl.cn';
 
-    private const NAME_PATTERN = '/^[a-z0-9_-]{1,50}$/';
+    private const NAME_PATTERN = '/^[a-z0-9][a-z0-9-]{1,48}[a-z0-9]$/';
     private const MAX_ZIP_BYTES = 10 * 1024 * 1024;
     private const KIND_FILE = ['theme' => 'themes.json', 'plugin' => 'plugins.json'];
+    private const CATALOG_CACHE_TTL = 3600; // 1h
 
     /** 商店地址（官方源硬编码；仅测试注入可覆盖） */
     public static function baseUrl(): string
@@ -63,15 +69,24 @@ final class Store
     }
 
     /**
-     * 拉取目录：官方源（store.waikanl.cn）优先；远程失败 → 回退本地内置源 public/store。
+     * 拉取目录：缓存（1h）优先 → 官方源（store.waikanl.cn）→ 远程失败回退本地内置源 public/store。
      * 返回 ['items' => 条目数组, 'base' => 源地址（远程=官网，本地兜底=''）, 'error'? => 回退原因]
      */
     public static function fetchCatalog(string $kind): array
     {
         $base = self::baseUrl();
         $label = '官方商店';
+        $cached = self::readCatalogCache($kind);
+        if ($cached !== null) {
+            return ['items' => $cached, 'base' => $base];
+        }
         try {
-            return ['items' => self::parseRemoteCatalog(self::httpGet($base . '/api/catalog'), $kind), 'base' => $base];
+            $items = self::parseRuntimeCatalog(
+                self::httpGet($base . '/api/runtime-store/v1/catalog?kind=' . rawurlencode($kind)),
+                $kind
+            );
+            self::writeCatalogCache($kind, $items);
+            return ['items' => $items, 'base' => $base];
         } catch (\Throwable $e) {
             $fallbackHint = $label . '目录获取失败：' . $e->getMessage();
         }
@@ -98,6 +113,7 @@ final class Store
     public static function installFromStore(string $kind, string $name, string $base, array $item): array
     {
         self::assertValidName($name);
+        self::assertCompatible($item);
         if (self::getInstalledVersion($kind, $name) !== null) {
             throw new \RuntimeException('已安装，可直接更新');
         }
@@ -116,6 +132,7 @@ final class Store
     public static function updateFromStore(string $kind, string $name, string $base, array $item): array
     {
         self::assertValidName($name);
+        self::assertCompatible($item);
         if (self::getInstalledVersion($kind, $name) === null) {
             throw new \RuntimeException('未安装，请先安装');
         }
@@ -151,6 +168,42 @@ final class Store
         if (preg_match(self::NAME_PATTERN, $name) !== 1) {
             throw new \RuntimeException('商店条目名称不合法');
         }
+    }
+
+    /** 安装/更新前校验主程序版本门槛（目录条目 requiresPafish） */
+    private static function assertCompatible(array $item): void
+    {
+        $requires = trim((string) ($item['requires'] ?? ''));
+        if ($requires === '') {
+            return;
+        }
+        if (Version::compare(Version::current(), $requires) < 0) {
+            throw new \RuntimeException('该应用要求 pafish v' . $requires . ' 及以上版本（当前 v' . Version::current() . '），请先升级系统');
+        }
+    }
+
+    /** 读取目录缓存（1h TTL 内有效，对齐 Upgrade::readCache） */
+    private static function readCatalogCache(string $kind): ?array
+    {
+        $path = PAFISH_ROOT . '/runtime/store_catalog_' . $kind . '.json';
+        $raw = @file_get_contents($path);
+        if ($raw === false) {
+            return null;
+        }
+        $data = json_decode($raw, true);
+        if (!is_array($data) || !isset($data['at']) || !is_array($data['items'] ?? null)) {
+            return null;
+        }
+        if (time() - (int) $data['at'] > self::CATALOG_CACHE_TTL) {
+            return null;
+        }
+        return $data['items'];
+    }
+
+    private static function writeCatalogCache(string $kind, array $items): void
+    {
+        $path = PAFISH_ROOT . '/runtime/store_catalog_' . $kind . '.json';
+        @file_put_contents($path, json_encode(['at' => time(), 'items' => $items], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), LOCK_EX);
     }
 
     /**
@@ -231,29 +284,31 @@ final class Store
     }
 
     /**
-     * 解析官网目录响应：{name, version, apps:[{type, slug, name, version, author,
-     * description, download_url, screenshots, ...}]} → 统一条目格式
-     * kind：theme → type=theme；plugin → type=extension
+     * 解析官网运行时目录（runtime-store/v1）：{protocol, items:[{slug, title, version,
+     * requiresPafish, description, author, licenseRequired, packageSha256, packageSize,
+     * zip, changelog, screenshots, publishedAt, ...}]} → 统一条目格式
+     * kind：theme → kind=theme；plugin → kind=plugin
      */
-    private static function parseRemoteCatalog(string $body, string $kind): array
+    private static function parseRuntimeCatalog(string $body, string $kind): array
     {
         $raw = json_decode($body, true);
-        if (!is_array($raw) || !isset($raw['apps']) || !is_array($raw['apps'])) {
+        if (!is_array($raw) || ($raw['protocol'] ?? '') !== 'pafish-runtime-store/v1'
+            || !isset($raw['items']) || !is_array($raw['items'])) {
             throw new \RuntimeException('目录格式不正确');
         }
-        $expectType = $kind === 'theme' ? 'theme' : 'extension';
+        $expectKind = $kind === 'theme' ? 'theme' : 'plugin';
         $items = [];
-        foreach ($raw['apps'] as $entry) {
+        foreach ($raw['items'] as $entry) {
             if (!is_array($entry)) {
                 continue;
             }
-            if (($entry['type'] ?? '') !== $expectType) {
+            if (($entry['kind'] ?? '') !== $expectKind) {
                 continue;
             }
             $name = (string) ($entry['slug'] ?? '');
-            $title = (string) ($entry['name'] ?? '');
+            $title = (string) ($entry['title'] ?? '');
             $version = (string) ($entry['version'] ?? '');
-            $zip = (string) ($entry['download_url'] ?? '');
+            $zip = (string) ($entry['zip'] ?? '');
             if ($name === '' || $title === '' || $version === '' || $zip === '') {
                 continue;
             }
@@ -261,7 +316,6 @@ final class Store
                 continue;
             }
             $shots = $entry['screenshots'] ?? [];
-            $preview = is_array($shots) && isset($shots[0]) ? (string) $shots[0] : '';
             $items[] = [
                 'name' => $name,
                 'title' => $title,
@@ -269,7 +323,11 @@ final class Store
                 'description' => isset($entry['description']) ? (string) $entry['description'] : '',
                 'author' => isset($entry['author']) ? (string) $entry['author'] : '',
                 'zip' => $zip,
-                'preview' => $preview,
+                'preview' => is_array($shots) && isset($shots[0]) ? (string) $shots[0] : '',
+                'sha256' => isset($entry['packageSha256']) ? (string) $entry['packageSha256'] : '',
+                'requires' => isset($entry['requiresPafish']) ? (string) $entry['requiresPafish'] : '',
+                'paid' => !empty($entry['licenseRequired']),
+                'changelog' => isset($entry['changelog']) ? (string) $entry['changelog'] : '',
             ];
         }
         return $items;
@@ -348,7 +406,13 @@ final class Store
             throw new \RuntimeException('下载失败（连接错误）');
         }
         if ($status !== 200) {
-            throw new \RuntimeException('下载失败（HTTP ' . $status . '）');
+            // 官网错误为结构化 JSON（{error, code, message}）：透传 message 给用户可读文案
+            $message = '下载失败（HTTP ' . $status . '）';
+            $err = json_decode((string) $body, true);
+            if (is_array($err) && is_string($err['message'] ?? null) && $err['message'] !== '') {
+                $message = '下载失败：' . $err['message'];
+            }
+            throw new \RuntimeException($message);
         }
         return (string) $body;
     }

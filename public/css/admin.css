@@ -2237,24 +2237,6 @@ a.admin-pg-btn:hover {
 .admin-text-danger {
   color: var(--danger) !important;
 }
-.admin-plugin-data {
-  border-top: 1px solid var(--border);
-  padding-top: 10px;
-}
-.admin-plugin-data-pre {
-  margin: 0;
-  max-height: 220px;
-  overflow: auto;
-  font-size: 12px;
-  line-height: 1.5;
-  background: var(--bg-soft);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 10px;
-  white-space: pre-wrap;
-  word-break: break-all;
-  color: var(--muted);
-}
 .admin-theme-ops {
   display: flex;
   align-items: center;
@@ -2449,6 +2431,24 @@ a.admin-pg-btn:hover {
   gap: 10px;
   flex-wrap: wrap;
   margin-bottom: 14px;
+}
+.admin-store-toolbar {
+  margin-bottom: 14px;
+}
+.admin-store-search {
+  max-width: 320px;
+}
+.admin-store-thumb {
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--bg-soft);
+  line-height: 0;
+}
+.admin-store-thumb img {
+  width: 100%;
+  height: auto;
+  display: block;
 }
 .admin-tabs {
   display: flex;

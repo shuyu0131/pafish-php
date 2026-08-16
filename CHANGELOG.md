@@ -14,6 +14,13 @@
 
 - **插件管理简化**：插件未启用时不再显示「设置」入口（启用后可配置，与主题列表行为一致）；移除插件列表的「数据」查看按钮与展开面板；移除主题/插件管理页的长篇技术规格副标题（「主题存放在 themes/ 目录，由 theme.json 声明设置项…」等描述）
 - 插件数据/日志 API（`$ctx->getData()` / `setData()` / `log()`）保留不变，仅供插件自身读写，管理端不再展示
+- **商店协议升级（runtime-store/v1）**：主程序商店切换到与 Node 版一致的运行时商店协议——安装包 SHA-256 校验在远程安装时真正生效（旧协议目录无 sha256 字段，校验此前被跳过）；目录新增付费标记、主程序版本门槛（requiresPafish）、更新日志（changelog）与截图预览
+- **商店目录缓存**：目录缓存 1 小时（runtime/store_catalog_{kind}.json，对齐系统更新检查缓存），打开商店页与安装/更新不再每次实时请求官网
+- **版本门槛校验**：安装/更新前检查应用要求的 pafish 最低版本，不满足则拒绝并提示先升级系统
+- **商店页体验**：新增搜索框（当前 Tab 内按标题/描述过滤）、预览图缩略图、付费徽标（付费应用安装前二次确认）、更新前展示 changelog、安装成功提示去启用位置
+- **官网下载错误结构化**：下载接口 404/403/429 返回 JSON 错误码（not_found / license_required / license_invalid / rate_limited），主程序透传可读文案
+- **官网旧协议清理**：移除已无消费者的 `/api/catalog`（AppRepository::catalog、路由、ApiController::catalog），商店统一走 runtime-store/v1
+- **冗余清理**：移除已废弃的 admin-plugin-data CSS 样式
 
 ## v0.1.6（2026-08-08）
 

@@ -29,6 +29,6 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 });
 </script>
-<script src="<?= e(url_to('/js/theme.js')) ?>" defer></script>
+<script src="<?= e(asset_url('/js/theme.js')) ?>" defer></script>
 </body>
 </html>

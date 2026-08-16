@@ -100,10 +100,20 @@ $roleLabel = static function (string $role): string {
       .catch(function () { window.alert("操作失败"); });
   }
 
-  // 角色下拉：变更即提交，成功刷新列表（对齐 Node router.refresh）
+  // 角色下拉：变更即确认后提交，成功刷新列表（对齐 Node router.refresh）
   document.querySelectorAll(".admin-role-select").forEach(function (sel) {
+    sel.dataset.original = sel.value;
     sel.addEventListener("change", function () {
       var row = sel.closest(".admin-user-row");
+      var isMe = row.querySelector(".admin-current-account") !== null;
+      var roleText = sel.options[sel.selectedIndex].textContent;
+      var prompt = isMe
+        ? "确定将自己的用户组改为「" + roleText + "」吗？\n修改后权限立即变化，请谨慎操作。"
+        : "确定将该用户的用户组改为「" + roleText + "」吗？";
+      if (!window.confirm(prompt)) {
+        sel.value = sel.dataset.original;
+        return;
+      }
       var fd = new FormData();
       fd.append("role", sel.value);
       fd.append("_csrf", CSRF);

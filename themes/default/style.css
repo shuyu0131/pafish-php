@@ -355,27 +355,27 @@ img {
   font-size: 0.8125rem;
 }
 .btn-primary {
-  background: #0d9488;
+  background: var(--accent);
   color: #fff;
-  border-color: #0d9488;
+  border-color: var(--accent);
 }
 .btn-primary:hover {
-  background: #0f766e;
-  border-color: #0f766e;
+  background: color-mix(in srgb, var(--accent) 85%, #000);
+  border-color: color-mix(in srgb, var(--accent) 85%, #000);
   color: #fff;
 }
 .btn-primary:active {
   transform: scale(0.98);
 }
 .dark .btn-primary {
-  background: #14b8a6;
-  color: #161616;
-  border-color: #14b8a6;
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
 }
 .dark .btn-primary:hover {
-  background: #2dd4bf;
-  border-color: #2dd4bf;
-  color: #161616;
+  background: color-mix(in srgb, var(--accent) 82%, #000);
+  border-color: color-mix(in srgb, var(--accent) 82%, #000);
+  color: #fff;
 }
 .btn-outline {
   border-color: rgba(0, 0, 0, 0.15);

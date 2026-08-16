@@ -115,9 +115,8 @@ window.pafishApi = function (p) {
   <main class="admin-main">
     <div class="admin-content">
       <?php if (is_array($flash ?? null) && ($flash['message'] ?? '') !== ''): ?>
-        <div class="admin-flash admin-flash-<?= e($flash['type'] ?? 'info') ?>">
+        <div class="admin-toast admin-toast-<?= e($flash['type'] ?? 'info') ?>" data-toast role="status" aria-live="polite">
           <?= e($flash['message']) ?>
-          <button type="button" class="admin-flash-close" aria-label="关闭"><?= admin_icon('x', 13) ?></button>
         </div>
       <?php endif; ?>
       <?= $content ?>
@@ -163,10 +162,21 @@ window.pafishApi = function (p) {
     });
   });
 
-  // flash 提示关闭
-  document.querySelectorAll('.admin-flash-close').forEach(function (b) {
-    b.addEventListener('click', function () { b.closest('.admin-flash').remove(); });
-  });
+  // 弹窗提示：右上角滑入，4 秒后自动消失，可点击关闭
+  (function () {
+    document.querySelectorAll('[data-toast]').forEach(function (toast) {
+      toast.classList.add('admin-toast-show');
+      var timer = setTimeout(function () {
+        toast.classList.remove('admin-toast-show');
+        setTimeout(function () { toast.remove(); }, 260);
+      }, 4000);
+      toast.addEventListener('click', function () {
+        clearTimeout(timer);
+        toast.classList.remove('admin-toast-show');
+        setTimeout(function () { toast.remove(); }, 260);
+      });
+    });
+  })();
 
   // 系统更新静默检查（服务端 24h 缓存，不阻塞页面；有新版本 → 导航「系统更新」加红点徽标）
   (function () {

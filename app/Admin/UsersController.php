@@ -6,6 +6,8 @@ namespace Pafish\Admin;
 
 use Pafish\Core\Auth;
 use Pafish\Core\DB;
+use Pafish\Core\Session;
+use Pafish\Services\Points;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -31,9 +33,17 @@ final class UsersController extends AdminController
             . '(SELECT COUNT(*) FROM comments c WHERE c.user_id = u.id) AS comment_count '
             . 'FROM users u ORDER BY u.created_at ASC'
         );
+        $pointsEnabled = Points::available();
+        if ($pointsEnabled) {
+            foreach ($rows as &$row) {
+                $row['points_balance'] = Points::balance((int) $row['id']);
+            }
+            unset($row);
+        }
         $response->getBody()->write($this->render('users', [
             'users' => $rows,
             'me' => Auth::user(),
+            'pointsEnabled' => $pointsEnabled,
         ], '用户管理'));
         return $response;
     }
@@ -92,6 +102,34 @@ final class UsersController extends AdminController
             [password_hash($new, PASSWORD_BCRYPT, ['cost' => 10]), (int) $user['id']]
         );
         return $this->json($response, ['ok' => true]);
+    }
+
+    /** POST /admin/users/{id}/points：管理员手动调整积分，作为唯一的初始积分入口。 */
+    public function adjustPoints(Request $request, Response $response, array $args): Response
+    {
+        $this->guardAdmin();
+        $body = $request->getParsedBody() ?? [];
+        if (!Session::verifyCsrf((string) ($body['_csrf'] ?? ''))) {
+            return $this->json($response, ['error' => '会话已过期，请刷新页面重试'], 419);
+        }
+        $user = DB::fetchOne('SELECT id FROM users WHERE id = ?', [(int) ($args['id'] ?? 0)]);
+        if ($user === null) {
+            return $this->json($response, ['error' => '用户不存在'], 400);
+        }
+        $amountText = trim((string) ($body['amount'] ?? ''));
+        if (!preg_match('/^-?[1-9][0-9]*$/', $amountText) || abs((int) $amountText) > 100000000) {
+            return $this->json($response, ['error' => '积分调整必须是 1 至 100000000 的整数（可为负数）'], 400);
+        }
+        $reason = trim((string) ($body['reason'] ?? '管理员调整'));
+        if ($reason === '') {
+            $reason = '管理员调整';
+        }
+        try {
+            $balance = Points::adjust((int) $user['id'], (int) $amountText, mb_substr($reason, 0, 120));
+            return $this->json($response, ['ok' => true, 'balance' => $balance]);
+        } catch (\Throwable $e) {
+            return $this->json($response, ['error' => $e->getMessage()], 400);
+        }
     }
 
     /** 按 id 查用户；不存在时返回 400 JSON 响应（调用方直接 return） */

@@ -15,7 +15,7 @@ $baseUrl = (string) ($luminaBaseUrl ?? url_to('/'));
 get_header();
 ?>
 <div class="lumina-layout with-side">
-  <section class="lumina-feed">
+  <section class="lumina-feed" data-lumina-feed aria-busy="false">
     <header class="lumina-listing-head">
       <h1><?= e($heading) ?></h1>
       <?php if ($countLabel !== ''): ?><p><?= e($countLabel) ?></p><?php endif; ?>
@@ -27,6 +27,7 @@ get_header();
       <?php foreach ($posts as $post): ?><?= render_partial('post-card', ['post' => $post]) ?><?php endforeach; ?>
     <?php endif; ?>
     <?= render_partial('pagination', ['page' => $page, 'totalPages' => $totalPages, 'baseUrl' => $baseUrl]) ?>
+    <p class="lumina-feed-status" data-lumina-feed-status aria-live="polite" aria-atomic="true"></p>
     <?= render_partial('friend-links') ?>
   </section>
   <aside class="lumina-aside"><?= render_partial('sidebar-widgets') ?></aside>

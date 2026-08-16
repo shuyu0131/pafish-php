@@ -170,8 +170,9 @@ function inst_run(array $post, string $root): array
         try {
             \Pafish\Services\Migrator::ensureTable($pdo);
             \Pafish\Services\Migrator::markApplied($pdo, '0001_initial');
+            \Pafish\Services\Migrator::run($pdo, $root . '/migrations');
         } catch (Throwable $e) {
-            $warnings[] = '迁移登记失败（不影响本次安装，后续版本升级需手工处理）：' . $e->getMessage();
+            $warnings[] = '增量迁移失败（不影响基础安装，后续可在升级流程重试）：' . $e->getMessage();
         }
 
         // 3. 种子数据

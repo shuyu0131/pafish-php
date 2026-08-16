@@ -59,7 +59,7 @@
   var catOpen = false;
   var catQuery = "";
   var catActive = 0;
-  var LUMINA_COMMON_KEYS = ["lumina_location", "lumina_location_address", "lumina_location_lat", "lumina_location_lng", "lumina_private"];
+  var LUMINA_COMMON_KEYS = ["lumina_location", "lumina_location_address", "lumina_location_city", "lumina_location_poi_id", "lumina_location_lat", "lumina_location_lng", "lumina_private"];
   var LUMINA_TYPE_KEYS = {
     img: ["lumina_photos"],
     live: ["lumina_photos", "lumina_live_photos"],
@@ -73,7 +73,7 @@
     lumina_photos: "图片列表", lumina_live_photos: "实况图视频", lumina_video_url: "视频地址", lumina_video_poster: "视频封面",
     lumina_embed_url: "平台视频", lumina_embed_ratio: "平台视频方向", lumina_embed_cover: "平台视频封面",
     lumina_music_url: "音乐地址", lumina_music_title: "音乐标题", lumina_music_artist: "音乐作者", lumina_music_cover: "音乐封面",
-    lumina_location: "地点名称", lumina_location_address: "地点地址", lumina_location_lat: "纬度", lumina_location_lng: "经度",
+    lumina_location: "地点名称", lumina_location_address: "地点地址", lumina_location_city: "所在城市", lumina_location_poi_id: "地点 POI ID", lumina_location_lat: "纬度", lumina_location_lng: "经度",
     lumina_private: "可见范围", lumina_redpacket_mode: "红包类型", lumina_redpacket_total: "红包总积分",
     lumina_redpacket_count: "红包数量", lumina_redpacket_title: "红包标题"
   };

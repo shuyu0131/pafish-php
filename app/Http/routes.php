@@ -16,6 +16,8 @@ use Pafish\Http\AuthPageController;
 use Pafish\Http\AuthApiController;
 use Pafish\Http\CommentApiController;
 use Pafish\Http\PluginPageController;
+use Pafish\Http\ProfileController as PublicProfileController;
+use Pafish\Http\LuminaRedPacketController;
 use Pafish\Admin\AdminAuthMiddleware;
 use Pafish\Admin\DashboardController;
 use Pafish\Admin\PostsController;
@@ -57,6 +59,9 @@ $app->get('/category/{slug}', [CategoryController::class, 'show']);
 $app->get('/tag/{slug}', [TagController::class, 'show']);
 $app->get('/archives', [ArchiveController::class, 'index']);
 $app->get('/search', [SearchController::class, 'index']);
+$app->get('/profile', [PublicProfileController::class, 'index']);
+$app->post('/profile/save', [\Pafish\Admin\ProfileController::class, 'save']);
+$app->post('/profile/password', [\Pafish\Admin\ProfileController::class, 'changePassword']);
 
 // ---- M2：独立页面 / RSS / sitemap / robots ----
 $app->get('/pages/{slug}', [PageController::class, 'show']);
@@ -85,6 +90,7 @@ $app->post('/api/auth/forgot', [AuthApiController::class, 'forgot']);
 $app->get('/api/captcha', [CommentApiController::class, 'captcha']);
 $app->post('/api/comments', [CommentApiController::class, 'create']);
 $app->post('/api/comments/like', [CommentApiController::class, 'like']);
+$app->post('/api/lumina/redpacket/{postId}/claim', [LuminaRedPacketController::class, 'claim']);
 
 // ---- M3：后台（守卫中间件：未登录跳 /login?from=，POST 校验 CSRF） ----
 $app->group('/admin', function ($group) {
@@ -178,6 +184,7 @@ $app->group('/admin', function ($group) {
     $group->post('/users/{id}/role', [UsersController::class, 'updateRole']);
     $group->post('/users/{id}/toggle', [UsersController::class, 'toggleDisabled']);
     $group->post('/users/{id}/reset-password', [UsersController::class, 'resetPassword']);
+    $group->post('/users/{id}/points', [UsersController::class, 'adjustPoints']);
 
     // 个人资料（任何登录用户）
     $group->get('/profile', [ProfileController::class, 'index']);

@@ -6,6 +6,7 @@ namespace Pafish\Admin;
 
 use Pafish\Core\Auth;
 use Pafish\Core\DB;
+use Pafish\Core\Session;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -32,6 +33,9 @@ final class ProfileController extends AdminController
         Auth::requireLogin();
         $me = Auth::user();
         $body = $request->getParsedBody() ?? [];
+        if (!Session::verifyCsrf((string) ($body['_csrf'] ?? ''))) {
+            return $this->json($response, ['error' => '会话已过期，请刷新页面重试'], 419);
+        }
         $nickname = mb_substr(trim((string) ($body['nickname'] ?? '')), 0, 50);
         $username = mb_substr(trim((string) ($body['username'] ?? '')), 0, 50);
         $email = mb_substr(trim((string) ($body['email'] ?? '')), 0, 255);
@@ -65,6 +69,9 @@ final class ProfileController extends AdminController
         Auth::requireLogin();
         $me = Auth::user();
         $body = $request->getParsedBody() ?? [];
+        if (!Session::verifyCsrf((string) ($body['_csrf'] ?? ''))) {
+            return $this->json($response, ['error' => '会话已过期，请刷新页面重试'], 419);
+        }
         $current = (string) ($body['current_password'] ?? '');
         $new = (string) ($body['new_password'] ?? '');
         if ($current === '') {

@@ -9,6 +9,7 @@
 $users = $users ?? [];
 $me = $me ?? [];
 $meId = (int) ($me['id'] ?? 0);
+$pointsEnabled = !empty($pointsEnabled);
 $roleLabel = static function (string $role): string {
     return match ($role) {
         'ADMIN' => '管理员',
@@ -51,6 +52,7 @@ $roleLabel = static function (string $role): string {
           <p class="admin-muted admin-user-subline">
             <?= e($u['email']) ?> · 注册于 <?= date('Y-m-d', strtotime((string) $u['created_at'])) ?>
             · <?= (int) $u['post_count'] ?> 篇文章 · <?= (int) $u['comment_count'] ?> 条评论
+            <?php if ($pointsEnabled): ?> · 积分 <?= (int) ($u['points_balance'] ?? 0) ?><?php endif; ?>
           </p>
         </div>
         <div class="admin-user-ops">
@@ -68,6 +70,7 @@ $roleLabel = static function (string $role): string {
               <button type="button" class="btn btn-outline admin-user-ban" data-state="idle">禁用</button>
             <?php endif; ?>
             <button type="button" class="btn btn-outline admin-user-reset">重置密码</button>
+            <?php if ($pointsEnabled): ?><button type="button" class="btn btn-outline admin-user-points">调整积分</button><div class="admin-user-points-box" hidden><input type="number" class="input admin-user-points-amount" placeholder="正数发放，负数扣减"><input class="input admin-user-points-reason" placeholder="调整原因" maxlength="120"><button type="button" class="btn btn-primary admin-user-points-save">保存</button></div><?php endif; ?>
             <div class="admin-user-reset-box" hidden>
               <input type="password" class="input admin-user-newpass" placeholder="新密码（≥6 位）" autocomplete="off" maxlength="72">
               <button type="button" class="btn btn-primary admin-user-reset-save" disabled>保存</button>
@@ -194,6 +197,26 @@ $roleLabel = static function (string $role): string {
       post("/admin/users/" + row.dataset.id + "/reset-password", fd, function () {
         box.hidden = true;
       });
+    });
+  });
+  document.querySelectorAll(".admin-user-points").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var box = btn.closest(".admin-user-ops").querySelector(".admin-user-points-box");
+      box.hidden = !box.hidden;
+      if (!box.hidden) box.querySelector(".admin-user-points-amount").focus();
+    });
+  });
+  document.querySelectorAll(".admin-user-points-save").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var box = btn.closest(".admin-user-points-box");
+      var row = btn.closest(".admin-user-row");
+      var amount = box.querySelector(".admin-user-points-amount").value;
+      if (!amount || Number(amount) === 0) { pafishNotify("请输入非零积分"); return; }
+      var fd = new FormData();
+      fd.append("amount", amount);
+      fd.append("reason", box.querySelector(".admin-user-points-reason").value);
+      fd.append("_csrf", CSRF);
+      post("/admin/users/" + row.dataset.id + "/points", fd, function () { location.reload(); });
     });
   });
 })();

@@ -2058,6 +2058,19 @@ a.admin-pg-btn:hover {
   font-size: 13px;
   white-space: nowrap;
 }
+.admin-user-points-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  flex-basis: 100%;
+  margin-top: 6px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
+}
+.admin-user-points-box .input { min-width: 130px; padding: 0.35rem 0.7rem; font-size: 13px; }
+.admin-user-points-box .admin-user-points-reason { flex: 1; }
+.admin-user-points-box .btn { padding: 0.35rem 0.9rem; font-size: 13px; white-space: nowrap; }
 .admin-form-actions {
   display: flex;
   align-items: center;

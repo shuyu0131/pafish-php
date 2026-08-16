@@ -224,6 +224,9 @@ final class PostsController extends AdminController
                     DB::execute("UPDATE posts SET deleted_at = NULL WHERE id IN ({$in})", $ids);
                     break;
                 case 'purge':
+                    foreach ($ids as $pid) {
+                        \Pafish\Services\LuminaRedPacket::refundForPost($pid);
+                    }
                     DB::execute("DELETE FROM posts WHERE id IN ({$in}) AND deleted_at IS NOT NULL", $ids);
                     break;
                 case 'move':
@@ -366,6 +369,7 @@ final class PostsController extends AdminController
         $customFields = self::parseCustomFields((string) ($body['custom_fields'] ?? ''));
 
         $authorId = \Pafish\Core\Auth::id();
+        \Pafish\Services\LuminaRedPacket::validateForPost($id, (int) $authorId, $customFields);
         $now = date('Y-m-d H:i:s');
         $extensions = self::pluginExtensions($body['plugins'] ?? []);
         $previousStatus = null;
@@ -431,6 +435,7 @@ final class PostsController extends AdminController
             'action' => $action,
             'extensions' => $extensions,
         ]);
+        \Pafish\Services\LuminaRedPacket::syncPost((int) $id, (int) $authorId, $customFields);
 
         return ['id' => $id, 'status' => $status, 'created' => $created];
     }
@@ -497,6 +502,7 @@ final class PostsController extends AdminController
                     DB::execute('UPDATE posts SET deleted_at = NULL WHERE id = ?', [$id]);
                     break;
                 case 'purge':
+                    \Pafish\Services\LuminaRedPacket::refundForPost($id);
                     DB::execute('DELETE FROM posts WHERE id = ? AND deleted_at IS NOT NULL', [$id]);
                     \do_action('after_purge_post', self::postPayloadFromRow($post));
                     break;

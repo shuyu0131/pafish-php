@@ -16,8 +16,11 @@ if (preg_match('/^#[0-9a-fA-F]{6}$/', $accent) !== 1) {
     $accent = '#07c160';
 }
 $showSearch = theme_value('show_search', '1') !== '0';
+$smoothPagination = theme_value('smooth_pagination', '1') !== '0';
 $navItems = nav_items();
 $loggedIn = is_logged_in();
+$currentUser = current_user();
+$canManage = in_array((string) ($currentUser['role'] ?? ''), ['ADMIN', 'EDITOR'], true);
 $fullTitle = $pageTitle !== '' && $pageTitle !== '首页' && $pageTitle !== $siteName
     ? $pageTitle . ' - ' . $siteName
     : $siteName;
@@ -54,7 +57,7 @@ window.pafishApi = function (p) {
 </script>
 </head>
 <body class="lumina-body">
-<div class="lumina-app">
+<div class="lumina-app" data-lumina-smooth-pagination="<?= $smoothPagination ? '1' : '0' ?>">
   <header class="lumina-nav">
     <a class="lumina-nav-brand" href="<?= e(url_to('/')) ?>" aria-label="<?= e($siteName) ?> 首页">
       <span class="lumina-nav-mark"></span><span><?= e($siteName) ?></span>
@@ -68,7 +71,7 @@ window.pafishApi = function (p) {
     <div class="lumina-nav-actions">
       <?php if ($showSearch): ?><button type="button" class="lumina-icon-button" data-lumina-search-open aria-label="搜索"><?= admin_icon('search', 18) ?></button><?php endif; ?>
       <button type="button" class="lumina-icon-button theme-toggle" aria-label="切换到暗色" title="切换到暗色" hidden><span class="theme-toggle-icon"><?= admin_icon('moon', 17) ?></span></button>
-      <?php if ($loggedIn): ?><a class="lumina-admin-link" href="<?= e(url_to('/admin')) ?>">后台</a><?php else: ?><a class="lumina-admin-link" href="<?= e(url_to('/login')) ?>">登录</a><?php endif; ?>
+      <?php if ($loggedIn): ?><a class="lumina-admin-link" href="<?= e(url_to('/profile')) ?>">资料</a><?php if ($canManage): ?><a class="lumina-admin-link" href="<?= e(url_to('/admin')) ?>">后台</a><?php endif; ?><?php else: ?><a class="lumina-admin-link" href="<?= e(url_to('/login')) ?>">登录</a><?php endif; ?>
     </div>
   </header>
 

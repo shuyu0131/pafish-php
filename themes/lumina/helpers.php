@@ -162,6 +162,8 @@ if (!function_exists('lumina_media')) {
             'musicArtist' => $fields['lumina_music_artist'] ?? '',
             'location' => $fields['lumina_location'] ?? '',
             'locationAddress' => $fields['lumina_location_address'] ?? '',
+            'locationCity' => $fields['lumina_location_city'] ?? '',
+            'locationPoiId' => $fields['lumina_location_poi_id'] ?? '',
             'latitude' => $fields['lumina_location_lat'] ?? '',
             'longitude' => $fields['lumina_location_lng'] ?? '',
             'private' => ($fields['lumina_private'] ?? '') === 'y',
@@ -210,7 +212,24 @@ if (!function_exists('lumina_render_media')) {
             <button type="button" aria-label="播放或暂停"><?= admin_icon('play', 18) ?></button><audio src="<?= e($media['music']) ?>" preload="metadata"></audio>
           </div>
         <?php elseif ($media['type'] === 'redpacket'): ?>
-          <div class="lumina-redpacket"><span><?= admin_icon('heart', 22) ?></span><div><strong><?= e($media['redpacketTitle'] !== '' ? $media['redpacketTitle'] : '恭喜发财，大吉大利') ?></strong><small><?= $media['redpacketTotal'] !== '' ? e($media['redpacketTotal']) . ' 积分 · ' : '' ?><?= $media['redpacketCount'] !== '' ? e($media['redpacketCount']) . ' 份' : '积分红包' ?></small></div></div>
+          <?php
+          $viewerId = (int) (current_user()['id'] ?? 0);
+          $packet = \Pafish\Services\LuminaRedPacket::state($postId, $viewerId ?: null);
+          $title = (string) ($packet['title'] ?? ($media['redpacketTitle'] !== '' ? $media['redpacketTitle'] : '恭喜发财，大吉大利'));
+          $summary = !empty($packet['available']) && isset($packet['remaining_count'])
+              ? (int) $packet['remaining_points'] . ' 积分 · 剩余 ' . (int) $packet['remaining_count'] . ' 份'
+              : ($media['redpacketTotal'] !== '' ? $media['redpacketTotal'] . ' 积分 · ' : '') . ($media['redpacketCount'] !== '' ? $media['redpacketCount'] . ' 份' : '积分红包');
+          ?>
+          <div class="lumina-redpacket" data-lumina-redpacket data-post-id="<?= $postId ?>" data-csrf="<?= e(csrf_token()) ?>">
+            <span><?= admin_icon('heart', 22) ?></span><div><strong><?= e($title) ?></strong><small data-lumina-redpacket-summary><?= e($summary) ?></small></div>
+            <?php if (empty($packet['available'])): ?><em>待启用</em>
+            <?php elseif (($packet['status'] ?? '') === 'MISSING'): ?><em>待发布</em>
+            <?php elseif ($viewerId === 0): ?><a href="<?= e(url_to('/login') . (\Pafish\Core\Config::get('pretty_urls', true) ? '?' : '&') . 'from=' . rawurlencode($_SERVER['REQUEST_URI'] ?? '/')) ?>">登录领取</a>
+            <?php elseif (!empty($packet['claimed'])): ?><em>已领取 <?= (int) $packet['claimed_amount'] ?> 积分</em>
+            <?php elseif ((int) ($packet['creator_id'] ?? 0) === $viewerId): ?><em>作者红包</em>
+            <?php elseif (($packet['status'] ?? '') !== 'OPEN'): ?><em>已领完</em>
+            <?php else: ?><button type="button" data-lumina-redpacket-claim>领取</button><?php endif; ?>
+          </div>
         <?php endif;
         return (string) ob_get_clean();
     }

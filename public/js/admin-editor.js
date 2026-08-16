@@ -66,7 +66,7 @@
     video: ["lumina_video_url", "lumina_video_poster"],
     embed: ["lumina_embed_url", "lumina_embed_ratio", "lumina_embed_cover"],
     music: ["lumina_music_url", "lumina_music_title", "lumina_music_artist", "lumina_music_cover"],
-    redpacket: ["lumina_redpacket_mode", "lumina_redpacket_total", "lumina_redpacket_count", "lumina_redpacket_title"]
+    redpacket: ["redpacket_mode", "redpacket_total", "redpacket_count", "redpacket_title"]
   };
   var LUMINA_KEYS = ["lumina_type"].concat(LUMINA_COMMON_KEYS, Object.keys(LUMINA_TYPE_KEYS).reduce(function (all, type) { return all.concat(LUMINA_TYPE_KEYS[type]); }, []));
   var LUMINA_LABELS = {
@@ -74,8 +74,8 @@
     lumina_embed_url: "平台视频", lumina_embed_ratio: "平台视频方向", lumina_embed_cover: "平台视频封面",
     lumina_music_url: "音乐地址", lumina_music_title: "音乐标题", lumina_music_artist: "音乐作者", lumina_music_cover: "音乐封面",
     lumina_location: "地点名称", lumina_location_address: "地点地址", lumina_location_city: "所在城市", lumina_location_poi_id: "地点 POI ID", lumina_location_lat: "纬度", lumina_location_lng: "经度",
-    lumina_private: "可见范围", lumina_redpacket_mode: "红包类型", lumina_redpacket_total: "红包总积分",
-    lumina_redpacket_count: "红包数量", lumina_redpacket_title: "红包标题"
+    lumina_private: "可见范围", redpacket_mode: "红包类型", redpacket_total: "红包总积分",
+    redpacket_count: "红包数量", redpacket_title: "红包标题"
   };
   var luminaValues = {};
 
@@ -501,7 +501,7 @@
       control = '<select class="input" data-lumina-key="' + key + '"><option value="lr"' + (value !== "tb" ? " selected" : "") + '>横屏 16:9</option><option value="tb"' + (value === "tb" ? " selected" : "") + '>竖屏 9:16</option></select>';
     } else if (key === "lumina_private") {
       control = '<select class="input" data-lumina-key="' + key + '"><option value="n"' + (value !== "y" ? " selected" : "") + '>公开</option><option value="y"' + (value === "y" ? " selected" : "") + '>仅自己可看</option></select>';
-    } else if (key === "lumina_redpacket_mode") {
+    } else if (key === "redpacket_mode") {
       control = '<select class="input" data-lumina-key="' + key + '"><option value="random"' + (value !== "equal" ? " selected" : "") + '>随机</option><option value="equal"' + (value === "equal" ? " selected" : "") + '>等额</option></select>';
     } else if (isLong) {
       control = '<textarea class="input" data-lumina-key="' + key + '" rows="3" maxlength="500">' + esc(value || "") + '</textarea>';

@@ -165,7 +165,7 @@ function inst_run(array $post, string $root): array
         $warnings = array_merge($warnings, inst_exec_schema($pdo, $root . '/app/install/schema.sql'));
 
         // 3.5 迁移基线登记（v0.1.6 起）：schema.sql 已建全部表，标记 0001_initial
-        // 为已应用基线；此后数据库结构演进一律走 migrations/0002_*.sql 增量
+        // 为已应用基线；此后数据库结构演进一律走 migrations/ 下日期命名（YYYYMMDD_语义名）的增量
         require_once $root . '/app/Services/Migrator.php';
         try {
             \Pafish\Services\Migrator::ensureTable($pdo);

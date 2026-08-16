@@ -167,9 +167,9 @@ if (!function_exists('lumina_media')) {
             'latitude' => $fields['lumina_location_lat'] ?? '',
             'longitude' => $fields['lumina_location_lng'] ?? '',
             'private' => ($fields['lumina_private'] ?? '') === 'y',
-            'redpacketTitle' => $fields['lumina_redpacket_title'] ?? '',
-            'redpacketTotal' => $fields['lumina_redpacket_total'] ?? '',
-            'redpacketCount' => $fields['lumina_redpacket_count'] ?? '',
+            'redpacketTitle' => $fields['redpacket_title'] ?? '',
+            'redpacketTotal' => $fields['redpacket_total'] ?? '',
+            'redpacketCount' => $fields['redpacket_count'] ?? '',
         ];
     }
 }

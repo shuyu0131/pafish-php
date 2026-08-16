@@ -6,7 +6,7 @@ namespace Pafish\Services;
 
 use Pafish\Core\DB;
 
-/** 积分红包：创建时冻结作者积分，领取时锁定红包并写入双方账本。 */
+/** 积分红包(lumina 主题配套)：创建时冻结作者积分，领取时锁定红包并写入双方账本。机制由核心承载，界面仅 lumina 主题实现。 */
 final class RedPacket
 {
     public static function fields(array|string|null $raw): array
@@ -36,18 +36,18 @@ final class RedPacket
     public static function validateConfig(array|string|null $raw, int $creatorId): void
     {
         $fields = self::fields($raw);
-        if (($fields['lumina_type'] ?? '') !== 'redpacket') {
+        if (!self::isRedpacket($fields)) {
             return;
         }
         if (!self::available()) {
             throw new \RuntimeException('积分红包功能尚未启用，请先完成数据库迁移');
         }
-        $total = self::positiveInt($fields['lumina_redpacket_total'] ?? '', '红包总积分', 100000000);
-        $count = self::positiveInt($fields['lumina_redpacket_count'] ?? '', '红包份数', 1000000);
+        $total = self::positiveInt($fields['redpacket_total'] ?? '', '红包总积分', 100000000);
+        $count = self::positiveInt($fields['redpacket_count'] ?? '', '红包份数', 1000000);
         if ($total < $count) {
             throw new \RuntimeException('红包总积分必须不少于红包份数');
         }
-        if (!in_array(($fields['lumina_redpacket_mode'] ?? 'random'), ['random', 'equal'], true)) {
+        if (!in_array(($fields['redpacket_mode'] ?? 'random'), ['random', 'equal'], true)) {
             throw new \RuntimeException('红包类型无效');
         }
         if ($creatorId <= 0) {
@@ -62,16 +62,16 @@ final class RedPacket
         $existing = ($postId && self::tableAvailable('redpackets'))
             ? DB::fetchOne('SELECT creator_id, total_points, total_count, mode FROM redpackets WHERE post_id = ?', [$postId])
             : null;
-        if (($fields['lumina_type'] ?? '') !== 'redpacket') {
+        if (!self::isRedpacket($fields)) {
             if ($existing !== null) {
                 throw new \RuntimeException('已创建的红包不能移除或改为其他内容类型');
             }
             return;
         }
         self::validateConfig($fields, $creatorId);
-        $total = self::positiveInt($fields['lumina_redpacket_total'] ?? '', '红包总积分', 100000000);
-        $count = self::positiveInt($fields['lumina_redpacket_count'] ?? '', '红包份数', 1000000);
-        $mode = $fields['lumina_redpacket_mode'] ?? 'random';
+        $total = self::positiveInt($fields['redpacket_total'] ?? '', '红包总积分', 100000000);
+        $count = self::positiveInt($fields['redpacket_count'] ?? '', '红包份数', 1000000);
+        $mode = $fields['redpacket_mode'] ?? 'random';
         if ($existing !== null) {
             if ((int) $existing['creator_id'] !== $creatorId || (int) $existing['total_points'] !== $total || (int) $existing['total_count'] !== $count || (string) $existing['mode'] !== $mode) {
                 throw new \RuntimeException('红包发布后不能修改积分、份数或类型');
@@ -86,15 +86,15 @@ final class RedPacket
     public static function syncPost(int $postId, int $creatorId, array|string|null $raw): void
     {
         $fields = self::fields($raw);
-        if (($fields['lumina_type'] ?? '') !== 'redpacket') {
+        if (!self::isRedpacket($fields)) {
             return;
         }
         self::validateConfig($fields, $creatorId);
-        $total = self::positiveInt($fields['lumina_redpacket_total'], '红包总积分', 100000000);
-        $count = self::positiveInt($fields['lumina_redpacket_count'], '红包份数', 1000000);
-        $mode = in_array(($fields['lumina_redpacket_mode'] ?? 'random'), ['random', 'equal'], true)
-            ? $fields['lumina_redpacket_mode'] : 'random';
-        $title = mb_substr(trim((string) ($fields['lumina_redpacket_title'] ?? '恭喜发财，大吉大利')), 0, 120);
+        $total = self::positiveInt($fields['redpacket_total'], '红包总积分', 100000000);
+        $count = self::positiveInt($fields['redpacket_count'], '红包份数', 1000000);
+        $mode = in_array(($fields['redpacket_mode'] ?? 'random'), ['random', 'equal'], true)
+            ? $fields['redpacket_mode'] : 'random';
+        $title = mb_substr(trim((string) ($fields['redpacket_title'] ?? '恭喜发财，大吉大利')), 0, 120);
         if ($title === '') {
             $title = '恭喜发财，大吉大利';
         }
@@ -217,6 +217,17 @@ final class RedPacket
              WHERE c.user_id = ? ORDER BY c.claimed_at DESC LIMIT {$limit}",
             [$userId]
         );
+    }
+
+    /** 识别红包：任一红包专用字段存在且非空即视为红包（不依赖具体主题的内容类型键）。 */
+    private static function isRedpacket(array $fields): bool
+    {
+        foreach (['redpacket_total', 'redpacket_count', 'redpacket_mode', 'redpacket_title'] as $key) {
+            if (trim((string) ($fields[$key] ?? '')) !== '') {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static function positiveInt(mixed $value, string $label, int $max): int

@@ -22,7 +22,9 @@
 - **官网下载错误结构化**：下载接口 404/403/429 返回 JSON 错误码（not_found / license_required / license_invalid / rate_limited），主程序透传可读文案
 - **官网旧协议清理**：移除已无消费者的 `/api/catalog`（AppRepository::catalog、路由、ApiController::catalog），商店统一走 runtime-store/v1
 - **冗余清理**：移除已废弃的 admin-plugin-data CSS 样式
-- **弹窗提示**：后台操作提示由顶部横幅改为右上角 toast 弹窗（4 秒自动消失、可点击关闭），修复提示无样式不显眼的问题
+- **弹窗提示**：后台操作提示由顶部横幅改为右上角 toast 弹窗，修复提示无样式不显眼的问题
+- **弹窗重做**：toast 升级为 Bootstrap/Tailwind 风格白卡片——状态色条 + SVG 图标 + 关闭按钮，右侧滑入，悬停暂停，4 秒自动消失（前台/后台一致）
+- **按钮配色**：主按钮由灰黑改为主题 accent 蓝（亮色/暗色模式各自适配），不再使用「黑色按钮」
 
 ## v0.1.6（2026-08-08）
 

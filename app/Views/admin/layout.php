@@ -114,9 +114,20 @@ window.pafishApi = function (p) {
   <!-- 内容区 -->
   <main class="admin-main">
     <div class="admin-content">
-      <?php if (is_array($flash ?? null) && ($flash['message'] ?? '') !== ''): ?>
-        <div class="admin-toast admin-toast-<?= e($flash['type'] ?? 'info') ?>" data-toast role="status" aria-live="polite">
-          <?= e($flash['message']) ?>
+      <?php if (is_array($flash ?? null) && ($flash['message'] ?? '') !== ''):
+        $toastType = $flash['type'] ?? 'info';
+        $toastIcons = [
+          'success' => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>',
+          'error' => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>',
+          'warning' => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>',
+          'info' => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>',
+        ];
+        $toastIcon = $toastIcons[$toastType] ?? $toastIcons['info'];
+      ?>
+        <div class="admin-toast admin-toast-<?= e($toastType) ?>" data-toast role="status" aria-live="polite">
+          <span class="admin-toast-icon" aria-hidden="true"><?= $toastIcon ?></span>
+          <span class="admin-toast-msg"><?= e($flash['message']) ?></span>
+          <button type="button" class="admin-toast-close" aria-label="关闭提示" title="关闭">&times;</button>
         </div>
       <?php endif; ?>
       <?= $content ?>
@@ -162,19 +173,25 @@ window.pafishApi = function (p) {
     });
   });
 
-  // 弹窗提示：右上角滑入，4 秒后自动消失，可点击关闭
+  // 弹窗提示：右上角滑入，4 秒自动消失，悬停暂停，可点击关闭
   (function () {
     document.querySelectorAll('[data-toast]').forEach(function (toast) {
-      toast.classList.add('admin-toast-show');
-      var timer = setTimeout(function () {
+      var timer = null;
+      function start() {
+        toast.classList.add('admin-toast-show');
+        timer = setTimeout(dismiss, 4000);
+      }
+      function dismiss() {
+        if (timer) { clearTimeout(timer); timer = null; }
         toast.classList.remove('admin-toast-show');
-        setTimeout(function () { toast.remove(); }, 260);
-      }, 4000);
-      toast.addEventListener('click', function () {
-        clearTimeout(timer);
-        toast.classList.remove('admin-toast-show');
-        setTimeout(function () { toast.remove(); }, 260);
-      });
+        setTimeout(function () { toast.remove(); }, 240);
+      }
+      toast.addEventListener('mouseenter', function () { if (timer) { clearTimeout(timer); timer = null; } });
+      toast.addEventListener('mouseleave', function () { if (!timer) start(); });
+      var closeBtn = toast.querySelector('.admin-toast-close');
+      if (closeBtn) closeBtn.addEventListener('click', function (e) { e.stopPropagation(); dismiss(); });
+      toast.addEventListener('click', dismiss);
+      start();
     });
   })();
 

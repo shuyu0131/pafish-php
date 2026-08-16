@@ -355,26 +355,26 @@ img {
   font-size: 0.8125rem;
 }
 .btn-primary {
-  background: #424242;
+  background: var(--accent);
   color: #fff;
-  border-color: #424242;
+  border-color: var(--accent);
 }
 .btn-primary:hover {
-  background: #5a5a5a;
-  border-color: #5a5a5a;
+  background: #3a74bb;
+  border-color: #3a74bb;
   color: #fff;
 }
 .btn-primary:active {
   transform: scale(0.98);
 }
 .dark .btn-primary {
-  background: #d6d6d6;
+  background: var(--accent);
   color: #161616;
-  border-color: #d6d6d6;
+  border-color: var(--accent);
 }
 .dark .btn-primary:hover {
-  background: #fff;
-  border-color: #fff;
+  background: #8ab7ef;
+  border-color: #8ab7ef;
   color: #161616;
 }
 .btn-outline {

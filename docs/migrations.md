@@ -4,8 +4,8 @@
 
 ## 目录结构
 
-- `migrations/0001_initial.sql` —— 基线,与 `app/install/schema.sql` 结构一致(发布脚本自动校验,不一致拒绝打包)
-- `migrations/20260816_points_redpackets.sql` … —— 增量迁移,文件名以日期前缀开头(格式 `YYYYMMDD_语义名.sql`,自然排序且不依赖序号),按文件名升序应用
+- `migrations/0001_initial.sql` —— 基线,结构与 `app/install/schema.sql` 完全一致(发布脚本自动校验,不一致拒绝打包)。新表结构优先直接并入两侧(随新版本发布,如 v0.1.9 的积分/红包四表);存量库由包内 `upgrade.php` 幂等补建
+- `migrations/YYYYMMDD_语义名.sql` … —— 增量迁移(按需使用,如未来不便改基线时):文件名以日期前缀开头(自然排序、不依赖序号),按文件名升序应用
 - `schema_migrations` 表 —— 记录已应用的迁移版本(`version` 主键 + `applied_at`)
 
 ## 三条应用路径(殊途同归)
@@ -20,7 +20,7 @@
 
 ## 新增迁移的步骤
 
-1. 在 `migrations/` 下新建 `YYYYMMDD_语义名.sql`(名称取当天日期,如 `20260816_points_redpackets.sql`;版本号即文件名去 `.sql` 后缀)
+1. 在 `migrations/` 下新建 `YYYYMMDD_语义名.sql`(名称取当天日期;版本号即文件名去 `.sql` 后缀)
 2. 内容只包含 MySQL 语句(无存储过程;`--` 行注释会被忽略,分号拆分为独立语句执行)
 3. **每个文件只放一个目的**:MySQL DDL 隐式提交,单个迁移内失败无法整体回滚;失败时该迁移不记录,修复后重跑即可
 4. 如需在迁移前后跑 PHP 逻辑,随更新包放置 `upgrade.php`(在线更新通道执行后自动删除,见下)

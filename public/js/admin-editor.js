@@ -130,7 +130,7 @@
       value: initial.content || "",
       placeholder: "开始写作…（支持拖拽/粘贴图片上传）",
       lang: "zh_CN",
-      cdn: DATA.assetBase + "/vendor/vditor/dist",
+      cdn: DATA.assetBase + "/vendor/vditor",
       cache: { enable: false }, // 内容走 textarea 与数据库，不用 localStorage 缓存
       counter: { enable: true },
       toolbar: [

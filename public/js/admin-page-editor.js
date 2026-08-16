@@ -99,7 +99,7 @@
       value: content.value || "",
       placeholder: "在此输入页面内容（支持 Markdown）…",
       lang: "zh_CN",
-      cdn: DATA.assetBase + "/vendor/vditor/dist",
+      cdn: DATA.assetBase + "/vendor/vditor",
       cache: { enable: false },
       counter: { enable: true },
       toolbar: [

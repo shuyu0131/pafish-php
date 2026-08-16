@@ -48,7 +48,7 @@
     <?php if (!empty($info['notes'])): ?>
       <div class="admin-upgrade-notes">
         <p class="admin-muted">v<?= e($info['latest']) ?> 变更说明</p>
-        <div class="admin-upgrade-notes-body"><?= nl2br(e($info['notes'])) ?></div>
+        <div class="admin-upgrade-notes-body admin-prose"><?= md($info['notes']) ?></div>
       </div>
     <?php endif; ?>
 

@@ -39,6 +39,7 @@ use Pafish\Admin\UpgradeController;
 use Pafish\Admin\ApiController;
 use Pafish\Api\V1Controller;
 use Pafish\Http\StaticFileController;
+use Pafish\Http\ThemeAssetController;
 
 /**
  * 路由注册（$app 来自 bootstrap.php include 上下文）
@@ -237,4 +238,5 @@ $app->get('/api/v1/comments', [V1Controller::class, 'comments']);
 // ---- 静态资源兜底（最后注册：css/js/uploads → public/ 下文件） ----
 // 生产环境由 Web 服务器直接映射静态目录（见 README Nginx/Apache 配置），
 // 未配置时（如虚拟主机无伪静态）由本路由兜底，保证 ?p= 与直接路径两种模式均可访问。
+$app->get('/theme-assets/{theme:[a-z0-9_-]+}/{path:.*}', [ThemeAssetController::class, 'serve']);
 $app->get('/{dir:css|js|uploads}/{path:.*}', [StaticFileController::class, 'serve']);

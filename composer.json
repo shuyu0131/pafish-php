@@ -3,7 +3,7 @@
     "description": "pafish 博客 CMS PHP 版 —— 轻量零构建，支持共享虚拟主机，一键 Web 安装",
     "type": "project",
     "license": "MIT",
-    "version": "0.1.7",
+    "version": "0.1.8",
     "require": {
         "php": ">=8.1",
         "slim/slim": "^4.14",

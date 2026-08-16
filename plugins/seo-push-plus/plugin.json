@@ -1,0 +1,17 @@
+{
+  "name": "seo-push-plus",
+  "title": "SEO 主动推送",
+  "version": "1.0.0",
+  "apiVersion": 2,
+  "description": "文章发布后自动提交 IndexNow 与百度搜索资源平台，记录推送结果并避免自动保存重复提交。",
+  "author": "pafish",
+  "settings": [
+    { "key": "indexnow_enabled", "label": "启用 IndexNow", "type": "switcher", "default": "1", "group": "IndexNow" },
+    { "key": "indexnow_key", "label": "IndexNow Key", "type": "text", "placeholder": "8-128 位字母、数字或连字符", "group": "IndexNow", "show_if": { "key": "indexnow_enabled", "value": "1" } },
+    { "key": "baidu_enabled", "label": "启用百度主动推送", "type": "switcher", "default": "0", "group": "百度" },
+    { "key": "baidu_site", "label": "百度站点地址", "type": "text", "placeholder": "https://example.com", "group": "百度", "show_if": { "key": "baidu_enabled", "value": "1" } },
+    { "key": "baidu_token", "label": "百度推送 Token", "type": "password", "placeholder": "搜索资源平台提供的 token", "group": "百度", "show_if": { "key": "baidu_enabled", "value": "1" } },
+    { "key": "push_updates", "label": "已发布文章更新后再次推送", "type": "switcher", "default": "1", "group": "行为" },
+    { "key": "use_external_url", "label": "外链文章优先推送外链地址", "type": "switcher", "default": "0", "group": "行为" }
+  ]
+}

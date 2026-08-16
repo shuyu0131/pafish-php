@@ -1,0 +1,17 @@
+{
+  "name": "lumina",
+  "title": "Lumina 微光",
+  "version": "1.0.0",
+  "description": "移植自 Lumina 的朋友圈式博客主题，支持封面、个人资料卡和亮暗模式。",
+  "author": "pafish",
+  "settings": [
+    { "key": "profile_name", "label": "资料名称", "type": "text", "group": "资料", "default": "", "placeholder": "留空使用站点名称" },
+    { "key": "profile_bio", "label": "个性签名", "type": "textarea", "group": "资料", "default": "", "placeholder": "留空使用站点副标题" },
+    { "key": "avatar_image", "label": "头像", "type": "image", "group": "资料" },
+    { "key": "header_cover", "label": "头部封面", "type": "image", "group": "外观" },
+    { "key": "accent_color", "label": "主题色", "type": "color", "group": "外观", "default": "#07c160" },
+    { "key": "show_search", "label": "显示搜索按钮", "type": "switcher", "group": "功能", "default": "1" },
+    { "key": "show_back_to_top", "label": "显示返回顶部", "type": "switcher", "group": "功能", "default": "1" },
+    { "key": "footer_text", "label": "页脚文案", "type": "text", "group": "功能", "default": "", "placeholder": "留空使用默认版权文案" }
+  ]
+}

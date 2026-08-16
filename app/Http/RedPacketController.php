@@ -6,11 +6,11 @@ namespace Pafish\Http;
 
 use Pafish\Core\Auth;
 use Pafish\Core\Session;
-use Pafish\Services\LuminaRedPacket;
+use Pafish\Services\RedPacket;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
-final class LuminaRedPacketController
+final class RedPacketController
 {
     public function claim(Request $request, Response $response, array $args): Response
     {
@@ -23,7 +23,7 @@ final class LuminaRedPacketController
             return $this->json($response, ['error' => '会话已过期，请刷新页面重试'], 419);
         }
         try {
-            return $this->json($response, ['ok' => true] + LuminaRedPacket::claim((int) ($args['postId'] ?? 0), (int) $user['id']));
+            return $this->json($response, ['ok' => true] + RedPacket::claim((int) ($args['postId'] ?? 0), (int) $user['id']));
         } catch (\Throwable $e) {
             return $this->json($response, ['error' => $e->getMessage()], 400);
         }

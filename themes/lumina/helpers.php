@@ -214,7 +214,7 @@ if (!function_exists('lumina_render_media')) {
         <?php elseif ($media['type'] === 'redpacket'): ?>
           <?php
           $viewerId = (int) (current_user()['id'] ?? 0);
-          $packet = \Pafish\Services\LuminaRedPacket::state($postId, $viewerId ?: null);
+          $packet = \Pafish\Services\RedPacket::state($postId, $viewerId ?: null);
           $title = (string) ($packet['title'] ?? ($media['redpacketTitle'] !== '' ? $media['redpacketTitle'] : '恭喜发财，大吉大利'));
           $summary = !empty($packet['available']) && isset($packet['remaining_count'])
               ? (int) $packet['remaining_points'] . ' 积分 · 剩余 ' . (int) $packet['remaining_count'] . ' 份'

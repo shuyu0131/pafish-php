@@ -6,8 +6,8 @@ namespace Pafish\Services;
 
 use Pafish\Core\DB;
 
-/** Lumina 积分红包：创建时冻结作者积分，领取时锁定红包并写入双方账本。 */
-final class LuminaRedPacket
+/** 积分红包：创建时冻结作者积分，领取时锁定红包并写入双方账本。 */
+final class RedPacket
 {
     public static function fields(array|string|null $raw): array
     {
@@ -30,7 +30,7 @@ final class LuminaRedPacket
 
     public static function available(): bool
     {
-        return Points::available() && self::tableAvailable('lumina_redpackets');
+        return Points::available() && self::tableAvailable('redpackets');
     }
 
     public static function validateConfig(array|string|null $raw, int $creatorId): void
@@ -59,8 +59,8 @@ final class LuminaRedPacket
     public static function validateForPost(?int $postId, int $creatorId, array|string|null $raw): void
     {
         $fields = self::fields($raw);
-        $existing = ($postId && self::tableAvailable('lumina_redpackets'))
-            ? DB::fetchOne('SELECT creator_id, total_points, total_count, mode FROM lumina_redpackets WHERE post_id = ?', [$postId])
+        $existing = ($postId && self::tableAvailable('redpackets'))
+            ? DB::fetchOne('SELECT creator_id, total_points, total_count, mode FROM redpackets WHERE post_id = ?', [$postId])
             : null;
         if (($fields['lumina_type'] ?? '') !== 'redpacket') {
             if ($existing !== null) {
@@ -99,17 +99,17 @@ final class LuminaRedPacket
             $title = '恭喜发财，大吉大利';
         }
         DB::transaction(function () use ($postId, $creatorId, $total, $count, $mode, $title): void {
-            $existing = DB::fetchOne('SELECT * FROM lumina_redpackets WHERE post_id = ? FOR UPDATE', [$postId]);
+            $existing = DB::fetchOne('SELECT * FROM redpackets WHERE post_id = ? FOR UPDATE', [$postId]);
             if ($existing !== null) {
                 if ((int) $existing['creator_id'] !== $creatorId || (int) $existing['total_points'] !== $total || (int) $existing['total_count'] !== $count || (string) $existing['mode'] !== $mode) {
                     throw new \RuntimeException('红包发布后不能修改积分、份数或类型');
                 }
-                DB::execute('UPDATE lumina_redpackets SET title = ?, updated_at = NOW() WHERE id = ?', [$title, (int) $existing['id']]);
+                DB::execute('UPDATE redpackets SET title = ?, updated_at = NOW() WHERE id = ?', [$title, (int) $existing['id']]);
                 return;
             }
-            Points::adjustLocked($creatorId, -$total, '创建 Lumina 积分红包', 'redpacket_create', $postId);
+            Points::adjustLocked($creatorId, -$total, '创建 积分红包', 'redpacket_create', $postId);
             DB::execute(
-                'INSERT INTO lumina_redpackets (post_id, creator_id, mode, total_points, remaining_points, total_count, remaining_count, title) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                'INSERT INTO redpackets (post_id, creator_id, mode, total_points, remaining_points, total_count, remaining_count, title) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
                 [$postId, $creatorId, $mode, $total, $total, $count, $count, $title]
             );
         });
@@ -120,11 +120,11 @@ final class LuminaRedPacket
         if ($postId <= 0 || !self::available()) {
             return ['available' => false, 'status' => 'UNAVAILABLE'];
         }
-        $packet = DB::fetchOne('SELECT * FROM lumina_redpackets WHERE post_id = ?', [$postId]);
+        $packet = DB::fetchOne('SELECT * FROM redpackets WHERE post_id = ?', [$postId]);
         if ($packet === null) {
             return ['available' => true, 'status' => 'MISSING'];
         }
-        $claim = $userId ? DB::fetchOne('SELECT amount FROM lumina_redpacket_claims WHERE packet_id = ? AND user_id = ?', [(int) $packet['id'], $userId]) : null;
+        $claim = $userId ? DB::fetchOne('SELECT amount FROM redpacket_claims WHERE packet_id = ? AND user_id = ?', [(int) $packet['id'], $userId]) : null;
         $status = (string) $packet['status'];
         if ($status === 'OPEN' && ((int) $packet['remaining_count'] <= 0 || (int) $packet['remaining_points'] <= 0)) {
             $status = 'EMPTY';
@@ -153,14 +153,14 @@ final class LuminaRedPacket
             throw new \RuntimeException('请先登录');
         }
         return DB::transaction(function () use ($postId, $userId): array {
-            $packet = DB::fetchOne('SELECT * FROM lumina_redpackets WHERE post_id = ? FOR UPDATE', [$postId]);
+            $packet = DB::fetchOne('SELECT * FROM redpackets WHERE post_id = ? FOR UPDATE', [$postId]);
             if ($packet === null) {
                 throw new \RuntimeException('红包不存在');
             }
             if ((int) $packet['creator_id'] === $userId) {
                 throw new \RuntimeException('不能领取自己创建的红包');
             }
-            if (DB::fetchOne('SELECT amount FROM lumina_redpacket_claims WHERE packet_id = ? AND user_id = ? FOR UPDATE', [(int) $packet['id'], $userId])) {
+            if (DB::fetchOne('SELECT amount FROM redpacket_claims WHERE packet_id = ? AND user_id = ? FOR UPDATE', [(int) $packet['id'], $userId])) {
                 throw new \RuntimeException('你已经领取过这个红包');
             }
             $remainingCount = (int) $packet['remaining_count'];
@@ -171,14 +171,14 @@ final class LuminaRedPacket
             $amount = (string) $packet['mode'] === 'equal'
                 ? ($remainingCount === 1 ? $remainingPoints : intdiv($remainingPoints, $remainingCount))
                 : ($remainingCount === 1 ? $remainingPoints : random_int(1, max(1, $remainingPoints - ($remainingCount - 1))));
-            DB::execute('INSERT INTO lumina_redpacket_claims (packet_id, user_id, amount) VALUES (?, ?, ?)', [(int) $packet['id'], $userId, $amount]);
+            DB::execute('INSERT INTO redpacket_claims (packet_id, user_id, amount) VALUES (?, ?, ?)', [(int) $packet['id'], $userId, $amount]);
             $nextCount = $remainingCount - 1;
             $nextPoints = $remainingPoints - $amount;
             DB::execute(
-                "UPDATE lumina_redpackets SET remaining_points = ?, remaining_count = ?, status = ?, updated_at = NOW() WHERE id = ?",
+                "UPDATE redpackets SET remaining_points = ?, remaining_count = ?, status = ?, updated_at = NOW() WHERE id = ?",
                 [$nextPoints, $nextCount, $nextCount === 0 ? 'EMPTY' : 'OPEN', (int) $packet['id']]
             );
-            Points::adjustLocked($userId, $amount, '领取 Lumina 积分红包', 'redpacket_claim', (int) $packet['id']);
+            Points::adjustLocked($userId, $amount, '领取 积分红包', 'redpacket_claim', (int) $packet['id']);
             return ['amount' => $amount, 'remaining_count' => $nextCount, 'remaining_points' => $nextPoints];
         });
     }
@@ -190,7 +190,7 @@ final class LuminaRedPacket
             return;
         }
         DB::transaction(function () use ($postId): void {
-            $packet = DB::fetchOne('SELECT * FROM lumina_redpackets WHERE post_id = ? FOR UPDATE', [$postId]);
+            $packet = DB::fetchOne('SELECT * FROM redpackets WHERE post_id = ? FOR UPDATE', [$postId]);
             if ($packet === null || (string) $packet['status'] === 'REFUNDED') {
                 return;
             }
@@ -199,7 +199,7 @@ final class LuminaRedPacket
                 Points::adjustLocked((int) $packet['creator_id'], $remaining, '文章删除退还红包积分', 'redpacket_refund', $postId);
             }
             DB::execute(
-                'UPDATE lumina_redpackets SET remaining_points = 0, status = ?, updated_at = NOW() WHERE id = ?',
+                'UPDATE redpackets SET remaining_points = 0, status = ?, updated_at = NOW() WHERE id = ?',
                 ['REFUNDED', (int) $packet['id']]
             );
         });
@@ -213,7 +213,7 @@ final class LuminaRedPacket
         $limit = max(1, min(30, $limit));
         return DB::fetchAll(
             "SELECT c.amount, c.claimed_at, p.title, p.post_id
-             FROM lumina_redpacket_claims c JOIN lumina_redpackets p ON p.id = c.packet_id
+             FROM redpacket_claims c JOIN redpackets p ON p.id = c.packet_id
              WHERE c.user_id = ? ORDER BY c.claimed_at DESC LIMIT {$limit}",
             [$userId]
         );

@@ -1,4 +1,4 @@
--- Lumina 积分账本与积分红包
+-- 积分账本与积分红包（通用用户能力，主题与插件均可复用）
 CREATE TABLE IF NOT EXISTS user_points (
   user_id    BIGINT UNSIGNED NOT NULL,
   balance    BIGINT NOT NULL DEFAULT 0,
@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS point_transactions (
   CONSTRAINT fk_point_transactions_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS lumina_redpackets (
+CREATE TABLE IF NOT EXISTS redpackets (
   id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   post_id         BIGINT UNSIGNED NOT NULL,
   creator_id      BIGINT UNSIGNED NOT NULL,
@@ -35,19 +35,19 @@ CREATE TABLE IF NOT EXISTS lumina_redpackets (
   created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
-  UNIQUE KEY uk_lumina_redpackets_post (post_id),
-  KEY idx_lumina_redpackets_creator (creator_id),
-  CONSTRAINT fk_lumina_redpackets_post FOREIGN KEY (post_id) REFERENCES posts (id) ON DELETE CASCADE,
-  CONSTRAINT fk_lumina_redpackets_creator FOREIGN KEY (creator_id) REFERENCES users (id) ON DELETE CASCADE
+  UNIQUE KEY uk_redpackets_post (post_id),
+  KEY idx_redpackets_creator (creator_id),
+  CONSTRAINT fk_redpackets_post FOREIGN KEY (post_id) REFERENCES posts (id) ON DELETE CASCADE,
+  CONSTRAINT fk_redpackets_creator FOREIGN KEY (creator_id) REFERENCES users (id) ON DELETE CASCADE
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS lumina_redpacket_claims (
+CREATE TABLE IF NOT EXISTS redpacket_claims (
   packet_id  BIGINT UNSIGNED NOT NULL,
   user_id    BIGINT UNSIGNED NOT NULL,
   amount     BIGINT UNSIGNED NOT NULL,
   claimed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (packet_id, user_id),
-  KEY idx_lumina_redpacket_claims_user (user_id, claimed_at),
-  CONSTRAINT fk_lumina_redpacket_claims_packet FOREIGN KEY (packet_id) REFERENCES lumina_redpackets (id) ON DELETE CASCADE,
-  CONSTRAINT fk_lumina_redpacket_claims_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+  KEY idx_redpacket_claims_user (user_id, claimed_at),
+  CONSTRAINT fk_redpacket_claims_packet FOREIGN KEY (packet_id) REFERENCES redpackets (id) ON DELETE CASCADE,
+  CONSTRAINT fk_redpacket_claims_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;

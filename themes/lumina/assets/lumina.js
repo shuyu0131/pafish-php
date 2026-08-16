@@ -125,7 +125,7 @@
     button.disabled = true;
     var data = new FormData();
     data.append("_csrf", card.getAttribute("data-csrf") || "");
-    fetch(pafishApi("/lumina/redpacket/" + card.getAttribute("data-post-id") + "/claim"), { method: "POST", body: data, credentials: "same-origin" })
+    fetch(pafishApi("/redpacket/" + card.getAttribute("data-post-id") + "/claim"), { method: "POST", body: data, credentials: "same-origin" })
       .then(function (response) { return response.json().then(function (body) { return { status: response.status, body: body }; }); })
       .then(function (result) {
         if (result.status === 401) {

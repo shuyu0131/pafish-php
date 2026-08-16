@@ -17,7 +17,7 @@ use Pafish\Http\AuthApiController;
 use Pafish\Http\CommentApiController;
 use Pafish\Http\PluginPageController;
 use Pafish\Http\ProfileController as PublicProfileController;
-use Pafish\Http\LuminaRedPacketController;
+use Pafish\Http\RedPacketController;
 use Pafish\Admin\AdminAuthMiddleware;
 use Pafish\Admin\DashboardController;
 use Pafish\Admin\PostsController;
@@ -90,7 +90,7 @@ $app->post('/api/auth/forgot', [AuthApiController::class, 'forgot']);
 $app->get('/api/captcha', [CommentApiController::class, 'captcha']);
 $app->post('/api/comments', [CommentApiController::class, 'create']);
 $app->post('/api/comments/like', [CommentApiController::class, 'like']);
-$app->post('/api/lumina/redpacket/{postId}/claim', [LuminaRedPacketController::class, 'claim']);
+$app->post('/api/redpacket/{postId}/claim', [RedPacketController::class, 'claim']);
 
 // ---- M3：后台（守卫中间件：未登录跳 /login?from=，POST 校验 CSRF） ----
 $app->group('/admin', function ($group) {

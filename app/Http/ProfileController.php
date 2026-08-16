@@ -7,7 +7,7 @@ namespace Pafish\Http;
 use Pafish\Core\Auth;
 use Pafish\Core\DB;
 use Pafish\Core\Url;
-use Pafish\Services\LuminaRedPacket;
+use Pafish\Services\RedPacket;
 use Pafish\Services\Points;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -45,7 +45,7 @@ final class ProfileController
             'pointsEnabled' => $pointsEnabled,
             'pointsBalance' => $pointsEnabled ? Points::balance($userId) : 0,
             'pointTransactions' => $pointsEnabled ? Points::transactions($userId) : [],
-            'redpacketClaims' => $pointsEnabled ? LuminaRedPacket::recentClaims($userId) : [],
+            'redpacketClaims' => $pointsEnabled ? RedPacket::recentClaims($userId) : [],
         ]));
         return $response;
     }

@@ -40,7 +40,10 @@ final class UpgradeController extends AdminController
         $body = $request->getParsedBody() ?? [];
         $force = !empty($body['force']);
         $info = Upgrade::check($force);
-        return $this->json($response, $info);
+        if (($info['error'] ?? '') !== '' && ($info['latest'] ?? '') === '') {
+            return $this->json($response, ['error' => $info['error']], 400);
+        }
+        return $this->json($response, ['ok' => true] + $info);
     }
 
     /** POST /admin/upgrade/run：执行更新（失败自动回滚） */

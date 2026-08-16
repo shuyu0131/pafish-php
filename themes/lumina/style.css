@@ -71,6 +71,36 @@ body.lumina-body img { max-width: 100%; }
 .lumina-moment-cover { display: block; width: min(100%, 430px); max-height: 280px; margin-top: 12px; overflow: hidden; border-radius: 4px; background: var(--lumina-soft); }
 .lumina-moment-cover img { display: block; width: 100%; height: 100%; max-height: 280px; object-fit: cover; transition: transform .25s ease; }
 .lumina-moment-cover:hover img { transform: scale(1.02); }
+.lumina-gallery { display: grid; width: min(100%, 430px); grid-template-columns: repeat(3, 1fr); gap: 4px; margin-top: 12px; }
+.lumina-gallery-1 { display: block; grid-template-columns: 1fr; }
+.lumina-gallery-2, .lumina-gallery-4 { grid-template-columns: repeat(2, 1fr); }
+.lumina-gallery-item { position: relative; aspect-ratio: 1; min-width: 0; overflow: hidden; padding: 0; border: 0; border-radius: 4px; background: var(--lumina-soft); cursor: zoom-in; }
+.lumina-gallery-1 .lumina-gallery-item { width: min(100%, 430px); max-height: 360px; aspect-ratio: auto; }
+.lumina-gallery-item img, .lumina-gallery-item video { display: block; width: 100%; height: 100%; object-fit: cover; }
+.lumina-gallery-item video { position: absolute; inset: 0; opacity: 0; transition: opacity .2s ease; }
+.lumina-gallery-item:hover video, .lumina-gallery-item:focus-visible video { opacity: 1; }
+.lumina-gallery-item span, .lumina-gallery-item b { position: absolute; color: #fff; font-size: 10px; font-weight: 700; }
+.lumina-gallery-item span { right: 5px; bottom: 5px; padding: 1px 4px; border-radius: 2px; background: rgba(0, 0, 0, .5); letter-spacing: .04em; }
+.lumina-gallery-item b { inset: 0; display: grid; place-items: center; background: rgba(0, 0, 0, .45); font-size: 22px; }
+.lumina-video, .lumina-embed { width: min(100%, 560px); margin-top: 12px; overflow: hidden; border-radius: 4px; background: #101516; }
+.lumina-video video { display: block; width: 100%; max-height: 440px; }
+.lumina-embed { aspect-ratio: 16 / 9; }
+.lumina-embed-tb { width: min(100%, 320px); aspect-ratio: 9 / 16; }
+.lumina-embed iframe { display: block; width: 100%; height: 100%; border: 0; }
+.lumina-music-card { display: flex; align-items: center; width: min(100%, 430px); gap: 10px; margin-top: 12px; padding: 9px; border-radius: 4px; background: var(--lumina-soft); }
+.lumina-music-card > img, .lumina-music-placeholder { display: grid; flex: 0 0 44px; place-items: center; width: 44px; height: 44px; border-radius: 3px; object-fit: cover; background: color-mix(in srgb, var(--lumina-accent) 16%, var(--lumina-surface)); color: var(--lumina-accent); }
+.lumina-music-card > div { min-width: 0; }
+.lumina-music-card strong, .lumina-music-card small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lumina-music-card small { color: var(--lumina-muted); font-size: 12px; }
+.lumina-music-card button { display: grid; flex: 0 0 32px; place-items: center; width: 32px; height: 32px; margin-left: auto; padding: 0; border: 0; border-radius: 50%; background: var(--lumina-accent); color: #fff; cursor: pointer; }
+.lumina-redpacket { display: flex; align-items: center; width: min(100%, 430px); gap: 11px; margin-top: 12px; padding: 13px 15px; border-radius: 4px; background: #e95f41; color: #fff; }
+.lumina-redpacket > span { display: grid; flex: 0 0 37px; place-items: center; width: 37px; height: 37px; border-radius: 50%; background: rgba(255, 255, 255, .18); }
+.lumina-redpacket strong, .lumina-redpacket small { display: block; }
+.lumina-redpacket small { opacity: .8; font-size: 12px; }
+.lumina-location { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; margin-top: 10px; color: #576b95; font-size: 12px; }
+.dark .lumina-location { color: #8aa6dc; }
+.lumina-location small { flex-basis: 100%; padding-left: 18px; color: var(--lumina-muted); }
+.lumina-private-badge { display: inline-flex; align-items: center; gap: 3px; color: var(--lumina-muted); }
 .lumina-moment-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 9px; color: var(--lumina-muted); font-size: 12px; }
 .lumina-moment-meta a { color: #576b95; }
 .dark .lumina-moment-meta a { color: #8aa6dc; }
@@ -103,6 +133,9 @@ body.lumina-body img { max-width: 100%; }
 .lumina-article-meta { display: flex; gap: 11px; flex-wrap: wrap; color: var(--lumina-muted); font-size: 12px; }
 .lumina-article-meta a { color: #576b95; }
 .lumina-article-cover { display: block; width: 100%; max-height: 390px; margin: 0 0 24px; object-fit: cover; border-radius: 4px; }
+.lumina-article > .lumina-gallery, .lumina-article > .lumina-video, .lumina-article > .lumina-embed, .lumina-article > .lumina-music-card, .lumina-article > .lumina-redpacket { margin: 0 0 24px; }
+.lumina-article .lumina-gallery { width: min(100%, 620px); }
+.lumina-article-location { margin: -8px 0 20px; }
 .lumina-article .md-content { color: var(--lumina-text); font-size: 16px; word-break: break-word; }
 .lumina-article .md-content > :first-child { margin-top: 0; }
 .lumina-article .md-content h2, .lumina-article .md-content h3 { margin-top: 1.75em; }
@@ -192,6 +225,10 @@ body.lumina-body img { max-width: 100%; }
 .lumina-search-box label { display: block; margin-bottom: 9px; font-size: 17px; font-weight: 650; }
 .lumina-search-box > div { display: flex; gap: 8px; }
 .lumina-search-close { position: absolute; top: 12px; right: 13px; border: 0; background: none; color: var(--lumina-muted); font-size: 25px; line-height: 1; cursor: pointer; }
+.lumina-lightbox { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 24px; background: rgba(0, 0, 0, .84); }
+.lumina-lightbox[hidden] { display: none; }
+.lumina-lightbox img { display: block; max-width: min(100%, 1100px); max-height: calc(100vh - 48px); object-fit: contain; }
+.lumina-lightbox button { position: absolute; top: 14px; right: 16px; display: grid; place-items: center; width: 38px; height: 38px; padding: 0; border: 0; border-radius: 50%; background: rgba(255, 255, 255, .16); color: #fff; cursor: pointer; font-size: 26px; }
 
 @media (max-width: 780px) {
   .lumina-nav { padding: 0 16px; gap: 12px; }

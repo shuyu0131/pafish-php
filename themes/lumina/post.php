@@ -2,6 +2,10 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/helpers.php';
+
+$media = lumina_media($post ?? []);
+$customFields = array_values(array_filter($customFields ?? [], static fn (array $field): bool => !str_starts_with((string) ($field['key'] ?? ''), 'lumina_')));
 $post = $post ?? [];
 $locked = !empty($locked);
 $postUrl = url_to('/post/' . rawurlencode((string) ($post['slug'] ?? '')));
@@ -27,7 +31,9 @@ get_header();
         <?php foreach (($post['tags'] ?? []) as $tag): ?><a href="<?= e(url_to('/tag/' . rawurlencode((string) $tag['slug']))) ?>">#<?= e((string) $tag['name']) ?></a><?php endforeach; ?>
       </div>
     </header>
-    <?php if (!empty($post['cover_url'])): ?><img class="lumina-article-cover" src="<?= e((string) $post['cover_url']) ?>" alt="<?= e((string) $post['title']) ?>"><?php endif; ?>
+    <?= lumina_render_media($media, (int) ($post['id'] ?? 0), 'post') ?>
+    <?php if ($media['type'] === 'only' && !empty($post['cover_url'])): ?><img class="lumina-article-cover" src="<?= e((string) $post['cover_url']) ?>" alt="<?= e((string) $post['title']) ?>"><?php endif; ?>
+    <?php if ($media['location'] !== ''): ?><div class="lumina-location lumina-article-location"><?= admin_icon('pin', 14) ?><?php if (($locationLink = lumina_location_link($media)) !== ''): ?><a href="<?= e($locationLink) ?>" target="_blank" rel="noopener noreferrer"><?= e($media['location']) ?></a><?php else: ?><span><?= e($media['location']) ?></span><?php endif; ?><?php if ($media['locationAddress'] !== ''): ?><small><?= e($media['locationAddress']) ?></small><?php endif; ?></div><?php endif; ?>
     <div class="md-content"><?= $contentHtml ?></div>
 
     <?php if (!empty($customFields)): ?><dl class="lumina-custom-fields"><?php foreach ($customFields as $field): ?><div><dt><?= e((string) ($field['key'] ?? '')) ?></dt><dd><?= e((string) ($field['value'] ?? '')) ?></dd></div><?php endforeach; ?></dl><?php endif; ?>

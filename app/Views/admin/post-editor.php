@@ -150,8 +150,13 @@ $editorData = [
                 <input type="checkbox" id="fCatPinned" name="category_pinned" value="1" <?= $post['category_pinned'] ? 'checked' : '' ?>>
                 <span>分类内置顶（在所属分类页置顶展示）</span>
               </label>
+              <div class="admin-field admin-lumina-fields-wrap">
+                <span class="label">Lumina 动态内容</span>
+                <p class="admin-field-hint">选择内容类型后填写对应媒体链接；图片、视频和音频可先上传到媒体库，再粘贴其地址。</p>
+                <div class="admin-lumina-fields" id="luminaFields"></div>
+              </div>
               <div class="admin-field">
-                <span class="label">自定义字段</span>
+                <span class="label">其他自定义字段</span>
                 <div class="admin-custom-fields" id="customFields"></div>
                 <button type="button" class="btn btn-outline admin-add-field" id="btnAddField">+ 添加字段</button>
               </div>

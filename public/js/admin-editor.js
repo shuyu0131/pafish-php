@@ -59,6 +59,25 @@
   var catOpen = false;
   var catQuery = "";
   var catActive = 0;
+  var LUMINA_COMMON_KEYS = ["lumina_location", "lumina_location_address", "lumina_location_lat", "lumina_location_lng", "lumina_private"];
+  var LUMINA_TYPE_KEYS = {
+    img: ["lumina_photos"],
+    live: ["lumina_photos", "lumina_live_photos"],
+    video: ["lumina_video_url", "lumina_video_poster"],
+    embed: ["lumina_embed_url", "lumina_embed_ratio", "lumina_embed_cover"],
+    music: ["lumina_music_url", "lumina_music_title", "lumina_music_artist", "lumina_music_cover"],
+    redpacket: ["lumina_redpacket_mode", "lumina_redpacket_total", "lumina_redpacket_count", "lumina_redpacket_title"]
+  };
+  var LUMINA_KEYS = ["lumina_type"].concat(LUMINA_COMMON_KEYS, Object.keys(LUMINA_TYPE_KEYS).reduce(function (all, type) { return all.concat(LUMINA_TYPE_KEYS[type]); }, []));
+  var LUMINA_LABELS = {
+    lumina_photos: "图片列表", lumina_live_photos: "实况图视频", lumina_video_url: "视频地址", lumina_video_poster: "视频封面",
+    lumina_embed_url: "平台视频", lumina_embed_ratio: "平台视频方向", lumina_embed_cover: "平台视频封面",
+    lumina_music_url: "音乐地址", lumina_music_title: "音乐标题", lumina_music_artist: "音乐作者", lumina_music_cover: "音乐封面",
+    lumina_location: "地点名称", lumina_location_address: "地点地址", lumina_location_lat: "纬度", lumina_location_lng: "经度",
+    lumina_private: "可见范围", lumina_redpacket_mode: "红包类型", lumina_redpacket_total: "红包总积分",
+    lumina_redpacket_count: "红包数量", lumina_redpacket_title: "红包标题"
+  };
+  var luminaValues = {};
 
   // ---------- DOM ----------
   var els = {
@@ -77,6 +96,7 @@
     tagsSelected: $("#tagsSelected"),
     tagsAll: $("#tagsAll"),
     tagInput: $("#fTagInput"),
+    luminaFields: $("#luminaFields"),
     customFields: $("#customFields"),
     errorBox: $(".admin-editor-error"),
     autosave: $("[data-autosave]"),
@@ -167,9 +187,10 @@
 
   // ---------- 表单值 / 脏检测（对齐 Node dirty 计算） ----------
   function collectCustomFields() {
-    return $$("[data-cf-key]", els.customFields).map(function (row) {
+    var other = $$("[data-cf-key]", els.customFields).map(function (row) {
       return { key: row.value.trim(), value: $( "[data-cf-value]", row.closest(".admin-cf-row") ).value.trim() };
     }).filter(function (f) { return f.key !== "" || f.value !== ""; });
+    return other.concat(collectLuminaFields());
   }
   function isDirty() {
     return els.title.value !== (initial.title || "") ||
@@ -464,6 +485,61 @@
   }
 
   // ---------- 自定义字段 ----------
+  function luminaInput(key, value) {
+    var label = LUMINA_LABELS[key] || key;
+    var isLong = key === "lumina_photos" || key === "lumina_live_photos" || key === "lumina_embed_url";
+    var note = {
+      lumina_photos: "每行一张图片地址，也支持逗号分隔",
+      lumina_live_photos: "每行一个视频地址，按图片顺序对应；也可写 图片地址|视频地址",
+      lumina_embed_url: "支持 Bilibili、YouTube，或受支持平台的官方 iframe 代码",
+      lumina_embed_cover: "可选，仅作编辑记录；前台播放器使用平台封面",
+      lumina_location_lat: "填写经纬度后，地点可跳转到腾讯地图",
+      lumina_location_lng: "填写经纬度后，地点可跳转到腾讯地图"
+    }[key] || "";
+    var control;
+    if (key === "lumina_embed_ratio") {
+      control = '<select class="input" data-lumina-key="' + key + '"><option value="lr"' + (value !== "tb" ? " selected" : "") + '>横屏 16:9</option><option value="tb"' + (value === "tb" ? " selected" : "") + '>竖屏 9:16</option></select>';
+    } else if (key === "lumina_private") {
+      control = '<select class="input" data-lumina-key="' + key + '"><option value="n"' + (value !== "y" ? " selected" : "") + '>公开</option><option value="y"' + (value === "y" ? " selected" : "") + '>仅自己可看</option></select>';
+    } else if (key === "lumina_redpacket_mode") {
+      control = '<select class="input" data-lumina-key="' + key + '"><option value="random"' + (value !== "equal" ? " selected" : "") + '>随机</option><option value="equal"' + (value === "equal" ? " selected" : "") + '>等额</option></select>';
+    } else if (isLong) {
+      control = '<textarea class="input" data-lumina-key="' + key + '" rows="3" maxlength="500">' + esc(value || "") + '</textarea>';
+    } else {
+      control = '<input class="input" data-lumina-key="' + key + '" maxlength="500" value="' + esc(value || "") + '">';
+    }
+    return '<label class="admin-lumina-field"><span>' + esc(label) + '</span>' + control + (note ? '<small>' + esc(note) + '</small>' : '') + '</label>';
+  }
+  function captureLuminaFields() {
+    if (!els.luminaFields) return;
+    $$('[data-lumina-key]', els.luminaFields).forEach(function (input) {
+      luminaValues[input.getAttribute('data-lumina-key')] = input.value;
+    });
+  }
+  function renderLuminaFields() {
+    if (!els.luminaFields) return;
+    captureLuminaFields();
+    var type = luminaValues.lumina_type || "only";
+    var fields = (LUMINA_TYPE_KEYS[type] || []).concat(LUMINA_COMMON_KEYS);
+    var types = [["only", "纯文字"], ["img", "图文"], ["live", "实况图"], ["video", "视频"], ["embed", "平台视频"], ["music", "音乐"], ["redpacket", "红包"]];
+    els.luminaFields.innerHTML = '<label class="admin-lumina-field admin-lumina-type"><span>内容类型</span><select class="input" id="luminaType">' + types.map(function (item) {
+      return '<option value="' + item[0] + '"' + (type === item[0] ? ' selected' : '') + '>' + item[1] + '</option>';
+    }).join('') + '</select></label>' + fields.map(function (key) { return luminaInput(key, luminaValues[key] || ''); }).join('');
+    $("#luminaType", els.luminaFields).addEventListener("change", function () {
+      luminaValues.lumina_type = this.value;
+      renderLuminaFields();
+    });
+  }
+  function collectLuminaFields() {
+    captureLuminaFields();
+    var type = luminaValues.lumina_type || "only";
+    var active = (LUMINA_TYPE_KEYS[type] || []).concat(LUMINA_COMMON_KEYS);
+    var hasValue = active.some(function (key) { return String(luminaValues[key] || "").trim() !== "" && !(key === "lumina_private" && luminaValues[key] === "n"); });
+    if (!hasValue && type === "only") return [];
+    return [{ key: "lumina_type", value: type }].concat(active.map(function (key) {
+      return { key: key, value: String(luminaValues[key] || (key === "lumina_private" ? "n" : "")).trim() };
+    }).filter(function (field) { return field.value !== ""; }));
+  }
   function addFieldRow(key, value) {
     var row = document.createElement("div");
     row.className = "admin-cf-row";
@@ -475,7 +551,8 @@
   }
   function renderCustomFields() {
     els.customFields.innerHTML = "";
-    var rows = initial.customFields && initial.customFields.length ? initial.customFields : [{ key: "", value: "" }];
+    var rows = (initial.customFields || []).filter(function (field) { return LUMINA_KEYS.indexOf(field.key) === -1; });
+    if (rows.length === 0) rows = [{ key: "", value: "" }];
     rows.forEach(function (f) { addFieldRow(f.key, f.value); });
   }
 
@@ -606,7 +683,13 @@
     renderCoverPreview();
     renderTags();
     renderCatSelect();
+    (initial.customFields || []).forEach(function (field) {
+      if (LUMINA_KEYS.indexOf(field.key) !== -1) luminaValues[field.key] = field.value;
+    });
+    renderLuminaFields();
     renderCustomFields();
+    // 以实际控件值为基线，避免打开旧文章就被标记为“未保存”。
+    initial.customFields = collectCustomFields();
 
     // Markdown 编辑器（Vditor，读取 textarea 初始内容）
     initEditor();

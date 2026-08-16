@@ -27,6 +27,11 @@ $showBackToTop = theme_value('show_back_to_top', '1') !== '0';
 </div>
 <?php endif; ?>
 
+<div class="lumina-lightbox" data-lumina-lightbox hidden role="dialog" aria-modal="true" aria-label="图片预览">
+  <img alt="图片预览">
+  <button type="button" data-lumina-lightbox-close aria-label="关闭预览">&times;</button>
+</div>
+
 <div class="lumina-float-actions">
   <?php if ($showSearch): ?><button type="button" class="lumina-float-button" data-lumina-search-open aria-label="搜索"><?= admin_icon('search', 18) ?></button><?php endif; ?>
   <?php if ($showBackToTop): ?><button type="button" class="lumina-float-button" data-lumina-back-top aria-label="返回顶部"><?= admin_icon('chevron-up', 18) ?></button><?php endif; ?>

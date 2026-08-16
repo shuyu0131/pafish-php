@@ -85,7 +85,7 @@
         </div>
       </div>
     </div>
-    <p class="admin-field-hint">结构约定：zip 顶层目录为插件名（plugin.json 声明 manifest 与设置项，index.php 提供实现）。安装前会校验目录名与路径安全，非法包将被拒绝。安装成功后需手动启用。</p>
+    <p class="admin-field-hint">zip 顶层目录需为插件名，安装前校验目录名与路径安全。安装成功后需手动启用。</p>
   </div>
 </div>
 

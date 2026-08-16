@@ -72,7 +72,7 @@
         </div>
       </div>
     </div>
-    <p class="admin-field-hint">结构约定：zip 顶层目录为主题名（theme.json 声明 manifest 与设置项，可选 theme.css 覆盖配色）。安装前会校验目录名与路径安全，非法包将被拒绝。</p>
+    <p class="admin-field-hint">zip 顶层目录需为主题名，安装前校验目录名与路径安全。</p>
   </div>
 </div>
 

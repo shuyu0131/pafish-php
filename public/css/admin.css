@@ -2621,3 +2621,36 @@ a.admin-pg-btn:hover {
 .admin-toast-error .admin-toast-icon { color: #ef4444; }
 .admin-toast-warning { border-left-color: #f59e0b; }
 .admin-toast-warning .admin-toast-icon { color: #f59e0b; }
+
+/* 文章管理筛选行 */
+.admin-filter-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.admin-filter-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.admin-filter-select {
+  width: auto;
+  min-width: 120px;
+  padding: 0.4rem 2rem 0.4rem 0.75rem;
+  font-size: 0.875rem;
+}
+.admin-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+.admin-search .input {
+  width: 200px;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.875rem;
+}

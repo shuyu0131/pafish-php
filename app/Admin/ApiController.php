@@ -27,7 +27,7 @@ final class ApiController extends AdminController
     private const IMPORT_MAX_FILES = 50; // 与 Node MAX_FILES 一致
     private const IMPORT_MAX_SIZE = 1048576; // 1MB，与 Node MAX_FILE_SIZE 一致
 
-    /** POST /api/upload：multipart 上传 */
+    /** POST /api/upload：multipart 上传（兼容 Vditor 编辑器 file[] 多文件与旧单文件两种调用） */
     public function upload(Request $request, Response $response): Response
     {
         $guard = $this->guardJson($request, $response);
@@ -35,28 +35,63 @@ final class ApiController extends AdminController
             return $guard;
         }
         $body = $request->getParsedBody() ?? [];
-        if (!Session::verifyCsrf((string) ($body['_csrf'] ?? ''))) {
+        // Vditor 上传走 XHR，CSRF 放 X-CSRF-Token 头；其余调用放 _csrf 表单字段
+        $csrf = (string) ($body['_csrf'] ?? '');
+        if ($csrf === '') {
+            $csrf = $request->getHeaderLine('X-CSRF-Token');
+        }
+        if (!Session::verifyCsrf($csrf)) {
             return $this->json($response, ['error' => '会话已过期，请刷新页面重试'], 419);
         }
 
-        $files = $request->getUploadedFiles();
-        $file = $files['file'] ?? null;
-        if (!$file instanceof \Psr\Http\Message\UploadedFileInterface) {
+        $raw = $request->getUploadedFiles()['file'] ?? null;
+        // 单文件时 PSR-7 返回单个对象，多文件（file[] 字段）返回数组；统一为数组
+        $files = is_array($raw) ? $raw : [$raw];
+        $files = array_values(array_filter(
+            $files,
+            static fn ($f) => $f instanceof \Psr\Http\Message\UploadedFileInterface
+        ));
+        if ($files === []) {
             return $this->json($response, ['error' => '未选择文件'], 400);
         }
-        try {
-            $result = Upload::handleStream((string) $file->getStream()->getContents(), (string) $file->getClientFilename());
-        } catch (\RuntimeException $e) {
-            return $this->json($response, ['error' => $e->getMessage()], 400);
+
+        $succMap = [];
+        $errMap = [];
+        $first = null;
+        foreach ($files as $file) {
+            $name = (string) $file->getClientFilename();
+            try {
+                $result = Upload::handleStream((string) $file->getStream()->getContents(), $name);
+                $succMap[$name] = $result['url'];
+                $first = $first ?? [
+                    'url' => $result['url'],
+                    'mime' => $result['mime'],
+                    'originalName' => $name,
+                    'size' => $result['size'],
+                    'width' => $result['width'],
+                    'height' => $result['height'],
+                ];
+            } catch (\RuntimeException $e) {
+                $errMap[$name] = $e->getMessage();
+            }
         }
+        if ($first === null) {
+            $msg = $errMap !== [] ? '上传失败：' . implode('；', $errMap) : '上传失败';
+            return $this->json($response, ['error' => $msg], 400);
+        }
+
+        // Vditor 期望 {code:0,message:'',data:{succMap:{文件名:url}}}；旧调用（媒体库/封面）用 ok/url 单文件字段，两者共存
         return $this->json($response, [
             'ok' => true,
-            'url' => $result['url'],
-            'mime' => $result['mime'],
-            'originalName' => (string) $file->getClientFilename(),
-            'size' => $result['size'],
-            'width' => $result['width'],
-            'height' => $result['height'],
+            'code' => 0,
+            'message' => '',
+            'data' => ['succMap' => $succMap, 'errMap' => $errMap],
+            'url' => $first['url'],
+            'mime' => $first['mime'],
+            'originalName' => $first['originalName'],
+            'size' => $first['size'],
+            'width' => $first['width'],
+            'height' => $first['height'],
         ]);
     }
 

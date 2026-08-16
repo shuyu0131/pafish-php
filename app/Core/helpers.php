@@ -55,11 +55,11 @@ function api_url(string $path): string
     return Url::api($path);
 }
 
-/** 编辑器页资源（@uiw/react-md-editor 样式 + 后台主题适配），经 headExtra 注入 head */
+/** 编辑器页资源（Vditor 样式 + 后台主题适配），经 headExtra 注入 head */
 function editor_head_extra(): string
 {
-    return '<link rel="stylesheet" href="' . e(asset_url('/vendor/md-editor/mdeditor.min.css')) . '">'
-        . '<link rel="stylesheet" href="' . e(asset_url('/css/md-editor-theme.css')) . '">';
+    return '<link rel="stylesheet" href="' . e(asset_url('/vendor/vditor/dist/index.css')) . '">'
+        . '<link rel="stylesheet" href="' . e(asset_url('/css/vditor-theme.css')) . '">';
 }
 
 /** 当前登录用户（数组或 null） */

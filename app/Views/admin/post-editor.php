@@ -28,6 +28,7 @@ $editorData = [
     'previewUrl' => url_to('/api/md-preview'),
     'uploadUrl' => url_to('/api/upload'),
     'uploadsUrl' => url_to('/api/uploads'),
+    'assetBase' => rtrim(\Pafish\Core\Url::base(), '/') . '/public',
     'scheduledAt' => ($post['scheduled_at'] ?? '') ? date('Y-m-d\TH:i', strtotime((string) $post['scheduled_at'])) : '',
     'categories' => array_map(
         fn ($c) => ['id' => (string) $c['id'], 'name' => (string) $c['name'], 'depth' => (int) $c['depth']],
@@ -47,9 +48,9 @@ $editorData = [
         <input class="admin-editor-title" type="text" id="fTitle" name="title"
                value="<?= e($post['title']) ?>" placeholder="文章标题" maxlength="255">
 
-        <!-- Markdown 编辑器（@uiw/react-md-editor：工具栏/分栏预览/全屏/拖拽粘贴上传，对齐 Node 版） -->
-        <div class="admin-md-editor" data-color-mode="light">
-          <div id="mdEditorMount"></div>
+        <!-- Markdown 编辑器（Vditor：所见即所得/分屏/源码三种模式，完整博客写作工具栏，拖拽粘贴上传） -->
+        <div class="admin-md-editor">
+          <div id="vditorMount"></div>
           <textarea id="fContent" name="content" hidden
                     maxlength="16000000"><?= e($post['content']) ?></textarea>
         </div>
@@ -201,5 +202,5 @@ $editorData = [
 window.PAFISH_EDITOR_DATA = <?= json_encode($editorData, JSON_UNESCAPED_UNICODE) ?>;
 window.PAFISH_EDITOR_CSRF = <?= json_encode(\Pafish\Core\Session::csrfToken()) ?>;
 </script>
-<script src="<?= e(asset_url('/vendor/md-editor/pafish-md-editor.min.js')) ?>"></script>
+<script src="<?= e(asset_url('/vendor/vditor/dist/index.min.js')) ?>"></script>
 <script src="<?= e(asset_url('/js/admin-editor.js')) ?>"></script>

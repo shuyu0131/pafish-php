@@ -1,6 +1,6 @@
 /**
  * 页面编辑器（对齐 Node page-editor.tsx 的 MdEditor 精简版）：
- * - Markdown 编辑：@uiw/react-md-editor（中文工具栏/分栏预览/全屏，react18 内置单文件）
+ * - Markdown 编辑：Vditor（所见即所得/分屏/源码三模式，中文工具栏，本地化资源）
  * - 拖拽/粘贴图片上传（/api/upload）；非图片文件走 /api/upload 插入下载链接
  * - 媒体弹窗（本地上传 / 媒体库 24/页 + 500ms 防抖搜索），工具栏「插入媒体」按钮打开
  * - 标题 → slug 自动联动（手动改过后不再覆盖）；Ctrl+S 存草稿
@@ -40,31 +40,24 @@
   var pending = null;      // draft | publish
   var modal = { open: false, tab: "upload", page: 1, q: "", total: 0, loading: false, searchTimer: null };
 
-  // 编辑器当前值：React onChange 实时同步回 #fContent（表单兜底）
+  // 编辑器当前值：Vditor input 回调实时同步回 #fContent（表单兜底）
   function editorValue() { return content.value; }
 
-  // 光标处插入（媒体弹窗 / 拖拽粘贴上传用）：优先编辑器 API（对齐 Node api.replaceSelection）
+  // 光标处插入（媒体弹窗用）：Vditor API
+  var vditor = null;
   function editorInsert(md) {
-    var api = window.__pafishMdApi;
-    if (api && typeof api.replaceSelection === "function") {
-      try {
-        api.replaceSelection(md);
-        return;
-      } catch (e) { /* 回退 DOM 方式 */ }
-    }
-    var real = $(".w-md-editor-text-input");
-    if (real) {
-      var start = real.selectionStart != null ? real.selectionStart : real.value.length;
-      var end = real.selectionEnd != null ? real.selectionEnd : start;
-      real.setRangeText(md, start, end, "end");
-      real.dispatchEvent(new Event("input", { bubbles: true })); // 触发 React onChange
-      real.focus();
+    if (vditor && typeof vditor.insertValue === "function") {
+      vditor.insertValue(md);
       return;
     }
-    content.value += md;
+    content.value += content.value ? "\n\n" + md : md;
   }
 
-  function showError(msg) { if (errorBox) { errorBox.textContent = msg; errorBox.hidden = false; } }
+  function showError(msg) {
+    if (errorBox) { errorBox.textContent = msg; errorBox.hidden = false; }
+    // 全局 toast 同步提示（admin-toast.js 已随后台布局加载）
+    if (typeof window.pafishNotify === "function") window.pafishNotify(msg);
+  }
   function clearError() { if (errorBox) errorBox.hidden = true; }
 
   // ---------- 上传 ----------
@@ -84,10 +77,10 @@
       });
   }
 
-  // ---------- 编辑器（@uiw/react-md-editor，React 挂载） ----------
+  // ---------- 编辑器（Vditor：所见即所得/分屏/源码三模式） ----------
   // 资源缺失兜底：显示原生 textarea 直接编辑
   function editorFallback() {
-    var mount = $("#mdEditorMount");
+    var mount = $("#vditorMount");
     if (mount) mount.style.display = "none";
     content.hidden = false;
     content.style.height = "520px";
@@ -96,87 +89,49 @@
   }
 
   function initEditor() {
-    var mount = $("#mdEditorMount");
+    var mount = $("#vditorMount");
     if (!mount) return;
-    var MDEditor = window.MDEditor, React = window.React, ReactDOM = window.ReactDOM;
-    if (!MDEditor || !React || !ReactDOM) { editorFallback(); return; }
+    if (typeof window.Vditor !== "function") { editorFallback(); return; }
 
-    var Comp = MDEditor.default || MDEditor;
-    var cn = window.PAFISH_MD_CN || { commands: [], extra: [] };
-
-    // 媒体插入命令：工具栏按钮打开弹窗（对齐 Node insertMediaCommand）
-    var insertMediaCommand = {
-      name: "insert-media",
-      keyCommand: "insert-media",
-      buttonProps: { "aria-label": "插入媒体", title: "插入媒体（本地上传或媒体库）" },
-      icon: React.createElement("svg", { viewBox: "0 0 24 24", width: 14, height: 14, fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" },
-        React.createElement("path", { d: "M16 5h6" }),
-        React.createElement("path", { d: "M19 2v6" }),
-        React.createElement("path", { d: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h10" }),
-        React.createElement("path", { d: "m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" })
-      ),
-      execute: function (_state, api) {
-        window.__pafishMdApi = api;
-        openModal();
+    vditor = new Vditor(mount, {
+      height: 420,
+      mode: "ir",
+      value: content.value || "",
+      placeholder: "在此输入页面内容（支持 Markdown）…",
+      lang: "zh_CN",
+      cdn: DATA.assetBase + "/vendor/vditor/dist",
+      cache: { enable: false },
+      counter: { enable: true },
+      toolbar: [
+        "headings", "bold", "italic", "strike", "|",
+        "line", "quote", "list", "ordered-list", "check", "|",
+        "code", "inline-code", "|",
+        "upload", "link", "table", "|", "emoji", "|",
+        {
+          name: "insert-media",
+          tip: "插入媒体（本地上传或媒体库）",
+          icon: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>',
+          click: function () { openModal(); },
+        },
+        "|", "undo", "redo", "|", "fullscreen", "edit-mode", "both", "preview", "|",
+        "outline",
+      ],
+      input: function (v) {
+        content.value = v || "";
       },
-    };
-
-    // 图片/文件上传并插入（拖拽与粘贴共用）
-    function handleFile(f) {
-      if (!f) return;
-      uploadFile(f)
-        .then(function (j) {
-          if (isImage(f.type)) {
-            editorInsert("![图片](" + j.url + ")");
-          } else {
-            var label = (f.name || "").replace(/\.[^.]+$/, "") || "文件";
-            editorInsert("[" + label + "](" + j.url + ")");
-          }
-        })
-        .catch(function (err) { showError(err.message || "上传失败"); });
-    }
-
-    // 包装组件：受控循环（@uiw 内部 state 与 value prop 同步，不回传会导致输入被回滚）
-    var PafishEditor = function (props) {
-      var st = React.useState(props.initialValue);
-      var value = st[0];
-      var setValue = st[1];
-      return React.createElement(Comp, Object.assign({}, props.mdProps, {
-        value: value,
-        onChange: function (v) {
-          setValue(v || "");
-          props.onChange(v || "");
-        },
-      }));
-    };
-
-    var el = React.createElement(PafishEditor, {
-      initialValue: content.value,
-      onChange: function (v) { content.value = v || ""; },
-      mdProps: {
-        height: 420,
-        preview: "edit",
-        commands: (cn.commands || []).concat([insertMediaCommand]),
-        extraCommands: cn.extra || [],
-        visibleDragbar: false,
-        textareaProps: { placeholder: "在此输入页面内容（支持 Markdown）…" },
-        onPaste: function (e) {
-          var files = e.clipboardData && e.clipboardData.files;
-          if (!files || !files.length) return;
-          e.preventDefault();
-          handleFile(files[0]);
-        },
-        onDrop: function (e) {
-          var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-          if (!f) return;
-          e.preventDefault();
-          handleFile(f);
-        },
+      upload: {
+        url: DATA.uploadUrl,
+        fieldName: "file[]",
+        withCredentials: true,
+        headers: { "X-Requested-With": "XMLHttpRequest", "X-CSRF-Token": CSRF },
+        linkToImgUrl: false,
+        error: function (msg) { showError(typeof msg === "string" ? msg : "上传失败"); },
+      },
+      preview: {
+        hljs: { style: "github", lineNumber: false },
+        math: { engine: "KaTeX" },
       },
     });
-
-    var root = ReactDOM.createRoot(mount);
-    root.render(el);
   }
 
   // ---------- 媒体弹窗 ----------
@@ -291,6 +246,8 @@
     clearError();
     if (!title.value.trim()) { showError("请填写页面标题"); return; }
     pending = action;
+    var btns = $$("[data-save]");
+    btns.forEach(function (b) { b.disabled = true; });
     var fd = new FormData(form);
     fd.set("_csrf", CSRF);
     fd.set("status", action === "publish" ? "PUBLISHED" : "DRAFT");
@@ -298,13 +255,18 @@
       .then(function (r) { return r.json().catch(function () { return null; }).then(function (j) { return { ok: r.ok, j: j }; }); })
       .then(function (res) {
         pending = null;
+        btns.forEach(function (b) { b.disabled = false; });
         if (res.ok && res.j && res.j.ok) {
           location.href = DATA.listUrl; // 保存成功回列表（与 Node 保存行为一致）
         } else {
           showError((res.j && res.j.error) || "保存失败，请重试");
         }
       })
-      .catch(function () { pending = null; showError("网络错误，保存失败"); });
+      .catch(function () {
+        pending = null;
+        btns.forEach(function (b) { b.disabled = false; });
+        showError("网络错误，保存失败");
+      });
   }
 
   // ---------- 绑定 ----------

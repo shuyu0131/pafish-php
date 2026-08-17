@@ -130,7 +130,9 @@
       }
     }
     if (runBtn) {
-      if (hasUpdate && latest && !minBlocked) {
+      // 双保险：后端 hasUpdate 已含「latest > 当前」语义，这里再显式校验一次，
+      // 即使后端未来误报（如缓存脏数据），已是最新版本时按钮也绝不显示
+      if (hasUpdate && latest && !minBlocked && compareVersions(latest, CURRENT) > 0) {
         lastRunText = "立即更新到 v" + latest;
         runBtn.dataset.label = lastRunText;
         runBtn.hidden = false;

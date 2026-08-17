@@ -42,11 +42,11 @@ final class Listings
         $total = (int) DB::value("SELECT COUNT(*) FROM posts p WHERE {$where}", $params);
 
         $posts = DB::fetchAll(
-            "SELECT p.id, p.title, p.slug, p.excerpt, p.cover_url, p.custom_fields, p.published_at,
+            "SELECT p.id, p.title, p.slug, p.excerpt, p.content, p.cover_url, p.custom_fields, p.published_at,
                     p.is_pinned, p.category_pinned, p.password, p.external_url, p.view_count,
                     p.like_count, p.favorite_count,
                     (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id AND c.status = 'APPROVED') AS comment_count,
-                    u.username AS author_name,
+                    u.username AS author_name, u.avatar_url AS author_avatar,
                     c.name AS category_name, c.slug AS category_slug
              FROM posts p
              LEFT JOIN users u ON u.id = p.author_id
@@ -57,6 +57,34 @@ final class Listings
             $params
         );
         $posts = HomeController::attachTags($posts);
+
+        // Lumina 信息流卡片底部展示每帖最近 6 条已通过评论(非回复),批量取避免 N+1
+        if ($posts !== []) {
+            $ids = array_map(static fn (array $post): int => (int) $post['id'], $posts);
+            $placeholders = implode(',', array_fill(0, count($ids), '?'));
+            $rows = DB::fetchAll(
+                "SELECT c.post_id, c.author_name, c.content, c.created_at
+                 FROM comments c
+                 WHERE c.post_id IN ({$placeholders}) AND c.status = 'APPROVED' AND c.parent_id IS NULL
+                 ORDER BY c.created_at DESC",
+                $ids
+            );
+            $recent = [];
+            foreach ($rows as $row) {
+                $postId = (int) $row['post_id'];
+                if (isset($recent[$postId]) && count($recent[$postId]) >= 6) {
+                    continue;
+                }
+                $recent[$postId][] = [
+                    'author_name' => (string) $row['author_name'],
+                    'content' => (string) $row['content'],
+                    'created_at' => (string) $row['created_at'],
+                ];
+            }
+            foreach ($posts as $index => $post) {
+                $posts[$index]['recent_comments'] = $recent[(int) $post['id']] ?? [];
+            }
+        }
 
         return [$posts, $total, $perPage, $pageNum];
     }

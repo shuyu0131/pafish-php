@@ -61,6 +61,11 @@ a {
 img {
   max-width: 100%;
 }
+/* hidden 兜底：UA 样式会被 .btn 等组件的 display 声明覆盖（类选择器优先级更高），
+   带 hidden 属性的元素必须真正隐藏（更新页按钮/提示条/弹层均依赖此规则） */
+[hidden] {
+  display: none !important;
+}
 ::selection {
   background: var(--accent);
   color: #fff;

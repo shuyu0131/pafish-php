@@ -34,6 +34,7 @@ $descriptionText = (string) ($description ?? settings('site_description', ''));
 <title><?= e($fullTitle) ?></title>
 <?php if ($descriptionText !== ''): ?><meta name="description" content="<?= e($descriptionText) ?>"><?php endif; ?>
 <link rel="icon" href="<?= e(lumina_asset_url('img/favicon.png')) ?>">
+<link rel="stylesheet" href="<?= e(lumina_asset_url('iconfont/iconfont.css')) ?>">
 <script>
 (function () {
   try {
@@ -44,8 +45,8 @@ $descriptionText = (string) ($description ?? settings('site_description', ''));
   } catch (e) {}
 })();
 </script>
-<style>:root { --lumina-accent: <?= e($accent) ?>; --lumina-cover: url('<?= e($cover) ?>'); }</style>
 <?php if (($layoutCss = \Pafish\Services\Theme::layoutCss('lumina')) !== null): ?><style data-theme="lumina"><?= $layoutCss ?></style><?php endif; ?>
+<style>:root { --theme: <?= e($accent) ?>; --themetm: <?= e($accent) ?>1a; --lumina-cover: url('<?= e($cover) ?>'); }</style>
 <?php do_action('head_inject', ['template' => $GLOBALS['pafish_tpl_ctx'] ?? []]); ?>
 <script>
 window.pafishApi = function (p) {

@@ -66,6 +66,7 @@
     video: ["lumina_video_url", "lumina_video_poster"],
     embed: ["lumina_embed_url", "lumina_embed_ratio", "lumina_embed_cover"],
     music: ["lumina_music_url", "lumina_music_title", "lumina_music_artist", "lumina_music_cover"],
+    link: ["lumina_link_url", "lumina_link_title", "lumina_link_desc", "lumina_link_image"],
     redpacket: ["redpacket_mode", "redpacket_total", "redpacket_count", "redpacket_title"]
   };
   var LUMINA_KEYS = ["lumina_type"].concat(LUMINA_COMMON_KEYS, Object.keys(LUMINA_TYPE_KEYS).reduce(function (all, type) { return all.concat(LUMINA_TYPE_KEYS[type]); }, []));
@@ -73,6 +74,7 @@
     lumina_photos: "图片列表", lumina_live_photos: "实况图视频", lumina_video_url: "视频地址", lumina_video_poster: "视频封面",
     lumina_embed_url: "平台视频", lumina_embed_ratio: "平台视频方向", lumina_embed_cover: "平台视频封面",
     lumina_music_url: "音乐地址", lumina_music_title: "音乐标题", lumina_music_artist: "音乐作者", lumina_music_cover: "音乐封面",
+    lumina_link_url: "链接地址", lumina_link_title: "链接标题", lumina_link_desc: "链接描述", lumina_link_image: "链接缩略图",
     lumina_location: "地点名称", lumina_location_address: "地点地址", lumina_location_city: "所在城市", lumina_location_poi_id: "地点 POI ID", lumina_location_lat: "纬度", lumina_location_lng: "经度",
     lumina_private: "可见范围", redpacket_mode: "红包类型", redpacket_total: "红包总积分",
     redpacket_count: "红包数量", redpacket_title: "红包标题"
@@ -487,12 +489,14 @@
   // ---------- 自定义字段 ----------
   function luminaInput(key, value) {
     var label = LUMINA_LABELS[key] || key;
-    var isLong = key === "lumina_photos" || key === "lumina_live_photos" || key === "lumina_embed_url";
+    var isLong = key === "lumina_photos" || key === "lumina_live_photos" || key === "lumina_embed_url" || key === "lumina_link_desc";
     var note = {
       lumina_photos: "每行一张图片地址，也支持逗号分隔",
       lumina_live_photos: "每行一个视频地址，按图片顺序对应；也可写 图片地址|视频地址",
       lumina_embed_url: "支持 Bilibili、YouTube，或受支持平台的官方 iframe 代码",
       lumina_embed_cover: "可选，仅作编辑记录；前台播放器使用平台封面",
+      lumina_link_url: "以 http:// 或 https:// 开头的链接地址",
+      lumina_link_title: "不填则卡片标题显示链接域名",
       lumina_location_lat: "填写经纬度后，地点可跳转到腾讯地图",
       lumina_location_lng: "填写经纬度后，地点可跳转到腾讯地图"
     }[key] || "";
@@ -521,7 +525,7 @@
     captureLuminaFields();
     var type = luminaValues.lumina_type || "only";
     var fields = (LUMINA_TYPE_KEYS[type] || []).concat(LUMINA_COMMON_KEYS);
-    var types = [["only", "纯文字"], ["img", "图文"], ["live", "实况图"], ["video", "视频"], ["embed", "平台视频"], ["music", "音乐"], ["redpacket", "红包"]];
+    var types = [["only", "纯文字"], ["img", "图文"], ["live", "实况图"], ["video", "视频"], ["embed", "平台视频"], ["music", "音乐"], ["link", "链接"], ["redpacket", "红包"]];
     els.luminaFields.innerHTML = '<label class="admin-lumina-field admin-lumina-type"><span>内容类型</span><select class="input" id="luminaType">' + types.map(function (item) {
       return '<option value="' + item[0] + '"' + (type === item[0] ? ' selected' : '') + '>' + item[1] + '</option>';
     }).join('') + '</select></label>' + fields.map(function (key) { return luminaInput(key, luminaValues[key] || ''); }).join('');

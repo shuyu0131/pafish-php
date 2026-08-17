@@ -44,6 +44,8 @@ final class Listings
         $posts = DB::fetchAll(
             "SELECT p.id, p.title, p.slug, p.excerpt, p.cover_url, p.custom_fields, p.published_at,
                     p.is_pinned, p.category_pinned, p.password, p.external_url, p.view_count,
+                    p.like_count, p.favorite_count,
+                    (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id AND c.status = 'APPROVED') AS comment_count,
                     u.username AS author_name,
                     c.name AS category_name, c.slug AS category_slug
              FROM posts p

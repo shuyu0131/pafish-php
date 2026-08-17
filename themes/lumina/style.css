@@ -95,6 +95,14 @@ body.lumina-body img { max-width: 100%; }
 .lumina-music-card strong, .lumina-music-card small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lumina-music-card small { color: var(--lumina-muted); font-size: 12px; }
 .lumina-music-card button { display: grid; flex: 0 0 32px; place-items: center; width: 32px; height: 32px; margin-left: auto; padding: 0; border: 0; border-radius: 50%; background: var(--lumina-accent); color: #fff; cursor: pointer; }
+.lumina-link-card { display: flex; align-items: center; gap: 12px; width: min(100%, 430px); margin-top: 12px; padding: 10px; border: 1px solid var(--lumina-line); border-radius: 4px; background: var(--lumina-soft); color: var(--lumina-text); }
+.lumina-link-image { flex: 0 0 66px; width: 66px; height: 66px; border-radius: 3px; object-fit: cover; }
+.lumina-link-body { min-width: 0; }
+.lumina-link-body b, .lumina-link-body small, .lumina-link-body em { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lumina-link-body b { font-size: 14px; font-weight: 600; }
+.lumina-link-body small { margin-top: 3px; color: var(--lumina-muted); font-size: 12px; }
+.lumina-link-body em { margin-top: 4px; color: var(--lumina-muted); font-size: 11px; font-style: normal; }
+.lumina-link-card:hover { border-color: var(--lumina-accent); }
 .lumina-redpacket { display: flex; align-items: center; width: min(100%, 430px); gap: 11px; margin-top: 12px; padding: 13px 15px; border-radius: 4px; background: #e95f41; color: #fff; }
 .lumina-redpacket > span { display: grid; flex: 0 0 37px; place-items: center; width: 37px; height: 37px; border-radius: 50%; background: rgba(255, 255, 255, .18); }
 .lumina-redpacket strong, .lumina-redpacket small { display: block; }
@@ -161,7 +169,10 @@ body.lumina-body img { max-width: 100%; }
 .lumina-moment-badge { padding: 1px 6px; border-radius: 3px; background: color-mix(in srgb, var(--lumina-accent) 14%, transparent); color: var(--lumina-accent); font-size: 11px; }
 .lumina-moment-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 .lumina-moment-action { display: inline-flex; align-items: center; gap: 4px; color: var(--lumina-muted); }
+button.lumina-moment-action { padding: 0; border: 0; background: none; font: inherit; line-height: inherit; cursor: pointer; }
+.lumina-moment-action b { font-weight: 500; }
 .lumina-moment-action:hover { color: var(--lumina-accent); }
+.lumina-action-like.is-active, .lumina-action-like.is-active svg { color: var(--lumina-accent); }
 
 .lumina-sidecard { overflow: hidden; border: 1px solid var(--lumina-line); background: var(--lumina-surface); box-shadow: var(--lumina-shadow); }
 .lumina-sidecard-cover { height: 74px; background: linear-gradient(135deg, var(--lumina-accent), #7dd3a1); }
@@ -187,7 +198,7 @@ body.lumina-body img { max-width: 100%; }
 .lumina-article-meta { display: flex; gap: 11px; flex-wrap: wrap; color: var(--lumina-muted); font-size: 12px; }
 .lumina-article-meta a { color: #576b95; }
 .lumina-article-cover { display: block; width: 100%; max-height: 390px; margin: 0 0 24px; object-fit: cover; border-radius: 4px; }
-.lumina-article > .lumina-gallery, .lumina-article > .lumina-video, .lumina-article > .lumina-embed, .lumina-article > .lumina-music-card, .lumina-article > .lumina-redpacket { margin: 0 0 24px; }
+.lumina-article > .lumina-gallery, .lumina-article > .lumina-video, .lumina-article > .lumina-embed, .lumina-article > .lumina-music-card, .lumina-article > .lumina-link-card, .lumina-article > .lumina-redpacket { margin: 0 0 24px; }
 .lumina-article .lumina-gallery { width: min(100%, 620px); }
 .lumina-article-location { margin: -8px 0 20px; }
 .lumina-article .md-content { color: var(--lumina-text); font-size: 16px; word-break: break-word; }

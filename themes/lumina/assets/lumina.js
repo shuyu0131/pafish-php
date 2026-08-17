@@ -118,6 +118,9 @@
   });
   bindLivePhotos(document);
   document.addEventListener("click", function (event) {
+    // 信息流卡片点赞（限定 .lumina-moment：详情页 .post-action 有自己的内联绑定，不能重复触发）
+    var likeBtn = event.target.closest(".lumina-moment [data-action=\"like\"]");
+    if (likeBtn && !likeBtn.disabled) toggleLike(likeBtn);
     var button = event.target.closest("[data-lumina-redpacket-claim]");
     if (!button || button.disabled) return;
     var card = button.closest("[data-lumina-redpacket]");
@@ -141,4 +144,30 @@
       })
       .catch(function (error) { button.disabled = false; button.textContent = error.message || "领取失败"; });
   });
+  var likeIconCache = {};
+  function toggleLike(button) {
+    var id = button.getAttribute("data-id");
+    if (!id || button.disabled) return;
+    button.disabled = true;
+    fetch(pafishApi("/post/" + id + "/like"), { method: "POST", credentials: "same-origin" })
+      .then(function (response) { return response.json().then(function (body) { return { status: response.status, body: body }; }); })
+      .then(function (result) {
+        if (!result.body.ok) throw new Error(result.body.error || "点赞失败");
+        var active = !!result.body.active;
+        button.dataset.active = active ? "1" : "0";
+        button.classList.toggle("is-active", active);
+        var count = button.querySelector(".lumina-action-count");
+        if (count) {
+          var n = Math.max(0, parseInt(count.textContent, 10) + (active ? 1 : -1));
+          count.textContent = String(n);
+        }
+        var icon = button.querySelector("svg");
+        if (icon) {
+          icon.setAttribute("fill", active ? "currentColor" : "none");
+          icon.classList.toggle("lumina-icon-liked", active);
+        }
+      })
+      .catch(function () { /* 网络/接口异常保持现状，样式不变 */ })
+      .finally(function () { button.disabled = false; });
+  }
 })();

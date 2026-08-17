@@ -10,6 +10,8 @@ $external = trim((string) ($post['external_url'] ?? '')) !== '';
 $cover = trim((string) ($post['cover_url'] ?? ''));
 $avatar = lumina_theme_image('avatar_image', lumina_asset_url('img/tx.png'));
 $media = lumina_media($post);
+// 点赞状态与 PostController 一致：cookie 列表（liked_posts）记录当前浏览器已赞文章的 id
+$cardLiked = in_array((string) ($post['id'] ?? ''), array_filter(explode(',', (string) ($_COOKIE['liked_posts'] ?? ''))), true);
 ?>
 <article class="lumina-moment">
   <img class="lumina-moment-avatar" src="<?= e($avatar) ?>" alt="">
@@ -29,7 +31,11 @@ $media = lumina_media($post);
       <?php if ($media['private']): ?><span class="lumina-private-badge"><?= admin_icon('lock', 12) ?> 仅自己可见</span><?php endif; ?>
       <?php if (!empty($post['category_slug'])): ?><a href="<?= e(url_to('/category/' . rawurlencode((string) $post['category_slug']))) ?>">#<?= e((string) $post['category_name']) ?></a><?php endif; ?>
       <?php foreach (($post['tags'] ?? []) as $tag): ?><a href="<?= e(url_to('/tag/' . rawurlencode((string) $tag['slug']))) ?>">#<?= e((string) $tag['name']) ?></a><?php endforeach; ?>
-      <span class="lumina-moment-actions"><span class="lumina-moment-action"><?= admin_icon('eye', 13) ?><?= (int) ($post['view_count'] ?? 0) ?></span></span>
+      <span class="lumina-moment-actions">
+        <button type="button" class="lumina-moment-action lumina-action-like<?= $cardLiked ? ' is-active' : '' ?>" data-action="like" data-id="<?= (int) ($post['id'] ?? 0) ?>" data-active="<?= $cardLiked ? '1' : '0' ?>" title="点赞"><?= admin_icon('heart', 13, $cardLiked) ?><b class="lumina-action-count"><?= (int) ($post['like_count'] ?? 0) ?></b></button>
+        <a class="lumina-moment-action" href="<?= e($link) ?>#comments" title="评论"><?= admin_icon('message', 13) ?><b><?= (int) ($post['comment_count'] ?? 0) ?></b></a>
+        <span class="lumina-moment-action"><?= admin_icon('eye', 13) ?><?= (int) ($post['view_count'] ?? 0) ?></span>
+      </span>
     </footer>
   </div>
 </article>

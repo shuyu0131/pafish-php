@@ -7,10 +7,25 @@ require_once __DIR__ . '/helpers.php';
 $avatar = lumina_theme_image('avatar_image', lumina_asset_url('img/tx.png'));
 $profileName = trim(theme_value('profile_name')) ?: site_name();
 $bio = trim(theme_value('profile_bio')) ?: (string) settings('site_subtitle', '');
-$postCount = (int) DB::value("SELECT COUNT(*) FROM posts WHERE status = 'PUBLISHED' AND deleted_at IS NULL AND (published_at IS NULL OR published_at <= NOW())");
-$commentCount = (int) DB::value("SELECT COUNT(*) FROM comments WHERE status = 'APPROVED'");
-$categories = DB::fetchAll("SELECT c.name, c.slug, COUNT(p.id) AS cnt FROM categories c LEFT JOIN posts p ON p.category_id = c.id AND p.status = 'PUBLISHED' AND p.deleted_at IS NULL GROUP BY c.id ORDER BY cnt DESC, c.id ASC LIMIT 7");
-$recent = DB::fetchAll("SELECT title, slug FROM posts WHERE status = 'PUBLISHED' AND deleted_at IS NULL AND (published_at IS NULL OR published_at <= NOW()) ORDER BY published_at DESC LIMIT 5");
+
+// 与 app/Http/Listings.php 同一套私密过滤：lumina_private=“仅自己”的文章
+// 对非作者不可见，侧栏统计/最近文章不得包含它们，否则会泄露私密内容。
+$marker = '%"key":"lumina_private","value":"y"%';
+$me = (int) (\Pafish\Core\Auth::id() ?? 0);
+$visible = "(COALESCE(p.custom_fields, '') NOT LIKE ? OR p.author_id = ?)";
+$postCount = (int) DB::value("SELECT COUNT(*) FROM posts p WHERE p.status = 'PUBLISHED' AND p.deleted_at IS NULL AND (p.published_at IS NULL OR p.published_at <= NOW()) AND {$visible}", [$marker, $me]);
+$commentCount = (int) DB::value("SELECT COUNT(*) FROM comments c WHERE c.status = 'APPROVED' AND NOT EXISTS (SELECT 1 FROM posts p WHERE p.id = c.post_id AND p.custom_fields LIKE ?)", [$marker]);
+$categories = DB::fetchAll(
+    "SELECT c.name, c.slug, COUNT(p.id) AS cnt
+     FROM categories c
+     LEFT JOIN posts p ON p.category_id = c.id
+       AND p.status = 'PUBLISHED' AND p.deleted_at IS NULL
+       AND (p.published_at IS NULL OR p.published_at <= NOW())
+       AND (COALESCE(p.custom_fields, '') NOT LIKE ? OR p.author_id = ?)
+     GROUP BY c.id ORDER BY cnt DESC, c.id ASC LIMIT 7",
+    [$marker, $me]
+);
+$recent = DB::fetchAll("SELECT p.title, p.slug FROM posts p WHERE p.status = 'PUBLISHED' AND p.deleted_at IS NULL AND (p.published_at IS NULL OR p.published_at <= NOW()) AND {$visible} ORDER BY p.published_at DESC LIMIT 5", [$marker, $me]);
 ?>
 <section class="lumina-sidecard">
   <div class="lumina-sidecard-cover"></div>

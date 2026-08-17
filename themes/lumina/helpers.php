@@ -119,7 +119,7 @@ if (!function_exists('lumina_media')) {
     {
         $fields = lumina_fields($post['custom_fields'] ?? []);
         $type = $fields['lumina_type'] ?? 'only';
-        $supported = ['only', 'img', 'live', 'video', 'embed', 'music', 'redpacket'];
+        $supported = ['only', 'img', 'live', 'video', 'embed', 'music', 'link', 'redpacket'];
         if (!in_array($type, $supported, true)) {
             $type = 'only';
         }
@@ -146,6 +146,8 @@ if (!function_exists('lumina_media')) {
             $type = 'only';
         } elseif ($type === 'music' && lumina_safe_url($fields['lumina_music_url'] ?? '') === '') {
             $type = 'only';
+        } elseif ($type === 'link' && lumina_safe_url($fields['lumina_link_url'] ?? '') === '') {
+            $type = 'only';
         }
         return [
             'fields' => $fields,
@@ -160,6 +162,10 @@ if (!function_exists('lumina_media')) {
             'musicCover' => lumina_safe_url($fields['lumina_music_cover'] ?? ''),
             'musicTitle' => $fields['lumina_music_title'] ?? '',
             'musicArtist' => $fields['lumina_music_artist'] ?? '',
+            'linkUrl' => lumina_safe_url($fields['lumina_link_url'] ?? ''),
+            'linkTitle' => trim(strip_tags((string) ($fields['lumina_link_title'] ?? ''))),
+            'linkDesc' => trim(strip_tags((string) ($fields['lumina_link_desc'] ?? ''))),
+            'linkImage' => lumina_safe_url($fields['lumina_link_image'] ?? ''),
             'location' => $fields['lumina_location'] ?? '',
             'locationAddress' => $fields['lumina_location_address'] ?? '',
             'locationCity' => $fields['lumina_location_city'] ?? '',
@@ -211,6 +217,15 @@ if (!function_exists('lumina_render_media')) {
             <div><strong><?= e($media['musicTitle'] !== '' ? $media['musicTitle'] : '未命名音乐') ?></strong><small><?= e($media['musicArtist']) ?></small></div>
             <button type="button" aria-label="播放或暂停"><?= admin_icon('play', 18) ?></button><audio src="<?= e($media['music']) ?>" preload="metadata"></audio>
           </div>
+        <?php elseif ($media['type'] === 'link' && $media['linkUrl'] !== ''): ?>
+          <a class="lumina-link-card" href="<?= e($media['linkUrl']) ?>" target="_blank" rel="noopener noreferrer nofollow">
+            <?php if ($media['linkImage'] !== ''): ?><img class="lumina-link-image" src="<?= e($media['linkImage']) ?>" alt="" loading="lazy"><?php endif; ?>
+            <span class="lumina-link-body">
+              <b><?= e($media['linkTitle'] !== '' ? $media['linkTitle'] : parse_url($media['linkUrl'], PHP_URL_HOST)) ?></b>
+              <?php if ($media['linkDesc'] !== ''): ?><small><?= e($media['linkDesc']) ?></small><?php endif; ?>
+              <em><?= e((string) parse_url($media['linkUrl'], PHP_URL_HOST)) ?></em>
+            </span>
+          </a>
         <?php elseif ($media['type'] === 'redpacket'): ?>
           <?php
           $viewerId = (int) (current_user()['id'] ?? 0);

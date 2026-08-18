@@ -9881,9 +9881,48 @@ body.lumina-redpacket-open{
     }
 }
 @media screen and (max-width:560px) {
-    .sh-footer .sh-copyright{
+.sh-footer .sh-copyright{
         display:block;
     }
+}
+
+/* pafish 接线：保留 Lumina 原始顶栏尺寸，补齐 button 的浏览器默认样式。 */
+.lumina-top-control{
+    border:0;
+    background:transparent;
+    padding:0;
+    color:var(--lumina-topbar-fg);
+    font:inherit;
+}
+.lumina-top-control .theme-toggle-icon{
+    width:var(--lumina-topbar-icon-size);
+    height:var(--lumina-topbar-icon-size);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+}
+.lumina-feed-heading{
+    padding:4px 25px 16px 81px;
+    color:var(--textqh);
+    border-bottom:1px solid var(--fgxys);
+}
+.lumina-feed-heading h1{font-size:17px;line-height:1.5;}
+.lumina-feed-heading p{margin-top:4px;color:var(--texths);font-size:12px;line-height:1.55;}
+.lumina-post-status,.lumina-card-tag{
+    display:inline-block;
+    margin-left:5px;
+    color:var(--thetitle);
+    font-size:12px;
+    font-weight:400;
+}
+.sh-content-right-time-right-left button{
+    border:0;
+    background:transparent;
+    font:inherit;
+}
+.sh-content-right-time-right-left-z.is-active,
+.sh-content-right-time-right-left-z.is-active i{
+    color:var(--theme);
 }
 
 /* Lumina multi-column layout */

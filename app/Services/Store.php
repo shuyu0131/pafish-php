@@ -10,7 +10,7 @@ use Pafish\Core\Version;
  * - 官方源：https://store.waikanl.cn（官网 pafish-web 的商店 API，无需用户填写地址）
  * - 远程协议：GET {base}/api/runtime-store/v1/catalog?kind=theme|plugin → {protocol, items:[...]}
  *   （与 Node 版 src/lib/store.ts 同一协议），字段映射：slug→name（安装目录名）、title→title、
- *   packageSha256→sha256（下载后校验）、requiresPafish→requires（安装前版本门槛）、
+ *   packageSha256→sha256（下载后校验）、requiresPhp→安装前 PHP 版本门槛、
  *   licenseRequired→paid（付费标记）、changelog、screenshots[0]→preview
  * - 目录缓存 runtime/store_catalog_{kind}.json（1h TTL，对齐 Upgrade 的更新检查缓存）；
  *   远程目录失败 → 自动回退本地内置源 public/store/{themes,plugins}.json（zip 本地直读），
@@ -118,7 +118,7 @@ final class Store
             throw new \RuntimeException('已安装，可直接更新');
         }
         $buffer = self::downloadZip($base, $item);
-        self::validateZip($buffer, $name);
+        self::validateZip($buffer);
         if ($kind === 'theme') {
             return Theme::installFromBuffer($buffer);
         }
@@ -137,7 +137,7 @@ final class Store
             throw new \RuntimeException('未安装，请先安装');
         }
         $buffer = self::downloadZip($base, $item);
-        self::validateZip($buffer, $name);
+        self::validateZip($buffer);
         $root = $kind === 'theme' ? Theme::root() : Plugin::root();
         $target = $root . '/' . $name;
         $bak = $root . '/.bak-store-' . bin2hex(random_bytes(4));
@@ -170,15 +170,20 @@ final class Store
         }
     }
 
-    /** 安装/更新前校验主程序版本门槛（目录条目 requiresPafish） */
+    /**
+     * 安装/更新前校验 PHP 版本门槛（目录条目 requiresPhp）。
+     * 兼容旧数据：仅当值形如 PHP 版本（主版本 ≥ 5）时校验，旧式 pafish 版本号（如 1.x）忽略。
+     */
     private static function assertCompatible(array $item): void
     {
-        $requires = trim((string) ($item['requires'] ?? ''));
-        if ($requires === '') {
+        $requiresPhp = trim((string) ($item['requiresPhp'] ?? ''));
+        if ($requiresPhp === '' || preg_match('/^(?:[5-9]|[1-9][0-9])(?:\.[0-9]+){0,2}$/', $requiresPhp) !== 1) {
             return;
         }
-        if (Version::compare(Version::current(), $requires) < 0) {
-            throw new \RuntimeException('该应用要求 pafish v' . $requires . ' 及以上版本（当前 v' . Version::current() . '），请先升级系统');
+        $parts = array_pad(array_map('intval', explode('.', $requiresPhp)), 3, 0);
+        $minId = $parts[0] * 10000 + $parts[1] * 100 + $parts[2];
+        if (PHP_VERSION_ID < $minId) {
+            throw new \RuntimeException('该应用要求 PHP ' . $requiresPhp . ' 及以上版本（当前 PHP ' . PHP_VERSION . '），请升级 PHP 后重试');
         }
     }
 
@@ -306,7 +311,7 @@ final class Store
 
     /**
      * 解析官网运行时目录（runtime-store/v1）：{protocol, items:[{slug, title, version,
-     * requiresPafish, description, author, licenseRequired, packageSha256, packageSize,
+     * requiresPhp, description, author, licenseRequired, packageSha256, packageSize,
      * zip, changelog, screenshots, publishedAt, ...}]} → 统一条目格式
      * kind：theme → kind=theme；plugin → kind=plugin
      */
@@ -346,7 +351,7 @@ final class Store
                 'zip' => $zip,
                 'preview' => is_array($shots) && isset($shots[0]) ? (string) $shots[0] : '',
                 'sha256' => isset($entry['packageSha256']) ? (string) $entry['packageSha256'] : '',
-                'requires' => isset($entry['requiresPafish']) ? (string) $entry['requiresPafish'] : '',
+                'requiresPhp' => isset($entry['requiresPhp']) ? (string) $entry['requiresPhp'] : (isset($entry['requiresPafish']) ? (string) $entry['requiresPafish'] : ''),
                 'paid' => !empty($entry['licenseRequired']),
                 'changelog' => isset($entry['changelog']) ? (string) $entry['changelog'] : '',
             ];
@@ -355,10 +360,11 @@ final class Store
     }
 
     /**
-     * 下载包预校验：唯一顶层目录且等于条目名、无穿越、大小合法
-     * （对齐 Node validateZip；installFromBuffer 会再做一遍完整校验）
+     * 下载包预校验：唯一顶层目录、无穿越、大小合法。
+     * 不再要求顶层目录等于条目名——安装名以包内顶层目录为准（Theme/Plugin::installFromBuffer
+     * 会校验其合法性），官网侧同样放宽了该约束。
      */
-    private static function validateZip(string $buffer, string $name): void
+    private static function validateZip(string $buffer): void
     {
         if (strlen($buffer) <= 0 || strlen($buffer) > self::MAX_ZIP_BYTES) {
             throw new \RuntimeException('包大小需在 10MB 以内');
@@ -398,9 +404,6 @@ final class Store
                         throw new \RuntimeException('商店包包含非法路径：' . $entryName);
                     }
                 }
-            }
-            if ($top !== $name) {
-                throw new \RuntimeException('包顶层目录与条目名称不符（' . $top . ' ≠ ' . $name . '）');
             }
         } finally {
             if ($zip->status !== \ZipArchive::ER_OK) {

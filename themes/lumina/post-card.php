@@ -5,37 +5,44 @@ declare(strict_types=1);
 require_once __DIR__ . '/helpers.php';
 
 $post = $post ?? [];
+$id = (int) ($post['id'] ?? 0);
 $link = lumina_post_link($post);
 $external = trim((string) ($post['external_url'] ?? '')) !== '';
-$cover = trim((string) ($post['cover_url'] ?? ''));
-$avatar = lumina_theme_image('avatar_image', lumina_asset_url('img/tx.png'));
+$avatar = trim((string) ($post['author_avatar'] ?? '')) ?: lumina_theme_image('avatar_image', lumina_asset_url('img/tx.png'));
 $media = lumina_media($post);
-// 点赞状态与 PostController 一致：cookie 列表（liked_posts）记录当前浏览器已赞文章的 id
-$cardLiked = in_array((string) ($post['id'] ?? ''), array_filter(explode(',', (string) ($_COOKIE['liked_posts'] ?? ''))), true);
+$text = trim((string) ($post['excerpt'] ?? ''));
+if ($text === '') {
+    $text = trim(strip_tags((string) ($post['content'] ?? '')));
+}
+$textLimit = 220;
+$textLength = function_exists('mb_strlen') ? mb_strlen($text, 'UTF-8') : strlen($text);
+$hasMoreText = $textLength > $textLimit;
+$previewText = $hasMoreText
+    ? (function_exists('mb_substr') ? mb_substr($text, 0, $textLimit, 'UTF-8') : substr($text, 0, $textLimit)) . '...'
+    : $text;
+$comments = is_array($post['recent_comments'] ?? null) ? $post['recent_comments'] : [];
+$liked = in_array((string) $id, array_filter(explode(',', (string) ($_COOKIE['liked_posts'] ?? ''))), true);
 ?>
-<article class="lumina-moment">
-  <img class="lumina-moment-avatar" src="<?= e($avatar) ?>" alt="">
-  <div class="lumina-moment-main">
-    <div class="lumina-moment-author"><?= e((string) ($post['author_name'] ?? theme_value('profile_name', site_name()))) ?></div>
-    <h2 class="lumina-moment-title">
-      <?php if (!empty($post['is_pinned'])): ?><span class="lumina-moment-badge">置顶</span><?php endif; ?>
-      <?php if (!empty($post['password'])): ?><span title="该文章需要密码访问"><?= admin_icon('lock', 14) ?></span><?php endif; ?>
-      <a href="<?= e($link) ?>"<?= $external ? ' target="_blank" rel="noopener noreferrer"' : '' ?>><?= e((string) ($post['title'] ?? '')) ?><?= $external ? ' ' . admin_icon('external-link', 14) : '' ?></a>
-    </h2>
-      <?php if (!empty($post['excerpt'])): ?><p class="lumina-moment-excerpt"><?= e((string) $post['excerpt']) ?></p><?php endif; ?>
-      <?= lumina_render_media($media, (int) ($post['id'] ?? 0)) ?>
-      <?php if ($media['type'] === 'only' && $cover !== ''): ?><a class="lumina-moment-cover" href="<?= e($link) ?>"<?= $external ? ' target="_blank" rel="noopener noreferrer"' : '' ?>><img src="<?= e($cover) ?>" alt="<?= e((string) ($post['title'] ?? '')) ?>" loading="lazy"></a><?php endif; ?>
-      <?php if ($media['location'] !== ''): ?><div class="lumina-location"><?= admin_icon('pin', 14) ?><?php if (($locationLink = lumina_location_link($media)) !== ''): ?><a href="<?= e($locationLink) ?>" target="_blank" rel="noopener noreferrer"><?= e($media['location']) ?></a><?php else: ?><span><?= e($media['location']) ?></span><?php endif; ?><?php if ($media['locationAddress'] !== ''): ?><small><?= e($media['locationAddress']) ?></small><?php endif; ?></div><?php endif; ?>
-    <footer class="lumina-moment-meta">
-      <span><?= e(format_date($post['published_at'] ?? null, 'Y-m-d')) ?></span>
-      <?php if ($media['private']): ?><span class="lumina-private-badge"><?= admin_icon('lock', 12) ?> 仅自己可见</span><?php endif; ?>
-      <?php if (!empty($post['category_slug'])): ?><a href="<?= e(url_to('/category/' . rawurlencode((string) $post['category_slug']))) ?>">#<?= e((string) $post['category_name']) ?></a><?php endif; ?>
-      <?php foreach (($post['tags'] ?? []) as $tag): ?><a href="<?= e(url_to('/tag/' . rawurlencode((string) $tag['slug']))) ?>">#<?= e((string) $tag['name']) ?></a><?php endforeach; ?>
-      <span class="lumina-moment-actions">
-        <button type="button" class="lumina-moment-action lumina-action-like<?= $cardLiked ? ' is-active' : '' ?>" data-action="like" data-id="<?= (int) ($post['id'] ?? 0) ?>" data-active="<?= $cardLiked ? '1' : '0' ?>" title="点赞"><?= admin_icon('heart', 13, $cardLiked) ?><b class="lumina-action-count"><?= (int) ($post['like_count'] ?? 0) ?></b></button>
-        <a class="lumina-moment-action" href="<?= e($link) ?>#comments" title="评论"><?= admin_icon('message', 13) ?><b><?= (int) ($post['comment_count'] ?? 0) ?></b></a>
-        <span class="lumina-moment-action"><?= admin_icon('eye', 13) ?><?= (int) ($post['view_count'] ?? 0) ?></span>
-      </span>
-    </footer>
+<article class="sh-content" id="sh-content-<?= $id ?>">
+  <div class="sh-content-left"><a href="<?= e($link) ?>"><img src="<?= e($avatar) ?>" alt=""></a></div>
+  <div class="sh-content-right">
+    <div class="sh-content-right-head">
+      <div class="sh-content-right-head-title"><p><a class="sh-author-link" href="<?= e($link) ?>"><?= e((string) ($post['author_name'] ?? theme_value('profile_name', site_name()))) ?></a><?php if (!empty($post['is_pinned'])): ?> <span class="lumina-post-status">置顶</span><?php endif; ?><?php if (!empty($post['password'])): ?> <span class="lumina-post-status">私密</span><?php endif; ?></p></div>
+      <?php if ($text !== '' || !empty($post['title'])): ?><div class="sh-content-right-article"><span><?php if (!empty($post['title'])): ?><a href="<?= e($link) ?>"<?= $external ? ' target="_blank" rel="noopener noreferrer"' : '' ?>><strong><?= e((string) $post['title']) ?></strong></a><?php endif; ?><?php if ($text !== ''): ?><?= !empty($post['title']) ? '<br>' : '' ?><span class="lumina-text-preview"<?= $hasMoreText ? '' : ' style="display:none"' ?>><?= nl2br(e($previewText)) ?></span><?php if ($hasMoreText): ?><span class="lumina-text-full" style="display:none"><?= nl2br(e($text)) ?></span><a href="#" class="sh-content-quanwenan" data-lumina-expand>全文</a><?php else: ?><?= nl2br(e($text)) ?><?php endif; ?><?php endif; ?></span></div><?php endif; ?>
+      <?= lumina_render_media($media, $id) ?>
+      <?php if ($media['type'] === 'only' && !empty($post['cover_url'])): ?><div class="sh-content-right-img"><a class="sh-content-right-img-pic" href="<?= e((string) $post['cover_url']) ?>" data-lumina-image="<?= e((string) $post['cover_url']) ?>"><img src="<?= e((string) $post['cover_url']) ?>" alt="" loading="lazy"></a></div><?php endif; ?>
+      <?php if ($media['location'] !== ''): ?><div class="sh-content-right-gps"><?php if (($location = lumina_location_link($media)) !== ''): ?><a href="<?= e($location) ?>" target="_blank" rel="noopener noreferrer"><?= e($media['location']) ?></a><?php else: ?><a><?= e($media['location']) ?></a><?php endif; ?></div><?php endif; ?>
+    </div>
+    <div class="sh-content-right-time">
+      <div class="sh-content-right-time-left"><span><?= e(format_date($post['published_at'] ?? null, 'Y-m-d')) ?></span><?php if (!empty($post['category_slug'])): ?><a class="lumina-card-tag" href="<?= e(url_to('/category/' . rawurlencode((string) $post['category_slug']))) ?>">#<?= e((string) $post['category_name']) ?></a><?php endif; ?></div>
+      <div class="sh-content-right-time-right">
+        <div class="sh-content-right-time-right-left" data-lumina-action-menu>
+          <button type="button" class="sh-content-right-time-right-left-z<?= $liked ? ' is-active' : '' ?>" data-action="like" data-id="<?= $id ?>" data-active="<?= $liked ? '1' : '0' ?>"><i class="iconfont icon-aixin"></i><span>赞 <b class="lumina-action-count"><?= (int) ($post['like_count'] ?? 0) ?></b></span></button>
+          <p></p><a class="sh-content-right-time-right-left-y" href="<?= e($link) ?>#comments"><i class="iconfont icon-pinglun2"></i><span>评论 <?= (int) ($post['comment_count'] ?? 0) ?></span></a>
+        </div>
+        <button type="button" class="sh-content-right-time-right-right" data-lumina-action-toggle aria-label="打开操作菜单"><p class="zp1"></p><p></p></button>
+      </div>
+    </div>
+    <?php if ($comments !== []): ?><div class="sh-zanp"><ul class="sh-zanp-pl"><?php foreach ($comments as $comment): ?><li><b><?= e((string) ($comment['author_name'] ?? '访客')) ?>：</b><?= e((string) ($comment['content'] ?? '')) ?></li><?php endforeach; ?></ul></div><?php endif; ?>
   </div>
 </article>

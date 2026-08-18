@@ -12,6 +12,9 @@ $postUrl = url_to('/post/' . rawurlencode((string) ($post['slug'] ?? '')));
 $contentHtml = $contentHtml ?? '';
 get_header();
 ?>
+<main class="centent lumina-layout lumina-layout-single" data-lumina-pjax-container><div class="lumina-layout-wrap"><section class="sh-main">
+  <?= lumina_profile_header(true) ?>
+  <div class="sh-nrbk">
 <?php if ($locked): ?>
   <section class="lumina-password">
     <h1><?= admin_icon('lock', 19) ?> <?= e((string) ($post['title'] ?? '')) ?></h1>
@@ -99,4 +102,7 @@ get_header();
   })();
   </script>
 <?php endif; ?>
+  </div>
+  <footer class="sh-footer"><span class="sh-copyright"><?= e(trim(theme_value('footer_text')) ?: ('© ' . date('Y') . ' ' . site_name())) ?></span></footer>
+</section></div></main>
 <?php get_footer();

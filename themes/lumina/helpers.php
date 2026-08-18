@@ -20,6 +20,62 @@ if (!function_exists('lumina_theme_image')) {
     }
 }
 
+if (!function_exists('lumina_profile_header')) {
+    /** Lumina 原版信息流页头：只使用主题设置和现有前台路由。 */
+    function lumina_profile_header(bool $showBack = false): string
+    {
+        $name = trim(theme_value('profile_name')) ?: site_name();
+        $bio = trim(theme_value('profile_bio')) ?: (string) settings('site_subtitle', '');
+        $avatar = lumina_theme_image('avatar_image', lumina_asset_url('img/tx.png'));
+        $cover = lumina_theme_image('header_cover', lumina_asset_url('img/homeimg.jpg'));
+        $user = current_user();
+        $home = url_to('/');
+        $showSearch = theme_value('show_search', '1') !== '0';
+        $links = friend_links();
+        $canManage = in_array((string) ($user['role'] ?? ''), ['ADMIN', 'EDITOR'], true);
+        $notifications = [];
+        $unreadNotifications = 0;
+        if ($canManage) {
+            $notifications = \Pafish\Core\DB::fetchAll('SELECT n.*, p.slug FROM notifications n LEFT JOIN posts p ON p.id = n.post_id ORDER BY n.`read` ASC, n.created_at DESC LIMIT 12');
+            $unreadNotifications = (int) \Pafish\Core\DB::value('SELECT COUNT(*) FROM notifications WHERE `read` = 0');
+        }
+        ob_start();
+        ?>
+        <div class="sh-main-head">
+          <div class="sh-main-head-top" data-lumina-topbar>
+            <div class="sh-main-head-top-left">
+              <?php if ($showBack): ?><a class="sh-main-head-top-left-s lumina-top-hit" href="<?= e($home) ?>" aria-label="返回首页"><i class="iconfont icon-weibiaoti lumina-top-icon"></i></a><?php endif; ?>
+              <?php if ($links !== []): ?><button type="button" class="sh-main-head-top-left-s lumina-top-hit lumina-top-control" data-lumina-drawer-open="links" aria-label="友情链接"><i class="iconfont icon-lianjie1 lumina-top-icon"></i></button><?php endif; ?>
+            </div>
+            <div class="sh-main-head-top-center"><a class="lumina-site-title" href="<?= e($home) ?>"><?= e(site_name()) ?></a></div>
+            <div class="sh-main-head-top-right">
+              <?php if ($showSearch): ?><button type="button" class="sh-main-head-top-right-s lumina-top-hit lumina-top-control" data-lumina-search-open aria-label="搜索"><i class="iconfont icon-sousuo lumina-top-icon"></i></button><?php endif; ?>
+              <button type="button" class="sh-main-head-top-right-s lumina-top-hit lumina-top-control theme-toggle" aria-label="切换主题" title="切换主题"><span class="theme-toggle-icon"></span></button>
+              <?php if ($canManage): ?><button type="button" class="sh-main-head-top-right-s lumina-top-hit lumina-top-control lumina-notice-trigger" data-lumina-drawer-open="notices" aria-label="消息盒子"><i class="iconfont icon-lingdang lumina-top-icon"></i><?php if ($unreadNotifications > 0): ?><b class="xiaoxhd"></b><?php endif; ?></button><?php endif; ?>
+              <?php if ($user): ?><a class="sh-main-head-top-right-s lumina-top-hit" href="<?= e(url_to('/profile')) ?>" aria-label="个人中心"><i class="iconfont icon-account-circle-line lumina-top-icon"></i></a>
+              <?php else: ?><a class="sh-main-head-top-right-s lumina-top-hit" href="<?= e(url_to('/login')) ?>" aria-label="登录"><i class="iconfont icon-account-circle-line lumina-top-icon"></i></a><?php endif; ?>
+            </div>
+          </div>
+          <div class="sh-main-head-img" style="background-image:url('<?= e($cover) ?>')"></div>
+        </div>
+        <div class="sh-main-head-headimg">
+          <div class="sh-main-head-headimg-tx"><h4><?= e($name) ?></h4><a href="<?= e($user ? url_to('/profile') : $home) ?>"><img src="<?= e($avatar) ?>" alt="<?= e($name) ?>"></a></div>
+          <?php if ($bio !== ''): ?><div class="sh-main-head-headimg-qm"><p><?= e($bio) ?></p></div><?php endif; ?>
+        </div>
+        <nav class="lumina-quick-nav" aria-label="快捷导航"><div class="lumina-quick-nav-scroll">
+          <a class="lumina-quick-nav-item<?= !$showBack ? ' is-active' : '' ?>" href="<?= e($home) ?>">动态</a>
+          <a class="lumina-quick-nav-item" href="<?= e(url_to('/archives')) ?>">归档</a>
+          <?php foreach (array_slice(nav_items(), 0, 5) as $item): $link = trim((string) ($item['url'] ?? '')); $label = trim((string) ($item['label'] ?? '')); if ($link === '' || $label === '') continue; $external = !empty($item['is_external']); ?>
+            <a class="lumina-quick-nav-item" href="<?= e($external ? $link : url_to($link)) ?>"<?= $external ? ' target="_blank" rel="noopener noreferrer"' : '' ?>><?= e($label) ?></a>
+          <?php endforeach; ?>
+        </div></nav>
+        <?php if ($links !== []): ?><div class="sh-link" data-lumina-drawer="links"><div class="sh-link-main" role="dialog" aria-modal="true" aria-label="友情链接"><div class="sh-link-main-top"><div class="sh-news-main-top-xiaoxih"><span>友情链接</span></div><button type="button" class="sh-news-main-top-div lumina-drawer-close" data-lumina-drawer-close aria-label="关闭"><i class="iconfont icon-quxiao"></i></button></div><div class="sh-link-con"><?php foreach ($links as $link): ?><a class="sh-link-con-lie" href="<?= e((string) $link['url']) ?>" target="_blank" rel="nofollow noopener noreferrer"><span class="sh-link-con-lie-left"><i class="iconfont icon-lianjie1"></i></span><span class="lumina-link-item-main"><span class="sh-link-con-lie-right-title"><?= e((string) $link['name']) ?></span><?php if (!empty($link['description'])): ?><span class="lumina-link-desc"><?= e((string) $link['description']) ?></span><?php endif; ?></span></a><?php endforeach; ?></div><div class="sh-link-tishi"><p>共 <?= count($links) ?> 个链接</p></div></div></div><?php endif; ?>
+        <?php if ($canManage): ?><div class="sh-news" data-lumina-drawer="notices"><div class="sh-news-main" role="dialog" aria-modal="true" aria-label="消息盒子"><div class="sh-news-main-top"><div class="sh-news-main-top-xiaoxih"><span>消息盒子</span></div><a class="sh-news-main-top-div" href="<?= e(url_to('/admin/notifications')) ?>" aria-label="进入通知中心"><i class="iconfont icon-gengduo"></i></a><button type="button" class="sh-news-main-top-div lumina-drawer-close" data-lumina-drawer-close aria-label="关闭"><i class="iconfont icon-quxiao"></i></button></div><div class="sh-news-con"><?php if ($notifications === []): ?><p class="lumina-empty">暂无消息</p><?php else: foreach ($notifications as $notice): $href = !empty($notice['slug']) ? url_to('/post/' . rawurlencode((string) $notice['slug'])) . '#comments' : url_to('/admin/notifications'); ?><a class="sh-news-con-lie" href="<?= e($href) ?>"><div class="sh-news-con-lie-left"><?php if (empty($notice['read'])): ?><p class="xiaoxhd"></p><?php endif; ?><div class="sh-news-con-lie-left-imgt"><i class="iconfont icon-lingdang"></i></div></div><div class="sh-news-con-lie-right"><p class="sh-news-con-lie-right-title"><?= e((string) ($notice['type'] ?? '通知')) ?><span class="sh-news-con-lie-right-time"><?= e(format_date($notice['created_at'] ?? null, 'Y-m-d H:i')) ?></span></p><p class="sh-news-con-lie-right-text"><?= e((string) ($notice['message'] ?? '')) ?></p></div></a><?php endforeach; endif; ?></div><div class="sh-news-tishi"><p>未读 <?= $unreadNotifications ?> 条</p></div></div></div><?php endif; ?>
+        <?php
+        return (string) ob_get_clean();
+    }
+}
+
 if (!function_exists('lumina_post_link')) {
     function lumina_post_link(array $post): string
     {
@@ -197,13 +253,13 @@ if (!function_exists('lumina_render_media')) {
     {
         ob_start();
         if (in_array($media['type'], ['img', 'live'], true) && $media['photos'] !== []): ?>
-          <div class="lumina-gallery lumina-gallery-<?= min(9, count($media['photos'])) ?>" data-lumina-gallery>
+          <div class="sh-content-right-img" id="imglib-<?= $postId ?>">
             <?php foreach ($media['photos'] as $index => $photo): $liveVideo = $media['live'][$photo] ?? ''; ?>
-              <button type="button" class="lumina-gallery-item<?= $liveVideo !== '' ? ' is-live' : '' ?>" data-lumina-image="<?= e($photo) ?>" aria-label="查看第 <?= $index + 1 ?> 张图片">
+              <a href="<?= e($photo) ?>" class="sh-content-right-img-pic<?= $liveVideo !== '' ? ' is-live-photo' : '' ?>" data-lumina-image="<?= e($photo) ?>" aria-label="查看第 <?= $index + 1 ?> 张图片">
                 <img src="<?= e($photo) ?>" alt="" loading="lazy">
-                <?php if ($liveVideo !== ''): ?><video src="<?= e($liveVideo) ?>" muted loop playsinline preload="metadata"></video><span>LIVE</span><?php endif; ?>
-                <?php if ($index === 8 && count($media['photos']) > 9): ?><b>+<?= count($media['photos']) - 9 ?></b><?php endif; ?>
-              </button>
+                <?php if ($liveVideo !== ''): ?><video class="lumina-live-video" src="<?= e($liveVideo) ?>" muted loop playsinline preload="metadata"></video><span class="lumina-live-badge">LIVE</span><?php endif; ?>
+                <?php if ($index === 8 && count($media['photos']) > 9): ?><b class="sh-content-right-img-pic-mask">+<?= count($media['photos']) - 9 ?></b><?php endif; ?>
+              </a>
               <?php if ($index === 8) { break; } ?>
             <?php endforeach; ?>
           </div>

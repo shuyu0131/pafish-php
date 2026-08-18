@@ -22,13 +22,20 @@
     if (dialog) closeSearch();
     if (event.target.closest("[data-lumina-back-top]")) window.scrollTo({ top: 0, behavior: "smooth" });
     var image = event.target.closest("[data-lumina-image]");
-    if (image) openLightbox(image.getAttribute("data-lumina-image"));
+    if (image) {
+      event.preventDefault();
+      openLightbox(image.getAttribute("data-lumina-image"));
+    }
     if (event.target.closest("[data-lumina-lightbox-close]") || (event.target.matches && event.target.matches("[data-lumina-lightbox]"))) closeLightbox();
     var music = event.target.closest("[data-lumina-music] button");
     if (music) toggleMusic(music);
   });
   document.addEventListener("keydown", function (event) {
-    if (event.key === "Escape") { closeSearch(); closeLightbox(); }
+    if (event.key === "Escape") {
+      closeSearch();
+      closeLightbox();
+      document.querySelectorAll("[data-lumina-drawer]").forEach(function (drawer) { drawer.style.display = "none"; });
+    }
   });
 
   function lightbox() { return document.querySelector("[data-lumina-lightbox]"); }
@@ -60,7 +67,7 @@
     audio.addEventListener("ended", function () { button.setAttribute("aria-label", "播放"); }, { once: true });
   }
   function bindLivePhotos(root) {
-    (root || document).querySelectorAll(".lumina-gallery-item.is-live").forEach(function (item) {
+    (root || document).querySelectorAll(".lumina-gallery-item.is-live, .sh-content-right-img-pic.is-live-photo").forEach(function (item) {
       if (item.dataset.luminaLiveBound === "1") return;
       item.dataset.luminaLiveBound = "1";
       var video = item.querySelector("video");
@@ -69,6 +76,63 @@
       item.addEventListener("mouseleave", function () { video.pause(); });
     });
   }
+
+  function updateTopbars() {
+    var scrolled = window.scrollY > 12;
+    document.querySelectorAll("[data-lumina-topbar]").forEach(function (bar) {
+      bar.classList.toggle("is-scrolled", scrolled);
+    });
+  }
+  var layout = document.querySelector("[data-lumina-desktop-layout]");
+  if (layout) document.body.classList.add("lumina-pc-layout-" + layout.getAttribute("data-lumina-desktop-layout"));
+  window.addEventListener("scroll", updateTopbars, { passive: true });
+  updateTopbars();
+
+  document.addEventListener("click", function (event) {
+    var opener = event.target.closest("[data-lumina-drawer-open]");
+    if (opener) {
+      var drawer = document.querySelector('[data-lumina-drawer="' + opener.getAttribute("data-lumina-drawer-open") + '"]');
+      if (drawer) drawer.style.display = "flex";
+      return;
+    }
+    var closer = event.target.closest("[data-lumina-drawer-close]");
+    if (closer) {
+      var closeDrawer = closer.closest("[data-lumina-drawer]");
+      if (closeDrawer) closeDrawer.style.display = "none";
+      return;
+    }
+    var drawerBackdrop = event.target.closest("[data-lumina-drawer]");
+    if (drawerBackdrop && event.target === drawerBackdrop) {
+      drawerBackdrop.style.display = "none";
+      return;
+    }
+    var expand = event.target.closest("[data-lumina-expand]");
+    if (expand) {
+      event.preventDefault();
+      var article = expand.closest(".sh-content-right-article");
+      var preview = article && article.querySelector(".lumina-text-preview");
+      var full = article && article.querySelector(".lumina-text-full");
+      if (preview && full) {
+        var open = full.style.display !== "none";
+        preview.style.display = open ? "none" : "inline";
+        full.style.display = open ? "none" : "inline";
+        expand.textContent = open ? "全文" : "收起";
+      }
+      return;
+    }
+    var toggle = event.target.closest("[data-lumina-action-toggle]");
+    if (toggle) {
+      var menu = toggle.parentElement && toggle.parentElement.querySelector("[data-lumina-action-menu]");
+      document.querySelectorAll("[data-lumina-action-menu]").forEach(function (item) {
+        if (item !== menu) item.style.display = "none";
+      });
+      if (menu) menu.style.display = menu.style.display === "flex" ? "none" : "flex";
+      return;
+    }
+    if (!event.target.closest("[data-lumina-action-menu]")) {
+      document.querySelectorAll("[data-lumina-action-menu]").forEach(function (item) { item.style.display = "none"; });
+    }
+  });
 
   var navigating = false;
   function setFeedStatus(feed, message) {
@@ -119,7 +183,7 @@
   bindLivePhotos(document);
   document.addEventListener("click", function (event) {
     // 信息流卡片点赞（限定 .lumina-moment：详情页 .post-action 有自己的内联绑定，不能重复触发）
-    var likeBtn = event.target.closest(".lumina-moment [data-action=\"like\"]");
+    var likeBtn = event.target.closest(".sh-content [data-action=\"like\"]");
     if (likeBtn && !likeBtn.disabled) toggleLike(likeBtn);
     var button = event.target.closest("[data-lumina-redpacket-claim]");
     if (!button || button.disabled) return;

@@ -8,6 +8,16 @@ function store_kind_label(string $kind): string
 {
     return $kind === 'theme' ? '主题' : '插件';
 }
+$allCategories = [];
+foreach (['theme' => $themeCat, 'plugin' => $pluginCat] as $storeKindCat) {
+    foreach (($storeKindCat['items'] ?? []) as $storeItem) {
+        $storeCat = (string)($storeItem['category'] ?? '');
+        if ($storeCat !== '' && !in_array($storeCat, $allCategories, true)) {
+            $allCategories[] = $storeCat;
+        }
+    }
+}
+sort($allCategories);
 ?>
 <div class="admin-stack">
   <div class="admin-page-head">
@@ -32,6 +42,14 @@ function store_kind_label(string $kind): string
 
   <div class="admin-store-toolbar">
     <input type="search" id="storeSearch" class="input admin-store-search" placeholder="搜索已上架的主题与插件…" autocomplete="off">
+    <?php if ($allCategories): ?>
+      <select id="storeCategory" class="input admin-store-cat" title="按分类筛选">
+        <option value="">全部分类</option>
+        <?php foreach ($allCategories as $storeCat): ?>
+          <option value="<?= e($storeCat) ?>"><?= e($storeCat) ?></option>
+        <?php endforeach; ?>
+      </select>
+    <?php endif; ?>
   </div>
 
   <?php foreach (['theme' => $themeCat, 'plugin' => $pluginCat] as $kind => $cat): ?>
@@ -41,7 +59,7 @@ function store_kind_label(string $kind): string
       <?php else: ?>
         <div class="admin-theme-grid">
           <?php foreach ($cat['items'] as $item): ?>
-            <div class="card admin-theme-card" data-search="<?= e(mb_strtolower(($item['title'] ?? '') . ' ' . ($item['description'] ?? ''))) ?>">
+            <div class="card admin-theme-card" data-search="<?= e(mb_strtolower(($item['title'] ?? '') . ' ' . ($item['description'] ?? ''))) ?>" data-category="<?= e($item['category'] ?? '') ?>">
               <?php if (($item['preview'] ?? '') !== ''): ?>
                 <div class="admin-store-thumb">
                   <img src="<?= e($item['preview']) ?>" alt="<?= e($item['title']) ?>" loading="lazy" onerror="this.closest('.admin-store-thumb').hidden = true">
@@ -49,6 +67,7 @@ function store_kind_label(string $kind): string
               <?php endif; ?>
               <div class="admin-theme-head">
                 <p class="admin-theme-name"><?= e($item['title']) ?>
+                  <?php if (($item['category'] ?? '') !== ''): ?><span class="badge"><?= e($item['category']) ?></span><?php endif; ?>
                   <?php if (!empty($item['paid'])): ?><span class="badge badge-accent">付费</span><?php endif; ?>
                   <?php if ($item['installed']): ?>
                     <?php if ($item['updateAvailable']): ?>
@@ -143,14 +162,20 @@ function store_kind_label(string $kind): string
     });
   });
 
-  // ---- 搜索（当前 Tab 内按标题/描述过滤） ----
+  // ---- 搜索 + 分类筛选（当前 Tab 内按标题/描述过滤，分类与关键词叠加） ----
   var search = document.getElementById("storeSearch");
-  search.addEventListener("input", function () {
+  var catSelect = document.getElementById("storeCategory");
+  function applyStoreFilters() {
     var q = search.value.trim().toLowerCase();
+    var cat = catSelect ? catSelect.value : "";
     document.querySelectorAll(".admin-store-pane:not([hidden]) .admin-theme-card").forEach(function (card) {
-      card.style.display = q === "" || (card.dataset.search || "").indexOf(q) !== -1 ? "" : "none";
+      var matchQ = q === "" || (card.dataset.search || "").indexOf(q) !== -1;
+      var matchCat = cat === "" || card.dataset.category === cat;
+      card.style.display = matchQ && matchCat ? "" : "none";
     });
-  });
+  }
+  search.addEventListener("input", applyStoreFilters);
+  if (catSelect) { catSelect.addEventListener("change", applyStoreFilters); }
 
   // ---- 安装 / 更新 ----
   document.querySelectorAll(".admin-store-install").forEach(function (btn) {

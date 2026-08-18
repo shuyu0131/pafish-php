@@ -348,6 +348,7 @@ final class Store
                 'version' => $version,
                 'description' => isset($entry['description']) ? (string) $entry['description'] : '',
                 'author' => isset($entry['author']) ? (string) $entry['author'] : '',
+                'category' => isset($entry['category']) ? (string) $entry['category'] : '',
                 'zip' => $zip,
                 'preview' => is_array($shots) && isset($shots[0]) ? (string) $shots[0] : '',
                 'sha256' => isset($entry['packageSha256']) ? (string) $entry['packageSha256'] : '',
@@ -469,6 +470,7 @@ final class Store
                 'version' => $version,
                 'description' => isset($entry['description']) ? (string) $entry['description'] : '',
                 'author' => isset($entry['author']) ? (string) $entry['author'] : '',
+                'category' => isset($entry['category']) ? (string) $entry['category'] : '',
                 'zip' => $zip,
                 'preview' => isset($entry['preview']) ? (string) $entry['preview'] : '',
             ];

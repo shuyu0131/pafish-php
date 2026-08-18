@@ -341,7 +341,9 @@ final class Backup
             }
             $stmt .= $line;
             if (self::endsWithDelimiter($stmt, $delimiter)) {
-                $sql = rtrim(trim($stmt), $delimiter);
+                // 精确截除分隔符；rtrim(..., $delimiter) 会把多字符分隔符当字符集
+                // 逐字符误裁（如内容以 $ 结尾的 DELIMITER $$ 语句）
+                $sql = substr(trim($stmt), 0, -strlen($delimiter));
                 if ($sql !== '') {
                     $pdo->exec($sql);
                     $count++;

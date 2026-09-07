@@ -4,10 +4,11 @@ declare(strict_types=1);
 namespace Pafish\Services;
 
 use Pafish\Core\Version;
+use Pafish\Services\Backup;
 
 /**
  * 系统在线更新（参考 emlog / prain 的官方源 + update.php 迁移脚本机制）：
- * - 更新源硬编码：https://store.waikanl.cn/pafish-php/pafish-php.json（零配置）
+ * - 更新源硬编码：https://www.pafish.cn/pafish-php/pafish-php.json（零配置）
  *   元数据：{ version, notes, zip, min_version? }，zip 与发布包同一份（顶层 pafish/）
  * - PAFISH_UPDATE_URL 环境变量可覆盖元数据地址（仅测试注入，生产零配置）；
  *   PAFISH_UPGRADE_ROOT 可覆盖更新根目录（测试子目录演练用）
@@ -20,10 +21,11 @@ use Pafish\Core\Version;
  */
 final class Upgrade
 {
-    private const DEFAULT_META_URL = 'https://store.waikanl.cn/pafish-php/pafish-php.json';
+    private const DEFAULT_META_URL = 'https://www.pafish.cn/pafish-php/pafish-php.json';
     private const MAX_ZIP_BYTES = 50 * 1024 * 1024;
     private const CACHE_TTL = 86400; // 24h
     private const CACHE_FILE = 'update_check.json';
+    private const STATE_FILE = 'upgrade_state.json';
 
     // ---------- 公开 ----------
 
@@ -42,6 +44,15 @@ final class Upgrade
     {
         $env = trim((string) getenv('PAFISH_UPGRADE_ROOT'));
         return $env !== '' ? rtrim($env, '/\\') : PAFISH_ROOT;
+    }
+
+    /** 读取上次升级状态；仅用于后台提示，不触发网络请求。 */
+    public static function state(): ?array
+    {
+        $path = self::root() . '/runtime/' . self::STATE_FILE;
+        $raw = @file_get_contents($path);
+        $state = is_string($raw) ? json_decode($raw, true) : null;
+        return is_array($state) && isset($state['phase']) ? $state : null;
     }
 
     /**
@@ -69,6 +80,7 @@ final class Upgrade
                     'notes' => (string) ($raw['notes'] ?? ''),
                     'zip' => (string) ($raw['zip'] ?? ''),
                     'min_version' => (string) ($raw['min_version'] ?? ''),
+                    'sha256' => (string) ($raw['sha256'] ?? ''),
                 ];
                 if ($meta['version'] === '' || $meta['zip'] === '') {
                     throw new \RuntimeException('元数据缺少版本或安装包地址');
@@ -89,6 +101,7 @@ final class Upgrade
             'notes' => $meta['notes'],
             'zip' => $meta['zip'],
             'minVersion' => $meta['min_version'],
+            'sha256' => (string) ($meta['sha256'] ?? ''),
             'error' => $error !== '' ? $error : '',
         ];
     }
@@ -109,6 +122,7 @@ final class Upgrade
             'notes' => (string) $meta['notes'],
             'zip' => (string) $meta['zip'],
             'minVersion' => (string) $meta['min_version'],
+            'sha256' => (string) ($meta['sha256'] ?? ''),
             'error' => (string) ($cached['error'] ?? ''),
         ];
     }
@@ -147,23 +161,35 @@ final class Upgrade
         $zipUrl = self::resolveZipUrl((string) $info['zip']);
         $tmpZip = tempnam(sys_get_temp_dir(), 'pfup');
         $bak = $root . '/runtime/.upgrade-bak-' . bin2hex(random_bytes(4));
+        $dbBackup = null;
+        $dbMigrationStarted = false;
+        self::writeState($root, 'starting', ['target' => (string)$info['latest']]);
         try {
             if ($tmpZip === false) {
                 throw new \RuntimeException('无法创建临时文件');
             }
             // 1. 下载
+            self::writeState($root, 'downloading', ['target' => (string)$info['latest']]);
             $buffer = self::httpGet($zipUrl);
             if (@file_put_contents($tmpZip, $buffer) === false) {
                 throw new \RuntimeException('无法写入更新包临时文件');
             }
             // 2. 校验（元数据声明 sha256 时先验哈希，防下载篡改/损坏）
+            self::writeState($root, 'validating');
             self::verifySha256($buffer, (string) ($info['sha256'] ?? ''));
             self::validatePackage($tmpZip);
             // 3. 备份（排除 public/uploads、backups、runtime；config.php 一并备份）
+            self::writeState($root, 'backing_up');
+            try {
+                $dbBackup = Backup::create();
+            } catch (\Throwable $e) {
+                throw new \RuntimeException('更新前数据库备份失败：' . $e->getMessage());
+            }
             if (!self::copyDirFiltered($root, $bak, self::KEEP_DIRS)) {
                 throw new \RuntimeException('更新失败：无法备份站点（' . $bak . '）');
             }
             // 4. 清空非保留项
+            self::writeState($root, 'replacing_files', ['database_backup' => $dbBackup]);
             if (!self::clearRoot($root)) {
                 throw new \RuntimeException('更新失败：无法清理旧文件');
             }
@@ -171,7 +197,9 @@ final class Upgrade
                 // 5. 解压覆盖（剥掉 pafish/ 顶层）
                 self::extractPackage($tmpZip, $root);
                 // 6. 执行包内迁移脚本 upgrade.php（执行后删除）
+                $dbMigrationStarted = is_file($root . '/upgrade.php');
                 self::runUpgradeScript($root);
+                self::writeState($root, 'completed');
             } catch (\Throwable $e) {
                 try {
                     self::rollback($root, $bak);
@@ -193,7 +221,19 @@ final class Upgrade
                         . '（备份保留在 ' . $bak . '，请手动恢复）');
                 }
             }
-            throw $e;
+            if ($dbMigrationStarted && $dbBackup !== null) {
+                try {
+                    Backup::restore($dbBackup);
+                } catch (\Throwable $dbError) {
+                    self::writeState($root, 'failed', [
+                        'message' => $e->getMessage() . '；数据库恢复失败：' . $dbError->getMessage(),
+                        'database_backup' => $dbBackup,
+                    ]);
+                    throw new \RuntimeException($e->getMessage() . '；数据库自动恢复失败：' . $dbError->getMessage() . '；数据库备份：backups/' . $dbBackup);
+                }
+            }
+            self::writeState($root, 'failed', ['message' => $e->getMessage(), 'database_backup' => $dbBackup]);
+            throw new \RuntimeException($e->getMessage() . ($dbBackup ? '；数据库安全备份：backups/' . $dbBackup : ''));
         } finally {
             @unlink($tmpZip);
             if (is_dir($bak) && self::isEmptyDir($bak)) {
@@ -205,6 +245,7 @@ final class Upgrade
         // 7. 成功：删除备份、清静态缓存
         self::rmDir($bak);
         self::resetCache();
+        @unlink($root . '/runtime/' . self::STATE_FILE);
         return ['ok' => true, 'current' => Version::current(), 'latest' => (string) $info['latest']];
     }
 
@@ -222,6 +263,14 @@ final class Upgrade
         $meta = self::metaUrl();
         $pos = strrpos($meta, '/');
         return ($pos !== false ? substr($meta, 0, $pos + 1) : $meta . '/') . ltrim($zip, '/');
+    }
+
+    private static function writeState(string $root, string $phase, array $extra = []): void
+    {
+        @file_put_contents($root . '/runtime/' . self::STATE_FILE, json_encode([
+            'phase' => $phase,
+            'at' => date('c'),
+        ] + $extra, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), LOCK_EX);
     }
 
     /** 下载 zip 地址（元数据 zip 是相对路径，相对元数据目录解析） */

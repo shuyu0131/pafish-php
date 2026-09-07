@@ -7,31 +7,32 @@ use Pafish\Core\Version;
 
 /**
  * 应用商店（官方源硬编码，零配置）：
- * - 官方源：https://store.waikanl.cn（官网 pafish-web 的商店 API，无需用户填写地址）
+ * - 官方源：https://www.pafish.cn（官网 pafish-web 的商店 API，无需用户填写地址）
  * - 远程协议：GET {base}/api/runtime-store/v1/catalog?kind=theme|plugin → {protocol, items:[...]}
- *   （与 Node 版 src/lib/store.ts 同一协议），字段映射：slug→name（安装目录名）、title→title、
+ *   字段映射：slug→name（安装目录名）、title→title、
  *   packageSha256→sha256（下载后校验）、requiresPhp→安装前 PHP 版本门槛、
- *   licenseRequired→paid（付费标记）、changelog、screenshots[0]→preview
- * - 目录缓存 runtime/store_catalog_{kind}.json（1h TTL，对齐 Upgrade 的更新检查缓存）；
+ *   licenseRequired→paid（付费标记）、changelog、screenshots[0]→preview；详情保留完整截图与包元数据
+ * - 目录缓存 runtime/store_catalog_{kind}.json（5 分钟 TTL）；
  *   远程目录失败 → 自动回退本地内置源 public/store/{themes,plugins}.json（zip 本地直读），
- *   商店页永不自挂（对齐 Node 三级源策略的本地兜底）
+ *   商店页永不自挂，使用本地兜底
  * - 名称正则 /^[a-z0-9][a-z0-9-]{1,48}[a-z0-9]$/（与服务端 slug 规则一致，仅长度上限 50）；
  *   zip 相对路径拼 base，http(s) 直用；本地兜底走文件直读
  * - 版本比较：数字分段（容忍 v 前缀，非数字段按 0）
  * - 安装拒绝已存在（提示直接更新）；更新 = 备份旧版 → 移除 → 装新版，失败自动恢复旧版
  * - Windows 兼容：全程 SPL 递归复制/删除，不依赖 rename（PHP 8.5 + Windows 上
  *   stat 句柄会导致 rename/rmdir「拒绝访问」且时好时坏）
+ * - 付费应用仅使用官网账号令牌校验购买权益，不再使用授权码下载
  * - PAFISH_STORE_URL 环境变量可覆盖官方源（仅测试注入用，生产零配置）
  */
 final class Store
 {
     /** 官方商店（官网 pafish-web 部署域名），测试可用环境变量覆盖 */
-    private const OFFICIAL_STORE_URL = 'https://store.waikanl.cn';
+    private const OFFICIAL_STORE_URL = 'https://www.pafish.cn';
 
     private const NAME_PATTERN = '/^[a-z0-9][a-z0-9-]{1,48}[a-z0-9]$/';
     private const MAX_ZIP_BYTES = 10 * 1024 * 1024;
     private const KIND_FILE = ['theme' => 'themes.json', 'plugin' => 'plugins.json'];
-    private const CATALOG_CACHE_TTL = 3600; // 1h
+    private const CATALOG_CACHE_TTL = 300;
 
     /** 商店地址（官方源硬编码；仅测试注入可覆盖） */
     public static function baseUrl(): string
@@ -43,7 +44,45 @@ final class Store
         return self::OFFICIAL_STORE_URL;
     }
 
-    /** 数字分段版本比较：$a < $b → -1，相等 → 0，$a > $b → 1（对齐 Node compareVersions） */
+    /** 查询当前绑定的官方商城账号及已购应用。 */
+    public static function account(): ?array
+    {
+        $state = self::accountStatus();
+        return $state['status'] === 'bound' ? $state['data'] : null;
+    }
+
+    /** 查询账号绑定状态，区分未绑定、令牌失效和官方源不可达。 */
+    public static function accountStatus(): array
+    {
+        $token = trim((string) Settings::get('store_account_token', ''));
+        if ($token === '') {
+            return ['status' => 'unbound', 'data' => null];
+        }
+        $ch = curl_init(self::baseUrl() . '/api/store/account');
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_TIMEOUT => 12,
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_USERAGENT => 'pafish-store/1.0',
+            CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $token, 'Accept: application/json'],
+        ]);
+        $body = curl_exec($ch);
+        $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+        if ($body === false) {
+            return ['status' => 'unreachable', 'data' => null];
+        }
+        $data = json_decode((string) $body, true);
+        if ($status === 401 || $status === 403) {
+            return ['status' => 'invalid_token', 'data' => null];
+        }
+        if ($status !== 200 || !is_array($data) || !is_array($data['account'] ?? null)) {
+            return ['status' => 'unreachable', 'data' => null];
+        }
+        return ['status' => 'bound', 'data' => $data];
+    }
+
+    /** 数字分段版本比较：$a < $b → -1，相等 → 0，$a > $b → 1 */
     public static function compareVersions(string $a, string $b): int
     {
         $pa = self::versionParts($a);
@@ -69,7 +108,7 @@ final class Store
     }
 
     /**
-     * 拉取目录：缓存（1h）优先 → 官方源（store.waikanl.cn）→ 远程失败回退本地内置源 public/store。
+     * 拉取目录：缓存（5 分钟）优先 → 官方源（www.pafish.cn）→ 远程失败回退本地内置源 public/store。
      * 返回 ['items' => 条目数组, 'base' => 源地址（远程=官网，本地兜底=''）, 'error'? => 回退原因]
      */
     public static function fetchCatalog(string $kind): array
@@ -96,6 +135,14 @@ final class Store
             'base' => '',
             'error' => $fallbackHint . '，已回退内置商店（public/store）',
         ];
+    }
+
+    /** 清除本地目录缓存，供后台在官网审核发布后立即拉取最新上架结果。 */
+    public static function clearCatalogCache(): void
+    {
+        foreach (array_keys(self::KIND_FILE) as $kind) {
+            @unlink(PAFISH_ROOT . '/runtime/store_catalog_' . $kind . '.json');
+        }
     }
 
     /** 已安装版本（未安装返回 null） */
@@ -126,15 +173,20 @@ final class Store
     }
 
     /**
-     * 从商店更新：备份旧版本 → 移除 → 安装新版；失败自动恢复旧版本（对齐 Node
+     * 从商店更新：备份旧版本 → 移除 → 安装新版；失败自动恢复旧版本
      * updateFromStore 的 .bak 回滚语义，但不依赖 rename——SPL 复制/删除）
      */
     public static function updateFromStore(string $kind, string $name, string $base, array $item): array
     {
         self::assertValidName($name);
         self::assertCompatible($item);
-        if (self::getInstalledVersion($kind, $name) === null) {
+        $installedVersion = self::getInstalledVersion($kind, $name);
+        if ($installedVersion === null) {
             throw new \RuntimeException('未安装，请先安装');
+        }
+        $targetVersion = trim((string) ($item['version'] ?? ''));
+        if ($targetVersion === '' || self::compareVersions($targetVersion, $installedVersion) <= 0) {
+            throw new \RuntimeException('该商店版本不高于当前已安装版本（v' . $installedVersion . '），无需更新');
         }
         $buffer = self::downloadZip($base, $item);
         self::validateZip($buffer);
@@ -221,22 +273,25 @@ final class Store
         if ($zip === '') {
             throw new \RuntimeException('商店条目缺少 zip 地址');
         }
-        // 付费应用：携带站点授权码（store_license，官网购买后提供）与站点 URL（授权码站点绑定）
-        $query = '';
+        $headers = [];
+        // 付费应用必须携带官网账号令牌，由官方商店按购买记录放行。
         if (!empty($item['paid'])) {
-            $license = trim((string) Settings::get('store_license', ''));
-            if ($license === '') {
-                throw new \RuntimeException('该应用需要授权码，请先在「站点设置 → 应用商店」中填写付费应用授权码（官网购买后提供）');
+            $token = trim((string) Settings::get('store_account_token', ''));
+            if ($token === '') {
+                throw new \RuntimeException('该应用需要已绑定且已购买的官网账号，请先在「站点设置 → 应用商店」中绑定账号');
             }
-            $query = '?license=' . rawurlencode($license) . '&site_url=' . rawurlencode(self::siteUrl());
+            $headers[] = 'Authorization: Bearer ' . $token;
         }
         if (preg_match('#^https?://#i', $zip) === 1) {
-            $buffer = self::httpGet($zip . $query);
+            $buffer = self::httpGet($zip, $headers);
         } elseif ($base !== '') {
             try {
-                $buffer = self::httpGet(rtrim($base, '/') . '/' . ltrim($zip, '/') . $query);
+                $buffer = self::httpGet(rtrim($base, '/') . '/' . ltrim($zip, '/'), $headers);
             } catch (\Throwable $e) {
-                // 远程 zip 失效 → 尝试本地兜底
+                // 仅免费包允许本地兜底；付费包必须经过官网权益校验。
+                if (!empty($item['paid'])) {
+                    throw $e;
+                }
                 $local = self::readLocalZip($zip);
                 if ($local === null) {
                     throw $e;
@@ -244,6 +299,9 @@ final class Store
                 $buffer = $local;
             }
         } else {
+            if (!empty($item['paid'])) {
+                throw new \RuntimeException('付费应用需要连接官方商城完成账号权益校验');
+            }
             $local = self::readLocalZip($zip);
             if ($local === null) {
                 throw new \RuntimeException('内置商店缺少安装包：' . $zip);
@@ -253,18 +311,6 @@ final class Store
         // 目录声明 sha256 时校验包完整性（防下载篡改/损坏；旧目录无该字段则跳过）
         self::verifySha256($buffer, (string) ($item['sha256'] ?? ''));
         return $buffer;
-    }
-
-    /** 站点绝对 URL（付费授权码站点绑定用；SITE_URL 环境变量优先，缺省用请求 Host） */
-    private static function siteUrl(): string
-    {
-        $env = trim((string) getenv('SITE_URL'));
-        if ($env !== '') {
-            return rtrim($env, '/');
-        }
-        $https = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
-        $host = (string) ($_SERVER['HTTP_HOST'] ?? 'localhost');
-        return ($https ? 'https' : 'http') . '://' . $host;
     }
 
     /** 目录声明 sha256 时校验包完整性（旧目录无该字段则跳过） */
@@ -343,6 +389,7 @@ final class Store
             }
             $shots = $entry['screenshots'] ?? [];
             $items[] = [
+                'id' => isset($entry['id']) ? (string) $entry['id'] : $name,
                 'name' => $name,
                 'title' => $title,
                 'version' => $version,
@@ -351,7 +398,12 @@ final class Store
                 'category' => isset($entry['category']) ? (string) $entry['category'] : '',
                 'zip' => $zip,
                 'preview' => is_array($shots) && isset($shots[0]) ? (string) $shots[0] : '',
+                'screenshots' => is_array($shots) ? array_values(array_filter($shots, static fn ($shot): bool => is_string($shot) && trim($shot) !== '')) : [],
                 'sha256' => isset($entry['packageSha256']) ? (string) $entry['packageSha256'] : '',
+                'packageSize' => isset($entry['packageSize']) ? max(0, (int) $entry['packageSize']) : 0,
+                'publishedAt' => isset($entry['publishedAt']) ? (string) $entry['publishedAt'] : '',
+                'homepage' => isset($entry['homepage']) ? (string) $entry['homepage'] : '',
+                'requires' => self::normalizeRequirements($entry['requires'] ?? ($entry['dependencies'] ?? [])),
                 'requiresPhp' => isset($entry['requiresPhp']) ? (string) $entry['requiresPhp'] : (isset($entry['requiresPafish']) ? (string) $entry['requiresPafish'] : ''),
                 'paid' => !empty($entry['licenseRequired']),
                 'changelog' => isset($entry['changelog']) ? (string) $entry['changelog'] : '',
@@ -414,7 +466,7 @@ final class Store
         }
     }
 
-    private static function httpGet(string $url): string
+    private static function httpGet(string $url, array $headers = []): string
     {
         $ch = curl_init($url);
         curl_setopt_array($ch, [
@@ -423,6 +475,7 @@ final class Store
             CURLOPT_TIMEOUT => 30,
             CURLOPT_CONNECTTIMEOUT => 10,
             CURLOPT_USERAGENT => 'pafish-store/1.0',
+            CURLOPT_HTTPHEADER => $headers,
         ]);
         $body = curl_exec($ch);
         $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
@@ -465,6 +518,7 @@ final class Store
                 continue;
             }
             $items[] = [
+                'id' => isset($entry['id']) ? (string) $entry['id'] : $name,
                 'name' => $name,
                 'title' => $title,
                 'version' => $version,
@@ -473,9 +527,33 @@ final class Store
                 'category' => isset($entry['category']) ? (string) $entry['category'] : '',
                 'zip' => $zip,
                 'preview' => isset($entry['preview']) ? (string) $entry['preview'] : '',
+                'screenshots' => isset($entry['screenshots']) && is_array($entry['screenshots']) ? array_values(array_filter($entry['screenshots'], static fn ($shot): bool => is_string($shot) && trim($shot) !== '')) : [],
+                'paid' => !empty($entry['paid']) || !empty($entry['licenseRequired']),
+                'changelog' => isset($entry['changelog']) ? (string) $entry['changelog'] : '',
+                'packageSize' => isset($entry['packageSize']) ? max(0, (int) $entry['packageSize']) : 0,
+                'publishedAt' => isset($entry['publishedAt']) ? (string) $entry['publishedAt'] : '',
+                'homepage' => isset($entry['homepage']) ? (string) $entry['homepage'] : '',
+                'requires' => self::normalizeRequirements($entry['requires'] ?? ($entry['dependencies'] ?? [])),
             ];
         }
         return $items;
+    }
+
+    /** 兼容目录中的 requires/dependencies 字段，仅保留可读字符串项。 */
+    private static function normalizeRequirements(mixed $value): array
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+        $out = [];
+        foreach ($value as $key => $item) {
+            if (is_string($key) && !is_int($key) && trim($key) !== '' && is_scalar($item) && trim((string) $item) !== '') {
+                $out[] = trim($key) . ' ' . trim((string) $item);
+            } elseif (is_string($item) && trim($item) !== '') {
+                $out[] = trim($item);
+            }
+        }
+        return array_values(array_unique($out));
     }
 
     /** SPL 递归复制目录（Windows 上不依赖 rename） */

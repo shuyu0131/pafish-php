@@ -9,7 +9,7 @@ declare(strict_types=1);
  *   dist/pafish-php-{tag}.zip            发布包，顶层目录 pafish/（WordPress 式）
  *   dist/store-php/pafish-php.json       在线更新元数据（version/notes/zip/min_version）
  *   dist/store-php/pafish-php-{tag}.zip  更新包（与发布包同一份）
- * 部署：把 store-php/ 下两个文件上传到官网 public/pafish-php/（store.waikanl.cn），
+ * 部署：把 store-php/ 下两个文件上传到官网 public/pafish-php/（www.pafish.cn），
  * 更新系统按元数据目录解析 zip 相对路径。notes 默认取自 CHANGELOG.md 的「## {tag}」小节。
  *
  * 排除：.git、本地 config.php、运行时产物（runtime/*、public/uploads/*、backups/*）、
@@ -198,7 +198,7 @@ $leaks = array_values(array_filter($entries, static fn (string $e): bool =>
 echo "vendor 条目数：" . count(array_filter($entries, static fn (string $e): bool => str_contains($e, 'pafish/vendor/'))) . "\n";
 echo $leaks === [] ? "敏感文件检查：无泄漏\n" : "警告：发现疑似泄漏条目：\n" . implode("\n", array_slice($leaks, 0, 10)) . "\n";
 
-// ---- 更新元数据（托管到官网 store.waikanl.cn/pafish-php/，静态文件，不改官网代码） ----
+// ---- 更新元数据（托管到官网 www.pafish.cn/pafish-php/，静态文件，不改官网代码） ----
 // 在线更新协议：GET {base}/pafish-php/pafish-php.json → { version, notes, zip, min_version }
 // zip 为相对路径，基于元数据 URL 目录解析；zip 与发布包同一份（顶层 pafish/）
 $notes = '';

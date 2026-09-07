@@ -1,6 +1,6 @@
 # pafish（PHP 版）
 
-极简博客系统，Node 版（Next.js）的 PHP 复刻：功能、界面与数据层完全对齐 v1.1.0。
+极简博客系统，纯 PHP 实现：开箱即用，适合共享虚拟主机和常规 PHP 环境。
 面向虚拟主机 / 宝塔等 PHP 环境，**零命令行**安装。
 
 ## 功能特性
@@ -8,7 +8,7 @@
 - **前台**：文章列表/详情（Markdown、点赞、收藏、密码门、评论楼中楼、相关推荐）、分类（递归子分类）、标签、全文搜索（FULLTEXT ngram）、归档、独立页面（模板分发）、RSS / sitemap / robots、左侧边栏组件（导航/分类/标签/友链/公告/自定义 HTML）、亮暗主题切换
 - **后台**：工作台统计（自绘 SVG 图表）、文章管理（筛选/排序/批量/回收站/置顶/定时发布）、Markdown 编辑器（工具栏/实时预览/拖拽上传/自动保存）、Markdown 批量导入、分类树、标签、媒体库（GD 压缩、云存储）、评论审核（楼中楼/拉黑）、通知、友链/导航/组件、外观（主题设置 8 类控件/导入导出）、站点设置（含 SMTP 测试、开放 API 面板）、应用商店（主题/插件安装更新回滚）、插件管理、用户管理、数据库备份（mysqldump / 纯 PHP 双模式）
 - **开放 API v1**：posts / categories / tags / comments，X-API-Key 鉴权
-- **扩展**：主题（`theme.json` + CSS 变量，与 Node 版主题包 1:1 兼容；可选 PHP 模板文件覆盖）、插件（11 个事件钩子、云存储管线、前台页面/页面模板）、内置应用商店
+- **扩展**：主题（`theme.json` + CSS 变量；可选 PHP 模板文件覆盖）、插件（11 个事件钩子、云存储管线、前台页面/页面模板）、内置应用商店
 - **定时发布双通道**：`cron.php`（宝塔计划任务）+ 前台请求低频兜底，查询层 `published_at <= NOW()` 双保险
 
 ## 技术栈
@@ -118,15 +118,15 @@ location ~ ^/(config\.php|runtime/|backups/) { deny all; }
 ## 主题
 
 - `themes/{name}/theme.json`：manifest + 设置 schema（8 类型：text/textarea/checkbox/switcher/select/radio/color/image）
-- `themes/{name}/theme.css`：语义 CSS 变量（`--bg/--fg/--accent/...`），与 Node 版主题包 1:1 兼容
+- `themes/{name}/theme.css`：语义 CSS 变量（`--bg/--fg/--accent/...`）
 - `themes/{name}/header.php` 等：**可选 PHP 模板文件**，覆盖系统模板（WordPress 式）
-- Node 版主题包可直接在 PHP 版使用（CSS 变量兼容；PHP 模板文件仅 PHP 版生效）
+- 主题包可直接在 PHP 版使用；PHP 模板文件由当前主题加载
 
 ## 插件与应用商店
 
 - 插件 = `plugin.json` + `index.php`；API v2 支持 action/filter、发布事件、SEO/Markdown/上传过滤器，以及评论/认证/文章编辑器插槽（完整规范见 [`docs/plugins.md`](docs/plugins.md)）
 - 云存储插件（如缤纷云 S4，S3 协议 + SigV4 签名）：媒体上传自动入云，失败回退本地
-- 内置应用商店开箱即用（默认源内置在 `public/store/`），也可在站点设置配置自定义商店地址
+- 内置应用商店开箱即用（默认源内置在 `public/store/`）。官方源固定为 `https://www.pafish.cn`，支持在官网账号设置生成商城令牌，粘贴到「站点设置 → 应用商店」后可同步已购应用并安装付费包；付费权益统一按官网账号购买记录校验
 - 内置插件新增 SEO 主动推送（IndexNow/百度）与通知中心（Bark/Telegram/钉钉/飞书/企微/Webhook）
 
 ## 开发与测试

@@ -1,12 +1,13 @@
 <?php
 /**
- * 站点设置（对齐 Node app/admin/settings/）：
+ * 站点设置：
  * 8 张卡片：站点信息 / 应用商店 / 评论与列表 / 上传与媒体库 / 账号与注册 /
  * 邮件服务（SMTP）/ 邮件通知（新评论提醒）/ 开放 API；整页一个表单整体保存，
  * 底部 SMTP 测试与 Key 重新生成。
  * 变量：$all（settings 全量键值）
  */
 $all = $all ?? [];
+$roleCapabilities = $roleCapabilities ?? [];
 
 /** 布尔键：未存储时用默认值；返回是否勾选 */
 $boolVal = static function (string $key, string $default) use ($all): bool {
@@ -18,7 +19,7 @@ $textVal = static function (string $key, string $default = '') use ($all): strin
     return (string) ($all[$key] ?? $default);
 };
 
-// IP 黑名单：存储 JSON 数组 → 逗号分隔文本展示（对齐 Node ipListToText）
+// IP 黑名单：存储 JSON 数组，逗号分隔文本展示
 $ipsText = '';
 try {
     $ips = json_decode((string) ($all['blocked_ips'] ?? '[]'), true);
@@ -58,7 +59,7 @@ try {
           <span class="label">ICP 备案号</span>
           <input class="input" type="text" name="site_icp" value="<?= e($textVal('site_icp')) ?>" placeholder="如：京ICP备xxxxxxxx号" maxlength="100">
         </div>
-        <p class="admin-field-hint">应用商店由官方内置（store.waikanl.cn），无需配置。</p>
+        <p class="admin-field-hint">应用商店由官方内置（www.pafish.cn），无需配置。</p>
       </div>
     </div>
 
@@ -97,7 +98,7 @@ try {
         <input type="checkbox" name="md_allow_raw_html" value="true" <?= $boolVal('md_allow_raw_html', 'false') ? 'checked' : '' ?>>
         <span>允许文章中的原始 HTML</span>
       </label>
-      <p class="admin-field-hint">默认关闭：文章 Markdown 里的原始 HTML 会转义为文本展示（与官方 Node 版一致，防止文章内容注入脚本造成存储型 XSS）。开启后按原样渲染，仅在内容完全可信时建议开启。</p>
+      <p class="admin-field-hint">默认关闭：文章 Markdown 里的原始 HTML 会转义为文本展示，防止文章内容注入脚本造成存储型 XSS。开启后按原样渲染，仅在内容完全可信时建议开启。</p>
     </div>
 
     <!-- 上传与媒体库 -->
@@ -130,9 +131,9 @@ try {
     <div class="card admin-form-card">
       <h2 class="admin-card-title">应用商店</h2>
       <div class="admin-field">
-        <span class="label">付费应用授权码</span>
-        <input class="input" type="password" name="store_license" value="<?= e($textVal('store_license')) ?>" placeholder="购买后粘贴授权码" autocomplete="new-password" maxlength="500">
-        <p class="admin-field-hint">用于当前站点安装和更新付费插件/主题，授权码由官网（store.waikanl.cn）购买后提供；未购买付费应用时无需填写。授权码仅保存在服务器，安装时自动携带，不会出现在页面源码。</p>
+        <span class="label">官方商城账号令牌</span>
+        <input class="input" type="password" name="store_account_token" value="" placeholder="<?= $textVal('store_account_token') !== '' ? '已绑定，粘贴新令牌可替换' : '在官网账号设置中生成后粘贴' ?>" autocomplete="new-password" maxlength="500">
+        <p class="admin-field-hint">推荐使用官网账号令牌绑定商城。<?= $textVal('store_account_token') !== '' ? '当前已绑定；' : '' ?>令牌不回显到页面源码，仅保存在本站服务器并通过 Authorization 请求头发送。</p>
       </div>
     </div>
 
@@ -196,10 +197,35 @@ try {
           <button type="button" id="regenerateKeyBtn" class="btn btn-outline admin-key-btn">重新生成</button>
         </div>
         <p class="admin-field-hint">调用时在请求头携带 X-API-Key；Key 泄露后请立即重新生成（旧 Key 作废）。</p>
+        <div class="admin-form-grid">
+          <div class="admin-field admin-field-narrow"><span class="label">每分钟请求上限</span><input class="input admin-input-w32" type="number" name="api_rate_limit" value="<?= e($textVal('api_rate_limit', '120')) ?>" min="0" max="10000"></div>
+          <div class="admin-field admin-field-narrow"><span class="label">单页最大条数</span><input class="input admin-input-w32" type="number" name="api_max_limit" value="<?= e($textVal('api_max_limit', '50')) ?>" min="1" max="200"></div>
+          <div class="admin-field"><span class="label">CORS 来源</span><input class="input" type="text" name="api_cors" value="<?= e($textVal('api_cors', '')) ?>" placeholder="留空关闭；多个来源用逗号分隔"></div>
+        </div>
         <pre class="admin-code-block">curl -H "X-API-Key: &lt;你的Key&gt;" https://你的域名/api/v1/posts
 curl -H "X-API-Key: &lt;你的Key&gt;" https://你的域名/api/v1/posts/文章别名
 curl -H "X-API-Key: &lt;你的Key&gt;" "https://你的域名/api/v1/comments?postId=1"
 # 更多：/api/v1/categories、/api/v1/tags</pre>
+      </div>
+    </div>
+
+    <div class="card admin-form-card">
+      <h2 class="admin-card-title">固定链接</h2>
+      <div class="admin-field"><span class="label">文章地址结构</span>
+        <select class="input" name="permalink_structure">
+          <?php foreach (['/post/%postname%' => '/post/文章别名（兼容默认）', '/%postname%' => '/文章别名', '/%year%/%month%/%postname%' => '/年份/月/文章别名'] as $value => $label): ?>
+            <option value="<?= e($value) ?>" <?= $textVal('permalink_structure', '/post/%postname%') === $value ? 'selected' : '' ?>><?= e($label) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <p class="admin-field-hint">原有 /post/文章别名地址始终保留，切换后新链接会按所选结构生成。</p>
+    </div>
+
+    <div class="card admin-form-card">
+      <h2 class="admin-card-title">角色权限</h2>
+      <div class="admin-field"><span class="label">角色能力 JSON</span>
+        <textarea class="input admin-input-block" name="role_capabilities" rows="8" spellcheck="false"><?= e(json_encode($roleCapabilities, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)) ?></textarea>
+        <p class="admin-field-hint">只填写系统提供的能力标识；ADMIN 永远拥有全部能力。错误 JSON 会被忽略并使用默认权限。</p>
       </div>
     </div>
 
@@ -249,7 +275,7 @@ curl -H "X-API-Key: &lt;你的Key&gt;" "https://你的域名/api/v1/comments?pos
       .catch(function () { showError("网络错误"); });
   }
 
-  // 保存：checkbox 未勾选提交 "false"；IP 黑名单文本转 JSON 数组（对齐 Node textToIpList）
+  // 保存：checkbox 未勾选提交 "false"；IP 黑名单文本转 JSON 数组
   form.addEventListener("submit", function (e) {
     e.preventDefault();
     clearError();
@@ -278,7 +304,7 @@ curl -H "X-API-Key: &lt;你的Key&gt;" "https://你的域名/api/v1/comments?pos
     testBtn.disabled = true;
     testBtn.textContent = "发送中…";
     var fd = new FormData();
-    // 测试接口契约（对齐 Node sendTestEmailAction）：host/port/user/pass/from
+    // 测试接口参数：host/port/user/pass/from
     fd.append("host", form.elements.smtp_host.value);
     fd.append("port", form.elements.smtp_port.value);
     fd.append("user", form.elements.smtp_user.value);

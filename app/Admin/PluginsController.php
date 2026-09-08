@@ -36,6 +36,10 @@ final class PluginsController extends AdminController
                 'settingsCount' => count($m['settings'] ?? []),
                 'storage' => $m['storage'] ?? null,
                 'requires' => is_array($m['requires'] ?? null) ? array_values(array_filter(array_map(static fn ($v): string => is_scalar($v) ? trim((string) $v) : '', $m['requires']))) : [],
+                // Manifest may come from an older plugin or be unavailable. Keep
+                // view-facing capability counts stable so the list never emits notices.
+                'pagesCount' => is_array($m['pages'] ?? null) ? count($m['pages']) : 0,
+                'templatesCount' => is_array($m['pageTemplates'] ?? null) ? count($m['pageTemplates']) : 0,
                 'active' => Plugin::isActive($name),
             ];
         }

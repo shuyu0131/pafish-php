@@ -56,6 +56,9 @@ final class StoreController extends AdminController
             'storeUrl' => Store::baseUrl(),
             'storeAccount' => $account,
             'storeAccountStatus' => $accountState['status'],
+            // The store view creates its detail drawer in-place; load its scoped
+            // styles through the admin layout so it is visible and fixed above content.
+            'headExtra' => '<link rel="stylesheet" href="' . e(asset_url('/css/admin-store-enhanced.css')) . '">',
         ], '应用商店'));
         return $response;
     }

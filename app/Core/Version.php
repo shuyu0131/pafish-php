@@ -11,7 +11,7 @@ namespace Pafish\Core;
 final class Version
 {
     /** 当前版本（发布新版本时同步更新，并保持一致的三处对齐） */
-    public const VERSION = '0.1.1';
+    public const VERSION = '0.1.16';
 
     /** 版本号（供模板/JSON 输出） */
     public static function current(): string

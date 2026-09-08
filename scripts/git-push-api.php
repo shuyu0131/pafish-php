@@ -7,8 +7,8 @@ declare(strict_types=1);
  *   1) 用 `git ls-files --stage` 读取本地 HEAD 树的 mode/sha（不重算内容哈希）
  *   2) 把工作区文件 POST 到 GitHub git/blobs（sha 与本地一致）
  *   3) 递归构建嵌套 trees → 创建 commit → 创建 refs/heads/main 与 refs/tags/{tag}
- * 用法：php scripts/git-push-api.php --token=<GITHUB_TOKEN> --repo=shuyu0131/pafish-php [--tag=v0.1.0]
- * 前提：工作区已全部提交（git status 干净）；token 有 repo 权限。
+ * 用法：php scripts/git-push-api.php --token=<GITHUB_TOKEN> --repo=shuyu0131/pafish-php [--tag=v0.1.0] [--parent=<REMOTE_SHA>] [--allow-dirty]
+ * 默认要求工作区已全部提交；使用 --allow-dirty 时仅推送 Git 索引中的已提交树，不会带入工作区改动。
  */
 
 $root = dirname(__DIR__);
@@ -17,6 +17,8 @@ $root = dirname(__DIR__);
 $token = '';
 $repo = '';
 $tag = '';
+$parent = '';
+$allowDirty = false;
 foreach (array_slice($argv, 1) as $arg) {
     if (str_starts_with($arg, '--token=')) {
         $token = substr($arg, 8);
@@ -24,6 +26,10 @@ foreach (array_slice($argv, 1) as $arg) {
         $repo = substr($arg, 7);
     } elseif (str_starts_with($arg, '--tag=')) {
         $tag = substr($arg, 6);
+    } elseif (str_starts_with($arg, '--parent=')) {
+        $parent = substr($arg, 9);
+    } elseif ($arg === '--allow-dirty') {
+        $allowDirty = true;
     }
 }
 if ($token === '' || $repo === '') {
@@ -80,11 +86,41 @@ function checkApi(array $r, string $what): array
     return $r[1];
 }
 
+/** 读取 Git blob 的原始字节（Windows 下不要经 shell_exec 传输二进制）。 */
+function readGitBlob(string $root, string $sha): string
+{
+    $pipes = [];
+    $process = proc_open(
+        // $sha 来自 git ls-files --stage，已由十六进制正则校验，Windows 下无需 shell 引号。
+        'git cat-file blob ' . $sha,
+        // proc_open 的 pipe 模式以子进程视角声明：stdin 写入端为 r，stdout/stderr 读取端为 w。
+        [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+        $pipes,
+        $root
+    );
+    if (!is_resource($process)) {
+        throw new RuntimeException("无法读取 Git blob {$sha}");
+    }
+    fclose($pipes[0]);
+    $content = stream_get_contents($pipes[1]);
+    fclose($pipes[1]);
+    $error = stream_get_contents($pipes[2]);
+    fclose($pipes[2]);
+    $exitCode = proc_close($process);
+    if ($exitCode !== 0) {
+        throw new RuntimeException("读取 Git blob 失败 {$sha}：" . trim((string) $error));
+    }
+    return (string) $content;
+}
+
 // ---------- 1. 读取本地 HEAD 树 ----------
 $clean = trim((string) shell_exec('cd ' . escapeshellarg($root) . ' && git status --porcelain'));
-if ($clean !== '') {
+if ($clean !== '' && !$allowDirty) {
     fwrite(STDERR, "工作区有未提交改动，请先提交：\n{$clean}\n");
     exit(1);
+}
+if ($clean !== '' && $allowDirty) {
+    echo "警告：使用 --allow-dirty，仅推送 Git 索引中的已提交树\n";
 }
 $stage = shell_exec('cd ' . escapeshellarg($root) . ' && git ls-files --stage');
 if ($stage === null || trim($stage) === '') {
@@ -111,12 +147,8 @@ foreach ($files as $rel => [$mode, $sha]) {
     if ($mode === '160000') {
         continue; // submodule 不支持（本项目无）
     }
-    if ($mode === '120000') {
-        $content = (string) shell_exec('cd ' . escapeshellarg($root) . ' && git cat-file blob ' . $sha);
-    } else {
-        $path = $root . '/' . str_replace('/', DIRECTORY_SEPARATOR, $rel);
-        $content = is_file($path) ? (string) file_get_contents($path) : '';
-    }
+    // 从 Git 对象读取原始字节，避免 Windows 工作区的 CRLF/二进制转换导致 blob SHA 不一致。
+    $content = readGitBlob($root, $sha);
     $r = api('POST', "https://api.github.com/repos/{$repo}/git/blobs", [
         'content' => base64_encode($content),
         'encoding' => 'base64',
@@ -183,6 +215,10 @@ $commitBody = [
     'author' => ['name' => $name, 'email' => $email, 'date' => gmdate('Y-m-d\TH:i:s\Z')],
     'committer' => ['name' => $name, 'email' => $email, 'date' => gmdate('Y-m-d\TH:i:s\Z')],
 ];
+if ($parent !== '') {
+    $commitBody['parents'] = [$parent];
+    echo "远端父提交：{$parent}\n";
+}
 $r = api('POST', "https://api.github.com/repos/{$repo}/git/commits", $commitBody);
 $commitSha = checkApi($r, 'commit')['sha'] ?? '';
 echo "commit：{$commitSha}\n";

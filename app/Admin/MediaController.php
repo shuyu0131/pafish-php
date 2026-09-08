@@ -11,7 +11,7 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
- * 媒体库（对齐 Node app/admin/uploads 页 + deleteUpload + POST /api/uploads/external）：
+ * 媒体库：支持本地和外部资源。
  * - 列表 48/页（q 搜索、type 5 类筛选：图片/文档/压缩包/音频/视频、分页窗口 ±2）
  * - 删除：先删数据库行再删文件（本地路径穿越防护 / 云存储插件 deleteFile 静默失败）
  * - 外部资源：仅存链接不下载（mime 按扩展名推断、size=0）
@@ -19,7 +19,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  */
 final class MediaController extends AdminController
 {
-    private const PAGE_SIZE = 48; // 对齐 Node 后台媒体库页 PAGE_SIZE
+    private const PAGE_SIZE = 48;
 
     /** GET /admin/uploads：媒体库列表 */
     public function index(Request $request, Response $response): Response
@@ -28,6 +28,7 @@ final class MediaController extends AdminController
         $page = max(1, (int) ($_GET['page'] ?? 1));
         $q = trim((string) ($_GET['q'] ?? ''));
         $type = (string) ($_GET['type'] ?? '');
+        $date = trim((string) ($_GET['date'] ?? ''));
         if (!in_array($type, ['image', 'doc', 'archive', 'audio', 'video'], true)) {
             $type = '';
         }
@@ -42,6 +43,14 @@ final class MediaController extends AdminController
         if ($tw !== '') {
             $where .= ' AND ' . $tw;
         }
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+            $where .= ' AND created_at >= ? AND created_at < DATE_ADD(?, INTERVAL 1 DAY)';
+            $params[] = $date;
+            $params[] = $date;
+        } else {
+            $date = '';
+        }
+        Upload::refreshUsage();
         $total = (int) DB::value("SELECT COUNT(*) FROM uploads WHERE {$where}", $params);
         $pages = max(1, (int) ceil($total / self::PAGE_SIZE));
         $page = min($page, $pages);
@@ -57,11 +66,12 @@ final class MediaController extends AdminController
             'pages' => $pages,
             'q' => $q,
             'type' => $type,
+            'date' => $date,
         ], '媒体库'));
         return $response;
     }
 
-    /** POST /admin/uploads/{id}/delete：先删库再删文件（对齐 Node deleteUpload） */
+    /** POST /admin/uploads/{id}/delete：先删库再删文件 */
     public function delete(Request $request, Response $response): Response
     {
         $this->guardCanManage();
@@ -70,14 +80,19 @@ final class MediaController extends AdminController
         if ($row === null) {
             return $this->json($response, ['error' => '媒体不存在或已删除'], 400);
         }
+        Upload::refreshUsage();
+        $row = DB::fetchOne('SELECT * FROM uploads WHERE id = ?', [$id]) ?: $row;
+        if ((int) ($row['usage_count'] ?? 0) > 0 && (string) (($request->getParsedBody()['force'] ?? '')) !== '1') {
+            return $this->json($response, ['error' => '媒体仍被内容引用，请确认后强制删除', 'usageCount' => (int) $row['usage_count']], 409);
+        }
         DB::execute('DELETE FROM uploads WHERE id = ?', [$id]);
 
         $url = (string) $row['url'];
         if (preg_match('/^https?:\/\//i', $url) === 1) {
-            // 云端文件（完整 http(s) URL，云存储插件托管）→ 调插件删除（对齐 Node deleteUpload）
+            // 云端文件（完整 http(s) URL，云存储插件托管）→ 调插件删除
             apply_filters('upload_delete_from_cloud', null, ['url' => $url]);
         } else {
-            // 本地：base 子路径校验防路径穿越后删除（失败忽略，与 Node 一致）
+            // 本地：base 子路径校验防路径穿越后删除（失败忽略）
             $base = realpath(dirname(__DIR__, 2) . '/public/uploads');
             if ($base !== false) {
                 $path = parse_url($url, PHP_URL_PATH) ?? $url;
@@ -90,7 +105,7 @@ final class MediaController extends AdminController
         return $this->json($response, ['ok' => true]);
     }
 
-    /** POST /admin/uploads/external：添加外部资源（仅存链接，对齐 Node POST /api/uploads/external） */
+    /** POST /admin/uploads/external：添加外部资源（仅存链接） */
     public function external(Request $request, Response $response): Response
     {
         $this->guardCanManage();

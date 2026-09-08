@@ -7,7 +7,7 @@ namespace Pafish\Services;
 use Pafish\Core\DB;
 
 /**
- * 定时发布（对齐 Node src/lib/scheduler.ts publishScheduledPosts）：
+ * 定时发布：
  * - 把已到发布时间的 SCHEDULED 文章转为 PUBLISHED
  * - 查询层兜底：前台只显示 PUBLISHED 且 published_at <= NOW()，即使任务未跑也不会提前泄露
  * 双通道触发：
@@ -22,20 +22,38 @@ final class Scheduler
      */
     public static function publishDue(): int
     {
-        $ids = array_map(
-            static fn (array $r): int => (int) $r['id'],
-            DB::fetchAll(
-                "SELECT id FROM posts WHERE status = 'SCHEDULED' AND deleted_at IS NULL AND published_at <= NOW()"
-            )
+        $rows = DB::fetchAll(
+            "SELECT id, title, slug, published_at, category_id, external_url, is_pinned, category_pinned
+             FROM posts WHERE status = 'SCHEDULED' AND deleted_at IS NULL AND published_at <= NOW()"
         );
-        if ($ids === []) {
+        if ($rows === []) {
             return 0;
         }
-        $ph = implode(',', array_fill(0, count($ids), '?'));
-        $updated = DB::execute(
-            "UPDATE posts SET status = 'PUBLISHED', updated_at = updated_at WHERE status = 'SCHEDULED' AND id IN ({$ph})",
-            $ids
-        );
+        $updated = 0;
+        foreach ($rows as $row) {
+            $changed = DB::execute(
+                "UPDATE posts SET status = 'PUBLISHED', updated_at = updated_at WHERE id = ? AND status = 'SCHEDULED'",
+                [(int) $row['id']]
+            );
+            if ($changed !== 1) {
+                continue;
+            }
+            $updated++;
+            \do_action('after_post_published', [
+                'id' => (string) $row['id'],
+                'title' => (string) $row['title'],
+                'slug' => (string) $row['slug'],
+                'status' => 'PUBLISHED',
+                'publishedAt' => $row['published_at'] ? (string) $row['published_at'] : null,
+                'categoryId' => $row['category_id'] ? (string) $row['category_id'] : null,
+                'externalUrl' => $row['external_url'] ? (string) $row['external_url'] : null,
+                'isPinned' => (bool) $row['is_pinned'],
+                'categoryPinned' => (bool) $row['category_pinned'],
+                'action' => 'schedule',
+                'previousStatus' => 'SCHEDULED',
+                'trigger' => 'schedule',
+            ]);
+        }
         return $updated;
     }
 

@@ -1,0 +1,66 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Pafish\Http;
+
+use Psr\Http\Message\ResponseInterface as Response;
+use Psr\Http\Message\ServerRequestInterface as Request;
+
+/** Serves a theme's packaged static assets without exposing its PHP templates. */
+final class ThemeAssetController
+{
+    private const TYPES = [
+        'css' => 'text/css; charset=utf-8',
+        'js' => 'application/javascript; charset=utf-8',
+        'png' => 'image/png',
+        'jpg' => 'image/jpeg',
+        'jpeg' => 'image/jpeg',
+        'gif' => 'image/gif',
+        'webp' => 'image/webp',
+        'avif' => 'image/avif',
+        'svg' => 'image/svg+xml',
+        'ico' => 'image/x-icon',
+        'woff' => 'font/woff',
+        'woff2' => 'font/woff2',
+        'ttf' => 'font/ttf',
+    ];
+
+    public function serve(Request $request, Response $response, array $args): Response
+    {
+        $theme = (string) ($args['theme'] ?? '');
+        $path = ltrim((string) ($args['path'] ?? ''), '/');
+        if (
+            preg_match('/^[a-z0-9_-]{1,50}$/', $theme) !== 1
+            || $path === ''
+            || str_contains($path, '..')
+            || str_contains($path, "\0")
+            || str_contains($path, '\\')
+            || str_contains($path, '//')
+        ) {
+            return $this->notFound($response);
+        }
+
+        $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+        if (!isset(self::TYPES[$ext])) {
+            return $this->notFound($response);
+        }
+
+        $file = PAFISH_ROOT . '/themes/' . $theme . '/assets/' . $path;
+        if (!is_file($file)) {
+            return $this->notFound($response);
+        }
+
+        $response->getBody()->write((string) file_get_contents($file));
+        return $response
+            ->withHeader('Content-Type', self::TYPES[$ext])
+            ->withHeader('Content-Length', (string) filesize($file))
+            ->withHeader('Cache-Control', 'public, max-age=86400');
+    }
+
+    private function notFound(Response $response): Response
+    {
+        $response->getBody()->write('404 Not Found');
+        return $response->withStatus(404)->withHeader('Content-Type', 'text/plain; charset=utf-8');
+    }
+}

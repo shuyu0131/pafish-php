@@ -7,7 +7,7 @@ namespace Pafish\Services;
 use Pafish\Core\Config;
 
 /**
- * 主题系统（对标 Node 版 src/lib/theme.ts + admin/appearance/actions.ts）：
+ * 主题系统：
  * - 主题 = themes/{name}/theme.json（manifest + 设置 schema）+ theme.css（语义 CSS 变量）+ 可选 PHP 模板文件
  * - 模板解析优先级：主题目录文件 → 系统内置 fallback（app/Views/theme/）
  * - 安装 zip：唯一顶层目录=主题名 / 10MB 上限 / 穿越防护 / manifest 校验失败回滚
@@ -75,7 +75,7 @@ final class Theme
 
     /**
      * 主题描述（列表页用）：返回 ['manifest' => ?array, 'error' => ?string]
-     * error 文案对齐 Node readThemeManifest
+     * 错误文案保持统一
      */
     public static function describe(string $name): array
     {
@@ -99,7 +99,7 @@ final class Theme
 
     /**
      * 校验 manifest；返回错误消息或 null。
-     * 对齐 Node readThemeManifest：name 一致 + title/version + pageTemplates 过滤（全非法才报错）
+     * 校验 name 一致、title/version 存在，并过滤 pageTemplates（全非法才报错）
      */
     public static function validateManifest(array $json, string $dirName): ?string
     {
@@ -156,7 +156,7 @@ final class Theme
         return $keys;
     }
 
-    /** 主题声明的页面模板（过滤后，不含 default；对齐 Node page-templates.ts 主题层） */
+    /** 主题声明的页面模板（过滤后，不含 default） */
     public static function pageTemplates(string $name): array
     {
         $desc = self::describe($name);
@@ -173,6 +173,22 @@ final class Theme
             return null;
         }
         $file = self::root() . '/' . $name . '/theme.css';
+        return is_file($file) ? (string) file_get_contents($file) : null;
+    }
+
+    /**
+     * 主题布局样式（style.css 内容，前台 <style> 内联注入）；无文件返回 null。
+     * 第三方主题未提供 style.css 时回退默认主题 default 的布局，保证始终有样式。
+     */
+    public static function layoutCss(string $name): ?string
+    {
+        if (!self::isValidName($name)) {
+            $name = 'default';
+        }
+        $file = self::root() . '/' . $name . '/style.css';
+        if (!is_file($file)) {
+            $file = self::root() . '/default/style.css';
+        }
         return is_file($file) ? (string) file_get_contents($file) : null;
     }
 
@@ -265,7 +281,7 @@ final class Theme
             if ($count <= 0) {
                 throw new \RuntimeException('zip 包为空');
             }
-            // 唯一顶层目录 + 穿越防护（对齐 Node installFromBuffer 校验顺序与文案）
+            // 唯一顶层目录 + 穿越防护
             $top = null;
             for ($i = 0; $i < $count; $i++) {
                 $entryName = (string) $zip->getNameIndex($i);
@@ -331,11 +347,11 @@ final class Theme
         }
     }
 
-    /** 从 URL 下载并安装（30s 超时） */
+    /** 从 URL 下载并安装（30s 超时；仅 https，防中间人篡改） */
     public static function installFromUrl(string $url): array
     {
-        if (preg_match('#^https?://#', $url) !== 1) {
-            throw new \RuntimeException('仅支持 http(s) 下载地址');
+        if (preg_match('#^https://#', $url) !== 1) {
+            throw new \RuntimeException('仅支持 https 下载地址');
         }
         $ctx = stream_context_create(['http' => [
             'timeout' => 30,
@@ -382,14 +398,14 @@ final class Theme
         self::reset();
     }
 
-    /** 导出主题设置备份（JSON 数组；对齐 Node 备份格式） */
+    /** 导出主题设置备份（JSON 数组） */
     public static function exportValues(string $name): array
     {
         $desc = self::describe($name);
         if ($desc['error'] !== null) {
             throw new \RuntimeException($desc['error'] ?? '主题不存在');
         }
-        // 全量导出（schema 默认 + 已保存覆盖），对齐 Node 设置页 getThemeValues 语义
+        // 全量导出（schema 默认 + 已保存覆盖）
         return [
             'format' => self::BACKUP_FORMAT,
             'theme' => $name,

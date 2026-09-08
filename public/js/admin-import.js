@@ -1,4 +1,4 @@
-/* Markdown 批量导入页（对齐 Node import-markdown.tsx）：
+/* Markdown 批量导入页：
    - 点击/拖拽选择 .md 文件（最多 50 个、单文件 1MB，超限即时提示）
    - 已选文件列表可逐个移除；清空按钮
    - 「导入为」单选（草稿/直接发布）
@@ -35,6 +35,7 @@
   function showError(msg) {
     errorBox.textContent = msg;
     errorBox.hidden = false;
+    if (typeof window.pafishNotify === "function") window.pafishNotify(msg);
   }
   function hideError() {
     errorBox.hidden = true;
@@ -145,6 +146,15 @@
       })
       .then(function (data) {
         renderResult(data);
+        // 结果面板之外同步一条 toast 总结
+        if (typeof window.pafishNotify === "function") {
+          var okCount = data.created || 0;
+          var failCount = data.failed || 0;
+          window.pafishNotify(
+            failCount === 0 ? "导入完成：全部成功（" + okCount + " 篇）" : "导入完成：成功 " + okCount + " 篇，失败 " + failCount + " 篇",
+            failCount > 0
+          );
+        }
         files = [];
         renderList();
       })

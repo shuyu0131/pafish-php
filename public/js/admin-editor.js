@@ -1,10 +1,10 @@
 /**
- * 文章编辑器（对齐 Node post-editor.tsx + category-select.tsx + media-picker.tsx）：
- * - Markdown 编辑：@uiw/react-md-editor（中文工具栏/分栏预览/全屏，react18 内置单文件），对齐 Node 版
+ * 文章编辑器交互：分类、标签、媒体选择和自动保存。
+ * - Markdown 编辑：Vditor（所见即所得/分屏/源码三模式，中文工具栏，本地化资源）
  * - 拖拽/粘贴图片上传（/api/upload，GD 压缩入库）；非图片文件插入下载链接
  * - slug 联动（未手动修改时随标题生成）、标签点选+新建、封面上传/媒体库
  * - 高级选项：定时发布、置顶、访问密码、外链、分类内置顶、自定义字段
- * - 提交校验 → AJAX 保存 → 跳转编辑页（对齐 Node redirect）
+ * - 提交校验 → AJAX 保存 → 跳转编辑页
  * - Ctrl+S 快速存草稿；编辑模式每 60 秒自动保存（dirty 检测）
  * - 媒体弹窗（本地上传 / 媒体库 24/页 + 500ms 防抖搜索）
  */
@@ -59,6 +59,27 @@
   var catOpen = false;
   var catQuery = "";
   var catActive = 0;
+  var LUMINA_COMMON_KEYS = ["lumina_location", "lumina_location_address", "lumina_location_city", "lumina_location_poi_id", "lumina_location_lat", "lumina_location_lng", "lumina_private"];
+  var LUMINA_TYPE_KEYS = {
+    img: ["lumina_photos"],
+    live: ["lumina_photos", "lumina_live_photos"],
+    video: ["lumina_video_url", "lumina_video_poster"],
+    embed: ["lumina_embed_url", "lumina_embed_ratio", "lumina_embed_cover"],
+    music: ["lumina_music_url", "lumina_music_title", "lumina_music_artist", "lumina_music_cover"],
+    link: ["lumina_link_url", "lumina_link_title", "lumina_link_desc", "lumina_link_image"],
+    redpacket: ["redpacket_mode", "redpacket_total", "redpacket_count", "redpacket_title"]
+  };
+  var LUMINA_KEYS = ["lumina_type"].concat(LUMINA_COMMON_KEYS, Object.keys(LUMINA_TYPE_KEYS).reduce(function (all, type) { return all.concat(LUMINA_TYPE_KEYS[type]); }, []));
+  var LUMINA_LABELS = {
+    lumina_photos: "图片列表", lumina_live_photos: "实况图视频", lumina_video_url: "视频地址", lumina_video_poster: "视频封面",
+    lumina_embed_url: "平台视频", lumina_embed_ratio: "平台视频方向", lumina_embed_cover: "平台视频封面",
+    lumina_music_url: "音乐地址", lumina_music_title: "音乐标题", lumina_music_artist: "音乐作者", lumina_music_cover: "音乐封面",
+    lumina_link_url: "链接地址", lumina_link_title: "链接标题", lumina_link_desc: "链接描述", lumina_link_image: "链接缩略图",
+    lumina_location: "地点名称", lumina_location_address: "地点地址", lumina_location_city: "所在城市", lumina_location_poi_id: "地点 POI ID", lumina_location_lat: "纬度", lumina_location_lng: "经度",
+    lumina_private: "可见范围", redpacket_mode: "红包类型", redpacket_total: "红包总积分",
+    redpacket_count: "红包数量", redpacket_title: "红包标题"
+  };
+  var luminaValues = {};
 
   // ---------- DOM ----------
   var els = {
@@ -77,6 +98,7 @@
     tagsSelected: $("#tagsSelected"),
     tagsAll: $("#tagsAll"),
     tagInput: $("#fTagInput"),
+    luminaFields: $("#luminaFields"),
     customFields: $("#customFields"),
     errorBox: $(".admin-editor-error"),
     autosave: $("[data-autosave]"),
@@ -94,37 +116,24 @@
     mediaFile: $("#mediaFile"),
   };
 
-  // ---------- 编辑器（@uiw/react-md-editor，React 挂载） ----------
-  // 编辑器当前值：React onChange 实时同步回 #fContent（原生表单兜底 / FormData 读取）
+  // ---------- 编辑器（Vditor：所见即所得/分屏/源码三模式） ----------
+  var vditor = null;
+  // 编辑器当前值：Vditor input 回调实时同步回 #fContent（原生表单兜底 / FormData 读取）
   function editorValue() {
     return els.content.value;
   }
-  // 光标处插入（媒体弹窗 / 拖拽粘贴上传用）：优先编辑器 API（对齐 Node api.replaceSelection）
+  // 光标处插入（媒体弹窗用）：Vditor API（insertValue 会聚焦并渲染选区）
   function editorInsert(md) {
-    var api = window.__pafishMdApi;
-    if (api && typeof api.replaceSelection === "function") {
-      try {
-        api.replaceSelection(md);
-        return;
-      } catch (e) { /* 回退 DOM 方式 */ }
-    }
-    var real = $(".w-md-editor-text-input");
-    if (real) {
-      var start = real.selectionStart != null ? real.selectionStart : real.value.length;
-      var end = real.selectionEnd != null ? real.selectionEnd : start;
-      var before = real.value.slice(0, start);
-      var insert = (before === "" || /(?:\n\n|\n)$/.test(before)) ? md + "\n" : "\n\n" + md + "\n";
-      real.setRangeText(insert, start, end, "end");
-      real.dispatchEvent(new Event("input", { bubbles: true })); // 触发 React onChange
-      real.focus();
+    if (vditor && typeof vditor.insertValue === "function") {
+      vditor.insertValue(md);
       return;
     }
-    els.content.value += md;
+    els.content.value += els.content.value ? "\n\n" + md : md;
   }
 
   // 资源缺失兜底：显示原生 textarea 直接编辑
   function editorFallback() {
-    var mount = $("#mdEditorMount");
+    var mount = $("#vditorMount");
     if (mount) mount.style.display = "none";
     els.content.hidden = false;
     els.content.style.height = "520px";
@@ -133,94 +142,57 @@
   }
 
   function initEditor() {
-    var mount = $("#mdEditorMount");
+    var mount = $("#vditorMount");
     if (!mount) return;
-    var MDEditor = window.MDEditor, React = window.React, ReactDOM = window.ReactDOM;
-    if (!MDEditor || !React || !ReactDOM) { editorFallback(); return; }
+    if (typeof window.Vditor !== "function") { editorFallback(); return; }
 
-    var Comp = MDEditor.default || MDEditor;
-    var cn = window.PAFISH_MD_CN || { commands: [], extra: [] };
-
-    // 媒体插入命令：工具栏按钮打开弹窗（本地上传 / 媒体库），选择后光标处插入（对齐 Node insertMediaCommand）
-    var insertMediaCommand = {
-      name: "insert-media",
-      keyCommand: "insert-media",
-      buttonProps: { "aria-label": "插入媒体", title: "插入媒体（本地上传或媒体库）" },
-      icon: React.createElement("svg", { viewBox: "0 0 24 24", width: 14, height: 14, fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" },
-        React.createElement("path", { d: "M16 5h6" }),
-        React.createElement("path", { d: "M19 2v6" }),
-        React.createElement("path", { d: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h10" }),
-        React.createElement("path", { d: "m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" })
-      ),
-      execute: function (_state, api) {
-        window.__pafishMdApi = api;
-        openModal("insert");
+    vditor = new Vditor(mount, {
+      height: 520,
+      mode: "ir",
+      value: initial.content || "",
+      placeholder: "开始写作…（支持拖拽/粘贴图片上传）",
+      lang: "zh_CN",
+      cdn: DATA.assetBase + "/vendor/vditor",
+      cache: { enable: false }, // 内容走 textarea 与数据库，不用 localStorage 缓存
+      counter: { enable: true },
+      toolbar: [
+        "headings", "bold", "italic", "strike", "|",
+        "line", "quote", "list", "ordered-list", "check", "outdent", "indent", "|",
+        "code", "inline-code", "insert-after", "insert-before", "|",
+        "upload", "link", "table", "|", "emoji", "|",
+        {
+          name: "insert-media",
+          tip: "插入媒体（本地上传或媒体库）",
+          icon: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>',
+          click: function () { openModal("insert"); },
+        },
+        "|", "undo", "redo", "|", "fullscreen", "edit-mode", "both", "preview", "|",
+        "outline",
+      ],
+      input: function (v) {
+        els.content.value = v || "";
       },
-    };
-
-    // 图片/文件上传并插入（拖拽与粘贴共用）
-    function handleFile(f, isDrag) {
-      if (!f) return;
-      uploadFile(f)
-        .then(function (j) {
-          if (isImage(f.type)) {
-            editorInsert("![图片](" + j.url + ")");
-          } else {
-            var label = (f.name || "").replace(/\.[^.]+$/, "") || "文件";
-            editorInsert("[" + label + "](" + j.url + ")");
-          }
-        })
-        .catch(function (err) { showError(err.message || "上传失败"); });
-    }
-
-    // 包装组件：受控循环（@uiw 内部 state 与 value prop 同步，不回传会导致输入被回滚）
-    var PafishEditor = function (props) {
-      var st = React.useState(props.initialValue);
-      var value = st[0];
-      var setValue = st[1];
-      return React.createElement(Comp, Object.assign({}, props.mdProps, {
-        value: value,
-        onChange: function (v) {
-          setValue(v || "");
-          props.onChange(v || "");
-        },
-      }));
-    };
-
-    var el = React.createElement(PafishEditor, {
-      initialValue: initial.content || "",
-      onChange: function (v) { els.content.value = v || ""; },
-      mdProps: {
-        height: 560,
-        preview: "edit",
-        commands: (cn.commands || []).concat([insertMediaCommand]),
-        extraCommands: cn.extra || [],
-        visibleDragbar: false,
-        textareaProps: { placeholder: "开始写作…（支持拖拽/粘贴图片上传）" },
-        onPaste: function (e) {
-          var files = e.clipboardData && e.clipboardData.files;
-          if (!files || !files.length) return;
-          e.preventDefault();
-          handleFile(files[0], false);
-        },
-        onDrop: function (e) {
-          var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-          if (!f) return;
-          e.preventDefault();
-          handleFile(f, true);
-        },
+      upload: {
+        url: DATA.uploadUrl,
+        fieldName: "file[]",
+        withCredentials: true,
+        headers: { "X-Requested-With": "XMLHttpRequest", "X-CSRF-Token": CSRF },
+        linkToImgUrl: false, // 粘贴外链图片保留原地址，不强制上传
+        error: function (msg) { showError(typeof msg === "string" ? msg : "上传失败"); },
+      },
+      preview: {
+        hljs: { style: "github", lineNumber: false },
+        math: { engine: "KaTeX" },
       },
     });
-
-    var root = ReactDOM.createRoot(mount);
-    root.render(el);
   }
 
-  // ---------- 表单值 / 脏检测（对齐 Node dirty 计算） ----------
+  // ---------- 表单值 / 脏检测 ----------
   function collectCustomFields() {
-    return $$("[data-cf-key]", els.customFields).map(function (row) {
+    var other = $$("[data-cf-key]", els.customFields).map(function (row) {
       return { key: row.value.trim(), value: $( "[data-cf-value]", row.closest(".admin-cf-row") ).value.trim() };
     }).filter(function (f) { return f.key !== "" || f.value !== ""; });
+    return other.concat(collectLuminaFields());
   }
   function isDirty() {
     return els.title.value !== (initial.title || "") ||
@@ -244,6 +216,8 @@
   function showError(msg) {
     els.errorBox.textContent = msg;
     els.errorBox.hidden = false;
+    // 全局 toast 同步提示（admin-toast.js 已随后台布局加载）
+    if (typeof window.pafishNotify === "function") window.pafishNotify(msg);
   }
   function clearError() { els.errorBox.hidden = true; }
   function updatePendingUI() {
@@ -314,7 +288,7 @@
       .then(function (r) { return r.json().catch(function () { return {}; }); })
       .then(function (d) {
         if (!d.ok) throw new Error(d.error || "保存失败");
-        // 对齐 Node：保存后跳转到编辑页（服务端最新状态）
+        // 保存后跳转到编辑页（服务端最新状态）
         window.location.href = DATA.editUrl.replace("{id}", d.id);
       })
       .catch(function (e) {
@@ -341,7 +315,12 @@
         lastSavedAt = nowTime();
         autosaveFailed = false;
       })
-      .catch(function () { autosaveFailed = true; })
+      .catch(function () {
+        if (!autosaveFailed) {
+          autosaveFailed = true;
+          if (typeof window.pafishNotify === "function") window.pafishNotify("自动保存失败，请手动保存");
+        }
+      })
       .then(function () {
         pending = null;
         updateAutosave();
@@ -508,6 +487,63 @@
   }
 
   // ---------- 自定义字段 ----------
+  function luminaInput(key, value) {
+    var label = LUMINA_LABELS[key] || key;
+    var isLong = key === "lumina_photos" || key === "lumina_live_photos" || key === "lumina_embed_url" || key === "lumina_link_desc";
+    var note = {
+      lumina_photos: "每行一张图片地址，也支持逗号分隔",
+      lumina_live_photos: "每行一个视频地址，按图片顺序对应；也可写 图片地址|视频地址",
+      lumina_embed_url: "支持 Bilibili、YouTube，或受支持平台的官方 iframe 代码",
+      lumina_embed_cover: "可选，仅作编辑记录；前台播放器使用平台封面",
+      lumina_link_url: "以 http:// 或 https:// 开头的链接地址",
+      lumina_link_title: "不填则卡片标题显示链接域名",
+      lumina_location_lat: "填写经纬度后，地点可跳转到腾讯地图",
+      lumina_location_lng: "填写经纬度后，地点可跳转到腾讯地图"
+    }[key] || "";
+    var control;
+    if (key === "lumina_embed_ratio") {
+      control = '<select class="input" data-lumina-key="' + key + '"><option value="lr"' + (value !== "tb" ? " selected" : "") + '>横屏 16:9</option><option value="tb"' + (value === "tb" ? " selected" : "") + '>竖屏 9:16</option></select>';
+    } else if (key === "lumina_private") {
+      control = '<select class="input" data-lumina-key="' + key + '"><option value="n"' + (value !== "y" ? " selected" : "") + '>公开</option><option value="y"' + (value === "y" ? " selected" : "") + '>仅自己可看</option></select>';
+    } else if (key === "redpacket_mode") {
+      control = '<select class="input" data-lumina-key="' + key + '"><option value="random"' + (value !== "equal" ? " selected" : "") + '>随机</option><option value="equal"' + (value === "equal" ? " selected" : "") + '>等额</option></select>';
+    } else if (isLong) {
+      control = '<textarea class="input" data-lumina-key="' + key + '" rows="3" maxlength="500">' + esc(value || "") + '</textarea>';
+    } else {
+      control = '<input class="input" data-lumina-key="' + key + '" maxlength="500" value="' + esc(value || "") + '">';
+    }
+    return '<label class="admin-lumina-field"><span>' + esc(label) + '</span>' + control + (note ? '<small>' + esc(note) + '</small>' : '') + '</label>';
+  }
+  function captureLuminaFields() {
+    if (!els.luminaFields) return;
+    $$('[data-lumina-key]', els.luminaFields).forEach(function (input) {
+      luminaValues[input.getAttribute('data-lumina-key')] = input.value;
+    });
+  }
+  function renderLuminaFields() {
+    if (!els.luminaFields) return;
+    captureLuminaFields();
+    var type = luminaValues.lumina_type || "only";
+    var fields = (LUMINA_TYPE_KEYS[type] || []).concat(LUMINA_COMMON_KEYS);
+    var types = [["only", "纯文字"], ["img", "图文"], ["live", "实况图"], ["video", "视频"], ["embed", "平台视频"], ["music", "音乐"], ["link", "链接"], ["redpacket", "红包"]];
+    els.luminaFields.innerHTML = '<label class="admin-lumina-field admin-lumina-type"><span>内容类型</span><select class="input" id="luminaType">' + types.map(function (item) {
+      return '<option value="' + item[0] + '"' + (type === item[0] ? ' selected' : '') + '>' + item[1] + '</option>';
+    }).join('') + '</select></label>' + fields.map(function (key) { return luminaInput(key, luminaValues[key] || ''); }).join('');
+    $("#luminaType", els.luminaFields).addEventListener("change", function () {
+      luminaValues.lumina_type = this.value;
+      renderLuminaFields();
+    });
+  }
+  function collectLuminaFields() {
+    captureLuminaFields();
+    var type = luminaValues.lumina_type || "only";
+    var active = (LUMINA_TYPE_KEYS[type] || []).concat(LUMINA_COMMON_KEYS);
+    var hasValue = active.some(function (key) { return String(luminaValues[key] || "").trim() !== "" && !(key === "lumina_private" && luminaValues[key] === "n"); });
+    if (!hasValue && type === "only") return [];
+    return [{ key: "lumina_type", value: type }].concat(active.map(function (key) {
+      return { key: key, value: String(luminaValues[key] || (key === "lumina_private" ? "n" : "")).trim() };
+    }).filter(function (field) { return field.value !== ""; }));
+  }
   function addFieldRow(key, value) {
     var row = document.createElement("div");
     row.className = "admin-cf-row";
@@ -519,7 +555,8 @@
   }
   function renderCustomFields() {
     els.customFields.innerHTML = "";
-    var rows = initial.customFields && initial.customFields.length ? initial.customFields : [{ key: "", value: "" }];
+    var rows = (initial.customFields || []).filter(function (field) { return LUMINA_KEYS.indexOf(field.key) === -1; });
+    if (rows.length === 0) rows = [{ key: "", value: "" }];
     rows.forEach(function (f) { addFieldRow(f.key, f.value); });
   }
 
@@ -650,9 +687,15 @@
     renderCoverPreview();
     renderTags();
     renderCatSelect();
+    (initial.customFields || []).forEach(function (field) {
+      if (LUMINA_KEYS.indexOf(field.key) !== -1) luminaValues[field.key] = field.value;
+    });
+    renderLuminaFields();
     renderCustomFields();
+    // 以实际控件值为基线，避免打开旧文章就被标记为“未保存”。
+    initial.customFields = collectCustomFields();
 
-    // Markdown 编辑器（@uiw/react-md-editor，读取 textarea 初始内容）
+    // Markdown 编辑器（Vditor，读取 textarea 初始内容）
     initEditor();
 
     // 标题 → slug 联动

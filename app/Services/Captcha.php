@@ -6,7 +6,7 @@ namespace Pafish\Services;
 
 /**
  * 图形验证码：SVG 生成（零依赖，currentColor 自适应亮暗主题）+ 文件缓存校验
- * 对齐 Node 版 src/lib/captcha.ts：4 位、5 分钟有效、校验通过即销毁（用后即焚）
+ * 验证码：4 位、5 分钟有效、校验通过即销毁（用后即焚）
  * 字符集避开 0/O/1/I/L 等易混字符
  */
 final class Captcha
@@ -15,8 +15,8 @@ final class Captcha
     private const CODE_LEN = 4;
     private const TTL = 300; // 5 分钟
 
-    /** 生成验证码，返回 [token, svg] */
-    public static function create(): array
+    /** 生成验证码，返回 [token, svg]；可选绑定当前会话/请求身份 */
+    public static function create(string $identity = ''): array
     {
         $token = bin2hex(random_bytes(16));
         $chars = [];
@@ -24,14 +24,14 @@ final class Captcha
             $chars[] = self::CHARS[random_int(0, strlen(self::CHARS) - 1)];
         }
         $svg = self::renderSvg($chars);
-        self::store($token, implode('', $chars));
+        self::store($token, implode('', $chars), $identity);
         return [$token, $svg];
     }
 
     /** 校验：正确则销毁（用后即焚），错误保留可重试 */
-    public static function verify(string $token, string $answer): bool
+    public static function verify(string $token, string $answer, string $identity = ''): bool
     {
-        if ($token === '' || $answer === '') {
+        if ($token === '' || !preg_match('/^[a-f0-9]{32}$/', $token) || $answer === '') {
             return false;
         }
         $file = self::file($token);
@@ -39,9 +39,16 @@ final class Captcha
         if ($raw === '') {
             return false;
         }
-        [$savedAnswer, $expiresAt] = explode('|', $raw, 2);
+        $parts = explode('|', $raw, 3);
+        $savedAnswer = (string) ($parts[0] ?? '');
+        $expiresAt = (string) ($parts[1] ?? '0');
+        $savedIdentity = (string) ($parts[2] ?? '');
         if ((int) $expiresAt < time()) {
             @unlink($file);
+            return false;
+        }
+        if ($identity !== '' && ($savedIdentity === ''
+            || !hash_equals($savedIdentity, self::identityHash($identity)))) {
             return false;
         }
         if (strtoupper($savedAnswer) === strtoupper(trim($answer))) {
@@ -67,9 +74,10 @@ final class Captcha
         return self::dir() . '/' . preg_replace('/[^a-f0-9]/', '', $token) . '.cap';
     }
 
-    private static function store(string $token, string $answer): void
+    private static function store(string $token, string $answer, string $identity = ''): void
     {
-        @file_put_contents(self::file($token), $answer . '|' . (time() + self::TTL));
+        $identityHash = $identity !== '' ? self::identityHash($identity) : '';
+        @file_put_contents(self::file($token), $answer . '|' . (time() + self::TTL) . '|' . $identityHash, LOCK_EX);
         // 顺带清理过期文件（每次写入最多扫 32 个，防膨胀）
         $files = glob(self::dir() . '/*.cap');
         if (is_array($files) && count($files) > 200) {
@@ -88,6 +96,11 @@ final class Captcha
                 }
             }
         }
+    }
+
+    private static function identityHash(string $identity): string
+    {
+        return hash('sha256', $identity);
     }
 
     /** 渲染 4 位验证码 SVG：随机旋转 + 干扰线，currentColor 适配亮暗主题 */

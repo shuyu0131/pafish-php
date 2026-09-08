@@ -1,6 +1,6 @@
 <?php
 /**
- * 通知中心（对齐 Node app/admin/notifications/）：
+ * 通知中心：
  * - 20/页，未读在前（read asc）再按时间倒序；顶部未读数 + 「全部已读」按钮
  * - 类型：NEW_COMMENT 新评论（message 图标）/ NEW_REPLY 新回复（回复箭头图标）
  * - 每条：图标、message、时间、「查看文章」（前台新窗口）+「去审核」
@@ -79,9 +79,9 @@
         .then(function (r) { return r.json(); })
         .then(function (j) {
           if (j && j.ok) location.reload();
-          else alert((j && j.error) || "操作失败");
+          else pafishNotify((j && j.error) || "操作失败");
         })
-        .catch(function () { alert("网络错误"); });
+        .catch(function () { pafishNotify("网络错误"); });
     });
   }
 })();

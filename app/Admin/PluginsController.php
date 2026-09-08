@@ -10,8 +10,8 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 use Psr\Http\Message\UploadedFileInterface;
 
 /**
- * 插件管理（对齐 Node app/admin/plugins/ 系列；仅 ADMIN，对齐 Node requireAdmin）：
- * - 列表卡片（启用徽章/云存储后端/注入/设置项/错误标注/数据查看）
+ * 插件管理（仅 ADMIN）：
+ * - 列表卡片（启用徽章/云存储后端/注入/设置项/错误标注）
  * - 启用 / 停用 / 卸载（确认删除目录与数据）/ 设置页（SchemaForm）/ zip·URL 安装
  */
 final class PluginsController extends AdminController
@@ -28,14 +28,15 @@ final class PluginsController extends AdminController
                 'name' => $name,
                 'title' => $m['title'] ?? $name,
                 'version' => $m['version'] ?? '',
+                'apiVersion' => $m['apiVersion'] ?? 1,
                 'description' => $m['description'] ?? '',
                 'author' => $m['author'] ?? '',
                 'error' => $desc['error'],
                 'injects' => $m['injects'] ?? [],
                 'settingsCount' => count($m['settings'] ?? []),
                 'storage' => $m['storage'] ?? null,
+                'requires' => is_array($m['requires'] ?? null) ? array_values(array_filter(array_map(static fn ($v): string => is_scalar($v) ? trim((string) $v) : '', $m['requires']))) : [],
                 'active' => Plugin::isActive($name),
-                'data' => Plugin::data($name),
             ];
         }
         $response->getBody()->write($this->render('plugins', [

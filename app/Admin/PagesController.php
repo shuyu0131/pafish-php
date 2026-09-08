@@ -13,13 +13,13 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
- * 页面管理（对齐 Node app/admin/pages/ 系列）
+ * 页面管理
  * - 列表 / 新建 / 编辑 / 保存；模板白名单校验；硬删除（无回收站）
  * - "设为首页"写入 settings.home_page_id（前台首页优先渲染该页面）
  */
 final class PagesController extends AdminController
 {
-    /** 页面模板选项：default + 激活主题 + 激活插件（对齐 Node getPageTemplateOptions 三层来源） */
+    /** 页面模板选项：default + 激活主题 + 激活插件 */
     public static function templateOptions(): array
     {
         $options = ['default' => '默认模板'];
@@ -38,7 +38,7 @@ final class PagesController extends AdminController
         return $options;
     }
 
-    /** 列表（对齐 Node pages-manager） */
+    /** 列表 */
     public function index(Request $request, Response $response): Response
     {
         $this->guardCanManage();
@@ -122,7 +122,7 @@ final class PagesController extends AdminController
         return $this->redirect($response, '/admin/pages');
     }
 
-    /** 设为首页 / 取消（写入 settings.home_page_id，对齐 Node setHomePage/unsetHomePage） */
+    /** 设为首页 / 取消（写入 settings.home_page_id） */
     public function setHome(Request $request, Response $response): Response
     {
         $this->guardCanManage();
@@ -189,7 +189,7 @@ final class PagesController extends AdminController
             return ['id' => $id, 'created' => false];
         }
 
-        // 新建：发布时记录 published_at（对齐 Node publishedAt 语义）
+        // 新建：发布时记录 published_at
         $publishedAt = $status === 'PUBLISHED' ? date('Y-m-d H:i:s') : null;
         DB::execute(
             'INSERT INTO pages (title, slug, content, status, template, published_at, created_at, updated_at)

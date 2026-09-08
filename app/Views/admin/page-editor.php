@@ -1,6 +1,6 @@
 <?php
 /**
- * 页面编辑器（对齐 Node page-editor.tsx）：
+ * 页面编辑器：
  * 左侧标题 + Markdown 编辑器（工具栏/分栏预览/插入图片），右侧设置栏（slug/模板/状态）
  * 变量：$isEdit $page $templateOptions
  */
@@ -26,9 +26,9 @@ $template = $isEdit ? (string) $page['template'] : 'default';
         <input class="admin-editor-title" type="text" id="fTitle" name="title"
                value="<?= e($title) ?>" placeholder="页面标题" maxlength="100">
 
-        <!-- Markdown 编辑器（@uiw/react-md-editor：工具栏/分栏预览/全屏/拖拽粘贴上传，对齐 Node 版） -->
-        <div class="admin-md-editor" data-color-mode="light">
-          <div id="mdEditorMount"></div>
+        <!-- Markdown 编辑器（Vditor：所见即所得/分栏/源码三种模式，完整博客写作工具栏，拖拽粘贴上传） -->
+        <div class="admin-md-editor">
+          <div id="vditorMount"></div>
           <textarea id="fContent" name="content" hidden
                     maxlength="16000000"><?= e($content) ?></textarea>
         </div>
@@ -80,7 +80,7 @@ $template = $isEdit ? (string) $page['template'] : 'default';
   </form>
 </div>
 
-<!-- 媒体选择弹窗（对齐 Node MediaPicker） -->
+<!-- 媒体选择弹窗 -->
 <div class="admin-modal-backdrop" id="mediaModal" hidden>
   <div class="admin-modal" role="dialog" aria-modal="true" aria-label="插入媒体">
     <div class="admin-modal-head">
@@ -113,10 +113,11 @@ window.PAFISH_PAGE_EDITOR = {
   previewUrl: <?= json_encode(url_to('/api/md-preview')) ?>,
   uploadUrl: <?= json_encode(url_to('/api/upload')) ?>,
   uploadsUrl: <?= json_encode(url_to('/api/uploads')) ?>,
+  assetBase: <?= json_encode(rtrim(\Pafish\Core\Url::base(), '/') . '/public') ?>,
   isEdit: <?= $isEdit ? 'true' : 'false' ?>,
   initialSlug: <?= json_encode($slug) ?>,
   csrf: <?= json_encode(csrf_token()) ?>
 };
 </script>
-<script src="<?= e(asset_url('/vendor/md-editor/pafish-md-editor.min.js')) ?>"></script>
+<script src="<?= e(asset_url('/vendor/vditor/dist/index.min.js')) ?>"></script>
 <script src="<?= e(asset_url('/js/admin-page-editor.js')) ?>"></script>

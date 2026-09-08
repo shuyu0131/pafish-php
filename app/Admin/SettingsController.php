@@ -12,47 +12,57 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
- * 站点设置（对齐 Node app/admin/settings/）：
+ * 站点设置：
  * - 7 张卡片表单（站点信息/评论与列表/上传/账号注册/SMTP/邮件通知/开放 API）
- * - 保存：22 键白名单整体 upsert，空串覆盖，无校验（对齐 Node updateSettings）
+ * - 保存：22 键白名单整体 upsert，空串覆盖，无校验
  * - SMTP 测试：用表单当前值直接发信（未保存也能测），收件人=登录账号邮箱或 notify_email
  * - 开放 API：api_enabled 开关 + api_key 重新生成（32 位 hex，X-API-Key 头鉴权）
- * 权限：ADMIN+EDITOR（guardCanManage）；CSRF 由 AdminAuthMiddleware 统一校验
+ * 权限：仅 ADMIN（guardAdmin，参考 emlog 编辑不可改站点设置）；CSRF 由 AdminAuthMiddleware 统一校验
  */
 final class SettingsController extends AdminController
 {
-    /** 保存白名单（对齐 Node updateSettings 的 allowed Set；商店地址已内置官方源不再可配） */
+    /** 保存白名单（商店地址使用内置官方源） */
     private const ALLOWED_KEYS = [
         'site_name', 'site_subtitle', 'site_description', 'site_icp',
         'comments_enabled', 'comments_need_review', 'comments_captcha_enabled',
         'posts_per_page', 'blocked_ips',
+        'md_allow_raw_html',
         'upload_max_mb',
         'allow_registration', 'require_email_verify',
         'smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass', 'smtp_from',
         'notify_email_enabled', 'notify_email',
         'api_enabled', 'api_key',
+        'api_rate_limit', 'api_cors', 'api_max_limit',
+        'permalink_structure', 'role_capabilities',
+        'store_account_token',
     ];
 
     /** GET /admin/settings */
     public function index(Request $request, Response $response): Response
     {
-        $this->guardCanManage();
+        $this->guardAdmin();
         $all = Settings::all();
         $response->getBody()->write($this->render('settings', [
             'all' => $all,
+            'roleCapabilities' => Auth::roleCapabilities(),
         ], '站点设置'));
         return $response;
     }
 
-    /** POST /admin/settings/save：白名单整体 upsert（对齐 Node updateSettings） */
+    /** POST /admin/settings/save：白名单整体 upsert */
     public function save(Request $request, Response $response): Response
     {
-        $this->guardCanManage();
+        $this->guardAdmin();
         $body = $request->getParsedBody() ?? [];
         $pairs = [];
         foreach (self::ALLOWED_KEYS as $key) {
             if (array_key_exists($key, $body)) {
-                $pairs[$key] = (string) $body[$key];
+                $value = (string) $body[$key];
+                // 令牌不回显到页面；空值表示保持现有令牌，粘贴新值即可替换。
+                if ($key === 'store_account_token' && trim($value) === '') {
+                    continue;
+                }
+                $pairs[$key] = $value;
             }
         }
         Settings::setMany($pairs);
@@ -67,7 +77,7 @@ final class SettingsController extends AdminController
     /** POST /admin/settings/test-smtp：用表单当前值发送测试邮件（未保存也能测） */
     public function testSmtp(Request $request, Response $response): Response
     {
-        $this->guardCanManage();
+        $this->guardAdmin();
         $body = $request->getParsedBody() ?? [];
         $cfg = [
             'host' => trim((string) ($body['host'] ?? '')),
@@ -80,7 +90,7 @@ final class SettingsController extends AdminController
             return $this->json($response, ['error' => '请先填写 SMTP 主机、账号和密码'], 400);
         }
 
-        // 收件人：当前登录账号邮箱，否则站长通知邮箱（对齐 Node sendTestEmailAction）
+        // 收件人：当前登录账号邮箱，否则站长通知邮箱
         $user = Auth::user();
         $to = (string) ($user['email'] ?? '');
         if ($to === '') {
@@ -102,7 +112,7 @@ final class SettingsController extends AdminController
     /** POST /admin/settings/regenerate-key：重新生成 API Key（32 位 hex，旧 Key 作废） */
     public function regenerateApiKey(Request $request, Response $response): Response
     {
-        $this->guardCanManage();
+        $this->guardAdmin();
         $key = bin2hex(random_bytes(16));
         Settings::set('api_key', $key);
         return $this->json($response, ['ok' => true, 'key' => $key]);

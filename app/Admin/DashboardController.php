@@ -12,7 +12,7 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
- * 工作台（对齐 Node app/admin/page.tsx）：
+ * 工作台：
  * 6 统计卡 + 近 14 天发文趋势（SVG 柱状图）+ 分类分布（横向条形）+ 最近更新 5 篇
  */
 final class DashboardController extends AdminController

@@ -1,6 +1,6 @@
 <?php
 /**
- * 友情链接管理（对齐 Node app/admin/links/）：
+ * 友情链接管理：
  * - 顶部新建表单；列表行：名称 + 「已隐藏」badge + url · description
  * - 操作：↑/↓ 上下移动（边界禁用）、显隐、编辑（行内展开）、删除（两步确认）
  * 变量：$items $role
@@ -178,9 +178,9 @@ foreach ($items as $l) {
         .then(function (r) { return r.json(); })
         .then(function (j) {
           if (j && j.ok) location.reload();
-          else alert((j && j.error) || "操作失败");
+          else pafishNotify((j && j.error) || "操作失败");
         })
-        .catch(function () { alert("网络错误"); });
+        .catch(function () { pafishNotify("网络错误"); });
     });
   });
 
@@ -191,7 +191,7 @@ foreach ($items as $l) {
       post(base + "/" + row.getAttribute("data-id") + "/move", { dir: btn.getAttribute("data-move") })
         .then(function (r) { return r.json(); })
         .then(function (j) { if (j && j.ok) location.reload(); })
-        .catch(function () { alert("网络错误"); });
+        .catch(function () { pafishNotify("网络错误"); });
     });
   });
 
@@ -208,14 +208,16 @@ foreach ($items as $l) {
       }
       var row = btn.closest(".admin-list-row");
       var name = row.getAttribute("data-name");
-      if (!confirm("确定删除链接「" + name + "」？")) return;
-      post(base + "/" + row.getAttribute("data-id") + "/delete")
+      (window.pafishConfirm ? window.pafishConfirm("确定删除链接「" + name + "」？", { title: "删除链接" }) : Promise.resolve(window.confirm("确定删除链接「" + name + "」？"))).then(function (ok) {
+        if (!ok) return;
+        return post(base + "/" + row.getAttribute("data-id") + "/delete")
         .then(function (r) { return r.json(); })
         .then(function (j) {
           if (j && j.ok) location.reload();
-          else alert((j && j.error) || "删除失败");
+          else pafishNotify((j && j.error) || "删除失败");
         })
-        .catch(function () { alert("网络错误"); });
+        .catch(function () { pafishNotify("网络错误"); });
+      });
     });
   });
 })();

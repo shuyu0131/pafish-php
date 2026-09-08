@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Pafish\Services;
 
 /**
- * 邮件发送（对 Node 版 nodemailer 的对等实现，纯 PHP 零依赖）：
+ * 邮件发送（纯 PHP 零依赖）：
  * - 465 SSL / 587 STARTTLS 直连 SMTP（stream_socket_client）
  * - 配置优先级：settings 表（后台可配）> config.php smtp > PHP mail() 兜底
  * - 失败抛 RuntimeException，由调用方决定提示

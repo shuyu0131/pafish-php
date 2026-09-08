@@ -14,7 +14,7 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
- * 后台编辑器配套 API（对齐 Node 版 upload / uploads / md-preview / import-markdown 端点）：
+ * 后台编辑器配套 API：上传、媒体库、Markdown 预览和批量导入。
  * - POST /api/upload            文件上传（GD 压缩/云存储优先，见 Upload 服务）
  * - GET  /api/uploads           媒体库列表（24/页、q 搜索、type=image 仅图片——封面选择用）
  * - POST /api/md-preview        Markdown 服务端渲染（编辑器的分栏/预览模式）
@@ -23,11 +23,11 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  */
 final class ApiController extends AdminController
 {
-    private const LIB_PAGE_SIZE = 24; // 与 Node MediaPicker PAGE_SIZE 一致
-    private const IMPORT_MAX_FILES = 50; // 与 Node MAX_FILES 一致
-    private const IMPORT_MAX_SIZE = 1048576; // 1MB，与 Node MAX_FILE_SIZE 一致
+    private const LIB_PAGE_SIZE = 24;
+    private const IMPORT_MAX_FILES = 50;
+    private const IMPORT_MAX_SIZE = 1048576; // 1MB
 
-    /** POST /api/upload：multipart 上传 */
+    /** POST /api/upload：multipart 上传（兼容 Vditor 编辑器 file[] 多文件与旧单文件两种调用） */
     public function upload(Request $request, Response $response): Response
     {
         $guard = $this->guardJson($request, $response);
@@ -35,32 +35,67 @@ final class ApiController extends AdminController
             return $guard;
         }
         $body = $request->getParsedBody() ?? [];
-        if (!Session::verifyCsrf((string) ($body['_csrf'] ?? ''))) {
+        // Vditor 上传走 XHR，CSRF 放 X-CSRF-Token 头；其余调用放 _csrf 表单字段
+        $csrf = (string) ($body['_csrf'] ?? '');
+        if ($csrf === '') {
+            $csrf = $request->getHeaderLine('X-CSRF-Token');
+        }
+        if (!Session::verifyCsrf($csrf)) {
             return $this->json($response, ['error' => '会话已过期，请刷新页面重试'], 419);
         }
 
-        $files = $request->getUploadedFiles();
-        $file = $files['file'] ?? null;
-        if (!$file instanceof \Psr\Http\Message\UploadedFileInterface) {
+        $raw = $request->getUploadedFiles()['file'] ?? null;
+        // 单文件时 PSR-7 返回单个对象，多文件（file[] 字段）返回数组；统一为数组
+        $files = is_array($raw) ? $raw : [$raw];
+        $files = array_values(array_filter(
+            $files,
+            static fn ($f) => $f instanceof \Psr\Http\Message\UploadedFileInterface
+        ));
+        if ($files === []) {
             return $this->json($response, ['error' => '未选择文件'], 400);
         }
-        try {
-            $result = Upload::handleStream((string) $file->getStream()->getContents(), (string) $file->getClientFilename());
-        } catch (\RuntimeException $e) {
-            return $this->json($response, ['error' => $e->getMessage()], 400);
+
+        $succMap = [];
+        $errMap = [];
+        $first = null;
+        foreach ($files as $file) {
+            $name = (string) $file->getClientFilename();
+            try {
+                $result = Upload::handleStream((string) $file->getStream()->getContents(), $name);
+                $succMap[$name] = $result['url'];
+                $first = $first ?? [
+                    'url' => $result['url'],
+                    'mime' => $result['mime'],
+                    'originalName' => $name,
+                    'size' => $result['size'],
+                    'width' => $result['width'],
+                    'height' => $result['height'],
+                ];
+            } catch (\RuntimeException $e) {
+                $errMap[$name] = $e->getMessage();
+            }
         }
+        if ($first === null) {
+            $msg = $errMap !== [] ? '上传失败：' . implode('；', $errMap) : '上传失败';
+            return $this->json($response, ['error' => $msg], 400);
+        }
+
+        // Vditor 期望 {code:0,message:'',data:{succMap:{文件名:url}}}；旧调用（媒体库/封面）用 ok/url 单文件字段，两者共存
         return $this->json($response, [
             'ok' => true,
-            'url' => $result['url'],
-            'mime' => $result['mime'],
-            'originalName' => (string) $file->getClientFilename(),
-            'size' => $result['size'],
-            'width' => $result['width'],
-            'height' => $result['height'],
+            'code' => 0,
+            'message' => '',
+            'data' => ['succMap' => $succMap, 'errMap' => $errMap],
+            'url' => $first['url'],
+            'mime' => $first['mime'],
+            'originalName' => $first['originalName'],
+            'size' => $first['size'],
+            'width' => $first['width'],
+            'height' => $first['height'],
         ]);
     }
 
-    /** GET /api/uploads：媒体库（page / q / type 5 类筛选，对齐 Node GET /api/uploads） */
+    /** GET /api/uploads：媒体库（page / q / type 5 类筛选） */
     public function uploads(Request $request, Response $response): Response
     {
         $guard = $this->guardJson($request, $response);
@@ -120,7 +155,7 @@ final class ApiController extends AdminController
     }
 
     /**
-     * POST /api/import-markdown：批量导入 .md 文件为文章（对齐 Node import-markdown route）
+     * POST /api/import-markdown：批量导入 .md 文件为文章
      * - 最多 50 个文件、单文件 1MB；frontmatter 仅解析 title / date / tags
      * - 缺 title 用文件名；slug = slugify(title) 冲突追加 -2/-3；正文空则该文件失败
      * - status: draft → DRAFT；publish → PUBLISHED（date 有效则作为发布时间，否则当前时间）
@@ -178,7 +213,7 @@ final class ApiController extends AdminController
 
     // ---------- 内部 ----------
 
-    /** 解析单个文件并创建文章（对齐 Node parseFrontmatter + create 逻辑） */
+    /** 解析单个文件并创建文章 */
     private function importOne(string $name, string $buffer, string $status): void
     {
         $meta = self::parseFrontmatter($buffer);
@@ -186,18 +221,18 @@ final class ApiController extends AdminController
         if (trim($content) === '') {
             throw new \RuntimeException('正文为空');
         }
-        // 缺 title 用文件名去 .md 后缀（≤255，对齐 Node slice(0,255)）
+        // 缺 title 用文件名去 .md 后缀（≤255）
         $title = mb_substr(trim($meta['title'] !== '' ? $meta['title'] : preg_replace('/\.md$/i', '', $name)), 0, 255);
-        // slug = slugify(title) 冲突自动 -2/-3（含回收站全局唯一，对齐 Node uniqueSlug）
+        // slug = slugify(title)，冲突自动 -2/-3（含回收站全局唯一）
         $slug = Slug::resolveUnique(Slug::slugify($title), static fn (string $s): bool =>
             DB::value('SELECT COUNT(*) FROM posts WHERE slug = ?', [$s]) > 0);
-        // 发布时间：仅发布状态生效；date 无效回退当前时间（对齐 Node NaN → new Date()）
+        // 发布时间：仅发布状态生效；date 无效回退当前时间
         $publishedAt = null;
         if ($status === 'PUBLISHED') {
             $at = $meta['date'] !== '' ? strtotime($meta['date']) : false;
             $publishedAt = date('Y-m-d H:i:s', $at !== false ? $at : time());
         }
-        // 标签：按 [,，\s]+ 拆分、最多 5 个；按名复用或新建，单个失败静默跳过（对齐 Node catch → null）
+        // 标签：按 [,，\s]+ 拆分、最多 5 个；按名复用或新建，单个失败静默跳过
         $tagIds = [];
         foreach (array_slice(preg_split('/[,，\s]+/', $meta['tags'], -1, PREG_SPLIT_NO_EMPTY) ?: [], 0, 5) as $tagName) {
             try {
@@ -222,7 +257,7 @@ final class ApiController extends AdminController
         }
     }
 
-    /** 简易 frontmatter 解析（对齐 Node parseFrontmatter：仅 title/date/tags，key 转小写） */
+    /** 简易 frontmatter 解析（仅 title/date/tags，key 转小写） */
     private static function parseFrontmatter(string $text): array
     {
         if (!preg_match('/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/', $text, $m)) {

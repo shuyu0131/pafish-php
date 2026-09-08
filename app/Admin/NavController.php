@@ -5,23 +5,24 @@ declare(strict_types=1);
 namespace Pafish\Admin;
 
 use Pafish\Core\DB;
+use Pafish\Core\Cache;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
- * 导航菜单管理（对齐 Node app/admin/nav/ + actions.ts 导航系列）：
+ * 导航菜单管理：
  * - 列表 sort_order ASC, id ASC；标题「配置顶部导航与移动端菜单（共 N 项）」
  * - 新建 max(sort_order)+1；编辑不动 visible/sort_order；is_external 新窗口
  * - 显隐切换；上下移动=相邻交换；删除两步确认物理删
  * - 字段：label(1-100) / url(1-500) / is_external(bool)
- * 权限：ADMIN+EDITOR（guardCanManage）；CSRF 由 AdminAuthMiddleware 统一校验
+ * 权限：仅 ADMIN（guardAdmin，参考 emlog 编辑不可改外观）；CSRF 由 AdminAuthMiddleware 统一校验
  */
 final class NavController extends AdminController
 {
     /** GET /admin/nav */
     public function index(Request $request, Response $response): Response
     {
-        $this->guardCanManage();
+        $this->guardAdmin();
         $items = DB::fetchAll('SELECT * FROM nav_items ORDER BY sort_order ASC, id ASC');
         $response->getBody()->write($this->render('nav', [
             'items' => $items,
@@ -32,7 +33,7 @@ final class NavController extends AdminController
     /** POST /admin/nav/save 或 /admin/nav/{id}/save（新建/编辑共用） */
     public function save(Request $request, Response $response, array $args): Response
     {
-        $this->guardCanManage();
+        $this->guardAdmin();
         $id = isset($args['id']) ? (int) $args['id'] : 0;
         try {
             $label = trim((string) ($request->getParsedBody()['label'] ?? ''));
@@ -46,7 +47,7 @@ final class NavController extends AdminController
             }
 
             if ($id > 0) {
-                // 编辑：不动 visible / sort_order（对齐 Node updateNavItem）
+                // 编辑：不动 visible / sort_order
                 DB::execute('UPDATE nav_items SET label = ?, url = ?, is_external = ? WHERE id = ?', [$label, $url, $isExternal, $id]);
             } else {
                 $sort = (int) DB::value('SELECT COALESCE(MAX(sort_order), 0) + 1 FROM nav_items');
@@ -61,8 +62,10 @@ final class NavController extends AdminController
         }
 
         if ($this->isAjax($request)) {
+            Cache::clearPrefix('nav.');
             return $this->json($response, ['ok' => true]);
         }
+        Cache::clearPrefix('nav.');
         $this->flash('success', $id > 0 ? '导航项已更新' : '导航项已添加');
         return $this->redirect($response, '/admin/nav');
     }
@@ -70,23 +73,25 @@ final class NavController extends AdminController
     /** POST /admin/nav/{id}/delete：物理删除 */
     public function delete(Request $request, Response $response, array $args): Response
     {
-        $this->guardCanManage();
+        $this->guardAdmin();
         DB::execute('DELETE FROM nav_items WHERE id = ?', [(int) ($args['id'] ?? 0)]);
+        Cache::clearPrefix('nav.');
         return $this->json($response, ['ok' => true]);
     }
 
     /** POST /admin/nav/{id}/toggle：显隐切换 */
     public function toggle(Request $request, Response $response, array $args): Response
     {
-        $this->guardCanManage();
+        $this->guardAdmin();
         DB::execute('UPDATE nav_items SET visible = 1 - visible WHERE id = ?', [(int) ($args['id'] ?? 0)]);
+        Cache::clearPrefix('nav.');
         return $this->json($response, ['ok' => true]);
     }
 
     /** POST /admin/nav/{id}/move：与相邻项交换 sort_order（dir: up|down） */
     public function move(Request $request, Response $response, array $args): Response
     {
-        $this->guardCanManage();
+        $this->guardAdmin();
         $id = (int) ($args['id'] ?? 0);
         $dir = ($request->getParsedBody()['dir'] ?? '') === 'up' ? 'up' : 'down';
         DB::transaction(function () use ($id, $dir): void {
@@ -111,6 +116,7 @@ final class NavController extends AdminController
             DB::execute('UPDATE nav_items SET sort_order = ? WHERE id = ?', [$other['sort_order'], $id]);
             DB::execute('UPDATE nav_items SET sort_order = ? WHERE id = ?', [$cur['sort_order'], $other['id']]);
         });
+        Cache::clearPrefix('nav.');
         return $this->json($response, ['ok' => true]);
     }
 }

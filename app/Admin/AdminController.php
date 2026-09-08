@@ -16,8 +16,9 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
  * 后台控制器基类：导航（角色过滤）+ 布局渲染 + 管理员守卫
- * 对齐 Node 版 src/lib/admin-nav.tsx + app/admin/layout.tsx
- * 权限模型：ADMIN 全权；EDITOR 内容/互动/外观/站点设置；商店/插件/用户/备份仅 ADMIN
+ * 后台通用控制器和导航辅助方法
+ * 权限模型（参考 emlog）：ADMIN 全权；EDITOR 仅内容/互动（文章/页面/分类/标签/媒体/评论/通知/友链）；
+ * 外观（导航/组件/主题）、站点设置、商店/插件/用户/备份仅 ADMIN
  */
 abstract class AdminController
 {
@@ -32,41 +33,43 @@ abstract class AdminController
             'id' => 'content',
             'label' => '内容',
             'items' => [
-                ['href' => '/admin/posts', 'label' => '文章管理', 'icon' => 'file-text'],
-                ['href' => '/admin/pages', 'label' => '页面管理', 'icon' => 'file-plus', 'require' => 'edit'],
-                ['href' => '/admin/categories', 'label' => '分类管理', 'icon' => 'folder', 'require' => 'edit'],
-                ['href' => '/admin/tags', 'label' => '标签管理', 'icon' => 'tags', 'require' => 'edit'],
-                ['href' => '/admin/uploads', 'label' => '媒体库', 'icon' => 'image', 'require' => 'edit'],
+                ['href' => '/admin/posts', 'label' => '文章管理', 'icon' => 'file-text', 'capability' => 'posts.manage'],
+                ['href' => '/admin/pages', 'label' => '页面管理', 'icon' => 'file-plus', 'capability' => 'pages.manage'],
+                ['href' => '/admin/categories', 'label' => '分类管理', 'icon' => 'folder', 'capability' => 'taxonomy.manage'],
+                ['href' => '/admin/tags', 'label' => '标签管理', 'icon' => 'tags', 'capability' => 'taxonomy.manage'],
+                ['href' => '/admin/uploads', 'label' => '媒体库', 'icon' => 'image', 'capability' => 'media.manage'],
             ],
         ],
         [
             'id' => 'interaction',
             'label' => '互动',
             'items' => [
-                ['href' => '/admin/comments', 'label' => '评论审核', 'icon' => 'message', 'require' => 'edit'],
-                ['href' => '/admin/notifications', 'label' => '通知', 'icon' => 'bell', 'require' => 'edit'],
-                ['href' => '/admin/links', 'label' => '友情链接', 'icon' => 'link', 'require' => 'edit'],
+                ['href' => '/admin/comments', 'label' => '评论审核', 'icon' => 'message', 'capability' => 'comments.manage'],
+                ['href' => '/admin/notifications', 'label' => '通知', 'icon' => 'bell', 'capability' => 'comments.manage'],
+                ['href' => '/admin/links', 'label' => '友情链接', 'icon' => 'link', 'capability' => 'links.manage'],
             ],
         ],
         [
             'id' => 'appearance',
             'label' => '外观',
             'items' => [
-                ['href' => '/admin/nav', 'label' => '导航菜单', 'icon' => 'menu', 'require' => 'edit'],
-                ['href' => '/admin/widgets', 'label' => '侧边栏组件', 'icon' => 'layout', 'require' => 'edit'],
-                ['href' => '/admin/appearance', 'label' => '主题与外观', 'icon' => 'palette', 'require' => 'edit'],
+                ['href' => '/admin/nav', 'label' => '导航菜单', 'icon' => 'menu', 'capability' => 'appearance.manage'],
+                ['href' => '/admin/widgets', 'label' => '侧边栏组件', 'icon' => 'layout', 'capability' => 'appearance.manage'],
+                ['href' => '/admin/appearance', 'label' => '主题与外观', 'icon' => 'palette', 'capability' => 'appearance.manage'],
             ],
         ],
         [
             'id' => 'system',
             'label' => '系统',
             'items' => [
-                ['href' => '/admin/settings', 'label' => '站点设置', 'icon' => 'settings', 'require' => 'edit'],
-                ['href' => '/admin/store', 'label' => '应用商店', 'icon' => 'store', 'require' => 'admin'],
-                ['href' => '/admin/plugins', 'label' => '插件管理', 'icon' => 'puzzle', 'require' => 'admin'],
-                ['href' => '/admin/upgrade', 'label' => '系统更新', 'icon' => 'refresh', 'require' => 'admin'],
-                ['href' => '/admin/users', 'label' => '用户管理', 'icon' => 'users', 'require' => 'admin'],
-                ['href' => '/admin/backup', 'label' => '数据备份', 'icon' => 'database', 'require' => 'admin'],
+                ['href' => '/admin/settings', 'label' => '站点设置', 'icon' => 'settings', 'capability' => 'settings.manage'],
+                ['href' => '/admin/store', 'label' => '应用商店', 'icon' => 'store', 'capability' => 'store.manage'],
+                ['href' => '/admin/plugins', 'label' => '插件管理', 'icon' => 'puzzle', 'capability' => 'plugins.manage'],
+                ['href' => '/admin/upgrade', 'label' => '系统更新', 'icon' => 'refresh', 'capability' => 'upgrade.manage'],
+                ['href' => '/admin/users', 'label' => '用户管理', 'icon' => 'users', 'capability' => 'users.manage'],
+                ['href' => '/admin/backup', 'label' => '数据备份', 'icon' => 'database', 'capability' => 'backup.manage'],
+                ['href' => '/admin/health', 'label' => '系统健康', 'icon' => 'activity', 'capability' => 'health.view'],
+                ['href' => '/admin/tools/transfer', 'label' => '内容迁移', 'icon' => 'download', 'capability' => 'transfer.manage'],
             ],
         ],
     ];
@@ -106,7 +109,7 @@ abstract class AdminController
     protected function guardCanManage(): void
     {
         Auth::requireLogin();
-        if (!Auth::canManagePosts()) {
+        if (!Auth::can('posts.manage')) {
             header('Location: ' . Url::to('/admin'));
             exit;
         }
@@ -144,7 +147,7 @@ abstract class AdminController
         return $response->withStatus($status)->withHeader('Location', Url::to($path));
     }
 
-    /** 仅管理员页守卫（非 ADMIN 重定向回工作台，对齐 Node 页面级 requireAdmin） */
+    /** 仅管理员页守卫（非 ADMIN 重定向回工作台） */
     protected function guardAdmin(): void
     {
         Auth::requireLogin();
@@ -154,7 +157,12 @@ abstract class AdminController
         }
     }
 
-    /** 角色中文标签（对齐 Node 布局：管理员/编辑/用户） */
+    protected function guardCapability(string $capability): void
+    {
+        Auth::requireCapability($capability);
+    }
+
+    /** 角色中文标签 */
     protected function roleLabel(string $role): string
     {
         return match ($role) {
@@ -175,13 +183,7 @@ abstract class AdminController
     /** 按角色过滤导航（空分组隐藏） */
     private function navForRole(string $role): array
     {
-        $canEdit = in_array($role, ['ADMIN', 'EDITOR'], true);
-        $isAdmin = $role === 'ADMIN';
-        $ok = fn (array $item): bool => match ($item['require'] ?? null) {
-            'admin' => $isAdmin,
-            'edit' => $canEdit,
-            default => true,
-        };
+        $ok = fn (array $item): bool => empty($item['capability']) || Auth::can((string) $item['capability']);
         $top = array_values(array_filter(static::TOP_ITEMS, $ok));
         $groups = [];
         foreach (static::NAV_GROUPS as $group) {

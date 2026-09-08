@@ -4,24 +4,23 @@ declare(strict_types=1);
 
 namespace Pafish\Admin;
 
-use Pafish\Services\Settings;
 use Pafish\Services\Theme;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Psr\Http\Message\UploadedFileInterface;
 
 /**
- * 主题与外观（对齐 Node app/admin/appearance/）：
+ * 主题与外观：
  * - 列表（manifest 校验 + 当前主题徽章 + 启用/卸载）/ 独立设置页（SchemaForm 8 类型 + 分组 + show_if）
  * - 安装 zip（上传/URL）/ 卸载（独有键清理）/ 导入导出设置备份
- * - 权限：ADMIN+EDITOR（canManagePosts，比插件/商店低一级）
+ * - 权限：仅 ADMIN（guardAdmin，参考 emlog 编辑不可改外观）
  */
 final class AppearanceController extends AdminController
 {
     /** GET /admin/appearance */
     public function index(Request $request, Response $response): Response
     {
-        $this->guardCanManage();
+        $this->guardAdmin();
         $active = Theme::active();
         $themes = [];
         foreach (Theme::list() as $name) {
@@ -48,7 +47,7 @@ final class AppearanceController extends AdminController
     /** GET /admin/appearance/{name}：主题设置页 */
     public function settings(Request $request, Response $response, array $args): Response
     {
-        $this->guardCanManage();
+        $this->guardAdmin();
         $name = (string) ($args['name'] ?? '');
         $desc = Theme::describe($name);
         $response->getBody()->write($this->render('appearance-setting', [
@@ -64,14 +63,14 @@ final class AppearanceController extends AdminController
     /** POST /admin/appearance/save：保存主题设置（只接受 schema 声明的键） */
     public function save(Request $request, Response $response): Response
     {
-        $this->guardCanManage();
+        $this->guardAdmin();
         $body = $request->getParsedBody() ?? [];
         $name = trim((string) ($body['name'] ?? ''));
         $desc = Theme::describe($name);
         if ($desc['error'] !== null) {
             return $this->json($response, ['error' => $desc['error'] ?? '主题不存在'], 400);
         }
-        // 只保存提交的键（对齐 Node saveThemeSettings：未提交键不动，checkbox 由前端全量序列化 '1'/'0'）
+        // 只保存提交的键，checkbox 由前端全量序列化为 '1'/'0'
         // 先收集并完成全部校验，再统一写库（校验失败不产生部分写入）
         $pairs = [];
         foreach ($desc['manifest']['settings'] as $field) {
@@ -101,7 +100,7 @@ final class AppearanceController extends AdminController
     /** POST /admin/appearance/activate */
     public function activate(Request $request, Response $response): Response
     {
-        $this->guardCanManage();
+        $this->guardAdmin();
         $name = trim((string) ($request->getParsedBody()['name'] ?? ''));
         try {
             Theme::setActive($name);
@@ -114,7 +113,7 @@ final class AppearanceController extends AdminController
     /** POST /admin/appearance/uninstall */
     public function uninstall(Request $request, Response $response): Response
     {
-        $this->guardCanManage();
+        $this->guardAdmin();
         $name = trim((string) ($request->getParsedBody()['name'] ?? ''));
         try {
             Theme::uninstall($name);
@@ -127,7 +126,7 @@ final class AppearanceController extends AdminController
     /** POST /admin/appearance/install：上传 zip 或 URL 下载安装 */
     public function install(Request $request, Response $response): Response
     {
-        $this->guardCanManage();
+        $this->guardAdmin();
         $body = $request->getParsedBody() ?? [];
         try {
             $url = trim((string) ($body['url'] ?? ''));
@@ -157,7 +156,7 @@ final class AppearanceController extends AdminController
     /** POST /admin/appearance/import：导入设置备份（JSON 文件） */
     public function import(Request $request, Response $response): Response
     {
-        $this->guardCanManage();
+        $this->guardAdmin();
         $body = $request->getParsedBody() ?? [];
         $name = trim((string) ($body['name'] ?? ''));
         $files = $request->getUploadedFiles();
@@ -184,7 +183,7 @@ final class AppearanceController extends AdminController
     /** GET /admin/appearance/export?name=：导出设置备份 */
     public function export(Request $request, Response $response): Response
     {
-        $this->guardCanManage();
+        $this->guardAdmin();
         $name = (string) ($_GET['name'] ?? '');
         try {
             $data = Theme::exportValues($name);

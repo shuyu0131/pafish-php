@@ -55,11 +55,11 @@ function api_url(string $path): string
     return Url::api($path);
 }
 
-/** 编辑器页资源（@uiw/react-md-editor 样式 + 后台主题适配），经 headExtra 注入 head */
+/** 编辑器页资源（Vditor 样式 + 后台主题适配），经 headExtra 注入 head */
 function editor_head_extra(): string
 {
-    return '<link rel="stylesheet" href="' . e(asset_url('/vendor/md-editor/mdeditor.min.css')) . '">'
-        . '<link rel="stylesheet" href="' . e(asset_url('/css/md-editor-theme.css')) . '">';
+    return '<link rel="stylesheet" href="' . e(asset_url('/vendor/vditor/dist/index.css')) . '">'
+        . '<link rel="stylesheet" href="' . e(asset_url('/css/vditor-theme.css')) . '">';
 }
 
 /** 当前登录用户（数组或 null） */
@@ -78,7 +78,7 @@ function is_admin(): bool
     return Auth::isAdmin();
 }
 
-/** 中文日期（Node 版 date-fns zhCN 风格；兼容 yyyy/MM/dd 等 date-fns token） */
+/** 中文日期格式化（兼容 yyyy/MM/dd 等常用格式） */
 function format_date(mixed $date, string $fmt = 'Y年n月j日'): string
 {
     if (!$date) {
@@ -141,25 +141,31 @@ function absolute_url(string $path = ''): string
 /** 前台可见导航项（排序升序） */
 function nav_items(): array
 {
-    return DB::fetchAll(
-        "SELECT id, label, url, is_external FROM nav_items WHERE visible = 1 ORDER BY sort_order ASC, id ASC"
-    );
+    $cached = \Pafish\Core\Cache::get('nav.visible');
+    if (is_array($cached)) return $cached;
+    $rows = DB::fetchAll("SELECT id, label, url, is_external FROM nav_items WHERE visible = 1 ORDER BY sort_order ASC, id ASC");
+    \Pafish\Core\Cache::set('nav.visible', $rows, 300);
+    return $rows;
 }
 
 /** 前台可见侧边栏组件（排序升序） */
 function widget_items(): array
 {
-    return DB::fetchAll(
-        "SELECT * FROM widgets WHERE visible = 1 ORDER BY sort_order ASC, id ASC"
-    );
+    $cached = \Pafish\Core\Cache::get('widgets.visible');
+    if (is_array($cached)) return $cached;
+    $rows = DB::fetchAll("SELECT * FROM widgets WHERE visible = 1 ORDER BY sort_order ASC, id ASC");
+    \Pafish\Core\Cache::set('widgets.visible', $rows, 300);
+    return $rows;
 }
 
 /** 前台可见友情链接（排序升序） */
 function friend_links(): array
 {
-    return DB::fetchAll(
-        "SELECT * FROM links WHERE visible = 1 ORDER BY sort_order ASC, id ASC"
-    );
+    $cached = \Pafish\Core\Cache::get('links.visible');
+    if (is_array($cached)) return $cached;
+    $rows = DB::fetchAll("SELECT * FROM links WHERE visible = 1 ORDER BY sort_order ASC, id ASC");
+    \Pafish\Core\Cache::set('links.visible', $rows, 300);
+    return $rows;
 }
 
 /** 渲染主题 header/footer（WordPress 式，主题可覆盖 header.php / footer.php） */
@@ -204,7 +210,7 @@ function apply_filters(string $name, mixed $value, mixed ...$args): mixed
     return Hooks::applyFilters($name, $value, ...$args);
 }
 
-/** 默认头像（无 avatarUrl 时的 cravatar，对齐 Node avatarSrc） */
+/** 默认头像（无 avatarUrl 时使用 cravatar） */
 function admin_gravatar(string $email): string
 {
     return \Pafish\Http\Comments::avatarUrl(null, $email);
@@ -246,6 +252,7 @@ function admin_icon(string $name, int $size = 16, bool $fill = false): string
         'x' => '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
         'arrow-left' => '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>',
         'arrow-right' => '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+        'play' => '<polygon points="5 3 19 12 5 21 5 3"/>',
         'check' => '<path d="M20 6 9 17l-5-5"/>',
         'edit' => '<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4Z"/>',
         'upload' => '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/>',

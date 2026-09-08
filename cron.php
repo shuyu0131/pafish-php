@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /**
- * 定时发布 CLI 入口（对齐 Node src/lib/scheduler.ts，node-cron 每分钟执行 publishScheduledPosts）
+ * 定时发布 CLI 入口；由系统 cron 每分钟调用。
  *
  * 用法：
  *   宝塔/系统计划任务：php /path/to/pafish/cron.php（每分钟一次）
@@ -20,6 +20,7 @@ require PAFISH_ROOT . '/vendor/autoload.php';
 
 use Pafish\Core\Config;
 use Pafish\Core\DB;
+use Pafish\Services\Plugin;
 use Pafish\Services\Scheduler;
 
 $out = static function (string $msg): void {
@@ -35,9 +36,11 @@ if (!is_file($configFile)) {
 Config::load($configFile);
 date_default_timezone_set((string) Config::get('timezone', 'Asia/Shanghai'));
 mb_internal_encoding('UTF-8');
+require PAFISH_ROOT . '/app/Core/helpers.php';
 
 try {
     DB::pdo();
+    Plugin::boot();
 } catch (Throwable $e) {
     $out('[定时发布] 数据库连接失败：' . $e->getMessage());
     exit(1);

@@ -9,7 +9,7 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
- * 插件前台页面（/plugin/{name}/{path}，path 缺省 index；对齐 Node /plugin/[name]/[[...path]]/route.ts）：
+ * 插件前台页面（/plugin/{name}/{path}，path 缺省 index）：
  * - name 与每段 path 白名单校验（防穿越），多段路径直接 404
  * - 需激活 + plugin.json 声明该 path + index.php 导出 renderPluginPage 且返回非空 HTML
  * - 渲染结果拼公共 shell（侧边栏/导航/主题/注入，走系统布局模板）

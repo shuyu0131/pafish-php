@@ -1,0 +1,167 @@
+/* =========================================================
+   Vditor 主题适配（文章/页面编辑器）
+   对齐后台 CSS 变量（admin.css：--bg/--fg/--muted/--card/--border/--accent/--font-mono）
+   仅编辑器页引入（post-editor / page-editor）
+   ========================================================= */
+
+/* ---------- 容器 ---------- */
+.admin-md-editor {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+  overflow: hidden;
+}
+.admin-md-editor .vditor {
+  border-radius: 0;
+  border: none;
+  /* Vditor 3.x 变量（index.css 定义在 .vditor 上），对齐后台主题 */
+  --border-color: color-mix(in srgb, var(--border) 80%, transparent);
+  --second-color: color-mix(in srgb, var(--muted) 50%, transparent);
+  --panel-background-color: var(--card);
+  --panel-shadow: 0 4px 16px color-mix(in srgb, var(--fg) 14%, transparent);
+  --toolbar-background-color: color-mix(in srgb, var(--border) 25%, transparent);
+  --toolbar-icon-color: var(--muted);
+  --toolbar-icon-hover-color: var(--accent);
+  --toolbar-height: 38px;
+  --textarea-background-color: var(--card);
+  --textarea-text-color: var(--fg);
+  --resize-background-color: transparent;
+  --resize-hover-background-color: color-mix(in srgb, var(--accent) 12%, transparent);
+  --resize-hover-icon-color: var(--accent);
+  --resize-icon-color: var(--muted);
+  --count-background-color: transparent;
+  --ir-heading-color: var(--fg);
+  --ir-title-color: var(--muted);
+  --ir-bi-color: var(--muted);
+  --ir-link-color: var(--accent);
+  --ir-bracket-color: var(--muted);
+  --ir-paren-color: var(--muted);
+  --heading-border-color: var(--border);
+  --blockquote-color: var(--accent);
+  --editor-bottom: 4px;
+  --toolbar-divider-margin-top: 1px;
+}
+
+/* ---------- 工具栏 ---------- */
+.vditor-toolbar {
+  border-bottom: 1px solid var(--border);
+  min-height: 38px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+.vditor-toolbar__item {
+  flex: 0 0 auto;
+}
+.vditor-toolbar .vditor-tooltipped {
+  color: var(--muted);
+}
+.vditor-toolbar .vditor-tooltipped:hover {
+  color: var(--accent);
+}
+.vditor-toolbar .vditor-tooltipped--down .vditor-menu,
+.vditor-toolbar .vditor-tooltipped--down:hover {
+  color: var(--accent);
+}
+.vditor-panel svg {
+  color: var(--muted);
+}
+.vditor-panel .vditor-menu {
+  color: var(--muted);
+}
+.vditor-emoji[data-vditor-emoji] {
+  border-radius: 6px;
+}
+.vditor-emoji[data-vditor-emoji]:hover {
+  background: var(--accent-soft);
+}
+
+/* ---------- 编辑区 ---------- */
+.vditor-ir .vditor-reset {
+  background: var(--card);
+}
+.vditor-ir .vditor-ir__node--expand:not(.vditor-ir__node--root)::before {
+  background: color-mix(in srgb, var(--border) 45%, transparent);
+}
+.vditor-reset {
+  font-size: 14px;
+  color: var(--fg);
+}
+.vditor-ir pre,
+.vditor-textarea pre {
+  font-family: var(--font-mono, "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace);
+  font-size: 13.5px;
+  line-height: 1.75;
+}
+.vditor-ir pre.vditor-reset {
+  font-family: var(--font-mono, "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace);
+  font-size: 13.5px;
+}
+/* 输入区光标字体 */
+.vditor-ir__node--root {
+  font-family: var(--font-mono, "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace);
+  font-size: 13.5px;
+  line-height: 1.75;
+}
+
+/* ---------- 预览/输出区（分屏、所见即所得） ---------- */
+.vditor-reset h1, .vditor-reset h2, .vditor-reset h3,
+.vditor-reset h4, .vditor-reset h5, .vditor-reset h6 {
+  color: var(--fg);
+}
+.vditor-reset blockquote {
+  border-left-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+.vditor-reset code {
+  background: color-mix(in srgb, var(--border) 30%, transparent);
+  color: var(--accent);
+}
+.vditor-reset pre code {
+  background: none;
+  background-color: #282c34; /* 代码块独立深底，前后台一致 */
+  color: #abb2bf;
+}
+.vditor-reset table tr {
+  background: var(--card);
+}
+.vditor-reset table tr:nth-child(2n) {
+  background: color-mix(in srgb, var(--border) 20%, transparent);
+}
+.vditor-reset table td, .vditor-reset table th {
+  border-color: var(--border);
+}
+
+/* ---------- 上传进度条 ---------- */
+.vditor-upload {
+  background: color-mix(in srgb, var(--border) 30%, transparent);
+  color: var(--muted);
+  font-size: 12px;
+}
+.vditor-upload .vditor-upload__progress {
+  background: var(--accent);
+}
+
+/* ---------- 全屏 ---------- */
+.vditor--fullscreen {
+  background: var(--bg);
+  z-index: 3000;
+}
+
+/* ---------- 移动端 ---------- */
+@media (max-width: 767px) {
+  /* 移动端保留足够写作空间，同时避免工具栏挤压按钮 */
+  .admin-md-editor .vditor {
+    height: 400px !important;
+  }
+  .admin-md-editor .vditor-toolbar {
+    padding-right: 6px;
+  }
+  .admin-md-editor .vditor-toolbar button {
+    min-width: 28px;
+    min-height: 28px;
+  }
+  .admin-md-editor .vditor-reset {
+    font-size: 13px;
+  }
+}

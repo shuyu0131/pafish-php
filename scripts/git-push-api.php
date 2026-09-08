@@ -7,7 +7,7 @@ declare(strict_types=1);
  *   1) 用 `git ls-files --stage` 读取本地 HEAD 树的 mode/sha（不重算内容哈希）
  *   2) 把工作区文件 POST 到 GitHub git/blobs（sha 与本地一致）
  *   3) 递归构建嵌套 trees → 创建 commit → 创建 refs/heads/main 与 refs/tags/{tag}
- * 用法：php scripts/git-push-api.php --token=<GITHUB_TOKEN> --repo=shuyu0131/pafish-php [--tag=v0.1.0]
+ * 用法：php scripts/git-push-api.php --token=<GITHUB_TOKEN> --repo=shuyu0131/pafish-php [--tag=v0.1.0] [--parent=<REMOTE_SHA>]
  * 前提：工作区已全部提交（git status 干净）；token 有 repo 权限。
  */
 
@@ -17,6 +17,7 @@ $root = dirname(__DIR__);
 $token = '';
 $repo = '';
 $tag = '';
+$parent = '';
 foreach (array_slice($argv, 1) as $arg) {
     if (str_starts_with($arg, '--token=')) {
         $token = substr($arg, 8);
@@ -24,6 +25,8 @@ foreach (array_slice($argv, 1) as $arg) {
         $repo = substr($arg, 7);
     } elseif (str_starts_with($arg, '--tag=')) {
         $tag = substr($arg, 6);
+    } elseif (str_starts_with($arg, '--parent=')) {
+        $parent = substr($arg, 9);
     }
 }
 if ($token === '' || $repo === '') {
@@ -204,6 +207,10 @@ $commitBody = [
     'author' => ['name' => $name, 'email' => $email, 'date' => gmdate('Y-m-d\TH:i:s\Z')],
     'committer' => ['name' => $name, 'email' => $email, 'date' => gmdate('Y-m-d\TH:i:s\Z')],
 ];
+if ($parent !== '') {
+    $commitBody['parents'] = [$parent];
+    echo "远端父提交：{$parent}\n";
+}
 $r = api('POST', "https://api.github.com/repos/{$repo}/git/commits", $commitBody);
 $commitSha = checkApi($r, 'commit')['sha'] ?? '';
 echo "commit：{$commitSha}\n";

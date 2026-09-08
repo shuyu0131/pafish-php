@@ -111,12 +111,10 @@ foreach ($files as $rel => [$mode, $sha]) {
     if ($mode === '160000') {
         continue; // submodule 不支持（本项目无）
     }
-    if ($mode === '120000') {
-        $content = (string) shell_exec('cd ' . escapeshellarg($root) . ' && git cat-file blob ' . $sha);
-    } else {
-        $path = $root . '/' . str_replace('/', DIRECTORY_SEPARATOR, $rel);
-        $content = is_file($path) ? (string) file_get_contents($path) : '';
-    }
+    // 从 Git 对象读取原始字节，避免 Windows 工作区的 CRLF 转换导致 blob SHA 不一致。
+    $content = (string) shell_exec(
+        'cd ' . escapeshellarg($root) . ' && git cat-file blob ' . escapeshellarg($sha)
+    );
     $r = api('POST', "https://api.github.com/repos/{$repo}/git/blobs", [
         'content' => base64_encode($content),
         'encoding' => 'base64',

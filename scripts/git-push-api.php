@@ -90,7 +90,8 @@ function readGitBlob(string $root, string $sha): string
     $process = proc_open(
         // $sha 来自 git ls-files --stage，已由十六进制正则校验，Windows 下无需 shell 引号。
         'git cat-file blob ' . $sha,
-        [0 => ['pipe', 'rb'], 1 => ['pipe', 'rb'], 2 => ['pipe', 'rb']],
+        // proc_open 的 pipe 模式以子进程视角声明：stdin 写入端为 r，stdout/stderr 读取端为 w。
+        [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
         $pipes,
         $root
     );

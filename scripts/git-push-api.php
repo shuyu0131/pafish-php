@@ -80,6 +80,31 @@ function checkApi(array $r, string $what): array
     return $r[1];
 }
 
+/** 读取 Git blob 的原始字节（Windows 下不要经 shell_exec 传输二进制）。 */
+function readGitBlob(string $root, string $sha): string
+{
+    $pipes = [];
+    $process = proc_open(
+        'git cat-file blob ' . escapeshellarg($sha),
+        [0 => ['pipe', 'rb'], 1 => ['pipe', 'rb'], 2 => ['pipe', 'rb']],
+        $pipes,
+        $root
+    );
+    if (!is_resource($process)) {
+        throw new RuntimeException("无法读取 Git blob {$sha}");
+    }
+    fclose($pipes[0]);
+    $content = stream_get_contents($pipes[1]);
+    fclose($pipes[1]);
+    $error = stream_get_contents($pipes[2]);
+    fclose($pipes[2]);
+    $exitCode = proc_close($process);
+    if ($exitCode !== 0) {
+        throw new RuntimeException("读取 Git blob 失败 {$sha}：" . trim((string) $error));
+    }
+    return (string) $content;
+}
+
 // ---------- 1. 读取本地 HEAD 树 ----------
 $clean = trim((string) shell_exec('cd ' . escapeshellarg($root) . ' && git status --porcelain'));
 if ($clean !== '') {
@@ -111,10 +136,8 @@ foreach ($files as $rel => [$mode, $sha]) {
     if ($mode === '160000') {
         continue; // submodule 不支持（本项目无）
     }
-    // 从 Git 对象读取原始字节，避免 Windows 工作区的 CRLF 转换导致 blob SHA 不一致。
-    $content = (string) shell_exec(
-        'cd ' . escapeshellarg($root) . ' && git cat-file blob ' . escapeshellarg($sha)
-    );
+    // 从 Git 对象读取原始字节，避免 Windows 工作区的 CRLF/二进制转换导致 blob SHA 不一致。
+    $content = readGitBlob($root, $sha);
     $r = api('POST', "https://api.github.com/repos/{$repo}/git/blobs", [
         'content' => base64_encode($content),
         'encoding' => 'base64',

@@ -1,6 +1,6 @@
 <?php
 /**
- * 通知中心（对齐 Node app/admin/notifications/）：
+ * 通知中心：
  * - 20/页，未读在前（read asc）再按时间倒序；顶部未读数 + 「全部已读」按钮
  * - 类型：NEW_COMMENT 新评论（message 图标）/ NEW_REPLY 新回复（回复箭头图标）
  * - 每条：图标、message、时间、「查看文章」（前台新窗口）+「去审核」

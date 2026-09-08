@@ -4,7 +4,7 @@
  * 可用数据：$post（含 author_name/category_name/tags[]/content）、$contentHtml（Markdown 渲染结果）、
  *           $locked、$passwordError、$liked、$favorited、$customFields、$prevPost、$nextPost、
  *           $related、$showCustomFields、$showRelated、$settings、$commentPage
- * 结构对标 Node 版 /post/[slug]/page.tsx
+ * 文章详情布局
  */
 $post = $post ?? [];
 $settings = $settings ?? [];
@@ -118,7 +118,7 @@ get_header();
       <?= render_partial('related-posts', ['posts' => $related ?? []]) ?>
     <?php endif; ?>
 
-    <?php /* 评论区（评论功能关闭时整块隐藏；对齐 Node CommentSection） */ ?>
+    <?php /* 评论区（评论功能关闭时整块隐藏） */ ?>
     <?php if (!empty($commentsEnabled)): ?>
       <?= render_partial('comment-section', [
           'postId' => (int) $post['id'],

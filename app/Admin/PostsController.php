@@ -13,7 +13,7 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
- * 文章管理（对齐 Node app/admin/posts/* + actions.ts 的 Post 相关 action）
+ * 文章管理
  * - 列表：状态 tabs/分类树/5 种排序/搜索/分页（per_page cookie 记忆）/批量操作/回收站
  * - 编辑器：新建/编辑共用，保存动作 draft/publish/schedule/auto
  * - 写操作：AJAX 返回 JSON，普通表单 302 + flash（PRG）
@@ -43,7 +43,7 @@ final class PostsController extends AdminController
             ? (string) $_GET['sort'] : 'latest';
         $page = max(1, (int) ($_GET['page'] ?? 1));
 
-        // where 构建（对齐 Node buildQuery）
+        // 构建筛选条件
         $where = $isTrash ? 'p.deleted_at IS NOT NULL' : 'p.deleted_at IS NULL';
         $params = [];
         if ($status !== null) {
@@ -114,7 +114,7 @@ final class PostsController extends AdminController
 
     // ---------- 编辑器 ----------
 
-    /** Markdown 批量导入页（对齐 Node /admin/posts/import，POST 走 /api/import-markdown） */
+    /** Markdown 批量导入页 */
     public function importPage(Request $request, Response $response): Response
     {
         $this->guardCanManage();
@@ -284,7 +284,7 @@ final class PostsController extends AdminController
             throw new \RuntimeException('内容过长');
         }
 
-        // 别名：手动填了用之，否则标题自动生成；冲突友好报错（Node 直接抛唯一约束）
+        // 别名：手动填了用之，否则标题自动生成；冲突友好报错
         $slug = trim((string) ($body['slug'] ?? ''));
         $slug = $slug !== '' ? $slug : Slug::slugify($title);
         if ($id !== null) {
@@ -312,7 +312,7 @@ final class PostsController extends AdminController
             $coverUrl = '';
         }
 
-        // 分类：newCategory 优先于 categoryId（对齐 Node）
+        // 分类：newCategory 优先于 categoryId
         $categoryId = null;
         $newCategory = trim((string) ($body['new_category'] ?? ''));
         if ($newCategory !== '') {
@@ -334,7 +334,7 @@ final class PostsController extends AdminController
             $externalUrl = '';
         }
 
-        // 状态与发布时间（对齐 Node 判定）
+        // 状态与发布时间
         $status = 'DRAFT';
         $publishedAt = null;
         if ($action === 'publish') {
@@ -521,7 +521,7 @@ final class PostsController extends AdminController
         return $this->json($response, ['ok' => true]);
     }
 
-    /** 从 Markdown 提取纯文本摘要（前 180 字，对齐 Node extractSummary） */
+    /** 从 Markdown 提取纯文本摘要（前 180 字） */
     public static function extractSummary(string $md, int $max = 180): string
     {
         $text = (string) preg_replace('/```[\s\S]*?```/', ' ', $md);
@@ -532,7 +532,7 @@ final class PostsController extends AdminController
         return mb_substr($text, 0, $max);
     }
 
-    /** 提取第一张图片 URL（对齐 Node extractCover） */
+    /** 提取第一张图片 URL */
     public static function extractCover(string $md): ?string
     {
         if (preg_match('/!\[[^\]]*\]\(([^)\s]+)\)/', $md, $m)) {
@@ -630,7 +630,7 @@ final class PostsController extends AdminController
         ), fn ($v) => $v !== ''));
     }
 
-    /** 钩子 payload（对齐 Node src/lib/hooks.ts postPayload） */
+    /** 钩子 payload */
     private static function postPayload(
         int $id,
         string $title,

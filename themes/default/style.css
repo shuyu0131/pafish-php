@@ -1,6 +1,5 @@
 /* ==========================================================================
-   pafish PHP 版 前台样式（由 Node 版 globals.css 转换：去 Tailwind 指令，
-   保留全部语义变量/组件类/md-content 排版；补充布局类对应 layout.tsx 结构）
+   pafish PHP 版前台样式：保留语义变量、组件类和 md-content 排版。
    ========================================================================== */
 
 /* ============ 设计令牌：Anatole 风格（白 / 极简 / 蓝链接） ============ */
@@ -1542,7 +1541,7 @@ input[type="radio"]:focus-visible {
   flex-direction: column;
 }
 
-/* ============ 归档页（Node 版 max-w-3xl） ============ */
+/* ============ 归档页 ============ */
 .container-narrow {
   max-width: 48rem;
 }
@@ -1760,7 +1759,7 @@ input[type="radio"]:focus-visible {
   color: var(--muted);
 }
 
-/* ============ 评论区（对齐 Node CommentSection / comment-form / comment-thread） ============ */
+/* ============ 评论区 ============ */
 
 .comment-section {
   margin-top: 3rem;
@@ -1853,6 +1852,12 @@ input[type="radio"]:focus-visible {
 }
 .comment-captcha-change:hover {
   color: var(--accent);
+}
+.comment-captcha-status {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
 }
 .comment-error {
   margin: 0;

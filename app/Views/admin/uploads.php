@@ -1,7 +1,7 @@
 <?php
 /**
- * 媒体库（对齐 Node app/admin/uploads 页）：
- * 变量：$items $total $page $pages $q $type
+ * 媒体库：
+ * 变量：$items $total $page $pages $q $type $date
  * 工具栏：搜索（500ms 防抖）/ 5 类筛选 / 上传媒体（多选顺序上传）/ 添加外部资源
  * 网格卡片：缩略图（图片 object-contain，非图片类型图标+扩展名徽标）、外链徽标、
  *          文件名、宽×高 · 大小 · 时间、复制 URL / 新窗口 / 删除
@@ -31,12 +31,14 @@ $formatSize = function (int $size): string {
 $filters = [
     '' => '全部', 'image' => '图片', 'doc' => '文档', 'archive' => '压缩包', 'audio' => '音频', 'video' => '视频',
 ];
-// 分页/筛选链接：t 传空=不筛选，传筛选值时保留当前搜索词（对齐 Node 筛选链接）
-$pageUrl = function (int $p, string $t = '') use ($q): string {
+// 分页/筛选链接：t 传空=不筛选，传筛选值时保留当前搜索词
+$date = $date ?? '';
+$pageUrl = function (int $p, string $t = '') use ($q, $date): string {
     $qs = [];
     if ($p > 1) $qs['page'] = $p;
     if ($q !== '') $qs['q'] = $q;
     if ($t !== '') $qs['type'] = $t;
+    if ($date !== '') $qs['date'] = $date;
     return url_to('/admin/uploads' . ($qs === [] ? '' : '?' . http_build_query($qs)));
 };
 $pageCsrf = csrf_token();
@@ -52,6 +54,7 @@ $accept = 'image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip,.rar
 
   <div class="admin-media-toolbar">
     <input type="search" class="input admin-media-search" id="mediaQ" placeholder="搜索文件名…" value="<?= e($q) ?>" autocomplete="off">
+    <input type="date" class="input" id="mediaDate" value="<?= e($date) ?>" title="按日期筛选">
     <div class="admin-media-filters">
       <?php foreach ($filters as $val => $label): ?>
         <a class="admin-media-filter <?= $type === $val ? 'active' : '' ?>" href="<?= e($pageUrl(1, $val)) ?>"><?= e($label) ?></a>
@@ -92,7 +95,7 @@ $accept = 'image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip,.rar
             <p class="admin-media-name" title="<?= e($u['original_name']) ?>"><?= e($u['original_name']) ?></p>
             <p class="admin-media-meta">
               <?php if ($u['width'] !== null && $u['height'] !== null): ?><?= (int) $u['width'] ?>×<?= (int) $u['height'] ?> · <?php endif; ?>
-              <?= $formatSize((int) $u['size']) ?> · <?= e(format_date($u['created_at'], 'yyyy-MM-dd HH:mm')) ?>
+              <?= $formatSize((int) $u['size']) ?> · <?= e(format_date($u['created_at'], 'yyyy-MM-dd HH:mm')) ?> · 引用 <?= (int) ($u['usage_count'] ?? 0) ?> 次
             </p>
             <div class="admin-media-ops">
               <button type="button" class="admin-icon-btn" data-copy-url="<?= e(absolute_url($u['url'])) ?>" title="复制完整 URL（含域名）"><?= admin_icon('copy', 14) ?></button>
@@ -122,7 +125,7 @@ $accept = 'image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip,.rar
   <div class="admin-modal" role="dialog" aria-modal="true" aria-label="添加外部资源">
     <div class="admin-modal-head">
       <h3 class="admin-modal-title">添加外部资源</h3>
-      <button type="button" class="admin-icon-btn" data-close-ext aria-label="关闭"><?= admin_icon('x', 16) ?></button>
+      <button type="button" class="admin-icon-btn" data-close-ext data-modal-close aria-label="关闭"><?= admin_icon('x', 16) ?></button>
     </div>
     <div class="admin-modal-body">
       <p class="admin-field-hint">仅保存链接不下载文件；图片可在编辑器直接插入，其他链接插入为下载链接</p>
@@ -135,10 +138,10 @@ $accept = 'image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip,.rar
         <input type="text" class="input" id="extName" placeholder="默认取地址文件名" autocomplete="off">
       </label>
       <p class="admin-modal-error" id="extError" hidden></p>
-      <div class="admin-modal-actions">
-        <button type="button" class="btn btn-outline" data-close-ext>取消</button>
-        <button type="button" class="btn btn-primary" id="extSave">添加</button>
-      </div>
+    </div>
+    <div class="admin-modal-actions">
+      <button type="button" class="btn btn-outline" data-close-ext data-modal-close>取消</button>
+      <button type="button" class="btn btn-primary" id="extSave">添加</button>
     </div>
   </div>
 </div>
@@ -153,7 +156,7 @@ $accept = 'image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip,.rar
     return fetch(url, { method: "POST", body: fd, headers: { "X-Requested-With": "XMLHttpRequest" } });
   }
 
-  // 搜索（500ms 防抖，保留 type 筛选、回到第 1 页）
+  // 搜索与日期筛选，保留其它筛选条件
   var qInput = document.getElementById("mediaQ");
   var qTimer = null;
   qInput.addEventListener("input", function () {
@@ -164,9 +167,12 @@ $accept = 'image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip,.rar
       if (v !== "") qs.push("q=" + encodeURIComponent(v));
       var type = <?= json_encode($type) ?>;
       if (type) qs.push("type=" + encodeURIComponent(type));
+      var date = document.getElementById("mediaDate").value;
+      if (date) qs.push("date=" + encodeURIComponent(date));
       location.href = <?= json_encode(url_to('/admin/uploads')) ?> + (qs.length ? "?" + qs.join("&") : "");
     }, 500);
   });
+  document.getElementById("mediaDate").addEventListener("change", function () { qInput.dispatchEvent(new Event("input")); });
 
   // 上传媒体：多选，逐个顺序上传，完成后刷新
   var uploadBtn = document.getElementById("btnUploadMedia");
@@ -222,19 +228,25 @@ $accept = 'image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip,.rar
     });
   });
 
-  // 删除（Node 文案：确定删除「xx」？\n\n已在文章中引用的文件将无法显示（不可恢复）。）
+  // 删除：被引用媒体需要二次确认后强制删除
   document.querySelectorAll("[data-delete-media]").forEach(function (btn) {
     btn.addEventListener("click", function () {
       var id = btn.getAttribute("data-delete-media");
       var name = btn.getAttribute("data-name") || "";
-      if (!confirm("确定删除「" + name + "」？\n\n已在文章中引用的文件将无法显示（不可恢复）。")) return;
-      post(<?= json_encode(url_to('/admin/uploads')) ?> + "/" + id + "/delete")
+      (window.pafishConfirm ? window.pafishConfirm("确定删除「" + name + "」？\n\n已在文章中引用的文件将无法显示（不可恢复）。", { title: "删除媒体" }) : Promise.resolve(window.confirm("确定删除「" + name + "」？"))).then(function (ok) {
+        if (!ok) return;
+        return post(<?= json_encode(url_to('/admin/uploads')) ?> + "/" + id + "/delete")
         .then(function (r) { return r.json(); })
         .then(function (j) {
           if (j && j.ok) location.reload();
-          else pafishNotify((j && j.error) || "删除失败");
+          else if (j && j.usageCount) {
+            (window.pafishConfirm ? window.pafishConfirm("该媒体仍被引用 " + j.usageCount + " 次，确认强制删除？", { title: "强制删除媒体" }) : Promise.resolve(window.confirm("确认强制删除？"))).then(function (force) {
+              if (force) post(<?= json_encode(url_to('/admin/uploads')) ?> + "/" + id + "/delete", { force: "1" }).then(function () { location.reload(); });
+            });
+          } else pafishNotify((j && j.error) || "删除失败");
         })
         .catch(function () { pafishNotify("网络错误"); });
+      });
     });
   });
 

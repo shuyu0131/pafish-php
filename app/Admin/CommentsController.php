@@ -11,7 +11,7 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
- * 评论审核（对齐 Node app/admin/comments/ + actions.ts 审核系列）：
+ * 评论审核：
  * - 4 Tab：待审核 PENDING / 已通过 APPROVED / 垃圾 SPAM / 已删除 TRASH（TRASH 无写入路径，保留 Tab）
  * - 20/页、created_at 倒序；每条显示作者/邮箱/IP/时间/内容/文章链接/父评论作者
  * - 操作：回复（以管理员身份建 APPROVED 子评论）、通过/垃圾（状态流转，驳回即 SPAM）、
@@ -21,9 +21,9 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  */
 final class CommentsController extends AdminController
 {
-    private const PAGE_SIZE = 20; // 对齐 Node PAGE_SIZE
+    private const PAGE_SIZE = 20;
 
-    /** 状态常量（对齐 Node src/lib/constants.ts COMMENT_STATUS） */
+    /** 状态常量 */
     private const STATUSES = ['PENDING', 'APPROVED', 'SPAM', 'TRASH'];
 
     /** GET /admin/comments：评论列表（status + page） */

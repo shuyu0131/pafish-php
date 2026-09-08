@@ -95,6 +95,14 @@ if (!is_file($configFile)) {
 }
 Config::load($configFile);
 
+// Apply small, idempotent schema migrations before controllers query new fields.
+try {
+    \Pafish\Services\Migrator::run(\Pafish\Core\DB::pdo(), PAFISH_ROOT . '/migrations');
+} catch (\Throwable $e) {
+    // Keep the normal error handler in charge of the request; migration errors are not hidden.
+    throw $e;
+}
+
 // 3. 运行环境
 date_default_timezone_set((string) Config::get('timezone', 'Asia/Shanghai'));
 mb_internal_encoding('UTF-8');

@@ -1,6 +1,6 @@
 <?php
 /**
- * 主题设置页（对齐 Node admin/appearance/[name]/page.tsx + schema-form + settings-import-export）：
+ * 主题设置页：
  * 返回链接 → 标题（manifest.title v{version} + 当前主题徽章）→ 不可用/未启用提示 → 分组 Tab 表单（8 类型）
  * → 备份卡（导出 JSON / 导入恢复）→ 媒体库弹窗（image 字段"从媒体库选择"）
  * 变量：$themeName、$manifest、$error、$active、$values
@@ -153,7 +153,7 @@ $description = is_string($manifest['description'] ?? null) ? $manifest['descript
   <div class="admin-modal" role="dialog" aria-modal="true" aria-label="从媒体库选择">
     <div class="admin-modal-head">
       <div class="admin-modal-tabs"><span class="admin-modal-tab active">媒体库</span></div>
-      <button type="button" class="admin-icon-btn" data-theme-close-modal aria-label="关闭"><?= admin_icon('x', 16) ?></button>
+      <button type="button" class="admin-icon-btn" data-theme-close-modal data-modal-close aria-label="关闭"><?= admin_icon('x', 16) ?></button>
     </div>
     <div class="admin-modal-body">
       <input class="input admin-lib-search" type="search" placeholder="搜索媒体…" data-theme-lib-q>
@@ -314,24 +314,23 @@ $description = is_string($manifest['description'] ?? null) ? $manifest['descript
     importBtn.addEventListener("click", function () { importInput.click(); });
     importInput.addEventListener("change", function () {
       if (!importInput.files || !importInput.files[0]) { return; }
-      if (!window.confirm("导入将覆盖当前主题的全部设置，确定继续吗？\n（建议先导出留底）")) {
-        importInput.value = "";
-        return;
-      }
-      importBtn.disabled = true;
-      importBtn.textContent = "导入中…";
-      var fd = new FormData();
-      fd.append("name", NAME);
-      fd.append("file", importInput.files[0]);
-      fd.append("_csrf", CSRF);
-      post("/admin/appearance/import", fd).then(function (j) {
-        persistMsg("已导入 " + j.imported + "/" + j.total + " 项设置。", false);
-        location.reload();
-      }).catch(function (err) {
-        showMsg(err.message, true);
-        importBtn.disabled = false;
-        importBtn.textContent = "导入设置";
-        importInput.value = "";
+      (window.pafishConfirm ? window.pafishConfirm("导入将覆盖当前主题的全部设置，确定继续吗？\n（建议先导出留底）", { title: "覆盖主题设置" }) : Promise.resolve(window.confirm("确认导入？"))).then(function (ok) {
+        if (!ok) { importInput.value = ""; return; }
+        importBtn.disabled = true;
+        importBtn.textContent = "导入中…";
+        var fd = new FormData();
+        fd.append("name", NAME);
+        fd.append("file", importInput.files[0]);
+        fd.append("_csrf", CSRF);
+        post("/admin/appearance/import", fd).then(function (j) {
+          persistMsg("已导入 " + j.imported + "/" + j.total + " 项设置。", false);
+          location.reload();
+        }).catch(function (err) {
+          showMsg(err.message, true);
+          importBtn.disabled = false;
+          importBtn.textContent = "导入设置";
+          importInput.value = "";
+        });
       });
     });
   }

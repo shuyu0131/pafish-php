@@ -4,14 +4,13 @@ declare(strict_types=1);
 
 namespace Pafish\Admin;
 
-use Pafish\Services\Settings;
 use Pafish\Services\Theme;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Psr\Http\Message\UploadedFileInterface;
 
 /**
- * 主题与外观（对齐 Node app/admin/appearance/）：
+ * 主题与外观：
  * - 列表（manifest 校验 + 当前主题徽章 + 启用/卸载）/ 独立设置页（SchemaForm 8 类型 + 分组 + show_if）
  * - 安装 zip（上传/URL）/ 卸载（独有键清理）/ 导入导出设置备份
  * - 权限：仅 ADMIN（guardAdmin，参考 emlog 编辑不可改外观）
@@ -71,7 +70,7 @@ final class AppearanceController extends AdminController
         if ($desc['error'] !== null) {
             return $this->json($response, ['error' => $desc['error'] ?? '主题不存在'], 400);
         }
-        // 只保存提交的键（对齐 Node saveThemeSettings：未提交键不动，checkbox 由前端全量序列化 '1'/'0'）
+        // 只保存提交的键，checkbox 由前端全量序列化为 '1'/'0'
         // 先收集并完成全部校验，再统一写库（校验失败不产生部分写入）
         $pairs = [];
         foreach ($desc['manifest']['settings'] as $field) {

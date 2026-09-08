@@ -7,7 +7,7 @@ namespace Pafish\Services;
 use Pafish\Core\DB;
 
 /**
- * 站内通知 + 邮件通知（对齐 Node 版 src/lib/notify.ts）
+ * 站内通知 + 邮件通知
  * - createNotification：新评论/新回复写入 notifications 表（后台铃铛）
  * - sendCommentEmail：站长邮件提醒（notify_email_enabled + notify_email 开启时生效；失败静默）
  * - sendReplyEmail：被回复者邮件通知（父评论者勾选 notifyReply；失败静默）

@@ -1,6 +1,6 @@
 <?php
 /**
- * 导航菜单管理（对齐 Node app/admin/nav/）：
+ * 导航菜单管理：
  * - 顶部新建表单（含「外部链接（新窗口打开）」复选框）
  * - 列表行：名称 + 「已隐藏」badge + 「外部」badge + url 可点击预览
  * - 操作：↑/↓ 上下移动（边界禁用）、显隐、编辑（行内展开）、删除（两步确认）
@@ -208,14 +208,16 @@ foreach ($items as $n) {
       }
       var row = btn.closest(".admin-list-row");
       var label = row.getAttribute("data-label");
-      if (!confirm("确定删除导航项「" + label + "」？")) return;
-      post(base + "/" + row.getAttribute("data-id") + "/delete")
+      (window.pafishConfirm ? window.pafishConfirm("确定删除导航项「" + label + "」？", { title: "删除导航项" }) : Promise.resolve(window.confirm("确定删除导航项「" + label + "」？"))).then(function (ok) {
+        if (!ok) return;
+        return post(base + "/" + row.getAttribute("data-id") + "/delete")
         .then(function (r) { return r.json(); })
         .then(function (j) {
           if (j && j.ok) location.reload();
           else pafishNotify((j && j.error) || "删除失败");
         })
         .catch(function () { pafishNotify("网络错误"); });
+      });
     });
   });
 })();

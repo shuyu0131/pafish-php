@@ -78,7 +78,7 @@ function is_admin(): bool
     return Auth::isAdmin();
 }
 
-/** 中文日期（Node 版 date-fns zhCN 风格；兼容 yyyy/MM/dd 等 date-fns token） */
+/** 中文日期格式化（兼容 yyyy/MM/dd 等常用格式） */
 function format_date(mixed $date, string $fmt = 'Y年n月j日'): string
 {
     if (!$date) {
@@ -141,25 +141,31 @@ function absolute_url(string $path = ''): string
 /** 前台可见导航项（排序升序） */
 function nav_items(): array
 {
-    return DB::fetchAll(
-        "SELECT id, label, url, is_external FROM nav_items WHERE visible = 1 ORDER BY sort_order ASC, id ASC"
-    );
+    $cached = \Pafish\Core\Cache::get('nav.visible');
+    if (is_array($cached)) return $cached;
+    $rows = DB::fetchAll("SELECT id, label, url, is_external FROM nav_items WHERE visible = 1 ORDER BY sort_order ASC, id ASC");
+    \Pafish\Core\Cache::set('nav.visible', $rows, 300);
+    return $rows;
 }
 
 /** 前台可见侧边栏组件（排序升序） */
 function widget_items(): array
 {
-    return DB::fetchAll(
-        "SELECT * FROM widgets WHERE visible = 1 ORDER BY sort_order ASC, id ASC"
-    );
+    $cached = \Pafish\Core\Cache::get('widgets.visible');
+    if (is_array($cached)) return $cached;
+    $rows = DB::fetchAll("SELECT * FROM widgets WHERE visible = 1 ORDER BY sort_order ASC, id ASC");
+    \Pafish\Core\Cache::set('widgets.visible', $rows, 300);
+    return $rows;
 }
 
 /** 前台可见友情链接（排序升序） */
 function friend_links(): array
 {
-    return DB::fetchAll(
-        "SELECT * FROM links WHERE visible = 1 ORDER BY sort_order ASC, id ASC"
-    );
+    $cached = \Pafish\Core\Cache::get('links.visible');
+    if (is_array($cached)) return $cached;
+    $rows = DB::fetchAll("SELECT * FROM links WHERE visible = 1 ORDER BY sort_order ASC, id ASC");
+    \Pafish\Core\Cache::set('links.visible', $rows, 300);
+    return $rows;
 }
 
 /** 渲染主题 header/footer（WordPress 式，主题可覆盖 header.php / footer.php） */
@@ -204,7 +210,7 @@ function apply_filters(string $name, mixed $value, mixed ...$args): mixed
     return Hooks::applyFilters($name, $value, ...$args);
 }
 
-/** 默认头像（无 avatarUrl 时的 cravatar，对齐 Node avatarSrc） */
+/** 默认头像（无 avatarUrl 时使用 cravatar） */
 function admin_gravatar(string $email): string
 {
     return \Pafish\Http\Comments::avatarUrl(null, $email);

@@ -1,6 +1,6 @@
 <?php
 /**
- * 插件管理（对齐 Node admin/plugins/page.tsx + plugin-list + plugin-install）：
+ * 插件管理：
  * 说明 → 消息条 → 插件卡片（启用徽章/云存储后端/注入/设置项/错误标注）→ 安装卡（上传 zip / URL 下载）
  * 变量：$plugins、$activeCount
  */
@@ -30,6 +30,8 @@
               <?php if ($p['version'] !== ''): ?><span class="admin-theme-version">v<?= e($p['version']) ?></span><?php endif; ?>
               <span class="badge">API v<?= (int) $p['apiVersion'] ?></span>
               <?php if ($p['storage'] !== null): ?><span class="badge badge-primary">云存储后端</span><?php endif; ?>
+              <?php if ($p['pagesCount'] > 0 || $p['templatesCount'] > 0): ?><span class="badge">页面能力</span><?php endif; ?>
+              <?php if ($p['requires'] !== []): ?><span class="badge">依赖 <?= (int) count($p['requires']) ?></span><?php endif; ?>
             </p>
             <p class="admin-theme-desc<?= $p['error'] !== null ? ' admin-text-danger' : '' ?>"><?= e($p['error'] ?? ($p['description'] !== '' ? $p['description'] : '该插件未提供描述')) ?></p>
             <?php if ($p['error'] !== null): ?>
@@ -39,6 +41,7 @@
               作者：<?= e($p['author'] !== '' ? $p['author'] : '未知') ?>　目录：plugins/<?= e($p['name']) ?>/
               <?php if ($p['injects'] !== []): ?>　注入：<?= e(implode('/', $p['injects'])) ?><?php endif; ?>
               　设置项：<?= (int) $p['settingsCount'] ?>
+              <?php if ($p['requires'] !== []): ?>　依赖：<?= e(implode('、', $p['requires'])) ?><?php endif; ?>
             </p>
           </div>
           <div class="admin-theme-ops">
@@ -153,13 +156,15 @@
   });
   document.querySelectorAll(".admin-plugin-uninstall").forEach(function (btn) {
     btn.addEventListener("click", function () {
-      if (!window.confirm("确定卸载插件“" + btn.dataset.title + "”吗？\n将删除插件目录与数据，不可恢复。")) { return; }
-      var fd = new FormData();
-      fd.append("name", btn.dataset.name);
-      fd.append("_csrf", CSRF);
-      post("/admin/plugins/uninstall", fd)
-        .then(function () { persistMsg("已卸载 " + btn.dataset.title, false); location.reload(); })
-        .catch(function (err) { showMsg(err.message, true); });
+      (window.pafishConfirm ? window.pafishConfirm("确定要彻底删除插件“" + btn.dataset.title + "”吗？", { title: "卸载插件", accept: "卸载并删除" }) : Promise.resolve(window.confirm("确定要彻底删除插件？操作不可恢复！"))).then(function (ok) {
+        if (!ok) return;
+        var fd = new FormData();
+        fd.append("name", btn.dataset.name);
+        fd.append("_csrf", CSRF);
+        post("/admin/plugins/uninstall", fd)
+          .then(function () { persistMsg("已卸载 " + btn.dataset.title, false); location.reload(); })
+          .catch(function (err) { showMsg(err.message, true); });
+      });
     });
   });
 

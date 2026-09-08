@@ -9,13 +9,13 @@ use Pafish\Core\DB;
 use PDO;
 
 /**
- * 数据备份（对齐 Node src/lib/backup.ts + 超集）：
+ * 数据备份（含纯 PHP 备份模式）：
  * - 目录：项目根 backups/，文件名 backup-YYYYMMDD-HHmmss.sql / upload-YYYYMMDD-HHmmss.sql
  * - 导出：优先 mysqldump CLI（--single-transaction --routines --triggers，MYSQL_PWD 传密码）；
  *   不可用（虚拟主机无 shell）时纯 PHP 逐表导出兜底（SET FOREIGN_KEY_CHECKS=0 + DROP + CREATE + INSERT）
  * - 恢复：优先 mysql CLI 管道喂入；否则纯 PHP 逐语句解析（支持 DELIMITER 块）
- * - 上传：≤200MB，仅 .sql，头部 4096 字节须含 CREATE TABLE|INSERT INTO|mysqldump（对齐 Node）
- * - upload-* 文件不可删除（对齐 Node）
+ * - 上传：≤200MB，仅 .sql，头部 4096 字节须含 CREATE TABLE|INSERT INTO|mysqldump
+ * - upload-* 文件不可删除
  */
 final class Backup
 {
@@ -34,7 +34,7 @@ final class Backup
         return $dir;
     }
 
-    /** 列表（mtime 倒序，对齐 Node listBackups） */
+    /** 列表（mtime 倒序） */
     public static function list(): array
     {
         $dir = self::dir();
@@ -100,7 +100,7 @@ final class Backup
     public static function restore(string $file): string
     {
         $path = self::resolve($file);
-        $safety = self::create(); // 先留底（对齐 Node restoreBackup）
+        $safety = self::create(); // 先留底
         if (self::mysqlCliAvailable()) {
             self::runWithInput(self::cliCommand(), $path, '恢复失败');
         } else {
@@ -188,6 +188,12 @@ final class Backup
 
     private static function findBin(string $name, array $extraPaths): ?string
     {
+        // Shared hosting commonly disables exec(). In that case the caller must
+        // use the pure-PHP backup/restore implementation instead of failing
+        // while merely probing for a MySQL CLI binary.
+        if (!self::canExecuteCommands()) {
+            return null;
+        }
         $check = [$name];
         foreach ($extraPaths as $p) {
             $check[] = rtrim($p, '\\/') . '\\' . $name;
@@ -213,9 +219,12 @@ final class Backup
         return self::findBin('mysql', ['C:\\Program Files\\MySQL\\MySQL Server 8.0\\bin', 'C:\\Program Files\\MySQL\\MySQL Server 8.4\\bin']) !== null;
     }
 
-    /** 执行命令；失败抛异常（stderr 截断 200 字符，对齐 Node） */
+    /** 执行命令；失败抛异常（stderr 截断 200 字符） */
     private static function run(string $cmd, string $failMsg): void
     {
+        if (!self::canExecuteCommands()) {
+            throw new \RuntimeException($failMsg . '：服务器已禁用命令执行');
+        }
         $c = Config::get('db', []);
         putenv('MYSQL_PWD=' . (string) ($c['password'] ?? ''));
         $cmd = sprintf(
@@ -238,6 +247,9 @@ final class Backup
      * 统一用 shell 重定向 < file 喂入（cmd.exe 与 Linux sh 均支持）。 */
     private static function runWithInput(string $cmd, string $inputFile, string $failMsg): void
     {
+        if (!self::canExecuteCommands()) {
+            throw new \RuntimeException($failMsg . '：服务器已禁用命令执行');
+        }
         $c = Config::get('db', []);
         putenv('MYSQL_PWD=' . (string) ($c['password'] ?? ''));
         $cmd = sprintf(
@@ -260,6 +272,12 @@ final class Backup
     private static function dbName(): string
     {
         return (string) (Config::get('db', [])['database'] ?? '');
+    }
+
+    /** exec() may be disabled by disable_functions on shared hosting. */
+    private static function canExecuteCommands(): bool
+    {
+        return function_exists('exec');
     }
 
     // ---------- 纯 PHP 兜底 ----------

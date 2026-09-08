@@ -1,5 +1,5 @@
 /**
- * pafish 亮暗主题切换（对应 Node 版 next-themes 行为）
+ * pafish 亮暗主题切换
  * - localStorage 记忆用户选择（light / dark），未选择时跟随系统 prefers-color-scheme
  * - .dark 类加到 <html> 上，配合 CSS 变量双色组
  * - head 内联脚本（header.php）负责首帧防闪烁，本文件负责交互
@@ -84,7 +84,7 @@
 })();
 
 /**
- * 文章图片放大预览（对应 Node 版 markdown-render 的图片缩放）：
+ * 文章图片放大预览：
  * 点击 .md-content 内图片弹出全屏遮罩，ESC / 点遮罩关闭
  */
 (function () {

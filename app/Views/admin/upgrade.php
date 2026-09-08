@@ -13,6 +13,15 @@
   </div>
   <p class="admin-backup-msg" id="upgradeMsg" hidden></p>
 
+  <?php if (!empty($upgradeState) && ($upgradeState['phase'] ?? '') === 'failed'): ?>
+    <div class="admin-backup-msg admin-backup-msg-error">
+      上次升级未完成：<?= e((string)($upgradeState['message'] ?? '未知错误')) ?>
+      <?php if (!empty($upgradeState['database_backup'])): ?>
+        <br>数据库安全备份：<code>backups/<?= e((string)$upgradeState['database_backup']) ?></code>
+      <?php endif; ?>
+    </div>
+  <?php endif; ?>
+
   <div class="card admin-upgrade-box">
     <div class="admin-upgrade-row">
       <div class="admin-upgrade-col">
@@ -219,19 +228,21 @@
   if (runBtn) {
     runBtn.addEventListener("click", function () {
       var latest = lastRunText.replace(/^立即更新到 v/, "");
-      if (!window.confirm("将系统从 v" + CURRENT + " 升级到 v" + latest + "？\n升级前会自动备份整站，失败自动回滚到当前版本。")) { return; }
-      busy(runBtn, true);
-      var fd = new FormData();
-      fd.append("_csrf", CSRF);
-      post("/admin/upgrade/run", fd)
-        .then(function (j) {
-          showMsg("✓ 升级完成，当前版本 v" + j.current, false);
-          setTimeout(function () { location.href = "/admin/upgrade"; }, 1200);
-        })
-        .catch(function (err) {
-          showMsg("更新失败：" + err.message + "（已自动回滚到 v" + CURRENT + "）", true);
-          busy(runBtn, false);
-        });
+      (window.pafishConfirm ? window.pafishConfirm("将系统从 v" + CURRENT + " 升级到 v" + latest + "？\n升级前会自动备份整站，失败自动回滚到当前版本。", { title: "确认系统升级", accept: "开始升级" }) : Promise.resolve(window.confirm("确认升级？"))).then(function (ok) {
+        if (!ok) return;
+        busy(runBtn, true);
+        var fd = new FormData();
+        fd.append("_csrf", CSRF);
+        post("/admin/upgrade/run", fd)
+          .then(function (j) {
+            showMsg("✓ 升级完成，当前版本 v" + j.current, false);
+            setTimeout(function () { location.href = "/admin/upgrade"; }, 1200);
+          })
+          .catch(function (err) {
+            showMsg("更新失败：" + err.message + "（已自动回滚到 v" + CURRENT + "）", true);
+            busy(runBtn, false);
+          });
+      });
     });
   }
 })();

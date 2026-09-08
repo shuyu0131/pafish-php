@@ -11,7 +11,7 @@ use Pafish\Services\Settings;use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
- * 前台文章详情（对标 Node 版 /post/[slug]/page.tsx）：
+ * 前台文章详情：
  * 密码门（cookie 解锁 24h）/ 浏览量（cookie 7 天去重）/ 点赞收藏（cookie 列表 + DB 计数）
  * 上下篇 / 相关推荐 / 自定义字段 / 面包屑 / JSON-LD / OG
  */
@@ -70,7 +70,7 @@ final class PostController
             }
         }
 
-        // ---- 浏览量：cookie 7 天去重（对齐 Node ViewTracker） ----
+        // ---- 浏览量：cookie 7 天去重 ----
         $viewCookie = 'pafish_viewed_' . $post['id'];
         if (empty($_COOKIE[$viewCookie])) {
             DB::execute('UPDATE posts SET view_count = view_count + 1 WHERE id = ?', [(int) $post['id']]);
@@ -78,7 +78,7 @@ final class PostController
             setcookie($viewCookie, '1', time() + self::VIEW_TTL, '/', '', false, false);
         }
 
-        // ---- 点赞/收藏初始状态（cookie 列表，对齐 Node） ----
+        // ---- 点赞/收藏初始状态（cookie 列表） ----
         $postKey = (string) $post['id'];
         $liked = in_array($postKey, $this->cookieIds('liked_posts'), true);
         $favorited = in_array($postKey, $this->cookieIds('favorited_posts'), true);
@@ -86,7 +86,7 @@ final class PostController
         // ---- 自定义字段解析（坏数据容错为空） ----
         $customFields = $this->parseCustomFields($post['custom_fields'] ?? null);
 
-        // ---- 评论区数据（对齐 Node CommentSection；评论功能关闭时整块隐藏） ----
+        // ---- 评论区数据（评论功能关闭时整块隐藏） ----
         $commentsEnabled = (string) Settings::get('comments_enabled', 'true') !== 'false';
         $needReview = (string) Settings::get('comments_need_review', 'true') !== 'false';
         $comments = $commentsEnabled
@@ -125,7 +125,7 @@ final class PostController
         if (!in_array($kind, ['like', 'favorite'], true)) {
             return $this->json($response, ['error' => '参数错误'], 400);
         }
-        // 收藏需要登录后才可使用（点赞保持匿名，与 Node 版一致）
+        // 收藏需要登录后才可使用，点赞保持匿名
         if ($kind === 'favorite' && !\is_logged_in()) {
             return $this->json($response, ['error' => '请先登录后再收藏', 'login_url' => \url_to('/login')], 401);
         }
@@ -159,7 +159,7 @@ final class PostController
         $data = array_merge($extra, [
             'post' => $post,
             'title' => $post['title'],
-            'description' => (string) ($post['excerpt'] ?? ''), // meta description 用摘要（对齐 Node）
+            'description' => (string) ($post['excerpt'] ?? ''), // meta description 用摘要
             'og' => [
                 'type' => 'article',
                 'title' => $post['title'],

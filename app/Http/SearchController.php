@@ -10,7 +10,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
  * 搜索页：MySQL FULLTEXT ngram 中文分词 + LIKE 兜底
- * 对齐 Node 版 search/page.tsx
+ * 搜索页面
  */
 final class SearchController
 {
@@ -36,7 +36,7 @@ final class SearchController
         $metaDesc = $keyword !== '' ? "搜索“{$keyword}”共找到 {$total} 篇文章" : '站内全文搜索';
 
         $response->getBody()->write(\render('search', [
-            'title' => '搜索', // Node 版 metadata title 固定"搜索"，h1 内展示关键词
+            'title' => '搜索', // 页面标题固定，关键词在 h1 中展示
             'description' => $metaDesc,
             'og' => Listings::og($request, $title, $metaDesc),
             'keyword' => $keyword,

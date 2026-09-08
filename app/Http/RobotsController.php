@@ -9,7 +9,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
  * robots.txt（放行全站 + 指向 sitemap）
- * 对齐 Node 版 robots.ts
+ * robots.txt 输出
  */
 final class RobotsController
 {

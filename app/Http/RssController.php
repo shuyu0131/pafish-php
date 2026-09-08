@@ -11,7 +11,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
  * RSS 2.0 订阅（/rss.xml；最近 20 篇已发布文章）
- * 对齐 Node 版 rss.xml/route.ts
+ * RSS 输出
  */
 final class RssController
 {

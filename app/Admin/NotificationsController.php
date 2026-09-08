@@ -9,7 +9,7 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
- * 通知中心（对齐 Node app/admin/notifications/）：
+ * 通知中心：
  * - 20/页，未读在前（read asc）再按时间倒序；顶部未读数 + 「全部已读」
  * - 通知类型：NEW_COMMENT 新评论 / NEW_REPLY 新回复（仅评论提交产生，见 Notify::createNotification）
  * - 每条：类型图标、message、时间、「查看文章」+「去审核」（PENDING 列表）链接
@@ -17,7 +17,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  */
 final class NotificationsController extends AdminController
 {
-    private const PAGE_SIZE = 20; // 对齐 Node PAGE_SIZE
+    private const PAGE_SIZE = 20;
 
     /** GET /admin/notifications：通知列表（未读在前） */
     public function index(Request $request, Response $response): Response

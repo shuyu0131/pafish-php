@@ -10,7 +10,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
  * 分类页：包含其所有子分类的文章（递归后代），两级置顶排序
- * 对齐 Node 版 category/[slug]/page.tsx
+ * 分类页面
  */
 final class CategoryController
 {

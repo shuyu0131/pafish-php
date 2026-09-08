@@ -10,7 +10,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
  * 标签页：该标签下的文章列表
- * 对齐 Node 版 tag/[slug]/page.tsx
+ * 标签页面
  */
 final class TagController
 {

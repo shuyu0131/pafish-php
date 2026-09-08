@@ -2,7 +2,7 @@
 /**
  * 独立页面详情（系统 fallback 模板；主题可覆盖 themes/{active}/page.php）
  * 可用数据：$page（pages 表行，含 title/content/template/updated_at）、$contentHtml、$title、$description
- * 结构对齐 Node 版 /pages/[slug]/page.tsx + page-template-view.tsx：
+ * 独立页面布局：
  * - 非 default 模板时容器带 data-page-template + page-template-{name} 类（主题 CSS 据此布局）
  * - 插件模板优先：激活插件 renderPageTemplate 输出非空时用 .plugin-page 渲染，否则 Markdown
  */

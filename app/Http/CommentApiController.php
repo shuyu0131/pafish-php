@@ -13,19 +13,28 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
- * 评论 API（对齐 Node 版 src/app/api/comments/* + captcha）
+ * 评论 API（含验证码校验）
  * 反垃圾：无 UA / 爬虫 UA 拒绝、黑名单 IP 403、同 IP 5 秒限速（文件缓存）、1 小时重复 429
  */
 final class CommentApiController
 {
     private const MIN_INTERVAL = 5; // 同 IP 两次评论最小间隔（秒）
+    private const CAPTCHA_MIN_INTERVAL = 2; // 同一请求身份刷新验证码最小间隔（秒）
     private const MAX_LIKED = 200;  // 每人最多点赞的评论数（防止 cookie 无限膨胀）
 
     // ---------- 图形验证码 ----------
 
     public function captcha(Request $request, Response $response): Response
     {
-        [$token, $svg] = Captcha::create();
+        $identity = $this->captchaIdentity($request);
+        $retryAfter = $this->captchaRetryAfter($identity);
+        if ($retryAfter > 0) {
+            return $this->json($response, [
+                'error' => '验证码刷新过于频繁，请稍后再试',
+                'retryAfter' => $retryAfter,
+            ], 429)->withHeader('Retry-After', (string) $retryAfter);
+        }
+        [$token, $svg] = Captcha::create($identity);
         return $this->json($response, ['token' => $token, 'svg' => $svg]);
     }
 
@@ -77,7 +86,7 @@ final class CommentApiController
             if ((string) Settings::get('comments_captcha_enabled', 'true') !== 'false') {
                 $captchaToken = (string) ($body['captchaToken'] ?? '');
                 $captchaAnswer = (string) ($body['captchaAnswer'] ?? '');
-                if (!Captcha::verify($captchaToken, $captchaAnswer)) {
+                if (!Captcha::verify($captchaToken, $captchaAnswer, $this->captchaIdentity($request))) {
                     return $this->json($response, ['error' => '验证码错误，请重试'], 400);
                 }
             }
@@ -273,6 +282,45 @@ final class CommentApiController
         }
         $serverParams = $request->getServerParams();
         return (string) ($serverParams['REMOTE_ADDR'] ?? 'unknown');
+    }
+
+    /** 验证码绑定会话和来源地址，避免 token 被跨会话转用 */
+    private function captchaIdentity(Request $request): string
+    {
+        return $this->clientIp($request) . '|' . (session_id() ?: 'no-session');
+    }
+
+    /** 验证码刷新限速；返回剩余等待秒数，0 表示允许 */
+    private function captchaRetryAfter(string $identity): int
+    {
+        $dir = dirname(__DIR__, 2) . '/runtime/rate';
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0755, true);
+        }
+        $file = $dir . '/captcha_' . md5($identity) . '.ts';
+        $now = time();
+        $last = is_file($file) ? (int) @file_get_contents($file) : 0;
+        $remaining = self::CAPTCHA_MIN_INTERVAL - ($now - $last);
+        if ($remaining > 0) {
+            return $remaining;
+        }
+        @file_put_contents($file, (string) $now, LOCK_EX);
+
+        // 控制长期未清理的来源记录数量，单次最多清理 100 个。
+        $files = glob($dir . '/captcha_*.ts');
+        if (is_array($files) && count($files) > 1000) {
+            $cutoff = $now - 3600;
+            $cleaned = 0;
+            foreach ($files as $f) {
+                if ((int) @file_get_contents($f) < $cutoff && @unlink($f)) {
+                    $cleaned++;
+                }
+                if ($cleaned >= 100) {
+                    break;
+                }
+            }
+        }
+        return 0;
     }
 
     /** 同 IP 限速：runtime/rate/comment_{ip}.ts；顺带清理 10 分钟前的记录 */

@@ -130,6 +130,10 @@ $packDir = static function (string $dir, string $zipPrefix) use (&$packDir, $zip
             if (isExcluded($rel)) {
                 continue;
             }
+            // 清理源码中已删除的空遗留目录，避免把旧编辑器目录再次带入发行包。
+            if (basename($rel) === 'md-editor') {
+                continue;
+            }
             // 保留空目录结构（运行时写入），但打包空目录本身
             $zip->addEmptyDir($rel);
             $count++;

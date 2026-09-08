@@ -1,6 +1,6 @@
 <?php
 /**
- * 插件设置页（对齐 Node admin/plugins/[name]/page.tsx + schema-form）：
+ * 插件设置页：
  * 返回链接 → 标题（manifest.title v{version}）→ 不可用提示 → 分组 Tab 表单（9 类型含 password）
  * 变量：$pluginName、$manifest、$error、$values
  */
@@ -139,7 +139,7 @@ $description = is_string($manifest['description'] ?? null) ? $manifest['descript
   <div class="admin-modal" role="dialog" aria-modal="true" aria-label="从媒体库选择">
     <div class="admin-modal-head">
       <div class="admin-modal-tabs"><span class="admin-modal-tab active">媒体库</span></div>
-      <button type="button" class="admin-icon-btn" data-plugin-close-modal aria-label="关闭"><?= admin_icon('x', 16) ?></button>
+      <button type="button" class="admin-icon-btn" data-plugin-close-modal data-modal-close aria-label="关闭"><?= admin_icon('x', 16) ?></button>
     </div>
     <div class="admin-modal-body">
       <input class="input admin-lib-search" type="search" placeholder="搜索媒体…" data-plugin-lib-q>

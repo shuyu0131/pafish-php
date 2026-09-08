@@ -1,6 +1,6 @@
 <?php
 /**
- * 个人资料（对齐 Node app/admin/profile/）：
+ * 个人资料：
  * 资料表单（头像上传/粘贴地址、昵称、用户名、邮箱）+ 修改密码表单（当前/新/确认）
  * 变量：$me
  */
@@ -115,7 +115,7 @@ $avatar = !empty($me['avatar_url']) ? $me['avatar_url'] : admin_gravatar((string
     });
   }
 
-  // 资料保存：成功显示「已保存」（对齐 Node）
+  // 资料保存：成功显示「已保存」
   var savedBox = document.getElementById("profileSaved");
   bind("profileForm", "profileError", function () {
     savedBox.hidden = false;

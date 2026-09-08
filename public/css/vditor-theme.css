@@ -46,6 +46,12 @@
 .vditor-toolbar {
   border-bottom: 1px solid var(--border);
   min-height: 38px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+.vditor-toolbar__item {
+  flex: 0 0 auto;
 }
 .vditor-toolbar .vditor-tooltipped {
   color: var(--muted);
@@ -144,9 +150,12 @@
 
 /* ---------- 移动端 ---------- */
 @media (max-width: 767px) {
-  /* 覆盖 init 传入的固定高度，移动端压低编辑器高度 */
+  /* 移动端保留足够写作空间，同时避免工具栏挤压按钮 */
   .admin-md-editor .vditor {
     height: 400px !important;
+  }
+  .admin-md-editor .vditor-toolbar {
+    padding-right: 6px;
   }
   .admin-md-editor .vditor-toolbar button {
     min-width: 28px;

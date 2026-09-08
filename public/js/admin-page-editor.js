@@ -1,5 +1,5 @@
 /**
- * 页面编辑器（对齐 Node page-editor.tsx 的 MdEditor 精简版）：
+ * 页面编辑器交互：Markdown 编辑、媒体插入和自动保存。
  * - Markdown 编辑：Vditor（所见即所得/分屏/源码三模式，中文工具栏，本地化资源）
  * - 拖拽/粘贴图片上传（/api/upload）；非图片文件走 /api/upload 插入下载链接
  * - 媒体弹窗（本地上传 / 媒体库 24/页 + 500ms 防抖搜索），工具栏「插入媒体」按钮打开
@@ -94,7 +94,7 @@
     if (typeof window.Vditor !== "function") { editorFallback(); return; }
 
     vditor = new Vditor(mount, {
-      height: 420,
+      height: 520,
       mode: "ir",
       value: content.value || "",
       placeholder: "在此输入页面内容（支持 Markdown）…",
@@ -257,7 +257,7 @@
         pending = null;
         btns.forEach(function (b) { b.disabled = false; });
         if (res.ok && res.j && res.j.ok) {
-          location.href = DATA.listUrl; // 保存成功回列表（与 Node 保存行为一致）
+          location.href = DATA.listUrl; // 保存成功回列表
         } else {
           showError((res.j && res.j.error) || "保存失败，请重试");
         }

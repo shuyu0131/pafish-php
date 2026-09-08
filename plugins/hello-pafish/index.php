@@ -25,7 +25,7 @@ return [
     },
 
     'onActivate' => function (object $ctx): void {
-        // 激活时记录一次打招呼（PHP 无 Node 版 5s 节流，boot() 每请求执行，不能放在 registerHooks）
+        // 激活时记录一次打招呼（boot() 每请求执行，不能放在 registerHooks）
         $ctx->log('Hello, pafish! 我已通过应用商店安装并启用。');
         error_log('[hello-pafish] 已激活');
     },

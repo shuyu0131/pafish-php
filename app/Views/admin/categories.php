@@ -1,6 +1,6 @@
 <?php
 /**
- * 分类管理（对齐 Node app/admin/categories/ 列表 + 表单）：
+ * 分类管理：
  * 左侧树形列表（└ 缩进、文章数、同级上移/下移/编辑/删除），右侧新建/编辑表单
  * 变量：$tree $counts $flatForSelect $disabledMap $role
  * 防自引用：编辑时父级下拉禁用"自身+后代"（disabledMap），后端 BFS 双保险
@@ -206,14 +206,16 @@ window.PAFISH_CAT_DATA = <?= json_encode($catJs) ?>;
   document.querySelectorAll("[data-delete-cat]").forEach(function (btn) {
     btn.addEventListener("click", function () {
       var name = btn.getAttribute("data-name") || "";
-      if (!confirm("确定删除分类「" + name + "」？其子分类将变为顶级分类，文章将变为未分类。")) return;
-      post(D.deleteUrl + "/" + btn.getAttribute("data-delete-cat") + "/delete")
+      (window.pafishConfirm ? window.pafishConfirm("确定删除分类「" + name + "」？其子分类将变为顶级分类，文章将变为未分类。", { title: "删除分类" }) : Promise.resolve(window.confirm("确定删除分类「" + name + "」？"))).then(function (ok) {
+        if (!ok) return;
+        return post(D.deleteUrl + "/" + btn.getAttribute("data-delete-cat") + "/delete")
         .then(function (r) { return r.json(); })
         .then(function (j) {
           if (j && j.ok) location.reload();
           else pafishNotify((j && j.error) || "删除失败");
         })
         .catch(function () { pafishNotify("网络错误"); });
+      });
     });
   });
 })();

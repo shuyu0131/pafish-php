@@ -8,7 +8,7 @@ use Pafish\Core\DB;
 use Pafish\Core\Hooks;
 
 /**
- * 媒体上传（对齐 Node src/app/api/upload/route.ts + src/lib/upload.ts）：
+ * 媒体上传：
  * - 大小受 upload_max_mb 设置（夹在 1–200MB）约束
  * - 扩展名白名单：图片/文档/压缩包/音频/视频
  * - 图片压缩（GD）：仅 png/jpg/jpeg/webp——EXIF 方向转正 → 长边 >1920 缩放
@@ -18,7 +18,7 @@ use Pafish\Core\Hooks;
  */
 final class Upload
 {
-    private const MAX_SIDE = 1920;   // 长边上限（与 Node 一致）
+    private const MAX_SIDE = 1920;   // 长边上限
     private const JPEG_Q = 82;
 
     public const ALLOWED_EXT = [
@@ -47,7 +47,7 @@ final class Upload
         'mkv' => 'video/x-matroska',
     ];
 
-    /** 媒体类型筛选 SQL（mime 前缀 + url 扩展名兜底，对齐 Node lib/media-filter.ts buildTypeWhere） */
+    /** 媒体类型筛选 SQL（mime 前缀 + url 扩展名兜底） */
     public static function typeWhere(string $type): string
     {
         static $prefixes = [
@@ -69,6 +69,40 @@ final class Upload
             $conds[] = "url LIKE '%.{$e}'";
         }
         return '(' . implode(' OR ', $conds) . ')';
+    }
+
+    /** Recalculate references from content and settings, then persist counters. */
+    public static function refreshUsage(): void
+    {
+        $sources = [];
+        foreach ([
+            'SELECT content, cover_url, custom_fields FROM posts',
+            'SELECT content FROM pages',
+            'SELECT value FROM settings',
+            'SELECT avatar_url FROM users',
+            'SELECT url, description FROM links',
+            'SELECT url, label FROM nav_items',
+            'SELECT content, title FROM widgets',
+        ] as $sql) {
+            foreach (DB::fetchAll($sql) as $row) {
+                foreach ($row as $value) {
+                    if ($value !== null && $value !== '') {
+                        $sources[] = (string) $value;
+                    }
+                }
+            }
+        }
+        $haystack = implode("\n", $sources);
+        foreach (DB::fetchAll('SELECT id, url FROM uploads') as $upload) {
+            $url = (string) $upload['url'];
+            $path = (string) (parse_url($url, PHP_URL_PATH) ?? $url);
+            $needle = basename($path);
+            $count = substr_count($haystack, $url);
+            if ($needle !== '') {
+                $count = max($count, substr_count($haystack, $needle));
+            }
+            DB::execute('UPDATE uploads SET usage_count = ?, last_used_at = ? WHERE id = ?', [$count, $count > 0 ? date('Y-m-d H:i:s') : null, (int) $upload['id']]);
+        }
     }
 
     /**

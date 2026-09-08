@@ -7,7 +7,7 @@ namespace Pafish\Services;
 use Pafish\Core\DB;
 
 /**
- * 定时发布（对齐 Node src/lib/scheduler.ts publishScheduledPosts）：
+ * 定时发布：
  * - 把已到发布时间的 SCHEDULED 文章转为 PUBLISHED
  * - 查询层兜底：前台只显示 PUBLISHED 且 published_at <= NOW()，即使任务未跑也不会提前泄露
  * 双通道触发：

@@ -1,6 +1,6 @@
 <?php
 /**
- * Markdown 批量导入（对齐 Node import-markdown.tsx + admin/posts/import/page.tsx）
+ * Markdown 批量导入
  * 变量：$uploadUrl（/api/import-markdown） $csrf
  * 多选 .md 文件（最多 50 个、单文件 1MB），frontmatter 仅支持 title / date / tags
  */

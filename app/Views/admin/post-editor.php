@@ -1,6 +1,6 @@
 <?php
 /**
- * 文章编辑器（对齐 Node post-editor.tsx）：
+ * 文章编辑器：
  * 左侧标题+Markdown 编辑器（工具栏/分栏预览/拖拽粘贴上传/插入媒体），右侧 300px 设置栏
  * 变量：$post $isEdit $postId $catTree $tags $tagIds $customFields $hasPassword $isScheduled $statusLabel
  */
@@ -48,7 +48,7 @@ $editorData = [
         <input class="admin-editor-title" type="text" id="fTitle" name="title"
                value="<?= e($post['title']) ?>" placeholder="文章标题" maxlength="255">
 
-        <!-- Markdown 编辑器（Vditor：所见即所得/分屏/源码三种模式，完整博客写作工具栏，拖拽粘贴上传） -->
+        <!-- Markdown 编辑器（Vditor：所见即所得/分栏/源码三模式，完整博客写作工具栏，拖拽粘贴上传） -->
         <div class="admin-md-editor">
           <div id="vditorMount"></div>
           <textarea id="fContent" name="content" hidden

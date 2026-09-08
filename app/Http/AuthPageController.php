@@ -10,7 +10,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
  * 认证页面（登录/注册/找回密码/重置密码；独立卡片布局，无博客壳）
- * 对齐 Node 版 app/login|register|forgot-password|reset-password/page.tsx
+ * 登录、注册、找回密码和重置密码页面
  */
 final class AuthPageController
 {

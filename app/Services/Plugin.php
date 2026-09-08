@@ -7,7 +7,7 @@ namespace Pafish\Services;
 use Pafish\Core\Hooks;
 
 /**
- * 插件系统（对标 Node 版 src/lib/plugin-loader.ts + plugin-injections.ts + plugin-pages.ts + plugin-storage.ts + admin/plugins/actions.ts）：
+ * 插件系统：负责加载、生命周期和前台注入。
  * - 目录约定：plugins/{name}/plugin.json（manifest + 设置 schema）+ index.php（返回约定函数数组的 PHP 文件）
  * - manifest 校验：名称白名单 / title+version 必填 / settings 9 类型过滤（非法字段忽略）
  *   / injects 白名单 / pageTemplates·pages 白名单（声明但过滤后为空 = 声明无效）/ storage 非法忽略
@@ -94,7 +94,7 @@ final class Plugin
 
     /**
      * 插件描述：['manifest' => ?array, 'error' => ?string]
-     * 错误文案对齐 Node readManifest（校验顺序：名称 → 缺少 plugin.json → JSON → 格式 → name → title/version）
+     * Manifest 校验顺序：名称 → 缺少 plugin.json → JSON → 格式 → name → title/version
      */
     public static function describe(string $name): array
     {
@@ -179,7 +179,7 @@ final class Plugin
         return null;
     }
 
-    /** 规范化 manifest（过滤 settings/injects/pageTemplates/pages/storage，对齐 Node readManifest 返回结构） */
+    /** 规范化 manifest（过滤 settings/injects/pageTemplates/pages/storage） */
     private static function normalize(array $json): array
     {
         $settings = [];
@@ -288,7 +288,7 @@ final class Plugin
         }
     }
 
-    /** 插件上下文（ctx API 对齐 Node createPluginContext；PHP 版全部同步） */
+    /** 插件上下文（PHP 版同步 API） */
     public static function context(string $name): object
     {
         if (isset(self::$contexts[$name])) {
@@ -371,7 +371,7 @@ final class Plugin
         return is_array($v) ? $v : [];
     }
 
-    /** partial 合并写回（对齐 Node setPluginSettings：{ ...cur, ...partial }） */
+    /** partial 合并写回 */
     public static function setSettings(string $name, array $partial): void
     {
         Settings::set('plugin_settings:' . $name, json_encode(array_merge(self::settings($name), $partial), JSON_UNESCAPED_UNICODE));
@@ -494,7 +494,7 @@ final class Plugin
 
     /**
      * 渲染指定注入点 HTML：激活插件 renderInjection(target, ctx) 依次拼接
-     * head 走白名单标签过滤（script/meta/link/style，对齐 Node parseInjectionTags）；footer/sidebar 原样
+     * head 走白名单标签过滤（script/meta/link/style）；footer/sidebar 原样
      */
     public static function renderInjection(string $target, array $context = []): string
     {
@@ -529,7 +529,7 @@ final class Plugin
         return $target === 'head' ? self::parseInjectionTags($joined) : $joined;
     }
 
-    /** 白名单标签提取（对齐 Node parseInjectionTags：script/meta/link/style 顺序收集） */
+    /** 白名单标签提取（按 script/meta/link/style 顺序收集） */
     private static function parseInjectionTags(string $html): string
     {
         $out = '';
@@ -568,7 +568,7 @@ final class Plugin
 
     /**
      * 插件前台页：返回 ['html' => string, 'title' => string]；任一条件不满足返回 null
-     * 对齐 Node /plugin/[name]/[[...path]]：激活 + 声明该 path + renderPluginPage 函数 + 非空输出
+     * 插件页面：激活 + 声明该 path + renderPluginPage 函数 + 非空输出
      */
     public static function renderPluginPage(string $name, string $pagePath): ?array
     {
@@ -671,7 +671,7 @@ final class Plugin
      * 每次请求启动（bootstrap 调用）：
      * - 注册系统注入渲染器（主题模板里 do_action('head_inject'/'sidebar_inject'/'footer_inject') 输出插件注入）
      * - 接入云存储管线（Upload/MediaController 的 apply_filters 调用点）
-     * - 注册全部激活插件的钩子（PHP 每请求新进程，无需 Node 的 5s 节流 ensurePluginHooks）
+     * - 注册全部激活插件的钩子（PHP 每请求新进程）
      */
     public static function boot(): void
     {
@@ -692,7 +692,7 @@ final class Plugin
         }
     }
 
-    /** zip 安装（对齐 Node installFromBuffer）：大小 → 顶层目录 → 穿越防护 → plugin.json 校验 → 原子 rename */
+    /** zip 安装：大小 → 顶层目录 → 穿越防护 → plugin.json 校验 → 原子 rename */
     public static function installFromBuffer(string $buffer, string $label): array
     {
         $len = strlen($buffer);
@@ -721,7 +721,7 @@ final class Plugin
                     throw new \RuntimeException('插件包含意外路径：' . $entryName);
                 }
                 $parts = explode('/', $trimmed);
-                // 先做逐段安全校验（穿越/空段/非法字符优先于顶层唯一性，对齐 Node 校验顺序）
+                // 先做逐段安全校验（穿越/空段/非法字符优先于顶层唯一性）
                 foreach ($parts as $seg) {
                     if ($seg === '..' || $seg === '') {
                         throw new \RuntimeException('插件包含意外路径：' . $entryName);
@@ -778,7 +778,7 @@ final class Plugin
         }
     }
 
-    /** URL 安装（对齐 Node installFromUrl）：仅 https（防中间人篡改）；下载失败返回状态码 */
+    /** URL 安装：仅 https（防中间人篡改）；下载失败返回状态码 */
     public static function installFromUrl(string $url): array
     {
         if (preg_match('/^https:\/\//i', $url) !== 1) {

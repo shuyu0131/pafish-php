@@ -1,6 +1,6 @@
 <?php
 /**
- * 后台布局（对齐 Node app/admin/layout.tsx）：
+ * 后台布局：
  * 桌面：固定左侧栏（品牌 → 分组导航 → 用户信息/退出/查看前台）+ 内容区
  * 移动端：顶栏 + 抽屉（遮罩点击/Esc 关闭）；分组折叠状态记忆于 localStorage admin_nav_collapsed
  * 变量：$title $siteName $user $nav $unreadNotifications $currentPath $content
@@ -29,6 +29,7 @@ $roleLabel = match ((string) ($user['role'] ?? '')) {
 <meta name="robots" content="noindex,nofollow">
 <link rel="stylesheet" href="<?= e(asset_url('/css/admin.css')) ?>">
 <script src="<?= e(asset_url('/js/admin-toast.js')) ?>"></script>
+<script src="<?= e(asset_url('/js/admin-ui.js')) ?>"></script>
 <?php if (!empty($headExtra)): ?><?= $headExtra ?><?php endif; ?>
 <script>
 /* API 路径适配：pretty_urls=false 时请求走 index.php?p=api/...，query 用 & 拼接 */
@@ -144,7 +145,7 @@ window.pafishApi = function (p) {
   if (backdrop) backdrop.addEventListener('click', close);
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
 
-  // 导航分组折叠（localStorage 记忆，key 与 Node 版一致）
+  // 导航分组折叠（localStorage 记忆）
   var key = 'admin_nav_collapsed';
   var saved = [];
   try { saved = JSON.parse(localStorage.getItem(key) || '[]'); } catch (err) {}

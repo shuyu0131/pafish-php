@@ -1,6 +1,6 @@
 <?php
 /**
- * 主题与外观（对齐 Node admin/appearance/page.tsx + theme-list + theme-install）：
+ * 主题与外观：
  * 说明 → 消息条 → 已安装主题卡片（启用/设置/卸载）→ 安装卡（上传 zip / URL 下载）
  * 变量：$themes、$activeTheme
  */
@@ -138,13 +138,15 @@
   });
   document.querySelectorAll(".admin-theme-uninstall").forEach(function (btn) {
     btn.addEventListener("click", function () {
-      if (!window.confirm("确定卸载主题“" + btn.dataset.title + "”吗？\n将删除主题目录与设置，不可恢复。")) { return; }
-      btn.disabled = true;
-      btn.textContent = "处理中…";
-      var fd = new FormData();
-      fd.append("name", btn.dataset.name);
-      fd.append("_csrf", CSRF);
-      run("/admin/appearance/uninstall", fd, "已卸载主题 " + btn.dataset.title);
+      (window.pafishConfirm ? window.pafishConfirm("确定要彻底删除主题“" + btn.dataset.title + "”吗？", { title: "卸载主题", accept: "卸载并删除" }) : Promise.resolve(window.confirm("确定要彻底删除主题？操作不可恢复！"))).then(function (ok) {
+        if (!ok) return;
+        btn.disabled = true;
+        btn.textContent = "处理中…";
+        var fd = new FormData();
+        fd.append("name", btn.dataset.name);
+        fd.append("_csrf", CSRF);
+        run("/admin/appearance/uninstall", fd, "已卸载主题 " + btn.dataset.title);
+      });
     });
   });
 

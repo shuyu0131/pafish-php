@@ -11,8 +11,8 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
- * 个人资料（对齐 Node app/admin/profile/）：任何登录用户可访问
- * - 资料表单：头像（上传/粘贴地址）、昵称、用户名、邮箱；校验与文案对齐 Node
+ * 个人资料：任何登录用户可访问
+ * - 资料表单：头像（上传/粘贴地址）、昵称、用户名、邮箱
  * - 修改密码：需当前密码；成功提示「密码已修改，下次登录请使用新密码」
  */
 final class ProfileController extends AdminController
@@ -27,7 +27,7 @@ final class ProfileController extends AdminController
         return $response;
     }
 
-    /** POST /admin/profile/save：保存头像/昵称/用户名/邮箱（无需邮箱验证码，对齐 Node） */
+    /** POST /admin/profile/save：保存头像/昵称/用户名/邮箱 */
     public function save(Request $request, Response $response): Response
     {
         Auth::requireLogin();

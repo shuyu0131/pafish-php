@@ -12,12 +12,12 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
- * 用户管理（对齐 Node app/admin/users/）：仅 ADMIN（guardAdmin）
- * - 列表：全量用户 + 文章/评论计数，按注册时间正序（Node 不分页）
- * - 角色下拉即时更新（含自己，Node 无最后管理员保护）
+ * 用户管理：仅 ADMIN（guardAdmin）
+ * - 列表：全量用户 + 文章/评论计数，按注册时间正序
+ * - 角色下拉即时更新（含自己）
  * - 禁用/解禁（不能禁自己；禁用时清空重置令牌）、重置密码（内联新密码表单）
- * - 无创建/删除用户功能（Node 版同样没有，用户仅通过前台注册产生）
- * 文案对齐 Node：仅管理员可操作 / 无效角色 / 用户不存在 / 不能禁用自己的账号 / 密码长度需 6-72 位
+ * - 无创建/删除用户功能，用户通过前台注册产生
+ * 统一错误文案和密码长度校验
  */
 final class UsersController extends AdminController
 {
@@ -48,7 +48,7 @@ final class UsersController extends AdminController
         return $response;
     }
 
-    /** POST /admin/users/{id}/role：变更角色（含自己，对齐 Node RoleSelect） */
+    /** POST /admin/users/{id}/role：变更角色（含自己） */
     public function updateRole(Request $request, Response $response, array $args): Response
     {
         $this->guardAdmin();

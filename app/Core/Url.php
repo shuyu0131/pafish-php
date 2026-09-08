@@ -33,6 +33,13 @@ final class Url
     public static function to(string $path): string
     {
         $pretty = (bool) Config::get('pretty_urls', true);
+        if ($pretty && str_starts_with($path, '/post/')) {
+            $slug = rawurldecode(substr($path, 6));
+            $structure = (string) \Pafish\Services\Settings::get('permalink_structure', '/post/%postname%');
+            if ($structure === '/%postname%') {
+                $path = '/' . rawurlencode($slug);
+            }
+        }
         $path = ltrim($path, '/');
         if ($pretty) {
             return self::base() . '/' . $path;

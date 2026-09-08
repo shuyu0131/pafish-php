@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /**
- * 定时发布 CLI 入口（对齐 Node src/lib/scheduler.ts，node-cron 每分钟执行 publishScheduledPosts）
+ * 定时发布 CLI 入口；由系统 cron 每分钟调用。
  *
  * 用法：
  *   宝塔/系统计划任务：php /path/to/pafish/cron.php（每分钟一次）

@@ -39,6 +39,8 @@ use Pafish\Admin\PluginsController;
 use Pafish\Admin\StoreController;
 use Pafish\Admin\UpgradeController;
 use Pafish\Admin\ApiController;
+use Pafish\Admin\HealthController;
+use Pafish\Admin\TransferController;
 use Pafish\Api\V1Controller;
 use Pafish\Http\StaticFileController;
 use Pafish\Http\ThemeAssetController;
@@ -52,6 +54,7 @@ $app->get('/', [HomeController::class, 'index']);
 
 // ---- M2：文章详情与互动 ----
 $app->get('/post/{slug}', [PostController::class, 'show']);
+$app->get('/{year:\d{4}}/{month:\d{2}}/{slug}', [PostController::class, 'show']);
 $app->post('/api/post/{id}/{kind}', [PostController::class, 'toggle']); // kind: like | favorite
 
 // ---- M2：分类 / 标签 / 归档 / 搜索 ----
@@ -198,6 +201,10 @@ $app->group('/admin', function ($group) {
     $group->post('/backup/upload', [BackupController::class, 'upload']);
     $group->post('/backup/restore', [BackupController::class, 'restore']);
     $group->post('/backup/delete', [BackupController::class, 'delete']);
+    $group->get('/health', [HealthController::class, 'index']);
+    $group->get('/tools/transfer', [TransferController::class, 'index']);
+    $group->get('/tools/transfer/export', [TransferController::class, 'export']);
+    $group->post('/tools/transfer/import', [TransferController::class, 'import']);
 
     // 主题与外观（ADMIN+EDITOR：列表/启用/保存设置/安装 zip/卸载/导入导出）
     $group->get('/appearance', [AppearanceController::class, 'index']);
@@ -220,6 +227,7 @@ $app->group('/admin', function ($group) {
 
     // 应用商店（仅 ADMIN：目录双 Tab / 安装 / 更新·回滚）
     $group->get('/store', [StoreController::class, 'index']);
+    $group->post('/store/refresh', [StoreController::class, 'refresh']);
     $group->post('/store/install', [StoreController::class, 'install']);
     $group->post('/store/update', [StoreController::class, 'update']);
 
@@ -241,9 +249,14 @@ $app->get('/api/v1/posts/{slug}', [V1Controller::class, 'postDetail']);
 $app->get('/api/v1/categories', [V1Controller::class, 'categories']);
 $app->get('/api/v1/tags', [V1Controller::class, 'tags']);
 $app->get('/api/v1/comments', [V1Controller::class, 'comments']);
+$app->get('/api/v1/site', [V1Controller::class, 'siteInfo']);
+$app->get('/api/v1/pages', [V1Controller::class, 'pages']);
+$app->get('/api/v1/links', [V1Controller::class, 'links']);
+$app->get('/api/v1/menus', [V1Controller::class, 'menus']);
 
 // ---- 静态资源兜底（最后注册：css/js/uploads → public/ 下文件） ----
 // 生产环境由 Web 服务器直接映射静态目录（见 README Nginx/Apache 配置），
 // 未配置时（如虚拟主机无伪静态）由本路由兜底，保证 ?p= 与直接路径两种模式均可访问。
 $app->get('/theme-assets/{theme:[a-z0-9_-]+}/{path:.*}', [ThemeAssetController::class, 'serve']);
 $app->get('/{dir:css|js|uploads}/{path:.*}', [StaticFileController::class, 'serve']);
+$app->get('/{slug}', [PostController::class, 'show']);

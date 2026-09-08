@@ -7,11 +7,12 @@ namespace Pafish\Api;
 use Pafish\Core\ApiKey;
 use Pafish\Core\Config;
 use Pafish\Core\DB;
+use Pafish\Services\Settings;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
- * 开放 API v1（对齐 Node src/app/api/v1/*）：
+ * 开放 API v1：
  * - GET /api/v1/posts          文章列表（分页 + category/tag/q 过滤，两级置顶排序）
  * - GET /api/v1/posts/{slug}   文章详情（含正文与自定义字段）
  * - GET /api/v1/categories     分类列表（含文章数与层级）
@@ -29,6 +30,15 @@ final class V1Controller
     private function json(Response $response, array $data, int $status = 200): Response
     {
         $response->getBody()->write((string) json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        $cors = trim((string) Settings::get('api_cors', ''));
+        if ($cors !== '') {
+            $origin = (string) ($_SERVER['HTTP_ORIGIN'] ?? '');
+            $allowed = array_map('trim', explode(',', $cors));
+            if (in_array('*', $allowed, true) || ($origin !== '' && in_array($origin, $allowed, true))) {
+                $response = $response->withHeader('Access-Control-Allow-Origin', $origin !== '' ? $origin : '*');
+                $response = $response->withHeader('Vary', 'Origin');
+            }
+        }
         return $response
             ->withHeader('Content-Type', 'application/json; charset=utf-8')
             ->withStatus($status);
@@ -41,7 +51,7 @@ final class V1Controller
     }
 
     /**
-     * 墙钟（Asia/Shanghai）DATETIME → UTC ISO-8601（对齐 Node toISOString() 输出带 Z）
+     * 墙钟（Asia/Shanghai）DATETIME → UTC ISO-8601
      */
     private function iso(?string $dt): ?string
     {
@@ -115,7 +125,8 @@ final class V1Controller
 
         $sp = $request->getQueryParams();
         $page = max(1, (int) ($sp['page'] ?? 1));
-        $perPage = min(self::POSTS_MAX_PER_PAGE, max(1, (int) ($sp['perPage'] ?? self::POSTS_DEFAULT_PER_PAGE)));
+        $maxLimit = min(self::POSTS_MAX_PER_PAGE, max(1, (int) Settings::get('api_max_limit', (string) self::POSTS_MAX_PER_PAGE)));
+        $perPage = min($maxLimit, max(1, (int) ($sp['perPage'] ?? self::POSTS_DEFAULT_PER_PAGE)));
         $categorySlug = trim((string) ($sp['category'] ?? ''));
         $tagSlug = trim((string) ($sp['tag'] ?? ''));
         $q = trim((string) ($sp['q'] ?? ''));
@@ -205,7 +216,7 @@ final class V1Controller
             return $this->json($response, ['error' => '文章不存在'], 404);
         }
 
-        // 自定义字段 JSON 解析（坏数据容错为空数组，对齐 Node）
+        // 自定义字段 JSON 解析（坏数据容错为空数组）
         $customFields = [];
         if ($p['custom_fields'] !== null && $p['custom_fields'] !== '') {
             $parsed = json_decode($p['custom_fields'], true);
@@ -327,5 +338,32 @@ final class V1Controller
             'perPage' => $perPage,
             'totalPages' => max(1, (int) ceil($total / $perPage)),
         ]);
+    }
+
+    public function siteInfo(Request $request, Response $response): Response
+    {
+        $fail = ApiKey::check($request); if ($fail !== null) return $this->authError($response, $fail);
+        return $this->json($response, ['site' => ['name' => Settings::get('site_name', '纸鱼博客'), 'subtitle' => Settings::get('site_subtitle', ''), 'description' => Settings::get('site_description', ''), 'url' => \absolute_url('/'), 'version' => \Pafish\Core\Version::current()]]);
+    }
+
+    public function pages(Request $request, Response $response): Response
+    {
+        $fail = ApiKey::check($request); if ($fail !== null) return $this->authError($response, $fail);
+        $rows = DB::fetchAll("SELECT id,title,slug,content,status,published_at,updated_at FROM pages WHERE status='PUBLISHED' ORDER BY published_at DESC, id DESC");
+        return $this->json($response, ['pages' => array_map(fn(array $p): array => ['id'=>(string)$p['id'],'title'=>$p['title'],'slug'=>$p['slug'],'content'=>$p['content'],'publishedAt'=>$this->iso($p['published_at']),'updatedAt'=>$this->iso($p['updated_at'])], $rows)]);
+    }
+
+    public function links(Request $request, Response $response): Response
+    {
+        $fail = ApiKey::check($request); if ($fail !== null) return $this->authError($response, $fail);
+        $rows = DB::fetchAll('SELECT id,name,url,description FROM links WHERE visible=1 ORDER BY sort_order,id');
+        return $this->json($response, ['links' => array_map(static fn(array $r): array => ['id'=>(string)$r['id'],'name'=>$r['name'],'url'=>$r['url'],'description'=>$r['description']], $rows)]);
+    }
+
+    public function menus(Request $request, Response $response): Response
+    {
+        $fail = ApiKey::check($request); if ($fail !== null) return $this->authError($response, $fail);
+        $rows = DB::fetchAll('SELECT id,label,url,is_external FROM nav_items WHERE visible=1 ORDER BY sort_order,id');
+        return $this->json($response, ['menus' => array_map(static fn(array $r): array => ['id'=>(string)$r['id'],'label'=>$r['label'],'url'=>$r['url'],'external'=>(bool)$r['is_external']], $rows)]);
     }
 }

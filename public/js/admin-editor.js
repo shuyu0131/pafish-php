@@ -1,10 +1,10 @@
 /**
- * 文章编辑器（对齐 Node post-editor.tsx + category-select.tsx + media-picker.tsx）：
+ * 文章编辑器交互：分类、标签、媒体选择和自动保存。
  * - Markdown 编辑：Vditor（所见即所得/分屏/源码三模式，中文工具栏，本地化资源）
  * - 拖拽/粘贴图片上传（/api/upload，GD 压缩入库）；非图片文件插入下载链接
  * - slug 联动（未手动修改时随标题生成）、标签点选+新建、封面上传/媒体库
  * - 高级选项：定时发布、置顶、访问密码、外链、分类内置顶、自定义字段
- * - 提交校验 → AJAX 保存 → 跳转编辑页（对齐 Node redirect）
+ * - 提交校验 → AJAX 保存 → 跳转编辑页
  * - Ctrl+S 快速存草稿；编辑模式每 60 秒自动保存（dirty 检测）
  * - 媒体弹窗（本地上传 / 媒体库 24/页 + 500ms 防抖搜索）
  */
@@ -147,7 +147,7 @@
     if (typeof window.Vditor !== "function") { editorFallback(); return; }
 
     vditor = new Vditor(mount, {
-      height: 560,
+      height: 520,
       mode: "ir",
       value: initial.content || "",
       placeholder: "开始写作…（支持拖拽/粘贴图片上传）",
@@ -187,7 +187,7 @@
     });
   }
 
-  // ---------- 表单值 / 脏检测（对齐 Node dirty 计算） ----------
+  // ---------- 表单值 / 脏检测 ----------
   function collectCustomFields() {
     var other = $$("[data-cf-key]", els.customFields).map(function (row) {
       return { key: row.value.trim(), value: $( "[data-cf-value]", row.closest(".admin-cf-row") ).value.trim() };
@@ -288,7 +288,7 @@
       .then(function (r) { return r.json().catch(function () { return {}; }); })
       .then(function (d) {
         if (!d.ok) throw new Error(d.error || "保存失败");
-        // 对齐 Node：保存后跳转到编辑页（服务端最新状态）
+        // 保存后跳转到编辑页（服务端最新状态）
         window.location.href = DATA.editUrl.replace("{id}", d.id);
       })
       .catch(function (e) {

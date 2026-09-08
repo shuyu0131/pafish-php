@@ -254,6 +254,17 @@ final class Store
         if (time() - (int) $data['at'] > self::CATALOG_CACHE_TTL) {
             return null;
         }
+        // A catalog cached before text normalization may still contain legacy
+        // rich-text fields. Normalize on read as well so the fix takes effect
+        // immediately, without requiring an administrator to clear the cache.
+        foreach ($data['items'] as &$item) {
+            if (!is_array($item)) {
+                continue;
+            }
+            $item['description'] = self::plainText($item['description'] ?? '');
+            $item['changelog'] = self::plainText($item['changelog'] ?? '');
+        }
+        unset($item);
         return $data['items'];
     }
 
@@ -393,7 +404,7 @@ final class Store
                 'name' => $name,
                 'title' => $title,
                 'version' => $version,
-                'description' => isset($entry['description']) ? (string) $entry['description'] : '',
+                'description' => self::plainText($entry['description'] ?? ''),
                 'author' => isset($entry['author']) ? (string) $entry['author'] : '',
                 'category' => isset($entry['category']) ? (string) $entry['category'] : '',
                 'zip' => $zip,
@@ -406,7 +417,7 @@ final class Store
                 'requires' => self::normalizeRequirements($entry['requires'] ?? ($entry['dependencies'] ?? [])),
                 'requiresPhp' => isset($entry['requiresPhp']) ? (string) $entry['requiresPhp'] : (isset($entry['requiresPafish']) ? (string) $entry['requiresPafish'] : ''),
                 'paid' => !empty($entry['licenseRequired']),
-                'changelog' => isset($entry['changelog']) ? (string) $entry['changelog'] : '',
+                'changelog' => self::plainText($entry['changelog'] ?? ''),
             ];
         }
         return $items;
@@ -522,14 +533,14 @@ final class Store
                 'name' => $name,
                 'title' => $title,
                 'version' => $version,
-                'description' => isset($entry['description']) ? (string) $entry['description'] : '',
+                'description' => self::plainText($entry['description'] ?? ''),
                 'author' => isset($entry['author']) ? (string) $entry['author'] : '',
                 'category' => isset($entry['category']) ? (string) $entry['category'] : '',
                 'zip' => $zip,
                 'preview' => isset($entry['preview']) ? (string) $entry['preview'] : '',
                 'screenshots' => isset($entry['screenshots']) && is_array($entry['screenshots']) ? array_values(array_filter($entry['screenshots'], static fn ($shot): bool => is_string($shot) && trim($shot) !== '')) : [],
                 'paid' => !empty($entry['paid']) || !empty($entry['licenseRequired']),
-                'changelog' => isset($entry['changelog']) ? (string) $entry['changelog'] : '',
+                'changelog' => self::plainText($entry['changelog'] ?? ''),
                 'packageSize' => isset($entry['packageSize']) ? max(0, (int) $entry['packageSize']) : 0,
                 'publishedAt' => isset($entry['publishedAt']) ? (string) $entry['publishedAt'] : '',
                 'homepage' => isset($entry['homepage']) ? (string) $entry['homepage'] : '',
@@ -554,6 +565,35 @@ final class Store
             }
         }
         return array_values(array_unique($out));
+    }
+
+    /**
+     * The catalog is controlled remotely. Descriptions are deliberately shown
+     * as text in the admin UI, so convert legacy rich-text values here instead
+     * of rendering remote HTML or exposing its tags to administrators.
+     */
+    private static function plainText(mixed $value): string
+    {
+        if (!is_scalar($value) && $value !== null) {
+            return '';
+        }
+        $html = (string) $value;
+        // Older catalog records may have stored the complete rich-text value
+        // as entities (for example &lt;p&gt;...&lt;/p&gt;). Two passes cover that
+        // representation without repeatedly decoding arbitrary input.
+        for ($i = 0; $i < 2; $i++) {
+            $decoded = html_entity_decode($html, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            if ($decoded === $html) {
+                break;
+            }
+            $html = $decoded;
+        }
+        $html = preg_replace('/<\s*br\s*\/?>/i', "\n", $html) ?? $html;
+        $html = preg_replace('/<\s*\/?\s*(?:p|div|li|h[1-6]|tr)\b[^>]*>/i', "\n", $html) ?? $html;
+        $text = strip_tags($html);
+        $text = str_replace("\xC2\xA0", ' ', $text);
+        $text = preg_replace('/[ \t]*\R[ \t]*/u', "\n", $text) ?? $text;
+        return trim($text);
     }
 
     /** SPL 递归复制目录（Windows 上不依赖 rename） */

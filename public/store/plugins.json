@@ -6,6 +6,7 @@
         "description": "应用商店安装演示插件：启用时记录打招呼日志、监听登录事件；提供页面模板 card 与前台页面 \/plugin\/hello-pafish\/hello。",
         "author": "pafish",
         "zip": "\/store\/hello-pafish.zip",
-        "sha256": "04d5f3667871ab3256986db45dad4549e697aee10a5e6e944312e11aec44a177"
+        "sha256": "9ca5c3d10fb62ee2500074da1c8637457d17d877e6b00d5f250fa36892d30bcb",
+        "packageSize": 2024
     }
 ]

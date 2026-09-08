@@ -3,13 +3,17 @@
 declare(strict_types=1);
 
 /**
- * 构建内置应用商店源（对齐 Node scripts/build-store.cjs 协议）：
+ * 构建内置应用商店源：
  * 把内置主题/插件打包为 public/store/*.zip，并生成 themes.json / plugins.json。
  * 幂等，可重复执行。zip 顶层目录 = 包名（validateZip 要求唯一顶层目录 = 名称）。
  * 用法：php scripts/build-store.php
  */
 
 $root = dirname(__DIR__);
+$autoload = $root . '/vendor/autoload.php';
+if (is_file($autoload)) {
+    require_once $autoload;
+}
 $storeDir = $root . '/public/store';
 $manifestFile = ['theme' => 'theme.json', 'plugin' => 'plugin.json'];
 
@@ -29,6 +33,22 @@ function readManifest(string $dir, string $kind, string $manifestFile): array
     $m = json_decode($raw, true);
     if (!is_array($m) || !isset($m['name'], $m['title'], $m['version'])) {
         throw new RuntimeException("manifest 缺少字段：{$dir}/{$manifestFile}");
+    }
+    if (trim((string) $m['title']) === '' || trim((string) $m['version']) === '') {
+        throw new RuntimeException("manifest 的 title/version 不能为空：{$dir}/{$manifestFile}");
+    }
+    if (preg_match('/^v?[0-9]+(?:\.[0-9]+){0,2}$/i', trim((string) $m['version'])) !== 1) {
+        throw new RuntimeException("manifest 的 version 必须是数字版本（如 1.0.0）：{$dir}/{$manifestFile}");
+    }
+    $validator = $kind === 'theme' ? 'Pafish\\Services\\Theme' : 'Pafish\\Services\\Plugin';
+    if (is_callable([$validator, 'validateManifest'])) {
+        $error = $validator::validateManifest($m, basename(str_replace('\\', '/', $dir)));
+        if (is_string($error) && $error !== '') {
+            throw new RuntimeException("manifest 校验失败：{$dir}/{$manifestFile}：{$error}");
+        }
+    }
+    if ($kind === 'plugin' && !is_file($dir . '/index.php')) {
+        throw new RuntimeException("插件缺少 index.php：{$dir}");
     }
     return $m;
 }
@@ -67,6 +87,35 @@ function packDir(string $dir, string $name, string $outPath): string
     return $outPath;
 }
 
+/** 仅输出商店详情允许的轻量元数据，避免把任意 manifest 字段暴露到目录。 */
+function storeMetadata(array $manifest): array
+{
+    $meta = [];
+    foreach (['category', 'homepage', 'requiresPhp', 'changelog'] as $key) {
+        if (is_string($manifest[$key] ?? null) && trim($manifest[$key]) !== '') {
+            $meta[$key] = trim($manifest[$key]);
+        }
+    }
+    foreach (['screenshots', 'requires', 'dependencies'] as $key) {
+        if (!is_array($manifest[$key] ?? null)) {
+            continue;
+        }
+        $values = [];
+        foreach ($manifest[$key] as $value) {
+            if (is_string($value) && trim($value) !== '') {
+                $values[] = trim($value);
+            }
+        }
+        if ($values !== []) {
+            $meta[$key] = array_values(array_unique($values));
+        }
+    }
+    if (!empty($manifest['licenseRequired']) || !empty($manifest['paid'])) {
+        $meta['licenseRequired'] = true;
+    }
+    return $meta;
+}
+
 // 幂等：清理旧产物
 if (!is_dir($storeDir)) {
     mkdir($storeDir, 0755, true);
@@ -85,7 +134,7 @@ foreach ($packs as [$kind, $dir, $name]) {
     $zipPath = $storeDir . '/' . $name . '.zip';
     packDir($dir, $name, $zipPath);
 
-    $catalogs[$kind][] = [
+    $catalogEntry = [
         'name' => $name,
         'title' => (string) ($m['title'] ?? ''),
         'version' => (string) ($m['version'] ?? ''),
@@ -93,8 +142,11 @@ foreach ($packs as [$kind, $dir, $name]) {
         'author' => (string) ($m['author'] ?? ''),
         'zip' => '/store/' . $name . '.zip',
         'sha256' => hash_file('sha256', $zipPath),
+        'packageSize' => (int) filesize($zipPath),
         // preview: 可放 /store/{name}.png 作为缩略图（暂无资源则不输出）
     ];
+    $catalogEntry = array_merge($catalogEntry, storeMetadata($m));
+    $catalogs[$kind][] = $catalogEntry;
     echo "[ok] {$kind} {$name} v{$m['version']} → " . ($zipPath) . "\n";
 }
 

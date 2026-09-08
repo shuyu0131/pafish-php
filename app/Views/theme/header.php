@@ -2,7 +2,7 @@
 /**
  * 前台页头（系统 fallback 模板；主题可覆盖 themes/{active}/header.php）
  * 可用数据：$title / $description（控制器传入，可选）
- * 结构复刻 Node 版：左侧 40% 侧边栏（桌面）+ 右侧 60% 内容栏 + 移动端顶栏
+ * 前台布局：左侧 40% 侧边栏（桌面）+ 右侧 60% 内容栏 + 移动端顶栏
  */
 $pageTitle = $title ?? '';
 $desc = $description ?? (string) settings('site_description', '');

@@ -76,16 +76,33 @@ final class Migrator
             if (in_array($version, $recorded, true)) {
                 continue;
             }
+            // Some release baselines include a column before the incremental migration
+            // is first seen. Mark that migration applied when its target shape already exists.
+            if ($version === '0002_capabilities_media' && self::columnExists($pdo, 'uploads', 'usage_count') && self::columnExists($pdo, 'uploads', 'last_used_at')) {
+                self::markApplied($pdo, $version);
+                $recorded[] = $version;
+                continue;
+            }
             $pdo->beginTransaction();
             try {
                 foreach (self::splitStatements((string) file_get_contents($file)) as $stmt) {
+                    // ALTER TABLE 新增列在 MySQL DDL 隐式提交后不可整体回滚；逐条检查列，
+                    // 使中断重试和部分完成的迁移保持幂等。
+                    if (preg_match('/^ALTER\s+TABLE\s+`?([a-zA-Z0-9_]+)`?\s+ADD\s+COLUMN\s+`?([a-zA-Z0-9_]+)`?/i', $stmt, $m) === 1
+                        && self::columnExists($pdo, (string)$m[1], (string)$m[2])) {
+                        continue;
+                    }
                     $pdo->exec($stmt);
                 }
                 $pdo->prepare('INSERT INTO ' . self::TABLE . ' (version) VALUES (?)')->execute([$version]);
-                $pdo->commit();
+                if ($pdo->inTransaction()) {
+                    $pdo->commit();
+                }
                 $applied[] = $version;
             } catch (\Throwable $e) {
-                $pdo->rollBack();
+                if ($pdo->inTransaction()) {
+                    $pdo->rollBack();
+                }
                 throw new \RuntimeException("迁移 {$version} 失败：{$e->getMessage()}");
             }
         }
@@ -98,6 +115,17 @@ final class Migrator
         try {
             $pdo->prepare('SELECT 1 FROM `' . str_replace('`', '', $name) . '` LIMIT 1')->execute();
             return true;
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    private static function columnExists(\PDO $pdo, string $table, string $column): bool
+    {
+        try {
+            $stmt = $pdo->prepare('SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?');
+            $stmt->execute([$table, $column]);
+            return (int) $stmt->fetchColumn() > 0;
         } catch (\Throwable) {
             return false;
         }

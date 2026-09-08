@@ -1,7 +1,7 @@
 <?php
 /**
  * 评论表单（系统 fallback 模板；主题可覆盖 themes/{active}/comment-form.php）
- * 对齐 Node 版 src/components/comment-form.tsx：
+ * 评论表单：
  * - 已登录用户：自动使用登录身份，隐藏昵称/邮箱输入（服务端强制，不可伪造）
  * - 未登录游客：昵称/邮箱 + 图形验证码（后台可关），SVG 点击刷新
  * - 回复评论时 compact 模式（嵌套在楼中楼里）
@@ -49,6 +49,7 @@ $needCaptcha = !$loggedIn && $captchaEnabled;
       <input class="input comment-captcha-input" name="captchaAnswer" placeholder="验证码 *" maxlength="8" autocomplete="off" required>
       <button type="button" class="comment-captcha-change" data-captcha-refresh>换一张</button>
     </div>
+    <p class="comment-captcha-status" data-captcha-status aria-live="polite" hidden></p>
   <?php endif; ?>
 
   <p class="comment-error" hidden></p>

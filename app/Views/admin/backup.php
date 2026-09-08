@@ -1,6 +1,6 @@
 <?php
 /**
- * 数据备份（对齐 Node app/admin/backup/）：
+ * 数据备份：
  * 头部操作卡（立即备份 + 上传 SQL + 计数）→ 结果消息条 → 备份列表
  * （文件名/时间·大小/下载/恢复展开面板/删除，upload-* 不可删）→ 使用说明 5 条
  * 变量：$backups
@@ -93,7 +93,7 @@ $fmtSize = static function (int $bytes): string {
     msg.hidden = false;
   }
 
-  // 重载前暂存成功消息（对齐 Node toast：操作后列表刷新，提示仍可见）
+  // 重载前暂存成功消息，操作后列表刷新且提示仍可见
   function persistMsg(text, isError) {
     try { sessionStorage.setItem("backupMsg", JSON.stringify({ t: text, e: isError ? 1 : 0 })); } catch (e) {}
   }

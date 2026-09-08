@@ -1,6 +1,6 @@
 <?php
 /**
- * 评论审核（对齐 Node app/admin/comments/）：
+ * 评论审核：
  * - 4 Tab（待审核/已通过/垃圾/已删除）+ 徽标计数，20/页 created_at 倒序
  * - 每条评论：作者、置顶徽标、回复 @父作者、时间「评论于」、文章链接（新窗口）、
  *   内容、邮箱 + IP（等宽）、当前状态、操作行
@@ -142,10 +142,12 @@ $listUrl = url_to('/admin/comments') . '?status=' . $status;
     btn.addEventListener("click", function () {
       var next = btn.getAttribute("data-next");
       var label = next === "APPROVED" ? "通过" : "标记为垃圾";
-      if (!confirm("确定将该评论" + label + "？")) return;
-      post(listUrl + "/" + btn.getAttribute("data-status") + "/status", { status: next })
+      (window.pafishConfirm ? window.pafishConfirm("确定将该评论" + label + "？", { title: "更新评论状态" }) : Promise.resolve(window.confirm("确定继续？"))).then(function (ok) {
+        if (!ok) return;
+        return post(listUrl + "/" + btn.getAttribute("data-status") + "/status", { status: next })
         .then(function (r) { return jsonOrAlert(r, "操作失败"); })
         .then(function (j) { if (j) location.reload(); });
+      });
     });
   });
 
@@ -181,13 +183,15 @@ $listUrl = url_to('/admin/comments') . '?status=' . $status;
   document.querySelectorAll("[data-delete-ip]").forEach(function (btn) {
     btn.addEventListener("click", function () {
       var ip = btn.getAttribute("data-delete-ip");
-      if (!confirm("删除该 IP 的全部评论？此操作不可恢复。")) return;
-      post(listUrl + "/delete-by-ip", { ip: ip })
+      (window.pafishConfirm ? window.pafishConfirm("删除该 IP 的全部评论？此操作不可恢复。", { title: "按 IP 删除评论" }) : Promise.resolve(window.confirm("确认删除？"))).then(function (ok) {
+        if (!ok) return;
+        return post(listUrl + "/delete-by-ip", { ip: ip })
         .then(function (r) { return jsonOrAlert(r, "操作失败"); })
         .then(function (j) {
           if (j) pafishNotify("已删除 " + (j.deleted || 0) + " 条评论", false);
           if (j) location.reload();
         });
+      });
     });
   });
 
@@ -195,10 +199,12 @@ $listUrl = url_to('/admin/comments') . '?status=' . $status;
   document.querySelectorAll("[data-block-ip]").forEach(function (btn) {
     btn.addEventListener("click", function () {
       var ip = btn.getAttribute("data-block-ip");
-      if (!confirm("拉黑该 IP？之后它提交的评论将被拒绝（403）。")) return;
-      post(listUrl + "/block-ip", { ip: ip })
+      (window.pafishConfirm ? window.pafishConfirm("拉黑该 IP？之后它提交的评论将被拒绝（403）。", { title: "拉黑 IP" }) : Promise.resolve(window.confirm("确认拉黑？"))).then(function (ok) {
+        if (!ok) return;
+        return post(listUrl + "/block-ip", { ip: ip })
         .then(function (r) { return jsonOrAlert(r, "操作失败"); })
         .then(function (j) { if (j) pafishNotify("已拉黑 " + ip, false); });
+      });
     });
   });
 

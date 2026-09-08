@@ -1,6 +1,6 @@
 <?php
 /**
- * 用户管理（对齐 Node app/admin/users/ 卡片列表）：
+ * 用户管理：
  * 全量用户按注册时间正序；每行：头像/昵称/@用户名/角色徽章/已禁用徽章/
  * 邮箱·注册日期·文章数·评论数；操作：角色下拉（含自己）、他人可禁用（两段确认）/
  * 解禁/重置密码（内联表单）
@@ -103,7 +103,7 @@ $roleLabel = static function (string $role): string {
       .catch(function () { pafishNotify("操作失败"); });
   }
 
-  // 角色下拉：变更即确认后提交，成功刷新列表（对齐 Node router.refresh）
+  // 角色下拉：变更即确认后提交，成功刷新列表
   document.querySelectorAll(".admin-role-select").forEach(function (sel) {
     sel.dataset.original = sel.value;
     sel.addEventListener("change", function () {
@@ -113,15 +113,14 @@ $roleLabel = static function (string $role): string {
       var prompt = isMe
         ? "确定将自己的用户组改为「" + roleText + "」吗？\n修改后权限立即变化，请谨慎操作。"
         : "确定将该用户的用户组改为「" + roleText + "」吗？";
-      if (!window.confirm(prompt)) {
-        sel.value = sel.dataset.original;
-        return;
-      }
-      var fd = new FormData();
-      fd.append("role", sel.value);
-      fd.append("_csrf", CSRF);
-      post("/admin/users/" + row.dataset.id + "/role", fd, function () {
-        location.reload();
+      (window.pafishConfirm ? window.pafishConfirm(prompt, { title: "修改用户组" }) : Promise.resolve(window.confirm(prompt))).then(function (ok) {
+        if (!ok) { sel.value = sel.dataset.original; return; }
+        var fd = new FormData();
+        fd.append("role", sel.value);
+        fd.append("_csrf", CSRF);
+        post("/admin/users/" + row.dataset.id + "/role", fd, function () {
+          location.reload();
+        });
       });
     });
   });

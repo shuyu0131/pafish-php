@@ -12,7 +12,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
  * 文章列表查询共享助手（分类/标签/搜索共用）
- * 对齐 Node 版：per_page 设置（1-50）、已发布过滤、两级置顶排序
+ * 列表查询：per_page 设置（1-50）、已发布过滤、两级置顶排序
  */
 final class Listings
 {

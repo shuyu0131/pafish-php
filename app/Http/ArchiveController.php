@@ -11,7 +11,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
  * 文章归档页：按 YYYY年MM月 分组
- * 对齐 Node 版 archives/page.tsx
+ * 归档页面
  */
 final class ArchiveController
 {
@@ -27,7 +27,7 @@ final class ArchiveController
             ['%"key":"lumina_private","value":"y"%', Auth::id() ?? 0]
         );
 
-        // 按 年月 分组（Node 版 formatDate(publishedAt, "yyyy年MM月")）
+        // 按年月分组
         $groups = [];
         foreach ($posts as $p) {
             if (empty($p['published_at'])) {

@@ -13,7 +13,7 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
- * 认证 API（对齐 Node 版 src/app/api/auth/*）
+ * 认证 API
  * - login / logout：会话登录登出
  * - register：开放注册（allow_registration）+ 可选邮箱验证码（require_email_verify，默认开）
  * - send-code：注册/忘记密码验证码（忘记密码防枚举，未注册邮箱统一返回成功）

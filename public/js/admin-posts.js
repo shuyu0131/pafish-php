@@ -1,4 +1,4 @@
-/* 后台文章列表交互（对齐 Node posts-manager.tsx）：
+/* 后台文章列表交互：
    - 筛选/排序/每页条数变更跳转（保留现有参数、重置页码；per_page 写 cookie）
    - checkbox 选择 → 批量操作栏（全选 indeterminate）
    - 批量操作 fetch 提交（confirm 文案 {n} 替换；移动需选分类）
@@ -35,7 +35,7 @@
     });
   });
 
-  // ---------- 每页条数（cookie 记忆一年，对齐 Node） ----------
+  // ---------- 每页条数（cookie 记忆一年） ----------
   var perSel = document.getElementById("adminPerPage");
   if (perSel) {
     perSel.addEventListener("change", function () {
@@ -101,22 +101,30 @@
         if (!moveSel.value) { pafishNotify("请先选择要移动到的分类"); return; }
       }
       var confirmText = submitter.dataset.batchConfirm || "";
-      if (confirmText && !window.confirm(confirmText.replace(/\{n\}/g, String(ids.length)))) return;
-      submitter.disabled = true; // 提交期间防重复点击（成功刷新 / 失败恢复）
-      var fd = new FormData(batchBar);
-      fd.set("ids", JSON.stringify(ids));
-      fd.set("op", op);
-      fetch(batchBar.action, { method: "POST", body: fd, headers: { "X-Requested-With": "XMLHttpRequest" } })
-        .then(function (r) { return r.json().catch(function () { return {}; }); })
-        .then(function (d) {
-          if (d && d.ok) { location.reload(); return; }
-          submitter.disabled = false;
-          pafishNotify((d && d.error) || "操作失败");
-        })
-        .catch(function () {
-          submitter.disabled = false;
-          pafishNotify("网络错误，请重试");
-        });
+      var ask = confirmText.replace(/\{n\}/g, String(ids.length));
+      var confirmed = !confirmText
+        ? Promise.resolve(true)
+        : (window.pafishConfirm
+          ? window.pafishConfirm(ask, { title: "批量操作确认" })
+          : Promise.resolve(window.confirm(ask)));
+      confirmed.then(function (ok) {
+        if (!ok) return;
+        submitter.disabled = true; // 提交期间防重复点击（成功刷新 / 失败恢复）
+        var fd = new FormData(batchBar);
+        fd.set("ids", JSON.stringify(ids));
+        fd.set("op", op);
+        fetch(batchBar.action, { method: "POST", body: fd, headers: { "X-Requested-With": "XMLHttpRequest" } })
+          .then(function (r) { return r.json().catch(function () { return {}; }); })
+          .then(function (d) {
+            if (d && d.ok) { location.reload(); return; }
+            submitter.disabled = false;
+            pafishNotify((d && d.error) || "操作失败");
+          })
+          .catch(function () {
+            submitter.disabled = false;
+            pafishNotify("网络错误，请重试");
+          });
+      });
     });
   }
 

@@ -1,6 +1,6 @@
 -- ============================================================
 -- pafish 博客 CMS（PHP 版）数据库结构
--- 与 Node 版（Prisma schema）1:1 对齐：BIGINT UNSIGNED 自增、utf8mb4、
+-- 数据库结构：BIGINT UNSIGNED 自增、utf8mb4、
 -- 状态字段一律 VARCHAR + 应用层常量
 -- 要求：MySQL 5.7.6+（ngram 全文解析器）或 8.0
 -- ============================================================
@@ -204,6 +204,8 @@ CREATE TABLE IF NOT EXISTS uploads (
   width         INT             NULL,
   height        INT             NULL,
   uploader_id   BIGINT UNSIGNED NULL,
+  usage_count   INT             NOT NULL DEFAULT 0,
+  last_used_at  DATETIME        NULL,
   created_at    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_uploads_created (created_at),

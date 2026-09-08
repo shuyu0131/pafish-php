@@ -18,6 +18,10 @@ plugins/example/
   "apiVersion": 2,
   "description": "插件说明",
   "author": "pafish",
+  "category": "工具",
+  "homepage": "https://example.com/plugins/example",
+  "screenshots": ["https://example.com/example.png"],
+  "changelog": "修复首个版本问题",
   "settings": [],
   "injects": ["head", "footer"]
 }
@@ -115,5 +119,7 @@ ZIP 必须只有一个顶层目录，且顶层目录名等于插件名。内置�
 ```bash
 php scripts/build-store.php
 ```
+
+构建脚本会在打包前检查 `name/title/version`、数字版本格式（如 `1.0.0`）、名称与目录一致性、manifest 结构，以及插件必须包含 `index.php`；检查失败会直接终止，不生成可发布目录。生成的目录条目同时记录安装包 `sha256` 和大小，便于官网发布与客户端校验。商店更新只接受高于本地已安装版本的包，不会执行同版本覆盖或降级。
 
 第三方插件是具有站点权限的 PHP 代码，只应从可信来源安装。

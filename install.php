@@ -10,6 +10,10 @@ declare(strict_types=1);
 error_reporting(E_ALL);
 ini_set('display_errors', '0');
 
+if (session_status() !== PHP_SESSION_ACTIVE) {
+    session_start();
+}
+
 $root = __DIR__;
 $installed = is_file($root . '/config.php');
 
@@ -28,6 +32,20 @@ function inst_redirect(string $url): void
 function inst_check_result(bool $ok, string $label, string $detail = '', bool $warn = false): array
 {
     return ['ok' => $ok, 'label' => $label, 'detail' => $detail, 'warn' => $warn];
+}
+
+function inst_state_path(string $root): string
+{
+    return $root . '/runtime/install-state.json';
+}
+
+function inst_write_state(string $root, string $phase, string $message = ''): void
+{
+    @file_put_contents(inst_state_path($root), json_encode([
+        'phase' => $phase,
+        'message' => $message,
+        'at' => date('c'),
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), LOCK_EX);
 }
 
 // ---------- 环境检查 ----------
@@ -87,7 +105,11 @@ function inst_exec_schema(PDO $pdo, string $sqlFile): array
         try {
             $pdo->exec($stmt);
         } catch (PDOException $e) {
-            // FULLTEXT ngram 在老版本不支持等：记录警告继续
+            // 重复安装时全文索引已存在（MySQL 1061），视为已完成；
+            // 旧版 MySQL 不支持 ngram 等其它错误继续记录警告。
+            if (($e->errorInfo[1] ?? null) === 1061 && stripos($stmt, 'ft_posts_search') !== false) {
+                continue;
+            }
             $warnings[] = substr($stmt, 0, 60) . '... → ' . $e->getMessage();
         }
     }
@@ -130,6 +152,9 @@ function inst_run(array $post, string $root): array
         return ['errors' => $errors];
     }
 
+    $configPath = $root . '/config.php';
+    $configTmp = $configPath . '.tmp';
+    inst_write_state($root, 'starting');
     try {
         // 1. 连接（先建库）
         $dsn = sprintf('mysql:host=%s;port=%d;charset=utf8mb4', $db['host'], $db['port']);
@@ -176,6 +201,7 @@ function inst_run(array $post, string $root): array
         }
 
         // 3. 种子数据
+        inst_write_state($root, 'seeding');
         $pdo->beginTransaction();
         inst_seed($pdo, $siteName, $adminUser, $adminEmail, $adminPass);
         $pdo->commit();
@@ -191,17 +217,25 @@ function inst_run(array $post, string $root): array
         ];
         $exported = var_export($config, true);
         $configContent = "<?php\n\n// 由安装向导生成（" . date('Y-m-d H:i:s') . "）。如需自定义请参考 config.example.php\nreturn {$exported};\n";
-        if (file_put_contents($root . '/config.php', $configContent, LOCK_EX) === false) {
+        inst_write_state($root, 'writing_config');
+        if (file_put_contents($configTmp, $configContent, LOCK_EX) === false || !@rename($configTmp, $configPath)) {
+            @unlink($configTmp);
             throw new RuntimeException('无法写入 config.php（请检查根目录写权限）');
         }
 
+        @unlink(inst_state_path($root));
         return ['ok' => true, 'warnings' => $warnings, 'admin' => $adminUser, 'siteUrl' => $config['site_url']];
     } catch (Throwable $e) {
+        if (isset($pdo) && $pdo instanceof PDO && $pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        @unlink($configTmp);
+        inst_write_state($root, 'failed', $e->getMessage());
         return ['errors' => ['安装失败：' . $e->getMessage()]];
     }
 }
 
-// ---------- 种子数据（与 Node 版 prisma/seed.ts 一致） ----------
+// ---------- 安装种子数据 ----------
 // 幂等：已存在的记录一律跳过（重复安装 / 中断重试 / config.php 丢失后重装均不报错，
 // 不会覆盖用户改过的数据，缺什么补什么）
 function inst_seed(PDO $pdo, string $siteName, string $adminUser, string $adminEmail, string $adminPass): void
@@ -245,7 +279,7 @@ function inst_seed(PDO $pdo, string $siteName, string $adminUser, string $adminE
     // 标签（按 slug 判重）
     $selTag = $pdo->prepare('SELECT id FROM tags WHERE slug = ?');
     $tagIds = [];
-    foreach ([['Next.js', 'nextjs'], ['MySQL', 'mysql'], ['设计', 'design']] as [$name, $slug]) {
+    foreach ([['PHP', 'php'], ['MySQL', 'mysql'], ['设计', 'design']] as [$name, $slug]) {
         $selTag->execute([$slug]);
         $id = (int) $selTag->fetchColumn();
         if ($id === 0) {
@@ -274,7 +308,7 @@ function inst_seed(PDO $pdo, string $siteName, string $adminUser, string $adminE
             $helloContent, 'PUBLISHED', date('Y-m-d H:i:s'), $adminId, $techId,
         ]);
         $helloId = (int) $pdo->lastInsertId();
-        $insPt->execute([$helloId, $tagIds['nextjs']]);
+        $insPt->execute([$helloId, $tagIds['php']]);
         $insPt->execute([$helloId, $tagIds['mysql']]);
     }
 
@@ -363,45 +397,37 @@ function inst_layout(string $title, string $inner, string $extra = ''): string
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{$title} · pafish 安装向导</title>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-         background: #f6f6f4; color: #464646; min-height: 100vh; display: flex;
-         justify-content: center; padding: 48px 16px; }
-  .wrap { width: 100%; max-width: 640px; }
-  h1 { font-size: 1.6rem; letter-spacing: 2px; text-transform: uppercase; color: #5f5f5f; }
-  .sub { color: #8f8f8f; font-size: .9rem; margin: 6px 0 28px; }
-  .card { background: #fff; border: 1px solid #f2f2f2; border-radius: 14px; padding: 28px 30px;
-          box-shadow: 0 1px 2px rgba(16,24,40,.05); }
-  .card h2 { font-size: 1.05rem; color: #5f5f5f; margin-bottom: 18px; }
-  .row { display: flex; justify-content: space-between; align-items: center; padding: 9px 0;
-         border-bottom: 1px dashed #f2f2f2; font-size: .92rem; }
-  .row:last-child { border-bottom: none; }
-  .ok { color: #2f9e63; font-weight: 600; }
-  .bad { color: #b4543f; font-weight: 600; }
-  .warn { color: #b98a1f; font-weight: 600; font-size: 13px; }
-  .detail { color: #bbbbbb; font-size: .82rem; }
-  label { display: block; font-size: .85rem; color: #8f8f8f; margin: 14px 0 6px; }
-  input[type=text], input[type=password], input[type=email], input[type=number] {
-    width: 100%; padding: 10px 12px; border: 1px solid #e5e5e5; border-radius: 10px;
-    font-size: .95rem; outline: none; transition: border .15s, box-shadow .15s;
-  }
-  input:focus { border-color: #4786d6; box-shadow: 0 0 0 3px rgba(71,134,214,.15); }
-  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
-  .btn { display: inline-block; margin-top: 22px; padding: 11px 30px; border: none; cursor: pointer;
-         border-radius: 999em; background: #424242; color: #fff; font-size: .95rem;
-         text-decoration: none; transition: background .15s; }
-  .btn:hover { background: #5a5a5a; }
-  .btn:disabled { opacity: .5; cursor: not-allowed; }
-  .err { background: #fdf3f1; border: 1px solid #f3d4cd; color: #b4543f; border-radius: 10px;
-         padding: 12px 16px; font-size: .88rem; margin-bottom: 16px; }
-  .warn { background: #fdf8ef; border: 1px solid #f0e2c8; color: #a9772a; border-radius: 10px;
-          padding: 12px 16px; font-size: .85rem; margin-top: 16px; white-space: pre-line; }
-  .done { text-align: center; padding: 10px 0 4px; }
-  .done .big { font-size: 2.4rem; }
-  .info { font-size: .88rem; line-height: 1.9; color: #565654; }
-  .info b { color: #5f5f5f; }
-  .checkbox { display: flex; align-items: center; gap: 8px; margin-top: 16px; font-size: .9rem; color: #565654; }
-  .footer { text-align: center; color: #bbbbbb; font-size: .78rem; margin-top: 24px; }
+  :root { --paper:#f4f1eb; --surface:#fffdfa; --ink:#252522; --muted:#7d7a72; --line:#ded9cf; --accent:#b64b36; --ok:#2f7657; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: "Segoe UI", "Microsoft YaHei", sans-serif; background:var(--paper); color:var(--ink); min-height:100vh; padding:48px 18px; }
+  .wrap { width:100%; max-width:720px; margin:0 auto; }
+  h1 { font-family: Georgia, "Times New Roman", serif; font-size:2rem; font-weight:500; letter-spacing:-.04em; }
+  .sub { color:var(--muted); font-size:.82rem; letter-spacing:.08em; margin:6px 0 30px; }
+  .card { background:var(--surface); border:1px solid var(--line); border-radius:4px; padding:28px 32px; box-shadow:0 3px 12px rgba(55,45,34,.035); }
+  .card + .card { margin-top:14px !important; }
+  .card h2 { font-family:Georgia, "Times New Roman", serif; font-size:1.15rem; font-weight:500; margin-bottom:20px; padding-bottom:12px; border-bottom:1px solid #eeeae3; }
+  .row { display:flex; justify-content:space-between; align-items:center; padding:11px 0; border-bottom:1px solid #eeeae3; font-size:.9rem; }
+  .row:last-child { border-bottom:0; }
+  .ok { color:var(--ok); font-weight:600; }
+  .bad { color:var(--accent); font-weight:600; }
+  .detail { color:#aaa59b; font-size:.78rem; }
+  label { display:block; color:var(--muted); font-size:.78rem; letter-spacing:.02em; margin:16px 0 7px; }
+  input[type=text], input[type=password], input[type=email], input[type=number] { width:100%; padding:11px 12px; color:var(--ink); background:#fff; border:1px solid #d8d3ca; border-radius:3px; font-size:.92rem; outline:0; transition:border-color .15s, box-shadow .15s; }
+  input:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(182,75,54,.12); }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:0 18px; }
+  .btn { display:inline-block; margin-top:22px; padding:11px 24px; border:1px solid var(--ink); border-radius:3px; cursor:pointer; background:var(--ink); color:#fff; font-size:.88rem; text-decoration:none; transition:background .15s; }
+  .btn:hover { background:#44443e; }
+  .btn:disabled { opacity:.45; cursor:not-allowed; transform:none; }
+  .err { background:#fff4f0; border:1px solid #e7b9aa; color:#9c3e2d; border-radius:3px; padding:12px 14px; font-size:.86rem; margin-bottom:14px; }
+  .warn { background:#fbf7ed; border:1px solid #e5d9b9; color:#866b32; border-radius:3px; padding:12px 14px; font-size:.84rem; margin-top:14px; white-space:pre-line; }
+  .done { text-align:center; padding:14px 0 6px; }
+  .done .big { font-size:2rem; }
+  .info { font-size:.88rem; line-height:1.9; color:#5f5c55; }
+  .info b { color:var(--ink); }
+  .checkbox { display:flex; align-items:center; gap:8px; margin-top:17px; font-size:.84rem; color:#5f5c55; }
+  .checkbox label { margin:0; }
+  .footer { text-align:center; color:#aaa59b; font-size:.74rem; margin-top:22px; }
+  @media (max-width:600px) { body { padding:28px 12px; } .card { padding:22px 18px; } .grid2 { grid-template-columns:1fr; } }
 </style>
 </head>
 <body><div class="wrap">
@@ -440,7 +466,7 @@ if ($installed && $action !== 'install') {
   <h2>系统已安装</h2>
   <p class="info">检测到 config.php 已存在。请直接访问站点：
   <a href="{$links['home']}">前往首页</a>，或 <a href="{$links['admin']}">登录后台</a>。</p>
-  <p class="warn">如需重装：删除根目录 config.php 后重新打开本页（会清空已有数据）。</p>
+  <p class="warn">如需重装：请先完整备份数据库，再删除根目录 config.php 后重新打开本页。安装向导不会自动清空已有数据；如需全新安装，请手动使用新的数据库或清理旧表。</p>
 </div>
 HTML);
     exit;
@@ -479,30 +505,44 @@ HTML);
 
 if ($action === 'form' && !$installed) {
     $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+    $old = $_SESSION['install_old_input'] ?? [];
+    $errorHtml = (string)($_SESSION['install_error'] ?? '');
+    unset($_SESSION['install_old_input'], $_SESSION['install_error']);
+    $old = is_array($old) ? $old : [];
+    $field = static fn(string $key, string $default = ''): string => inst_e(array_key_exists($key, $old) ? $old[$key] : $default);
+    $prettyChecked = !array_key_exists('pretty_urls', $old) || (string)$old['pretty_urls'] === '1' ? ' checked' : '';
+    $stateNotice = '';
+    $stateRaw = @file_get_contents(inst_state_path($root));
+    $state = is_string($stateRaw) ? json_decode($stateRaw, true) : null;
+    if (is_array($state) && ($state['phase'] ?? '') === 'failed') {
+        $stateNotice = '<div class="warn">检测到上次安装未完成。数据库中的已存在内容会保留，修正配置后可以继续重试。上次错误：' . inst_e((string)($state['message'] ?? '未知错误')) . '</div>';
+    }
     echo inst_layout('配置', <<<HTML
+{$errorHtml}
+{$stateNotice}
 <form method="post" action="install.php" autocomplete="off">
   <div class="card">
     <h2>数据库连接</h2>
     <div class="grid2">
-      <div><label>数据库主机</label><input type="text" name="db_host" value="127.0.0.1" required></div>
-      <div><label>端口</label><input type="number" name="db_port" value="3306" required></div>
+      <div><label>数据库主机</label><input type="text" name="db_host" value="{$field('db_host', '127.0.0.1')}" required></div>
+      <div><label>端口</label><input type="number" name="db_port" value="{$field('db_port', '3306')}" required></div>
     </div>
-    <label>数据库名</label><input type="text" name="db_name" placeholder="如 pafish（不存在会自动创建）" required>
-    <label>数据库用户名</label><input type="text" name="db_user" required>
+    <label>数据库名</label><input type="text" name="db_name" value="{$field('db_name')}" placeholder="如 pafish（不存在会自动创建）" required>
+    <label>数据库用户名</label><input type="text" name="db_user" value="{$field('db_user')}" required>
     <label>数据库密码</label><input type="password" name="db_pass">
   </div>
   <div class="card" style="margin-top:16px">
     <h2>站点信息</h2>
-    <label>站点名称</label><input type="text" name="site_name" value="纸鱼博客">
-    <label>站点地址（不带结尾斜杠，用于 RSS / 站点地图）</label><input type="text" name="site_url" value="http://{$host}">
-    <div class="checkbox"><input type="checkbox" name="pretty_urls" value="1" checked id="pu">
+    <label>站点名称</label><input type="text" name="site_name" value="{$field('site_name', '纸鱼博客')}">
+    <label>站点地址（不带结尾斜杠，用于 RSS / 站点地图）</label><input type="text" name="site_url" value="{$field('site_url', 'http://' . $host)}">
+    <div class="checkbox"><input type="checkbox" name="pretty_urls" value="1"{$prettyChecked} id="pu">
       <label for="pu" style="margin:0">启用伪静态（Apache .htaccess / Nginx try_files 已配置时勾选；否则取消勾选，链接自动用 index.php?p= 形式）</label></div>
   </div>
   <div class="card" style="margin-top:16px">
     <h2>管理员账号</h2>
     <div class="grid2">
-      <div><label>用户名</label><input type="text" name="admin_username" value="admin" required></div>
-      <div><label>邮箱</label><input type="email" name="admin_email" value="admin@example.com" required></div>
+      <div><label>用户名</label><input type="text" name="admin_username" value="{$field('admin_username', 'admin')}" required></div>
+      <div><label>邮箱</label><input type="email" name="admin_email" value="{$field('admin_email', 'admin@example.com')}" required></div>
     </div>
     <div class="grid2">
       <div><label>密码（至少 8 位）</label><input type="password" name="admin_password" required></div>
@@ -522,28 +562,34 @@ if ($action === 'install') {
     }
     $result = inst_run($_POST, $root);
     if (!empty($result['errors'])) {
-        $errs = '<div class="err">' . implode('<br>', array_map('inst_e', $result['errors'])) . '</div>';
-        echo inst_layout('安装失败', $errs . '<div class="card"><a class="btn" href="install.php?step=form">返回修改</a></div>');
+        $keep = $_POST;
+        unset($keep['db_pass'], $keep['admin_password'], $keep['admin_password2']);
+        $_SESSION['install_old_input'] = $keep;
+        $errs = '<div class="err"><strong>安装未完成</strong><br>' . implode('<br>', array_map('inst_e', $result['errors'])) . '<br><span class="detail">已填写的非敏感信息已保留，密码字段需要重新输入。</span></div>';
+        $_SESSION['install_error'] = $errs;
+        inst_redirect('install.php?step=form');
         exit;
     }
     // 成功
     $warnHtml = '';
     if (!empty($result['warnings'])) {
-        $warnHtml = '<div class="warn">部分建表语句未执行（多为全文索引兼容性提示）：<br>' . inst_e(implode("\n", array_slice($result['warnings'], 0, 5))) . '</div>';
+        $warnHtml = '<div class="warn"><strong>安装已完成，但有兼容性提示</strong><br>' . inst_e(implode("\n", array_slice($result['warnings'], 0, 5))) . '</div>';
     }
     $links = inst_links($root);
     echo inst_layout('安装完成', <<<HTML
 <div class="card done">
-  <div class="big">🎉</div>
-  <h2 style="margin:8px 0 18px">安装完成</h2>
+  <div class="big ok">✓</div>
+  <p class="detail" style="margin:8px 0 6px; letter-spacing:.08em">INSTALLATION COMPLETE</p>
+  <h2 style="margin:0 0 18px">安装完成</h2>
   <p class="info">
     管理员账号：<b>{$result['admin']}</b><br>
     管理员密码：安装时设置的密码<br>
     编辑账号：<b>editor</b> / <b>Editor@12345</b>
   </p>
   {$warnHtml}
-  <p class="warn">安全提示：请立即删除根目录的 <b>install.php</b>，防止他人重装系统。</p>
-  <a class="btn" href="{$links['home']}">前往首页</a>
+  <p class="warn"><strong>下一步</strong><br>请删除根目录的 <b>install.php</b>，再登录后台修改默认编辑账号密码。</p>
+  <a class="btn" href="{$links['admin']}">进入后台</a>
+  <a class="btn" href="{$links['home']}" style="margin-left:8px;background:#fff;color:var(--ink)">访问首页</a>
 </div>
 HTML);
     exit;

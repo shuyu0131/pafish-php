@@ -29,6 +29,7 @@ final class UpgradeController extends AdminController
             'info' => $info,
             'current' => $current,
             'minOk' => $minOk,
+            'upgradeState' => Upgrade::state(),
         ], '系统更新'));
         return $response;
     }

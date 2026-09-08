@@ -1,6 +1,6 @@
 <?php
 /**
- * 标签管理（对齐 Node app/admin/tags/ 列表 + 表单）：
+ * 标签管理：
  * 左侧列表（name ASC + 文章数 + 编辑/删除），右侧新建/编辑表单
  * 变量：$tags $role
  */
@@ -145,14 +145,16 @@
   document.querySelectorAll("[data-delete-tag]").forEach(function (btn) {
     btn.addEventListener("click", function () {
       var name = btn.getAttribute("data-name") || "";
-      if (!confirm("确定删除标签「" + name + "」？")) return;
-      post(<?= json_encode(url_to('/admin/tags')) ?> + "/" + btn.getAttribute("data-delete-tag") + "/delete")
+      (window.pafishConfirm ? window.pafishConfirm("确定删除标签「" + name + "」？", { title: "删除标签" }) : Promise.resolve(window.confirm("确定删除标签「" + name + "」？"))).then(function (ok) {
+        if (!ok) return;
+        return post(<?= json_encode(url_to('/admin/tags')) ?> + "/" + btn.getAttribute("data-delete-tag") + "/delete")
         .then(function (r) { return r.json(); })
         .then(function (j) {
           if (j && j.ok) location.reload();
           else pafishNotify((j && j.error) || "删除失败");
         })
         .catch(function () { pafishNotify("网络错误"); });
+      });
     });
   });
 })();

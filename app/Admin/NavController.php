@@ -5,11 +5,12 @@ declare(strict_types=1);
 namespace Pafish\Admin;
 
 use Pafish\Core\DB;
+use Pafish\Core\Cache;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
- * 导航菜单管理（对齐 Node app/admin/nav/ + actions.ts 导航系列）：
+ * 导航菜单管理：
  * - 列表 sort_order ASC, id ASC；标题「配置顶部导航与移动端菜单（共 N 项）」
  * - 新建 max(sort_order)+1；编辑不动 visible/sort_order；is_external 新窗口
  * - 显隐切换；上下移动=相邻交换；删除两步确认物理删
@@ -46,7 +47,7 @@ final class NavController extends AdminController
             }
 
             if ($id > 0) {
-                // 编辑：不动 visible / sort_order（对齐 Node updateNavItem）
+                // 编辑：不动 visible / sort_order
                 DB::execute('UPDATE nav_items SET label = ?, url = ?, is_external = ? WHERE id = ?', [$label, $url, $isExternal, $id]);
             } else {
                 $sort = (int) DB::value('SELECT COALESCE(MAX(sort_order), 0) + 1 FROM nav_items');
@@ -61,8 +62,10 @@ final class NavController extends AdminController
         }
 
         if ($this->isAjax($request)) {
+            Cache::clearPrefix('nav.');
             return $this->json($response, ['ok' => true]);
         }
+        Cache::clearPrefix('nav.');
         $this->flash('success', $id > 0 ? '导航项已更新' : '导航项已添加');
         return $this->redirect($response, '/admin/nav');
     }
@@ -72,6 +75,7 @@ final class NavController extends AdminController
     {
         $this->guardAdmin();
         DB::execute('DELETE FROM nav_items WHERE id = ?', [(int) ($args['id'] ?? 0)]);
+        Cache::clearPrefix('nav.');
         return $this->json($response, ['ok' => true]);
     }
 
@@ -80,6 +84,7 @@ final class NavController extends AdminController
     {
         $this->guardAdmin();
         DB::execute('UPDATE nav_items SET visible = 1 - visible WHERE id = ?', [(int) ($args['id'] ?? 0)]);
+        Cache::clearPrefix('nav.');
         return $this->json($response, ['ok' => true]);
     }
 
@@ -111,6 +116,7 @@ final class NavController extends AdminController
             DB::execute('UPDATE nav_items SET sort_order = ? WHERE id = ?', [$other['sort_order'], $id]);
             DB::execute('UPDATE nav_items SET sort_order = ? WHERE id = ?', [$cur['sort_order'], $other['id']]);
         });
+        Cache::clearPrefix('nav.');
         return $this->json($response, ['ok' => true]);
     }
 }

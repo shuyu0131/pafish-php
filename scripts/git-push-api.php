@@ -7,8 +7,8 @@ declare(strict_types=1);
  *   1) 用 `git ls-files --stage` 读取本地 HEAD 树的 mode/sha（不重算内容哈希）
  *   2) 把工作区文件 POST 到 GitHub git/blobs（sha 与本地一致）
  *   3) 递归构建嵌套 trees → 创建 commit → 创建 refs/heads/main 与 refs/tags/{tag}
- * 用法：php scripts/git-push-api.php --token=<GITHUB_TOKEN> --repo=shuyu0131/pafish-php [--tag=v0.1.0] [--parent=<REMOTE_SHA>]
- * 前提：工作区已全部提交（git status 干净）；token 有 repo 权限。
+ * 用法：php scripts/git-push-api.php --token=<GITHUB_TOKEN> --repo=shuyu0131/pafish-php [--tag=v0.1.0] [--parent=<REMOTE_SHA>] [--allow-dirty]
+ * 默认要求工作区已全部提交；使用 --allow-dirty 时仅推送 Git 索引中的已提交树，不会带入工作区改动。
  */
 
 $root = dirname(__DIR__);
@@ -18,6 +18,7 @@ $token = '';
 $repo = '';
 $tag = '';
 $parent = '';
+$allowDirty = false;
 foreach (array_slice($argv, 1) as $arg) {
     if (str_starts_with($arg, '--token=')) {
         $token = substr($arg, 8);
@@ -27,6 +28,8 @@ foreach (array_slice($argv, 1) as $arg) {
         $tag = substr($arg, 6);
     } elseif (str_starts_with($arg, '--parent=')) {
         $parent = substr($arg, 9);
+    } elseif ($arg === '--allow-dirty') {
+        $allowDirty = true;
     }
 }
 if ($token === '' || $repo === '') {
@@ -112,9 +115,12 @@ function readGitBlob(string $root, string $sha): string
 
 // ---------- 1. 读取本地 HEAD 树 ----------
 $clean = trim((string) shell_exec('cd ' . escapeshellarg($root) . ' && git status --porcelain'));
-if ($clean !== '') {
+if ($clean !== '' && !$allowDirty) {
     fwrite(STDERR, "工作区有未提交改动，请先提交：\n{$clean}\n");
     exit(1);
+}
+if ($clean !== '' && $allowDirty) {
+    echo "警告：使用 --allow-dirty，仅推送 Git 索引中的已提交树\n";
 }
 $stage = shell_exec('cd ' . escapeshellarg($root) . ' && git ls-files --stage');
 if ($stage === null || trim($stage) === '') {

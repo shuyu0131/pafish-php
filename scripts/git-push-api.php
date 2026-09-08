@@ -88,7 +88,8 @@ function readGitBlob(string $root, string $sha): string
 {
     $pipes = [];
     $process = proc_open(
-        'git cat-file blob ' . escapeshellarg($sha),
+        // $sha 来自 git ls-files --stage，已由十六进制正则校验，Windows 下无需 shell 引号。
+        'git cat-file blob ' . $sha,
         [0 => ['pipe', 'rb'], 1 => ['pipe', 'rb'], 2 => ['pipe', 'rb']],
         $pipes,
         $root

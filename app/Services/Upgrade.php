@@ -242,7 +242,9 @@ final class Upgrade
         self::rmDir($bak);
         self::resetCache();
         @unlink($root . '/runtime/' . self::STATE_FILE);
-        return ['ok' => true, 'current' => Version::current(), 'latest' => (string) $info['latest']];
+        // 当前 PHP 请求仍加载着升级前的 Version 常量；返回安装包目标版本，
+        // 让更新接口和前端成功提示反映实际已安装的版本。
+        return ['ok' => true, 'current' => (string) $info['latest'], 'latest' => (string) $info['latest']];
     }
 
     // ---------- 内部 ----------

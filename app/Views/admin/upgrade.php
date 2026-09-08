@@ -90,8 +90,8 @@
   var notesBox = document.getElementById("upgNotes");
   var notesBody = document.getElementById("upgNotesBody");
   var sourceBox = document.getElementById("upgSource");
-  // 当前 showMsg 由 doCheck 调用；保持提示区含义不变
-  var lastRunText = "立即更新到 v";
+  // 目标版本由检查结果驱动；初始值兼容服务端首屏已有更新结果。
+  var lastRunText = runBtn && runBtn.textContent ? runBtn.textContent.trim() : "立即更新到 v";
 
   function showMsg(text, isError) {
     if (typeof window.pafishToast === "function") {
@@ -117,7 +117,7 @@
   function busy(btn, on) {
     if (!btn) { return; }
     btn.disabled = on;
-    btn.textContent = on ? "处理中…" : btn.dataset.label;
+    btn.textContent = on ? "处理中…" : (btn.dataset.label || btn.textContent);
   }
   if (checkBtn) { checkBtn.dataset.label = checkBtn.textContent; }
   if (runBtn) { runBtn.dataset.label = runBtn.textContent; }
@@ -154,8 +154,11 @@
       if (hasUpdate && latest && !minBlocked && compareVersions(latest, CURRENT) > 0) {
         lastRunText = "立即更新到 v" + latest;
         runBtn.dataset.label = lastRunText;
+        // 检查结果异步返回后，同步按钮可见文字，避免保留首屏旧版本号。
+        runBtn.textContent = lastRunText;
         runBtn.hidden = false;
       } else {
+        runBtn.dataset.label = "立即更新到 v";
         runBtn.hidden = true;
       }
     }
@@ -245,8 +248,10 @@
         fd.append("_csrf", CSRF);
         post("/admin/upgrade/run", fd)
           .then(function (j) {
-            showMsg("✓ 升级完成，当前版本 v" + j.current, false);
-            setTimeout(function () { location.href = "/admin/upgrade"; }, 1200);
+            var installedVersion = (j && (j.latest || j.current)) || latest;
+            showMsg("✓ 升级完成，当前版本 v" + installedVersion, false);
+            // 增加查询参数，避免浏览器或反向代理复用旧的更新页响应。
+            setTimeout(function () { location.replace("/admin/upgrade?updated=" + encodeURIComponent(installedVersion)); }, 1200);
           })
           .catch(function (err) {
             showMsg("更新失败：" + err.message + "（已自动回滚到 v" + CURRENT + "）", true);

@@ -1,6 +1,6 @@
 <?php
 /**
- * 主题与外观（对齐 Node admin/appearance/page.tsx + theme-list + theme-install）：
+ * 主题与外观：
  * 说明 → 消息条 → 已安装主题卡片（启用/设置/卸载）→ 安装卡（上传 zip / URL 下载）
  * 变量：$themes、$activeTheme
  */
@@ -9,7 +9,6 @@
   <div class="admin-page-head">
     <div>
       <h1 class="admin-h1">主题与外观</h1>
-      <p class="admin-page-sub">主题存放在 themes/ 目录，每个主题由 theme.json 声明设置项，可选 theme.css 覆盖配色。切换后即时生效，点击当前主题的"设置"进入独立设置页。</p>
     </div>
   </div>
   <p class="admin-backup-msg" id="themeMsg" hidden></p>
@@ -73,7 +72,7 @@
         </div>
       </div>
     </div>
-    <p class="admin-field-hint">结构约定：zip 顶层目录为主题名（theme.json 声明 manifest 与设置项，可选 theme.css 覆盖配色）。安装前会校验目录名与路径安全，非法包将被拒绝。</p>
+    <p class="admin-field-hint">zip 顶层目录需为主题名，安装前校验目录名与路径安全。</p>
   </div>
 </div>
 
@@ -85,6 +84,10 @@
   var msg = document.getElementById("themeMsg");
 
   function showMsg(text, isError) {
+    if (typeof window.pafishToast === "function") {
+      window.pafishToast(text, isError ? "error" : "success");
+      return;
+    }
     msg.textContent = text;
     msg.className = "admin-backup-msg " + (isError ? "admin-backup-msg-error" : "admin-backup-msg-ok");
     msg.hidden = false;
@@ -135,13 +138,15 @@
   });
   document.querySelectorAll(".admin-theme-uninstall").forEach(function (btn) {
     btn.addEventListener("click", function () {
-      if (!window.confirm("确定卸载主题“" + btn.dataset.title + "”吗？\n将删除主题目录与设置，不可恢复。")) { return; }
-      btn.disabled = true;
-      btn.textContent = "处理中…";
-      var fd = new FormData();
-      fd.append("name", btn.dataset.name);
-      fd.append("_csrf", CSRF);
-      run("/admin/appearance/uninstall", fd, "已卸载主题 " + btn.dataset.title);
+      (window.pafishConfirm ? window.pafishConfirm("确定要彻底删除主题“" + btn.dataset.title + "”吗？", { title: "卸载主题", accept: "卸载并删除" }) : Promise.resolve(window.confirm("确定要彻底删除主题？操作不可恢复！"))).then(function (ok) {
+        if (!ok) return;
+        btn.disabled = true;
+        btn.textContent = "处理中…";
+        var fd = new FormData();
+        fd.append("name", btn.dataset.name);
+        fd.append("_csrf", CSRF);
+        run("/admin/appearance/uninstall", fd, "已卸载主题 " + btn.dataset.title);
+      });
     });
   });
 

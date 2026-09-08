@@ -1,6 +1,6 @@
 <?php
 /**
- * 文章管理列表（对齐 Node posts-manager.tsx + admin/posts/page.tsx）
+ * 文章管理列表
  * 变量：$posts $total $totalPages $page $per $perOptions $params(status/category/q/sort)
  *       $counts $isTrash $catTree $statusLabel $role
  */

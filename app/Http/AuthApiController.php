@@ -13,7 +13,7 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
- * 认证 API（对齐 Node 版 src/app/api/auth/*）
+ * 认证 API
  * - login / logout：会话登录登出
  * - register：开放注册（allow_registration）+ 可选邮箱验证码（require_email_verify，默认开）
  * - send-code：注册/忘记密码验证码（忘记密码防枚举，未注册邮箱统一返回成功）
@@ -32,6 +32,20 @@ final class AuthApiController
 
         if ($username === '' || $password === '') {
             return $this->json($response, ['error' => '请输入用户名和密码'], 400);
+        }
+
+        $loginDecision = \apply_filters('before_login', [
+            'allowed' => true,
+            'status' => 403,
+            'error' => '登录被安全策略拒绝',
+        ], [
+            'username' => $username,
+            'plugins' => is_array($body['plugins'] ?? null) ? $body['plugins'] : [],
+            'ip' => (string) (($request->getServerParams()['REMOTE_ADDR'] ?? '') ?: 'unknown'),
+        ]);
+        if (is_array($loginDecision) && ($loginDecision['allowed'] ?? true) === false) {
+            $status = max(400, min(499, (int) ($loginDecision['status'] ?? 403)));
+            return $this->json($response, ['error' => (string) ($loginDecision['error'] ?? '登录被安全策略拒绝')], $status);
         }
 
         $user = DB::fetchOne(
@@ -90,6 +104,21 @@ final class AuthApiController
         $len = mb_strlen($password);
         if ($len < 6 || $len > 72) {
             return $this->json($response, ['error' => '密码长度需 6-72 位'], 400);
+        }
+
+        $registerDecision = \apply_filters('before_register', [
+            'allowed' => true,
+            'status' => 403,
+            'error' => '注册被安全策略拒绝',
+        ], [
+            'username' => $username,
+            'email' => strtolower($email),
+            'plugins' => is_array($body['plugins'] ?? null) ? $body['plugins'] : [],
+            'ip' => (string) (($request->getServerParams()['REMOTE_ADDR'] ?? '') ?: 'unknown'),
+        ]);
+        if (is_array($registerDecision) && ($registerDecision['allowed'] ?? true) === false) {
+            $status = max(400, min(499, (int) ($registerDecision['status'] ?? 403)));
+            return $this->json($response, ['error' => (string) ($registerDecision['error'] ?? '注册被安全策略拒绝')], $status);
         }
 
         // 邮箱验证码：站点开启时必须通过（校验通过后自动标记已使用）；默认开启

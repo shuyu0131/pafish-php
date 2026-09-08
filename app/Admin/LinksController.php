@@ -5,11 +5,12 @@ declare(strict_types=1);
 namespace Pafish\Admin;
 
 use Pafish\Core\DB;
+use Pafish\Core\Cache;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
- * 友情链接管理（对齐 Node app/admin/links/ + actions.ts 链接系列）：
+ * 友情链接管理：
  * - 列表 sort_order ASC, id ASC；标题「展示在首页底部，共 N 个（含隐藏）」
  * - 新建 max(sort_order)+1 追加末尾；编辑不动 visible/sort_order
  * - 显隐切换；上下移动=与相邻项交换 sort_order（事务）；删除两步确认物理删
@@ -47,7 +48,7 @@ final class LinksController extends AdminController
             $description = $description === '' ? null : $description;
 
             if ($id > 0) {
-                // 编辑：不动 visible / sort_order（对齐 Node updateLink）
+                // 编辑：不动 visible / sort_order
                 DB::execute('UPDATE links SET name = ?, url = ?, description = ? WHERE id = ?', [$name, $url, $description, $id]);
             } else {
                 // 新建：追加到末尾
@@ -63,8 +64,10 @@ final class LinksController extends AdminController
         }
 
         if ($this->isAjax($request)) {
+            Cache::clearPrefix('links.');
             return $this->json($response, ['ok' => true]);
         }
+        Cache::clearPrefix('links.');
         $this->flash('success', $id > 0 ? '链接已更新' : '链接已添加');
         return $this->redirect($response, '/admin/links');
     }
@@ -74,6 +77,7 @@ final class LinksController extends AdminController
     {
         $this->guardCanManage();
         DB::execute('DELETE FROM links WHERE id = ?', [(int) ($args['id'] ?? 0)]);
+        Cache::clearPrefix('links.');
         return $this->json($response, ['ok' => true]);
     }
 
@@ -83,6 +87,7 @@ final class LinksController extends AdminController
         $this->guardCanManage();
         $id = (int) ($args['id'] ?? 0);
         DB::execute('UPDATE links SET visible = 1 - visible WHERE id = ?', [$id]);
+        Cache::clearPrefix('links.');
         return $this->json($response, ['ok' => true]);
     }
 
@@ -114,6 +119,7 @@ final class LinksController extends AdminController
             DB::execute('UPDATE links SET sort_order = ? WHERE id = ?', [$other['sort_order'], $id]);
             DB::execute('UPDATE links SET sort_order = ? WHERE id = ?', [$cur['sort_order'], $other['id']]);
         });
+        Cache::clearPrefix('links.');
         return $this->json($response, ['ok' => true]);
     }
 }

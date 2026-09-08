@@ -4,7 +4,7 @@
  * 可用数据：$post（含 author_name/category_name/tags[]/content）、$contentHtml（Markdown 渲染结果）、
  *           $locked、$passwordError、$liked、$favorited、$customFields、$prevPost、$nextPost、
  *           $related、$showCustomFields、$showRelated、$settings、$commentPage
- * 结构对标 Node 版 /post/[slug]/page.tsx
+ * 文章详情布局
  */
 $post = $post ?? [];
 $settings = $settings ?? [];
@@ -118,7 +118,7 @@ get_header();
       <?= render_partial('related-posts', ['posts' => $related ?? []]) ?>
     <?php endif; ?>
 
-    <?php /* 评论区（评论功能关闭时整块隐藏；对齐 Node CommentSection） */ ?>
+    <?php /* 评论区（评论功能关闭时整块隐藏） */ ?>
     <?php if (!empty($commentsEnabled)): ?>
       <?= render_partial('comment-section', [
           'postId' => (int) $post['id'],
@@ -164,12 +164,20 @@ get_header();
         btn.addEventListener('click', function () {
           var action = btn.dataset.action, id = btn.dataset.id, active = btn.dataset.active === '1';
           fetch(pafishApi('/post/' + id + '/' + action), { method: 'POST' })
-            .then(function (r) { return r.json(); })
+            .then(function (r) { return r.json().then(function (d) { return { status: r.status, body: d }; }); })
             .then(function (res) {
-              if (!res.ok) return;
-              btn.dataset.active = res.active ? '1' : '0';
-              btn.querySelector('.post-action-icon').innerHTML = icons[action][res.active ? 'on' : 'off'];
-              btn.querySelector('.post-action-count').textContent = res.count;
+              if (res.status === 401) {
+                // 收藏需登录：跳转登录页，登录后回到本页
+                var back = encodeURIComponent(window.location.pathname + window.location.search);
+                var loginUrl = (res.body && res.body.login_url) || pafishApi('/login');
+                window.location.href = loginUrl + '?from=' + back;
+                return;
+              }
+              if (!res.body.ok) return;
+              var active = res.body.active;
+              btn.dataset.active = active ? '1' : '0';
+              btn.querySelector('.post-action-icon').innerHTML = icons[action][active ? 'on' : 'off'];
+              btn.querySelector('.post-action-count').textContent = res.body.count;
             })
             .catch(function () {});
         });

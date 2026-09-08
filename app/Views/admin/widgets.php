@@ -1,6 +1,6 @@
 <?php
 /**
- * 侧边栏组件管理（对齐 Node app/admin/widgets/）：
+ * 侧边栏组件管理：
  * - 顶部新建表单：类型下拉（6 种）+ 标题（留空用默认）+ content（仅 custom 显示）
  * - 列表行：标题（无标题显示类型名）+ 类型徽标 + 「已隐藏」badge + custom 预览首行
  * - 操作：↑/↓ 上下移动（边界禁用）、显隐、编辑（行内展开）、删除（两步确认）
@@ -159,7 +159,7 @@ $labelJson = json_encode($typeLabels, JSON_UNESCAPED_UNICODE);
       .catch(function () { err.textContent = "网络错误"; err.hidden = false; });
   }
 
-  // 类型切换：custom 才显示内容框；切换时标题为空自动填默认标题（对齐 Node：仅在用户切换时填充，加载不填）
+  // 类型切换：custom 才显示内容框；切换时标题为空自动填默认标题
   function syncType(select, titleInput, contentField, isEdit, fillTitle) {
     var t = select.value;
     var custom = t === "custom";
@@ -225,9 +225,9 @@ $labelJson = json_encode($typeLabels, JSON_UNESCAPED_UNICODE);
         .then(function (r) { return r.json(); })
         .then(function (j) {
           if (j && j.ok) location.reload();
-          else alert((j && j.error) || "操作失败");
+          else pafishNotify((j && j.error) || "操作失败");
         })
-        .catch(function () { alert("网络错误"); });
+        .catch(function () { pafishNotify("网络错误"); });
     });
   });
 
@@ -237,7 +237,7 @@ $labelJson = json_encode($typeLabels, JSON_UNESCAPED_UNICODE);
       post(base + "/" + row.getAttribute("data-id") + "/move", { dir: btn.getAttribute("data-move") })
         .then(function (r) { return r.json(); })
         .then(function (j) { if (j && j.ok) location.reload(); })
-        .catch(function () { alert("网络错误"); });
+        .catch(function () { pafishNotify("网络错误"); });
     });
   });
 
@@ -253,14 +253,16 @@ $labelJson = json_encode($typeLabels, JSON_UNESCAPED_UNICODE);
       }
       var row = btn.closest(".admin-list-row");
       var name = row.querySelector(".admin-list-name").textContent.trim();
-      if (!confirm("确定删除组件「" + name + "」？")) return;
-      post(base + "/" + row.getAttribute("data-id") + "/delete")
+      (window.pafishConfirm ? window.pafishConfirm("确定删除组件「" + name + "」？", { title: "删除组件" }) : Promise.resolve(window.confirm("确定删除组件「" + name + "」？"))).then(function (ok) {
+        if (!ok) return;
+        return post(base + "/" + row.getAttribute("data-id") + "/delete")
         .then(function (r) { return r.json(); })
         .then(function (j) {
           if (j && j.ok) location.reload();
-          else alert((j && j.error) || "删除失败");
+          else pafishNotify((j && j.error) || "删除失败");
         })
-        .catch(function () { alert("网络错误"); });
+        .catch(function () { pafishNotify("网络错误"); });
+      });
     });
   });
 })();

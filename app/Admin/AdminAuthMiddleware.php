@@ -12,9 +12,9 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 use Psr\Http\Server\RequestHandlerInterface as Handler;
 
 /**
- * 后台守卫中间件（对齐 Node src/middleware.ts 的 /admin/:path* matcher）：
+ * 后台守卫中间件：统一处理后台权限和 CSRF 校验。
  * - 未登录 → 302 /login?from=<原地址>（登录后跳回）
- * - /admin 下所有 POST 请求校验 CSRF 令牌（Node 的 server action 由框架内置防伪，PHP 需显式）
+ * - /admin 下所有 POST 请求校验 CSRF 令牌
  */
 final class AdminAuthMiddleware
 {

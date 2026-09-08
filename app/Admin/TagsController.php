@@ -10,13 +10,13 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
- * 标签管理（对齐 Node app/admin/tags/ 系列）
+ * 标签管理
  * - 列表按 name ASC + 文章数；新建/更新/删除
  * - 删除硬删（post_tags 由外键 CASCADE 清理）
  */
 final class TagsController extends AdminController
 {
-    /** 列表（对齐 Node：SELECT ... ORDER BY name ASC + count） */
+    /** 列表（按名称排序并附带文章数量） */
     public function index(Request $request, Response $response): Response
     {
         $this->guardCanManage();

@@ -1,7 +1,7 @@
 <?php
 /**
  * 评论区容器（系统 fallback 模板；主题可覆盖 themes/{active}/comment-section.php）
- * 对齐 Node 版 src/components/comment-section.tsx：
+ * 评论区：
  * 顶部表单 → 楼中楼树 → 顶层评论分页（?cpage=N#comments）
  * 可用数据：$postId、$commentPage、$commentRoots、$commentTotal、$commentTotalPages、
  *           $needReview、$captchaEnabled（comments_captcha_enabled）、$user
@@ -49,7 +49,7 @@ $sep = str_contains($baseUrl, '?') ? '&' : '?';
 </section>
 
 <script>
-/* 评论区交互（对齐 Node comment-form/comment-thread 组件行为）：
+/* 评论区交互：
  * 验证码获取/刷新、提交、点赞乐观更新、回复展开收起 */
 (function () {
   'use strict';
@@ -62,24 +62,56 @@ $sep = str_contains($baseUrl, '?') ? '&' : '?';
     }).then(function (r) { return r.json(); });
   }
 
+  function collectPluginFields(form) {
+    var plugins = {};
+    new FormData(form).forEach(function (value, key) {
+      var m = /^plugins\[([a-z0-9_-]+)\]\[([a-z0-9_-]+)\]$/.exec(key);
+      if (!m || typeof value !== 'string') return;
+      if (!plugins[m[1]]) plugins[m[1]] = {};
+      plugins[m[1]][m[2]] = value;
+    });
+    return plugins;
+  }
+
   // ---- 验证码：每个表单独立获取（游客 + 开启验证码时） ----
   function needCaptcha(form) {
     return form.dataset.loggedIn !== '1' && form.querySelector('[data-captcha-refresh]') !== null;
   }
   function fetchCaptcha(form, then) {
+    var box = form.querySelector('.comment-captcha-svg');
+    var status = form.querySelector('[data-captcha-status]');
+    var input = form.querySelector('[name="captchaAnswer"]');
+    var refreshButtons = form.querySelectorAll('[data-captcha-refresh]');
+    if (box) {
+      box.setAttribute('aria-busy', 'true');
+      box.textContent = '加载中…';
+    }
+    if (status) { status.hidden = true; status.textContent = ''; }
+    refreshButtons.forEach(function (button) { button.disabled = true; });
     return fetch(pafishApi('/captcha'))
-      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (d) {
+          if (!r.ok) throw new Error((d && d.error) || '验证码加载失败，请稍后重试');
+          return d;
+        });
+      })
       .then(function (d) {
         if (d && document.body.contains(form)) {
           form.dataset.captchaToken = d.token;
-          var box = form.querySelector('.comment-captcha-svg');
           if (box) box.innerHTML = d.svg;
-          var input = form.querySelector('[name="captchaAnswer"]');
           if (input) input.value = '';
+          if (status) { status.hidden = true; status.textContent = ''; }
           if (then) then();
         }
       })
-      .catch(function () {});
+      .catch(function (err) {
+        if (box) box.textContent = '验证码暂不可用';
+        if (status) { status.textContent = err.message || '验证码加载失败，请点击换一张'; status.hidden = false; }
+      })
+      .finally(function () {
+        if (box) box.setAttribute('aria-busy', 'false');
+        refreshButtons.forEach(function (button) { button.disabled = false; });
+      });
   }
   function refreshCaptcha(form) {
     fetchCaptcha(form);
@@ -121,6 +153,8 @@ $sep = str_contains($baseUrl, '?') ? '&' : '?';
       body.captchaToken = form.dataset.captchaToken || '';
       body.captchaAnswer = (form.querySelector('[name="captchaAnswer"]') || {}).value || '';
     }
+    var pluginFields = collectPluginFields(form);
+    if (Object.keys(pluginFields).length) body.plugins = pluginFields;
 
     submitBtn.disabled = true;
     var label = submitBtn.textContent;
@@ -153,6 +187,8 @@ $sep = str_contains($baseUrl, '?') ? '&' : '?';
   // ---- 验证码：进入页面/展开回复表单时获取；点击刷新 ----
   function initCaptcha(form) {
     if (!needCaptcha(form)) return;
+    var hiddenReply = form.closest('.comment-reply-box[hidden]');
+    if (hiddenReply) return;
     fetchCaptcha(form);
   }
   document.querySelectorAll('[data-comment-form]').forEach(initCaptcha);

@@ -7,7 +7,7 @@ namespace Pafish\Http;
 use Pafish\Core\DB;
 
 /**
- * 评论区数据（对齐 Node 版 src/components/comment-section.tsx）：
+ * 评论区数据：
  * 顶层评论分页（每页 20，置顶优先 + 时间正序）、回复树递归 5 层、
  * 父节点缺失的回复按顶层展示（不丢评论）、liked_comments cookie 回显
  */
@@ -103,7 +103,7 @@ final class Comments
         ];
     }
 
-    /** 评论者头像：用户设置了 avatarUrl 用之，否则 cravatar 默认头像（对齐 Node avatarSrc） */
+    /** 评论者头像：用户设置了 avatarUrl 用之，否则使用 cravatar 默认头像 */
     public static function avatarUrl(?string $avatarUrl, string $email): string
     {
         $avatarUrl = trim((string) $avatarUrl);

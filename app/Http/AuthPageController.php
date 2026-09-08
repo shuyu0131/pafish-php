@@ -10,7 +10,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
  * 认证页面（登录/注册/找回密码/重置密码；独立卡片布局，无博客壳）
- * 对齐 Node 版 app/login|register|forgot-password|reset-password/page.tsx
+ * 登录、注册、找回密码和重置密码页面
  */
 final class AuthPageController
 {
@@ -47,6 +47,23 @@ final class AuthPageController
             'subtitle' => '重置密码',
             'token' => (string) ($request->getQueryParams()['token'] ?? ''),
         ]);
+    }
+
+    /**
+     * 退出登录（GET 兼容路由）：清理会话并回首页。
+     * 标准退出走 POST /api/auth/logout（带 CSRF，见后台/移动端表单）；
+     * 主题模板里遗留的 <a href="/logout"> 链接不再 404。
+     */
+    public function logout(Request $request, Response $response): Response
+    {
+        $user = \Pafish\Core\Auth::user();
+        if ($user) {
+            \do_action('after_logout', ['id' => (string) $user['id']]);
+        }
+        \Pafish\Core\Auth::logout();
+        return $response
+            ->withStatus(302)
+            ->withHeader('Location', \url_to('/'));
     }
 
     private function page(Response $response, string $mode, array $extra = []): Response

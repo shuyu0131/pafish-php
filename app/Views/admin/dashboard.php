@@ -1,6 +1,6 @@
 <?php
 /**
- * 工作台（对齐 Node app/admin/page.tsx）
+ * 工作台
  * 变量：$username $canManage $stats $trend $catRows $latest $totalTrend
  */
 ?>
@@ -38,7 +38,7 @@
     <div class="card admin-chart-card">
       <h2 class="admin-chart-title">近 14 天发文趋势</h2>
       <?php
-      // 趋势柱状图（对齐 Node PublishTrendChart：560x190、4 条网格线、柱宽 50%、隔一标一）
+      // 趋势柱状图（560x190、4 条网格线、柱宽 50%、隔一标一）
       $W = 560; $H = 190; $padL = 8; $padB = 22; $padT = 12;
       $chartH = $H - $padT - $padB;
       $max = max(1, ...array_column($trend, 'count'));

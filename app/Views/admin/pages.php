@@ -1,6 +1,6 @@
 <?php
 /**
- * 页面管理列表（对齐 Node app/admin/pages/ 列表）
+ * 页面管理列表
  * 变量：$pages $homePageId $templateOptions $role
  * 操作：设为首页/取消（fetch POST /admin/pages/set-home）、编辑、删除（硬删除，无回收站）
  */
@@ -99,9 +99,9 @@
       }).then(function (r) { return r.json(); })
         .then(function (j) {
           if (j && j.ok) location.reload();
-          else alert((j && j.error) || "操作失败");
+          else pafishNotify((j && j.error) || "操作失败");
         })
-        .catch(function () { alert("网络错误"); });
+        .catch(function () { pafishNotify("网络错误"); });
     });
   });
 
@@ -110,17 +110,19 @@
     btn.addEventListener("click", function () {
       var id = btn.getAttribute("data-delete-page");
       var name = btn.getAttribute("data-name") || "";
-      if (!confirm("确定删除页面「" + name + "」？此操作不可恢复！")) return;
-      post(<?= json_encode(url_to('/admin/pages')) ?> + "/" + id + "/delete")
+      (window.pafishConfirm ? window.pafishConfirm("确定删除页面「" + name + "」？此操作不可恢复！", { title: "删除页面" }) : Promise.resolve(window.confirm("确定删除页面「" + name + "」？"))).then(function (ok) {
+        if (!ok) return;
+        return post(<?= json_encode(url_to('/admin/pages')) ?> + "/" + id + "/delete")
         .then(function (r) { return r.json(); })
         .then(function (j) {
           if (j && j.ok) {
             var row = btn.closest("[data-page-row]");
             if (row) row.remove();
             if (!document.querySelector("[data-page-row]")) location.reload();
-          } else alert((j && j.error) || "删除失败");
+          } else pafishNotify((j && j.error) || "删除失败");
         })
-        .catch(function () { alert("网络错误"); });
+        .catch(function () { pafishNotify("网络错误"); });
+      });
     });
   });
 })();

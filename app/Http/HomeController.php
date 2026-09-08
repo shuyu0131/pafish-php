@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pafish\Http;
 
 use Pafish\Core\DB;
+use Pafish\Core\Auth;
 use Pafish\Services\Settings;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -39,11 +40,13 @@ final class HomeController
         $offset = ($pageNum - 1) * $perPage;
 
         $where = "p.status = 'PUBLISHED' AND p.deleted_at IS NULL AND (p.published_at IS NULL OR p.published_at <= NOW())";
-        $total = (int) DB::value("SELECT COUNT(*) FROM posts p WHERE {$where}");
+        $where .= " AND (COALESCE(p.custom_fields, '') NOT LIKE ? OR p.author_id = ?)";
+        $visibilityParams = ['%"key":"lumina_private","value":"y"%', Auth::id() ?? 0];
+        $total = (int) DB::value("SELECT COUNT(*) FROM posts p WHERE {$where}", $visibilityParams);
         $totalPages = max(1, (int) ceil($total / $perPage));
 
         $posts = DB::fetchAll(
-            "SELECT p.id, p.title, p.slug, p.excerpt, p.cover_url, p.published_at,
+            "SELECT p.id, p.title, p.slug, p.excerpt, p.cover_url, p.custom_fields, p.published_at,
                     p.is_pinned, p.category_pinned, p.password, p.external_url, p.view_count,
                     u.username AS author_name,
                     c.name AS category_name, c.slug AS category_slug
@@ -52,7 +55,8 @@ final class HomeController
              LEFT JOIN categories c ON c.id = p.category_id
              WHERE {$where}
              ORDER BY p.is_pinned DESC, p.published_at DESC
-             LIMIT {$perPage} OFFSET {$offset}"
+             LIMIT {$perPage} OFFSET {$offset}",
+            $visibilityParams
         );
 
         // 批量取标签（避免 N+1）

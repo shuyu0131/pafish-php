@@ -5,12 +5,13 @@ declare(strict_types=1);
 namespace Pafish\Http;
 
 use Pafish\Core\DB;
+use Pafish\Core\Auth;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
  * 文章归档页：按 YYYY年MM月 分组
- * 对齐 Node 版 archives/page.tsx
+ * 归档页面
  */
 final class ArchiveController
 {
@@ -20,10 +21,13 @@ final class ArchiveController
             "SELECT title, slug, published_at FROM posts
              WHERE status = 'PUBLISHED' AND deleted_at IS NULL
                AND (published_at IS NULL OR published_at <= NOW())
+               AND (COALESCE(custom_fields, '') NOT LIKE ? OR author_id = ?)
              ORDER BY published_at DESC"
+            ,
+            ['%"key":"lumina_private","value":"y"%', Auth::id() ?? 0]
         );
 
-        // 按 年月 分组（Node 版 formatDate(publishedAt, "yyyy年MM月")）
+        // 按年月分组
         $groups = [];
         foreach ($posts as $p) {
             if (empty($p['published_at'])) {

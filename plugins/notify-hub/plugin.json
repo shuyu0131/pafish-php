@@ -1,0 +1,25 @@
+{
+  "name": "notify-hub",
+  "title": "通知中心",
+  "version": "1.0.0",
+  "apiVersion": 2,
+  "description": "把评论、文章发布、登录和注册事件推送到 Bark、Telegram、钉钉、飞书、企业微信或通用 Webhook。",
+  "author": "pafish",
+  "settings": [
+    { "key": "notify_comments", "label": "新评论通知", "type": "switcher", "default": "1", "group": "事件" },
+    { "key": "notify_posts", "label": "文章发布通知", "type": "switcher", "default": "0", "group": "事件" },
+    { "key": "notify_register", "label": "新用户注册通知", "type": "switcher", "default": "0", "group": "事件" },
+    { "key": "notify_login", "label": "用户登录通知", "type": "switcher", "default": "0", "group": "事件" },
+    { "key": "login_roles", "label": "登录通知角色", "type": "select", "default": "admin", "options": { "admin": "仅管理员", "manager": "管理员和编辑", "all": "所有用户" }, "group": "事件", "show_if": { "key": "notify_login", "value": "1" } },
+    { "key": "bark_server", "label": "Bark 服务地址", "type": "text", "default": "https://api.day.app", "group": "Bark" },
+    { "key": "bark_key", "label": "Bark Key", "type": "password", "placeholder": "留空则不启用 Bark", "group": "Bark" },
+    { "key": "bark_group", "label": "Bark 分组", "type": "text", "default": "pafish", "group": "Bark" },
+    { "key": "telegram_token", "label": "Telegram Bot Token", "type": "password", "placeholder": "留空则不启用 Telegram", "group": "Telegram" },
+    { "key": "telegram_chat_ids", "label": "Telegram Chat ID", "type": "textarea", "placeholder": "每行一个 Chat ID", "group": "Telegram" },
+    { "key": "dingtalk_webhook", "label": "钉钉机器人 Webhook", "type": "password", "group": "机器人" },
+    { "key": "feishu_webhook", "label": "飞书机器人 Webhook", "type": "password", "group": "机器人" },
+    { "key": "wecom_webhook", "label": "企业微信机器人 Webhook", "type": "password", "group": "机器人" },
+    { "key": "generic_webhooks", "label": "通用 Webhook", "type": "textarea", "placeholder": "每行一个 http(s) 地址，接收 JSON", "group": "Webhook" },
+    { "key": "webhook_secret", "label": "Webhook 签名密钥", "type": "password", "placeholder": "可选；设置后发送 X-Pafish-Signature", "group": "Webhook" }
+  ]
+}

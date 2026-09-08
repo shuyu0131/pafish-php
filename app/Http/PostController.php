@@ -5,12 +5,13 @@ declare(strict_types=1);
 namespace Pafish\Http;
 
 use Pafish\Core\DB;
+use Pafish\Core\Auth;
 use Pafish\Services\Markdown;
 use Pafish\Services\Settings;use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
- * 前台文章详情（对标 Node 版 /post/[slug]/page.tsx）：
+ * 前台文章详情：
  * 密码门（cookie 解锁 24h）/ 浏览量（cookie 7 天去重）/ 点赞收藏（cookie 列表 + DB 计数）
  * 上下篇 / 相关推荐 / 自定义字段 / 面包屑 / JSON-LD / OG
  */
@@ -69,7 +70,7 @@ final class PostController
             }
         }
 
-        // ---- 浏览量：cookie 7 天去重（对齐 Node ViewTracker） ----
+        // ---- 浏览量：cookie 7 天去重 ----
         $viewCookie = 'pafish_viewed_' . $post['id'];
         if (empty($_COOKIE[$viewCookie])) {
             DB::execute('UPDATE posts SET view_count = view_count + 1 WHERE id = ?', [(int) $post['id']]);
@@ -77,7 +78,7 @@ final class PostController
             setcookie($viewCookie, '1', time() + self::VIEW_TTL, '/', '', false, false);
         }
 
-        // ---- 点赞/收藏初始状态（cookie 列表，对齐 Node） ----
+        // ---- 点赞/收藏初始状态（cookie 列表） ----
         $postKey = (string) $post['id'];
         $liked = in_array($postKey, $this->cookieIds('liked_posts'), true);
         $favorited = in_array($postKey, $this->cookieIds('favorited_posts'), true);
@@ -85,7 +86,7 @@ final class PostController
         // ---- 自定义字段解析（坏数据容错为空） ----
         $customFields = $this->parseCustomFields($post['custom_fields'] ?? null);
 
-        // ---- 评论区数据（对齐 Node CommentSection；评论功能关闭时整块隐藏） ----
+        // ---- 评论区数据（评论功能关闭时整块隐藏） ----
         $commentsEnabled = (string) Settings::get('comments_enabled', 'true') !== 'false';
         $needReview = (string) Settings::get('comments_need_review', 'true') !== 'false';
         $comments = $commentsEnabled
@@ -124,6 +125,10 @@ final class PostController
         if (!in_array($kind, ['like', 'favorite'], true)) {
             return $this->json($response, ['error' => '参数错误'], 400);
         }
+        // 收藏需要登录后才可使用，点赞保持匿名
+        if ($kind === 'favorite' && !\is_logged_in()) {
+            return $this->json($response, ['error' => '请先登录后再收藏', 'login_url' => \url_to('/login')], 401);
+        }
         $post = DB::fetchOne('SELECT id FROM posts WHERE id = ?', [$id]);
         if (!$post) {
             return $this->json($response, ['error' => 'Not Found'], 404);
@@ -154,7 +159,7 @@ final class PostController
         $data = array_merge($extra, [
             'post' => $post,
             'title' => $post['title'],
-            'description' => (string) ($post['excerpt'] ?? ''), // meta description 用摘要（对齐 Node）
+            'description' => (string) ($post['excerpt'] ?? ''), // meta description 用摘要
             'og' => [
                 'type' => 'article',
                 'title' => $post['title'],
@@ -187,6 +192,15 @@ final class PostController
         if ($publishedAt !== null && strtotime((string) $publishedAt) > time()) {
             return null; // 定时文章未到发布时间
         }
+        $fields = $this->parseCustomFields($post['custom_fields'] ?? null);
+        foreach ($fields as $field) {
+            if (($field['key'] ?? '') === 'lumina_private' && ($field['value'] ?? '') === 'y') {
+                if (Auth::id() !== (int) $post['author_id']) {
+                    return null;
+                }
+                break;
+            }
+        }
         // 标签
         $tags = DB::fetchAll(
             "SELECT t.name, t.slug FROM post_tags pt JOIN tags t ON t.id = pt.tag_id WHERE pt.post_id = ? ORDER BY t.id ASC",
@@ -200,13 +214,15 @@ final class PostController
     private function neighbors(array $post): array
     {
         $where = "status = 'PUBLISHED' AND deleted_at IS NULL AND (published_at IS NULL OR published_at <= NOW())";
+        $visibility = "(COALESCE(custom_fields, '') NOT LIKE ? OR author_id = ?)";
+        $visibilityParams = ['%"key":"lumina_private","value":"y"%', Auth::id() ?? 0];
         $prev = DB::fetchOne(
-            "SELECT title, slug FROM posts WHERE {$where} AND (published_at < ? OR (published_at IS NULL AND id < ?)) ORDER BY published_at DESC LIMIT 1",
-            [$post['published_at'], (int) $post['id']]
+            "SELECT title, slug FROM posts WHERE {$where} AND {$visibility} AND (published_at < ? OR (published_at IS NULL AND id < ?)) ORDER BY published_at DESC LIMIT 1",
+            [...$visibilityParams, $post['published_at'], (int) $post['id']]
         );
         $next = DB::fetchOne(
-            "SELECT title, slug FROM posts WHERE {$where} AND (published_at > ? OR (published_at IS NULL AND id > ?)) ORDER BY published_at ASC LIMIT 1",
-            [$post['published_at'], (int) $post['id']]
+            "SELECT title, slug FROM posts WHERE {$where} AND {$visibility} AND (published_at > ? OR (published_at IS NULL AND id > ?)) ORDER BY published_at ASC LIMIT 1",
+            [...$visibilityParams, $post['published_at'], (int) $post['id']]
         );
         return [$prev, $next];
     }
@@ -218,13 +234,14 @@ final class PostController
         $catId = (int) ($post['category_id'] ?? 0);
         $tagIds = array_map(static fn (array $t): int => (int) DB::value('SELECT id FROM tags WHERE slug = ?', [$t['slug']]), $post['tags'] ?? []);
         $tagIds = array_filter($tagIds);
-        $params = [$id];
+        $params = ['%"key":"lumina_private","value":"y"%', Auth::id() ?? 0, $id];
         $sql = "SELECT p.id, p.title, p.slug, p.excerpt, p.published_at,
                        c.name AS category_name, c.slug AS category_slug
                 FROM posts p
                 LEFT JOIN categories c ON c.id = p.category_id
                 WHERE p.status = 'PUBLISHED' AND p.deleted_at IS NULL
                   AND (p.published_at IS NULL OR p.published_at <= NOW())
+                  AND (COALESCE(p.custom_fields, '') NOT LIKE ? OR p.author_id = ?)
                   AND p.id != ?";
         $or = [];
         if ($catId > 0) {

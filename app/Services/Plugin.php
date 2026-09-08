@@ -7,21 +7,26 @@ namespace Pafish\Services;
 use Pafish\Core\Hooks;
 
 /**
- * 插件系统（对标 Node 版 src/lib/plugin-loader.ts + plugin-injections.ts + plugin-pages.ts + plugin-storage.ts + admin/plugins/actions.ts）：
+ * 插件系统：负责加载、生命周期和前台注入。
  * - 目录约定：plugins/{name}/plugin.json（manifest + 设置 schema）+ index.php（返回约定函数数组的 PHP 文件）
  * - manifest 校验：名称白名单 / title+version 必填 / settings 9 类型过滤（非法字段忽略）
  *   / injects 白名单 / pageTemplates·pages 白名单（声明但过滤后为空 = 声明无效）/ storage 非法忽略
  * - 生命周期：activate（写列表 + 注册钩子 + onActivate）→ deactivate（移除 + 注销钩子 + onDeactivate）
- *   → uninstall（停用 + 删数据键 + onUninstall + 删目录）
+ *   → uninstall（停用 + onUninstall + 删数据键 + 删目录）
  * - 注入：head（白名单标签过滤）/ footer / sidebar 即时渲染（PHP 每请求新进程，无缓存/节流问题）
  * - 云存储：激活插件首个声明 storage 且实现 storeFile 者生效（Upload 经 apply_filters 接入），失败回退本地
  */
 final class Plugin
 {
+    public const API_VERSION = 2;
+
     private const NAME_PATTERN = '/^[a-z0-9_-]{1,50}$/';
     private const TEMPLATE_NAME_PATTERN = '/^[a-z0-9-]{1,40}$/';
     private const PAGE_PATH_PATTERN = '/^[a-z0-9_-]{1,50}$/';
-    private const INJECT_TARGETS = ['head', 'footer', 'sidebar'];
+    private const INJECT_TARGETS = [
+        'head', 'footer', 'sidebar',
+        'comment_form', 'login_form', 'register_form', 'post_editor',
+    ];
     private const SETTING_TYPES = ['text', 'textarea', 'checkbox', 'select', 'color', 'switcher', 'radio', 'image', 'password'];
     private const MAX_ZIP_BYTES = 10 * 1024 * 1024;
     private const MAX_LOGS = 50;
@@ -89,7 +94,7 @@ final class Plugin
 
     /**
      * 插件描述：['manifest' => ?array, 'error' => ?string]
-     * 错误文案对齐 Node readManifest（校验顺序：名称 → 缺少 plugin.json → JSON → 格式 → name → title/version）
+     * Manifest 校验顺序：名称 → 缺少 plugin.json → JSON → 格式 → name → title/version
      */
     public static function describe(string $name): array
     {
@@ -130,6 +135,11 @@ final class Plugin
         if (!is_string($json['title'] ?? null) || !is_string($json['version'] ?? null)) {
             return '缺少 title 或 version';
         }
+        if (array_key_exists('apiVersion', $json)) {
+            if (!is_int($json['apiVersion']) || $json['apiVersion'] < 1 || $json['apiVersion'] > self::API_VERSION) {
+                return 'apiVersion 不受支持';
+            }
+        }
         if (array_key_exists('pageTemplates', $json)) {
             if (!is_array($json['pageTemplates'])) {
                 return 'pageTemplates 必须是数组';
@@ -169,7 +179,7 @@ final class Plugin
         return null;
     }
 
-    /** 规范化 manifest（过滤 settings/injects/pageTemplates/pages/storage，对齐 Node readManifest 返回结构） */
+    /** 规范化 manifest（过滤 settings/injects/pageTemplates/pages/storage） */
     private static function normalize(array $json): array
     {
         $settings = [];
@@ -241,8 +251,10 @@ final class Plugin
             'name' => $json['name'],
             'title' => $json['title'],
             'version' => $json['version'],
+            'apiVersion' => is_int($json['apiVersion'] ?? null) ? $json['apiVersion'] : 1,
             'description' => is_string($json['description'] ?? null) ? $json['description'] : '',
             'author' => is_string($json['author'] ?? null) ? $json['author'] : '',
+            'requires' => is_array($json['requires'] ?? null) ? $json['requires'] : [],
             'settings' => $settings,
             'injects' => $injects,
             'pageTemplates' => $pageTemplates,
@@ -276,24 +288,33 @@ final class Plugin
         }
     }
 
-    /** 插件上下文（ctx API 对齐 Node createPluginContext；PHP 版全部同步） */
+    /** 插件上下文（PHP 版同步 API） */
     public static function context(string $name): object
     {
         if (isset(self::$contexts[$name])) {
             return self::$contexts[$name];
         }
-        return self::$contexts[$name] = new class ($name) {
-            private string $name;
+        $apiVersion = (int) (self::manifest($name)['apiVersion'] ?? 1);
+        return self::$contexts[$name] = new class ($name, $apiVersion) {
+            public readonly string $name;
+            public readonly int $apiVersion;
 
-            public function __construct(string $name)
+            public function __construct(string $name, int $apiVersion)
             {
                 $this->name = $name;
+                $this->apiVersion = $apiVersion;
             }
 
             /** 注册事件钩子，返回注销函数（tag 归入 plugin:{name}，停用时整批移除） */
             public function on(string $hook, callable $fn, int $priority = 10): callable
             {
                 return Hooks::addAction($hook, $fn, $priority, 'plugin:' . $this->name);
+            }
+
+            /** 注册过滤器，停用插件时与 action 一起按 tag 批量注销（API v2） */
+            public function filter(string $hook, callable $fn, int $priority = 10): callable
+            {
+                return Hooks::addFilter($hook, $fn, $priority, 'plugin:' . $this->name);
             }
 
             /** 读写插件自有数据（JSON 对象，settings plugin_data:{name}） */
@@ -350,7 +371,7 @@ final class Plugin
         return is_array($v) ? $v : [];
     }
 
-    /** partial 合并写回（对齐 Node setPluginSettings：{ ...cur, ...partial }） */
+    /** partial 合并写回 */
     public static function setSettings(string $name, array $partial): void
     {
         Settings::set('plugin_settings:' . $name, json_encode(array_merge(self::settings($name), $partial), JSON_UNESCAPED_UNICODE));
@@ -427,15 +448,15 @@ final class Plugin
         self::runLifecycle($name, 'onDeactivate');
     }
 
-    /** 卸载插件（对齐 uninstallPlugin：停用（若激活）→ 删数据/设置键 → onUninstall → 删目录） */
+    /** 卸载插件：先执行 onUninstall，使清理逻辑仍能读取插件设置/数据，再删除持久化数据和目录。 */
     public static function uninstall(string $name): void
     {
         if (self::isActive($name)) {
             self::deactivate($name);
         }
+        self::runLifecycle($name, 'onUninstall');
         Settings::remove('plugin_data:' . $name);
         Settings::remove('plugin_settings:' . $name);
-        self::runLifecycle($name, 'onUninstall');
         if (!self::rmDir(self::root() . '/' . $name)) {
             throw new \RuntimeException('删除插件目录失败');
         }
@@ -473,21 +494,30 @@ final class Plugin
 
     /**
      * 渲染指定注入点 HTML：激活插件 renderInjection(target, ctx) 依次拼接
-     * head 走白名单标签过滤（script/meta/link/style，对齐 Node parseInjectionTags）；footer/sidebar 原样
+     * head 走白名单标签过滤（script/meta/link/style）；footer/sidebar 原样
      */
-    public static function renderInjection(string $target): string
+    public static function renderInjection(string $target, array $context = []): string
     {
         if (!in_array($target, self::INJECT_TARGETS, true)) {
             return '';
         }
         $parts = [];
         foreach (self::activeNames() as $name) {
+            $manifest = self::manifest($name);
+            if ($manifest === null) {
+                continue;
+            }
+            // v1 插件保持历史行为；v2 插件必须显式声明 injects，避免越权注入未声明位置。
+            if ((int) ($manifest['apiVersion'] ?? 1) >= 2
+                && !in_array($target, (array) ($manifest['injects'] ?? []), true)) {
+                continue;
+            }
             $mod = self::module($name);
             if ($mod === null || !is_callable($mod['renderInjection'] ?? null)) {
                 continue;
             }
             try {
-                $html = $mod['renderInjection']($target, self::context($name));
+                $html = $mod['renderInjection']($target, self::context($name), $context);
                 if (is_string($html) && trim($html) !== '') {
                     $parts[] = $html;
                 }
@@ -499,7 +529,7 @@ final class Plugin
         return $target === 'head' ? self::parseInjectionTags($joined) : $joined;
     }
 
-    /** 白名单标签提取（对齐 Node parseInjectionTags：script/meta/link/style 顺序收集） */
+    /** 白名单标签提取（按 script/meta/link/style 顺序收集） */
     private static function parseInjectionTags(string $html): string
     {
         $out = '';
@@ -538,7 +568,7 @@ final class Plugin
 
     /**
      * 插件前台页：返回 ['html' => string, 'title' => string]；任一条件不满足返回 null
-     * 对齐 Node /plugin/[name]/[[...path]]：激活 + 声明该 path + renderPluginPage 函数 + 非空输出
+     * 插件页面：激活 + 声明该 path + renderPluginPage 函数 + 非空输出
      */
     public static function renderPluginPage(string $name, string $pagePath): ?array
     {
@@ -641,14 +671,14 @@ final class Plugin
      * 每次请求启动（bootstrap 调用）：
      * - 注册系统注入渲染器（主题模板里 do_action('head_inject'/'sidebar_inject'/'footer_inject') 输出插件注入）
      * - 接入云存储管线（Upload/MediaController 的 apply_filters 调用点）
-     * - 注册全部激活插件的钩子（PHP 每请求新进程，无需 Node 的 5s 节流 ensurePluginHooks）
+     * - 注册全部激活插件的钩子（PHP 每请求新进程）
      */
     public static function boot(): void
     {
         try {
-            add_action('head_inject', static fn () => print self::renderInjection('head'), 0, 'core');
-            add_action('sidebar_inject', static fn () => print self::renderInjection('sidebar'), 0, 'core');
-            add_action('footer_inject', static fn () => print self::renderInjection('footer'), 0, 'core');
+            add_action('head_inject', static fn (array $context = []) => print self::renderInjection('head', $context), 0, 'core');
+            add_action('sidebar_inject', static fn (array $context = []) => print self::renderInjection('sidebar', $context), 0, 'core');
+            add_action('footer_inject', static fn (array $context = []) => print self::renderInjection('footer', $context), 0, 'core');
             add_filter('upload_store_to_cloud', static fn (mixed $prev, array $file) => self::storeToCloud($file) ?? $prev, 10, 'core');
             add_filter('upload_delete_from_cloud', static function (mixed $prev, array $args) {
                 self::deleteFromCloud((string) ($args['url'] ?? ''));
@@ -662,7 +692,7 @@ final class Plugin
         }
     }
 
-    /** zip 安装（对齐 Node installFromBuffer）：大小 → 顶层目录 → 穿越防护 → plugin.json 校验 → 原子 rename */
+    /** zip 安装：大小 → 顶层目录 → 穿越防护 → plugin.json 校验 → 原子 rename */
     public static function installFromBuffer(string $buffer, string $label): array
     {
         $len = strlen($buffer);
@@ -691,7 +721,7 @@ final class Plugin
                     throw new \RuntimeException('插件包含意外路径：' . $entryName);
                 }
                 $parts = explode('/', $trimmed);
-                // 先做逐段安全校验（穿越/空段/非法字符优先于顶层唯一性，对齐 Node 校验顺序）
+                // 先做逐段安全校验（穿越/空段/非法字符优先于顶层唯一性）
                 foreach ($parts as $seg) {
                     if ($seg === '..' || $seg === '') {
                         throw new \RuntimeException('插件包含意外路径：' . $entryName);
@@ -748,11 +778,11 @@ final class Plugin
         }
     }
 
-    /** URL 安装（对齐 Node installFromUrl）：仅 http(s)；下载失败返回状态码 */
+    /** URL 安装：仅 https（防中间人篡改）；下载失败返回状态码 */
     public static function installFromUrl(string $url): array
     {
-        if (preg_match('/^https?:\/\//i', $url) !== 1) {
-            throw new \RuntimeException('URL 需以 http:// 或 https:// 开头');
+        if (preg_match('/^https:\/\//i', $url) !== 1) {
+            throw new \RuntimeException('URL 需以 https:// 开头');
         }
         $ch = curl_init($url);
         curl_setopt_array($ch, [

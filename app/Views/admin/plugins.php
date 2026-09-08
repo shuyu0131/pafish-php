@@ -1,7 +1,7 @@
 <?php
 /**
- * 插件管理（对齐 Node admin/plugins/page.tsx + plugin-list + plugin-install）：
- * 说明 → 消息条 → 插件卡片（启用徽章/云存储后端/注入/设置项/错误标注/数据查看）→ 安装卡（上传 zip / URL 下载）
+ * 插件管理：
+ * 说明 → 消息条 → 插件卡片（启用徽章/云存储后端/注入/设置项/错误标注）→ 安装卡（上传 zip / URL 下载）
  * 变量：$plugins、$activeCount
  */
 ?>
@@ -9,7 +9,6 @@
   <div class="admin-page-head">
     <div>
       <h1 class="admin-h1">插件管理</h1>
-      <p class="admin-page-sub">插件存放在 plugins/ 目录，每个插件由 plugin.json 声明能力（钩子/注入/页面模板/前台页/云存储），index.php 提供实现。启用后立即生效，可随时停用或卸载。</p>
     </div>
   </div>
   <p class="admin-backup-msg" id="pluginMsg" hidden></p>
@@ -29,7 +28,10 @@
                 <span class="badge">未启用</span>
               <?php endif; ?>
               <?php if ($p['version'] !== ''): ?><span class="admin-theme-version">v<?= e($p['version']) ?></span><?php endif; ?>
+              <span class="badge">API v<?= (int) $p['apiVersion'] ?></span>
               <?php if ($p['storage'] !== null): ?><span class="badge badge-primary">云存储后端</span><?php endif; ?>
+              <?php if ($p['pagesCount'] > 0 || $p['templatesCount'] > 0): ?><span class="badge">页面能力</span><?php endif; ?>
+              <?php if ($p['requires'] !== []): ?><span class="badge">依赖 <?= (int) count($p['requires']) ?></span><?php endif; ?>
             </p>
             <p class="admin-theme-desc<?= $p['error'] !== null ? ' admin-text-danger' : '' ?>"><?= e($p['error'] ?? ($p['description'] !== '' ? $p['description'] : '该插件未提供描述')) ?></p>
             <?php if ($p['error'] !== null): ?>
@@ -39,10 +41,11 @@
               作者：<?= e($p['author'] !== '' ? $p['author'] : '未知') ?>　目录：plugins/<?= e($p['name']) ?>/
               <?php if ($p['injects'] !== []): ?>　注入：<?= e(implode('/', $p['injects'])) ?><?php endif; ?>
               　设置项：<?= (int) $p['settingsCount'] ?>
+              <?php if ($p['requires'] !== []): ?>　依赖：<?= e(implode('、', $p['requires'])) ?><?php endif; ?>
             </p>
           </div>
           <div class="admin-theme-ops">
-            <?php if ($p['settingsCount'] > 0): ?>
+            <?php if ($p['active'] && $p['settingsCount'] > 0): ?>
               <a class="btn btn-primary btn-sm" href="<?= e(url_to('/admin/plugins/' . rawurlencode($p['name']))) ?>">设置</a>
             <?php endif; ?>
             <?php if ($p['active']): ?>
@@ -51,12 +54,11 @@
               <?php if ($p['error'] === null): ?>
                 <button type="button" class="btn btn-primary btn-sm admin-plugin-activate" data-name="<?= e($p['name']) ?>" data-title="<?= e($p['title']) ?>">启用</button>
               <?php endif; ?>
+              <?php if ($p['settingsCount'] > 0): ?>
+                <span class="admin-muted admin-theme-hint">启用后可配置</span>
+              <?php endif; ?>
             <?php endif; ?>
-            <button type="button" class="btn btn-ghost btn-sm admin-plugin-details" data-name="<?= e($p['name']) ?>">数据</button>
             <button type="button" class="btn btn-ghost btn-sm admin-plugin-uninstall" data-name="<?= e($p['name']) ?>" data-title="<?= e($p['title']) ?>">卸载</button>
-          </div>
-          <div class="admin-plugin-data" id="plugin-data-<?= e($p['name']) ?>" hidden>
-            <pre class="admin-plugin-data-pre"><?= e(json_encode($p['data'], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)) ?></pre>
           </div>
         </div>
       <?php endforeach; ?>
@@ -86,7 +88,7 @@
         </div>
       </div>
     </div>
-    <p class="admin-field-hint">结构约定：zip 顶层目录为插件名（plugin.json 声明 manifest 与设置项，index.php 提供实现）。安装前会校验目录名与路径安全，非法包将被拒绝。安装成功后需手动启用。</p>
+    <p class="admin-field-hint">zip 顶层目录需为插件名，安装前校验目录名与路径安全。安装成功后需手动启用。</p>
   </div>
 </div>
 
@@ -98,6 +100,10 @@
   var msg = document.getElementById("pluginMsg");
 
   function showMsg(text, isError) {
+    if (typeof window.pafishToast === "function") {
+      window.pafishToast(text, isError ? "error" : "success");
+      return;
+    }
     msg.textContent = text;
     msg.className = "admin-backup-msg " + (isError ? "admin-backup-msg-error" : "admin-backup-msg-ok");
     msg.hidden = false;
@@ -150,21 +156,15 @@
   });
   document.querySelectorAll(".admin-plugin-uninstall").forEach(function (btn) {
     btn.addEventListener("click", function () {
-      if (!window.confirm("确定卸载插件“" + btn.dataset.title + "”吗？\n将删除插件目录与数据，不可恢复。")) { return; }
-      var fd = new FormData();
-      fd.append("name", btn.dataset.name);
-      fd.append("_csrf", CSRF);
-      post("/admin/plugins/uninstall", fd)
-        .then(function () { persistMsg("已卸载 " + btn.dataset.title, false); location.reload(); })
-        .catch(function (err) { showMsg(err.message, true); });
-    });
-  });
-
-  // ---- 查看插件数据 ----
-  document.querySelectorAll(".admin-plugin-details").forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      var box = document.getElementById("plugin-data-" + btn.dataset.name);
-      if (box) { box.hidden = !box.hidden; }
+      (window.pafishConfirm ? window.pafishConfirm("确定要彻底删除插件“" + btn.dataset.title + "”吗？", { title: "卸载插件", accept: "卸载并删除" }) : Promise.resolve(window.confirm("确定要彻底删除插件？操作不可恢复！"))).then(function (ok) {
+        if (!ok) return;
+        var fd = new FormData();
+        fd.append("name", btn.dataset.name);
+        fd.append("_csrf", CSRF);
+        post("/admin/plugins/uninstall", fd)
+          .then(function () { persistMsg("已卸载 " + btn.dataset.title, false); location.reload(); })
+          .catch(function (err) { showMsg(err.message, true); });
+      });
     });
   });
 

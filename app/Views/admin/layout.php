@@ -1,6 +1,6 @@
 <?php
 /**
- * 后台布局（对齐 Node app/admin/layout.tsx）：
+ * 后台布局：
  * 桌面：固定左侧栏（品牌 → 分组导航 → 用户信息/退出/查看前台）+ 内容区
  * 移动端：顶栏 + 抽屉（遮罩点击/Esc 关闭）；分组折叠状态记忆于 localStorage admin_nav_collapsed
  * 变量：$title $siteName $user $nav $unreadNotifications $currentPath $content
@@ -27,8 +27,9 @@ $roleLabel = match ((string) ($user['role'] ?? '')) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= e($title) ?> - <?= e($siteName) ?></title>
 <meta name="robots" content="noindex,nofollow">
-<link rel="stylesheet" href="<?= e(asset_url('/css/style.css')) ?>">
 <link rel="stylesheet" href="<?= e(asset_url('/css/admin.css')) ?>">
+<script src="<?= e(asset_url('/js/admin-toast.js')) ?>"></script>
+<script src="<?= e(asset_url('/js/admin-ui.js')) ?>"></script>
 <?php if (!empty($headExtra)): ?><?= $headExtra ?><?php endif; ?>
 <script>
 /* API 路径适配：pretty_urls=false 时请求走 index.php?p=api/...，query 用 & 拼接 */
@@ -113,10 +114,20 @@ window.pafishApi = function (p) {
   <!-- 内容区 -->
   <main class="admin-main">
     <div class="admin-content">
-      <?php if (is_array($flash ?? null) && ($flash['message'] ?? '') !== ''): ?>
-        <div class="admin-flash admin-flash-<?= e($flash['type'] ?? 'info') ?>">
-          <?= e($flash['message']) ?>
-          <button type="button" class="admin-flash-close" aria-label="关闭"><?= admin_icon('x', 13) ?></button>
+      <?php if (is_array($flash ?? null) && ($flash['message'] ?? '') !== ''):
+        $toastType = $flash['type'] ?? 'info';
+        $toastIcons = [
+          'success' => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>',
+          'error' => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>',
+          'warning' => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>',
+          'info' => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>',
+        ];
+        $toastIcon = $toastIcons[$toastType] ?? $toastIcons['info'];
+      ?>
+        <div class="admin-toast admin-toast-<?= e($toastType) ?>" data-toast role="status" aria-live="polite">
+          <span class="admin-toast-icon" aria-hidden="true"><?= $toastIcon ?></span>
+          <span class="admin-toast-msg"><?= e($flash['message']) ?></span>
+          <button type="button" class="admin-toast-close" aria-label="关闭提示" title="关闭">&times;</button>
         </div>
       <?php endif; ?>
       <?= $content ?>
@@ -134,7 +145,7 @@ window.pafishApi = function (p) {
   if (backdrop) backdrop.addEventListener('click', close);
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
 
-  // 导航分组折叠（localStorage 记忆，key 与 Node 版一致）
+  // 导航分组折叠（localStorage 记忆）
   var key = 'admin_nav_collapsed';
   var saved = [];
   try { saved = JSON.parse(localStorage.getItem(key) || '[]'); } catch (err) {}
@@ -160,11 +171,6 @@ window.pafishApi = function (p) {
         .then(function () { location.href = f.dataset.home || '/'; })
         .catch(function () { location.href = f.dataset.home || '/'; });
     });
-  });
-
-  // flash 提示关闭
-  document.querySelectorAll('.admin-flash-close').forEach(function (b) {
-    b.addEventListener('click', function () { b.closest('.admin-flash').remove(); });
   });
 
   // 系统更新静默检查（服务端 24h 缓存，不阻塞页面；有新版本 → 导航「系统更新」加红点徽标）

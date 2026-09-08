@@ -9,7 +9,7 @@ declare(strict_types=1);
  *   dist/pafish-php-{tag}.zip            发布包，顶层目录 pafish/（WordPress 式）
  *   dist/store-php/pafish-php.json       在线更新元数据（version/notes/zip/min_version）
  *   dist/store-php/pafish-php-{tag}.zip  更新包（与发布包同一份）
- * 部署：把 store-php/ 下两个文件上传到官网 public/pafish-php/（store.waikanl.cn），
+ * 部署：把 store-php/ 下两个文件上传到官网 public/pafish-php/（www.pafish.cn），
  * 更新系统按元数据目录解析 zip 相对路径。notes 默认取自 CHANGELOG.md 的「## {tag}」小节。
  *
  * 排除：.git、本地 config.php、运行时产物（runtime/*、public/uploads/*、backups/*）、
@@ -28,6 +28,42 @@ foreach ($argv as $arg) {
 if (!extension_loaded('zip')) {
     fwrite(STDERR, "需要 PHP zip 扩展\n");
     exit(1);
+}
+
+// ---- 版本同步：唯一维护点 app/Core/Version.php 常量，自动写回 composer.json（防元数据漂移） ----
+$versionSrc = (string) file_get_contents($root . '/app/Core/Version.php');
+if (preg_match("/VERSION\s*=\s*'([^']+)'/", $versionSrc, $m) !== 1 || $m[1] === '') {
+    fwrite(STDERR, "无法读取 app/Core/Version.php 的 VERSION 常量\n");
+    exit(1);
+}
+$codeVersion = $m[1];
+$composerPath = $root . '/composer.json';
+$composer = json_decode((string) file_get_contents($composerPath), true);
+if (!is_array($composer)) {
+    fwrite(STDERR, "composer.json 解析失败\n");
+    exit(1);
+}
+if (($composer['version'] ?? '') !== $codeVersion) {
+    $composer['version'] = $codeVersion;
+    file_put_contents($composerPath, json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n");
+    echo "[ok] composer.json version 同步为 {$codeVersion}\n";
+} else {
+    echo "[ok] composer.json version 已一致（{$codeVersion}）\n";
+}
+
+// ---- 迁移基线一致性：migrations/0001_initial.sql 与 app/install/schema.sql 必须同步 ----
+// （忽略注释行/空行后比较结构——0001 文件头允许附迁移机制说明注释）
+$migrationBase = $root . '/migrations/0001_initial.sql';
+$schemaFile = $root . '/app/install/schema.sql';
+if (is_file($migrationBase) && is_file($schemaFile)) {
+    $stripSql = static fn (string $sql): string => implode("\n", array_filter(
+        preg_split('/\r?\n/', $sql) ?: [],
+        static fn (string $line): bool => trim($line) !== '' && !str_starts_with(ltrim($line), '--')
+    ));
+    if ($stripSql((string) file_get_contents($migrationBase)) !== $stripSql((string) file_get_contents($schemaFile))) {
+        fwrite(STDERR, "migrations/0001_initial.sql 与 app/install/schema.sql 结构不一致，请先同步\n");
+        exit(1);
+    }
 }
 
 /** 需要保留的空目录（zip 内建立空目录，运行时自动写入） */
@@ -49,6 +85,14 @@ function isExcluded(string $rel): bool
         return true;
     }
     if (preg_match('#^public/uploads/#', $rel) || preg_match('#^backups/#', $rel)) {
+        return true;
+    }
+    // 自产调试/测试脚本（scripts/ 下 test*、*_test*、*_dbg*）
+    if (preg_match('#scripts/(test|.*_test|.*_dbg)[^/]*\.php$#i', $rel)) {
+        return true;
+    }
+    // 第三方依赖自带的测试目录（tests/）与其配置文件
+    if (preg_match('#vendor/[^/]+/[^/]+/tests(/|$)|vendor/[^/]+/[^/]+/phpunit\.xml(\.dist)?$#i', $rel)) {
         return true;
     }
     return false;
@@ -86,6 +130,10 @@ $packDir = static function (string $dir, string $zipPrefix) use (&$packDir, $zip
             if (isExcluded($rel)) {
                 continue;
             }
+            // 清理源码中已删除的空遗留目录，避免把旧编辑器目录再次带入发行包。
+            if (basename($rel) === 'md-editor') {
+                continue;
+            }
             // 保留空目录结构（运行时写入），但打包空目录本身
             $zip->addEmptyDir($rel);
             $count++;
@@ -104,7 +152,7 @@ $packDir = static function (string $dir, string $zipPrefix) use (&$packDir, $zip
 $topItems = [
     'app', 'admin', 'themes', 'plugins', 'public', 'migrations', 'docs', 'scripts',
     'vendor', 'backups', 'runtime',
-    'index.php', 'install.php', 'cron.php', 'router.php', '.htaccess',
+    'index.php', 'install.php', 'cron.php', 'router.php', 'upgrade.php', '.htaccess',
     'composer.json', 'composer.lock', 'config.example.php', 'README.md', 'CHANGELOG.md',
 ];
 $zip->addEmptyDir('pafish/');
@@ -154,7 +202,7 @@ $leaks = array_values(array_filter($entries, static fn (string $e): bool =>
 echo "vendor 条目数：" . count(array_filter($entries, static fn (string $e): bool => str_contains($e, 'pafish/vendor/'))) . "\n";
 echo $leaks === [] ? "敏感文件检查：无泄漏\n" : "警告：发现疑似泄漏条目：\n" . implode("\n", array_slice($leaks, 0, 10)) . "\n";
 
-// ---- 更新元数据（托管到官网 store.waikanl.cn/pafish-php/，静态文件，不改官网代码） ----
+// ---- 更新元数据（托管到官网 www.pafish.cn/pafish-php/，静态文件，不改官网代码） ----
 // 在线更新协议：GET {base}/pafish-php/pafish-php.json → { version, notes, zip, min_version }
 // zip 为相对路径，基于元数据 URL 目录解析；zip 与发布包同一份（顶层 pafish/）
 $notes = '';
@@ -181,6 +229,7 @@ $meta = [
     'version' => ltrim($tag, 'v'),
     'notes' => $notes,
     'zip' => 'pafish-php-' . $tag . '.zip',
+    'sha256' => hash_file('sha256', $outPath),
     'min_version' => $minVer,
 ];
 file_put_contents(

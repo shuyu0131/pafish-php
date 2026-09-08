@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Pafish\Services;
 
 /**
- * 别名工具（对齐 Node src/lib/utils.ts slugify + actions.ts resolveUniqueSlug）
+ * 别名工具：生成并校验唯一别名
  * - slugify：小写、空白→连字符、保留中文、去特殊字符、合并连字符、空兜底
  * - resolveUniqueSlug：冲突自动加 -2/-3/... 后缀（标签/分类/页面用；文章 slug 不启用）
  */

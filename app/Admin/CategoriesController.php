@@ -5,13 +5,14 @@ declare(strict_types=1);
 namespace Pafish\Admin;
 
 use Pafish\Core\DB;
+use Pafish\Core\Cache;
 use Pafish\Services\Categories;
 use Pafish\Services\Slug;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
- * 分类管理（对齐 Node app/admin/categories/ 系列）
+ * 分类管理
  * - 树形列表（depth 缩进 + 文章数）；同级上移/下移（交换 sortOrder）
  * - 创建时 sortOrder = 同父级最大 + 1；删除时子分类与文章自动置 NULL
  * - 防自引用双保险：前端禁用自身+后代（disabledMap），后端 BFS 校验
@@ -59,6 +60,7 @@ final class CategoriesController extends AdminController
             return $this->redirect($response, '/admin/categories');
         }
 
+        Cache::clearPrefix('categories.');
         if ($this->isAjax($request)) {
             return $this->json($response, ['ok' => true, 'id' => $result['id']]);
         }
@@ -66,7 +68,7 @@ final class CategoriesController extends AdminController
         return $this->redirect($response, '/admin/categories');
     }
 
-    /** 同级上移/下移（交换 sortOrder，对齐 Node moveCategory） */
+    /** 同级上移/下移（交换 sortOrder） */
     public function move(Request $request, Response $response, array $args): Response
     {
         $this->guardCanManage();
@@ -102,6 +104,7 @@ final class CategoriesController extends AdminController
             'UPDATE categories SET sort_order = ? WHERE id = ?',
             [(int) $cat['sort_order'], (int) $other['id']]
         );
+        Cache::clearPrefix('categories.');
         return $this->json($response, ['ok' => true]);
     }
 
@@ -116,6 +119,7 @@ final class CategoriesController extends AdminController
             DB::execute('UPDATE categories SET parent_id = NULL WHERE parent_id = ?', [$id]);
             DB::execute('UPDATE posts SET category_id = NULL WHERE category_id = ?', [$id]);
             DB::execute('DELETE FROM categories WHERE id = ?', [$id]);
+            Cache::clearPrefix('categories.');
             $db->commit();
         } catch (\Throwable $e) {
             $db->rollBack();

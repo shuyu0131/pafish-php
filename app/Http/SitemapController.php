@@ -10,7 +10,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
  * sitemap.xml（首页/归档/文章/分类/标签/页面）
- * 对齐 Node 版 sitemap.ts；页面 URL 修正为 /pages/{slug}（Node 版 /{slug} 实际 404）
+ * sitemap.xml 输出；页面 URL 使用 /pages/{slug}
  */
 final class SitemapController
 {

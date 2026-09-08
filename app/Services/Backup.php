@@ -11,9 +11,10 @@ use PDO;
 /**
  * 数据备份（含纯 PHP 备份模式）：
  * - 目录：项目根 backups/，文件名 backup-YYYYMMDD-HHmmss.sql / upload-YYYYMMDD-HHmmss.sql
- * - 导出：优先 mysqldump CLI（--single-transaction --routines --triggers，MYSQL_PWD 传密码）；
- *   不可用（虚拟主机无 shell）时纯 PHP 逐表导出兜底（SET FOREIGN_KEY_CHECKS=0 + DROP + CREATE + INSERT）
- * - 恢复：优先 mysql CLI 管道喂入；否则纯 PHP 逐语句解析（支持 DELIMITER 块）
+ * - 导出：默认使用 PDO 纯 PHP 逐表导出，适配禁用 exec() 的共享主机
+ *   （SET FOREIGN_KEY_CHECKS=0 + DROP + CREATE + INSERT）
+ * - 恢复：默认使用 PDO 纯 PHP 逐语句解析（支持 DELIMITER 块）
+ *   命令行 mysqldump/mysql 仅保留为显式辅助能力，不参与在线更新核心链路
  * - 上传：≤200MB，仅 .sql，头部 4096 字节须含 CREATE TABLE|INSERT INTO|mysqldump
  * - upload-* 文件不可删除
  */
@@ -78,17 +79,11 @@ final class Backup
     {
         $file = self::uniqueName(self::PREFIX_BACKUP);
         $path = self::dir() . '/' . $file;
-        if (self::mysqlDumpAvailable()) {
-            $dump = self::dumpCommand();
-            $cmd = $dump . ' --single-transaction --routines --triggers'
-                . ' --default-character-set=utf8mb4 --result-file=' . escapeshellarg($path)
-                . ' ' . escapeshellarg(self::dbName());
-            self::run($cmd, '备份失败');
-        } else {
-            $sql = self::exportPhp();
-            if (@file_put_contents($path, $sql) === false) {
-                throw new \RuntimeException('无法写入备份文件（请检查 backups 目录权限）');
-            }
+        // 在线升级和后台备份必须兼容禁用 exec() 的共享主机；
+        // 统一使用 PDO 导出，避免探测或调用 mysqldump 造成致命错误。
+        $sql = self::exportPhp();
+        if (@file_put_contents($path, $sql) === false) {
+            throw new \RuntimeException('无法写入备份文件（请检查 backups 目录权限）');
         }
         if (!is_file($path) || (int) @filesize($path) === 0) {
             throw new \RuntimeException('备份失败：未生成有效文件');
@@ -101,11 +96,8 @@ final class Backup
     {
         $path = self::resolve($file);
         $safety = self::create(); // 先留底
-        if (self::mysqlCliAvailable()) {
-            self::runWithInput(self::cliCommand(), $path, '恢复失败');
-        } else {
-            self::restorePhp($path);
-        }
+        // 与 create() 保持一致，恢复也不能依赖 mysql CLI 或 exec()。
+        self::restorePhp($path);
         return $safety;
     }
 

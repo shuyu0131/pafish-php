@@ -65,6 +65,10 @@
       <div class="admin-upgrade-notes" id="upgNotes" hidden></div>
     <?php endif; ?>
 
+    <p class="admin-muted admin-upgrade-source" id="upgSource">
+      更新来源：<?= ($info['source'] ?? 'official') === 'github' ? 'GitHub Release（官网源不可用时自动回退）' : 'pafish.cn 官方更新源' ?>
+    </p>
+
     <div class="admin-upgrade-ops">
       <button type="button" class="btn btn-sm" id="upgradeCheckBtn">检查更新</button>
       <button type="button" class="btn btn-primary btn-sm" id="upgradeRunBtn" <?= (!empty($info['hasUpdate']) && $minOk) ? '' : 'hidden' ?>>立即更新到 v<?= e($info['latest'] ?? '') ?></button>
@@ -85,6 +89,7 @@
   var latestBox = document.getElementById("upgLatest");
   var notesBox = document.getElementById("upgNotes");
   var notesBody = document.getElementById("upgNotesBody");
+  var sourceBox = document.getElementById("upgSource");
   // 当前 showMsg 由 doCheck 调用；保持提示区含义不变
   var lastRunText = "立即更新到 v";
 
@@ -121,6 +126,11 @@
   function renderInfo(j) {
     var latest = (j && j.latest) || "";
     var hasUpdate = !!(j && j.hasUpdate);
+    if (sourceBox) {
+      sourceBox.textContent = (j && j.source) === "github" ?
+        "更新来源：GitHub Release（官网源不可用时自动回退）" :
+        "更新来源：pafish.cn 官方更新源";
+    }
     if (latestBox) {
       if (latest) {
         latestBox.innerHTML = "v" + escapeHtml(latest) + " <span class=\"badge " + (hasUpdate ? "badge-accent" : "badge-primary") + "\">" + (hasUpdate ? "有新版本" : "已是最新") + "</span>";

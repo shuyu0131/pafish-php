@@ -8,11 +8,10 @@ use Pafish\Services\Backup;
 
 /**
  * 系统在线更新（参考 emlog / prain 的官方源 + update.php 迁移脚本机制）：
- * - 更新源首选官网 https://www.pafish.cn/pafish-php/pafish-php.json（零配置）
- *   元数据：{ version, notes, zip, min_version? }，zip 与发布包同一份（顶层 pafish/）
- * - 官网源不可用或元数据异常时自动回退 GitHub Releases，允许用户直接使用
- *   shuyu0131/pafish-php 的官方发行包更新；两种来源共用同一套 ZIP 校验、备份和回滚流程
- * - PAFISH_UPDATE_URL 环境变量可覆盖元数据地址（仅测试注入，生产零配置）；
+ * - 更新源默认使用 GitHub Releases，安装包不依赖官网文件存储；
+ * - 官网 https://www.pafish.cn/pafish-php/pafish-php.json 仅作为 GitHub 不可用时的
+ *   轻量元数据镜像，可直接指向 GitHub Release 的安装包；
+ * - PAFISH_UPDATE_URL 环境变量可覆盖元数据地址（仅测试/私有镜像注入，覆盖时优先）；
  *   PAFISH_UPGRADE_ROOT 可覆盖更新根目录（测试子目录演练用）
  * - 检查结果缓存 runtime/update_check.json（24h TTL，后台加载静默检查不拖慢页面）
  * - 执行：下载 → 校验（≤50MB / 全部条目位于 pafish/ 顶层 / 逐段防穿越）→ 整站备份
@@ -72,14 +71,18 @@ final class Upgrade
             $meta = $cached['meta'];
             $error = (string) ($cached['error'] ?? '');
         } else {
+            $customMeta = trim((string) getenv('PAFISH_UPDATE_URL')) !== '';
             try {
-                $meta = self::loadOfficialMeta();
-            } catch (\Throwable $e) {
-                $officialError = $e->getMessage();
+                // 明确指定的镜像用于测试或私有部署，保留它的优先级；生产默认直连 GitHub。
+                $meta = $customMeta ? self::loadOfficialMeta() : self::loadGitHubMeta();
+            } catch (\Throwable $primaryError) {
                 try {
-                    $meta = self::loadGitHubMeta();
-                } catch (\Throwable $githubError) {
-                    $error = '官网更新源：' . $officialError . '；GitHub 更新源：' . $githubError->getMessage();
+                    $meta = $customMeta ? self::loadGitHubMeta() : self::loadOfficialMeta();
+                } catch (\Throwable $fallbackError) {
+                    $primaryName = $customMeta ? '自定义更新源' : 'GitHub 更新源';
+                    $fallbackName = $customMeta ? 'GitHub 更新源' : '官网镜像';
+                    $error = $primaryName . '：' . $primaryError->getMessage()
+                        . '；' . $fallbackName . '：' . $fallbackError->getMessage();
                 }
             }
             self::writeCache($meta, $error);

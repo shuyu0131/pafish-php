@@ -17,7 +17,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 /**
  * 后台控制器基类：导航（角色过滤）+ 布局渲染 + 管理员守卫
  * 后台通用控制器和导航辅助方法
- * 权限模型（参考 emlog）：ADMIN 全权；EDITOR 仅内容/互动（文章/页面/分类/标签/媒体/评论/通知/友链）；
+ * 权限模型：ADMIN 全权；EDITOR 仅内容/互动（文章/页面/分类/标签/媒体/评论/通知/友链）；
  * 外观（导航/组件/主题）、站点设置、商店/插件/用户/备份仅 ADMIN
  */
 abstract class AdminController

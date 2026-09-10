@@ -1,6 +1,6 @@
 <?php
 /**
- * 系统更新（对齐 emlog 官方源 + prain update.php 迁移脚本机制）：
+ * 系统更新：
  * 当前版本 / 最新版本 / 变更说明 → 检查更新 / 立即更新（二次确认，失败自动回滚）
  * 变量：$info（check() 结果）、$current
  */
@@ -232,7 +232,7 @@
       .finally(function () { if (checkBtn) { busy(checkBtn, false); } });
   }
 
-  // 进入页面自动实时检查（emlog 同款：打开即查，无需先点「检查更新」）
+  // 进入页面自动实时检查，无需先点击检查按钮。
   doCheck(true);
 
   if (checkBtn) {

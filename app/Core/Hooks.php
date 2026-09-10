@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Pafish\Core;
 
 /**
- * 钩子引擎（对标 WordPress / emlog $emHooks）：
+ * 钩子引擎：
  * doAction 广播、applyFilters 管道；priority 排序；tag 批量注销
  * 插件通过 tag="plugin:{name}" 注册，停用时整批移除
  */

@@ -20,7 +20,6 @@ $fmtSize = static function (int $bytes): string {
   <div class="admin-page-head">
     <div>
       <h1 class="admin-h1">数据备份</h1>
-      <p class="admin-page-sub">备份内容为完整数据库（文章、页面、分类、评论、设置等），文件保存在服务器 backups 目录</p>
     </div>
   </div>
 

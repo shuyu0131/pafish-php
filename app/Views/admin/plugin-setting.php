@@ -19,7 +19,6 @@ $description = is_string($manifest['description'] ?? null) ? $manifest['descript
       <h1 class="admin-h1"><?= e($title) ?>
         <?php if ($version !== ''): ?><span class="admin-theme-version">v<?= e($version) ?></span><?php endif; ?>
       </h1>
-      <p class="admin-page-sub"><?= e($description !== '' ? $description : '插件设置') ?></p>
     </div>
   </div>
   <p class="admin-backup-msg" id="pluginSettingMsg" hidden></p>

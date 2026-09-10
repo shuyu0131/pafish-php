@@ -103,7 +103,6 @@
   <div class="card admin-theme-install admin-install-panel">
     <div class="admin-theme-install-head">
       <h2 class="admin-card-title">安装插件</h2>
-      <span class="badge">兼容商店分发 zip 格式</span>
     </div>
     <div class="admin-theme-install-row">
       <div class="admin-theme-install-block">

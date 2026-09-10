@@ -31,8 +31,7 @@ sort($allCategories);
   <?php endif; ?>
 
   <div class="admin-store-source">
-    <span class="badge badge-primary">内置官方商店</span>
-    <span class="admin-muted"><?= e($storeUrl) ?></span>
+    <strong class="admin-store-source-label">官方应用商店</strong>
     <?php if ($storeAccount): ?>
       <span class="badge badge-primary">已绑定 <?= e((string)($storeAccount['account']['email'] ?? $storeAccount['account']['name'] ?? '商城账号')) ?></span>
     <?php elseif (($storeAccountStatus ?? 'unbound') === 'invalid_token'): ?>
@@ -121,8 +120,6 @@ sort($allCategories);
     </div>
   <?php endforeach; ?>
 </div>
-
-<!-- 应用商店优化：抽屉式详情面板 -->
 
 <?php $storeCsrf = csrf_token(); ?>
 <script>

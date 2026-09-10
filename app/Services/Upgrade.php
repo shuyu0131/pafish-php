@@ -7,7 +7,7 @@ use Pafish\Core\Version;
 use Pafish\Services\Backup;
 
 /**
- * 系统在线更新（参考 emlog / prain 的官方源 + update.php 迁移脚本机制）：
+ * 系统在线更新：
  * - 更新源默认使用 GitHub Releases，安装包不依赖官网文件存储；
  * - 官网 https://www.pafish.cn/pafish-php/pafish-php.json 仅作为 GitHub 不可用时的
  *   轻量元数据镜像，可直接指向 GitHub Release 的安装包；

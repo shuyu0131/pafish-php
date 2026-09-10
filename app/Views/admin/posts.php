@@ -60,7 +60,7 @@ $canEdit = in_array($role ?? '', ['ADMIN', 'EDITOR'], true);
   <div class="admin-tabs">
     <?php foreach ($tabItems as $t): ?>
       <?php $active = ($params['status'] ?? '') === $t['key']; ?>
-      <a class="btn <?= $active ? 'btn-primary' : 'btn-outline' ?> admin-tab"
+      <a class="admin-tab <?= $active ? 'is-active' : '' ?>"
          href="<?= e(url_to(admin_posts_url($params, ['status' => $t['key']], $per))) ?>">
         <?= e($t['label']) ?>
       </a>
@@ -162,8 +162,8 @@ $canEdit = in_array($role ?? '', ['ADMIN', 'EDITOR'], true);
         <?php endif; ?>
         <?php foreach ($posts as $p): ?>
           <tr data-row-id="<?= (int) $p['id'] ?>">
-            <td><input type="checkbox" class="admin-row-check" value="<?= (int) $p['id'] ?>"></td>
-            <td>
+            <td class="admin-col-check"><input type="checkbox" class="admin-row-check" value="<?= (int) $p['id'] ?>"></td>
+            <td data-label="标题">
               <a class="admin-post-title" href="<?= e(url_to('/admin/posts/' . $p['id'] . '/edit')) ?>">
                 <?php if ($p['is_pinned']): ?><span class="badge badge-accent">置顶</span><?php endif; ?>
                 <?php if ($p['category_pinned']): ?><span class="badge admin-badge-cat-pin">分类置顶</span><?php endif; ?>
@@ -172,7 +172,7 @@ $canEdit = in_array($role ?? '', ['ADMIN', 'EDITOR'], true);
                 <span class="admin-post-title-text"><?= e($p['title']) ?></span>
               </a>
               <div class="admin-post-meta">
-                <span class="badge <?= $p['status'] === 'PUBLISHED' ? 'badge-success' : ($p['status'] === 'SCHEDULED' ? 'badge-warning' : '') ?>">
+                <span class="badge admin-status admin-status-<?= strtolower((string) $p['status']) ?> <?= $p['status'] === 'PUBLISHED' ? 'badge-success' : ($p['status'] === 'SCHEDULED' ? 'badge-warning' : '') ?>">
                   <?= e($statusLabel[$p['status']] ?? $p['status']) ?>
                 </span>
                 <?php if ($isTrash && $p['deleted_at']): ?>
@@ -182,12 +182,12 @@ $canEdit = in_array($role ?? '', ['ADMIN', 'EDITOR'], true);
                 <?php endif; ?>
               </div>
             </td>
-            <td class="admin-col-md"><?= $p['category_name'] ? e($p['category_name']) : '<span class="admin-muted">未分类</span>' ?></td>
-            <td class="admin-col-lg"><?= e($p['author_username']) ?></td>
-            <td class="admin-col-lg"><?= (int) $p['comment_count'] ?></td>
-            <td class="admin-col-sm"><?= number_format((int) $p['view_count']) ?></td>
-            <td><?= e(format_date($p['updated_at'], 'yyyy-MM-dd HH:mm')) ?></td>
-            <td class="admin-col-ops">
+            <td class="admin-col-md" data-label="分类"><?= $p['category_name'] ? e($p['category_name']) : '<span class="admin-muted">未分类</span>' ?></td>
+            <td class="admin-col-lg" data-label="作者"><?= e($p['author_username']) ?></td>
+            <td class="admin-col-lg" data-label="评论"><?= (int) $p['comment_count'] ?></td>
+            <td class="admin-col-sm" data-label="浏览"><?= number_format((int) $p['view_count']) ?></td>
+            <td data-label="更新时间"><time class="admin-post-time" datetime="<?= e((string) $p['updated_at']) ?>"><?= e(format_date($p['updated_at'], 'yyyy-MM-dd HH:mm')) ?></time></td>
+            <td class="admin-col-ops" data-label="操作">
               <div class="admin-row-ops">
                 <a class="admin-icon-btn" href="<?= e(url_to('/admin/posts/' . $p['id'] . '/edit')) ?>" title="编辑"><?= admin_icon('edit', 15) ?></a>
                 <?php if (!$isTrash && $p['status'] === 'PUBLISHED'): ?>

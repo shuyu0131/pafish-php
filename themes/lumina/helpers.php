@@ -2,6 +2,18 @@
 
 declare(strict_types=1);
 
+if (function_exists('add_filter')) {
+    add_filter('theme_post_editor', static function (mixed $html, array $context = []): string {
+        return (string) $html
+            . '<div class="admin-field admin-lumina-fields-wrap">'
+            . '<span class="label">Lumina 动态内容</span>'
+            . '<p class="admin-field-hint">选择内容类型后填写对应媒体链接；图片、视频和音频可先上传到媒体库，再粘贴其地址。</p>'
+            . '<div class="admin-lumina-fields" id="luminaFields"></div>'
+            . '</div>'
+            . '<script src="' . e(lumina_asset_url('editor.js')) . '"></script>';
+    }, 10, 'theme:lumina');
+}
+
 if (!function_exists('lumina_asset_url')) {
     function lumina_asset_url(string $path): string
     {

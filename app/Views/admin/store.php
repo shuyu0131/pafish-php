@@ -19,7 +19,7 @@ foreach (['theme' => $themeCat, 'plugin' => $pluginCat] as $storeKindCat) {
 }
 sort($allCategories);
 ?>
-<div class="admin-stack">
+<div class="admin-stack admin-store-page">
   <div class="admin-page-head">
     <div>
       <h1 class="admin-h1">应用商店</h1>
@@ -292,6 +292,7 @@ sort($allCategories);
 
     requestAnimationFrame(function() {
       drawer.hidden = false;
+      document.body.classList.add("admin-modal-open");
     });
   }
 
@@ -318,7 +319,7 @@ sort($allCategories);
 
     drawer.innerHTML =
       '<div class="admin-drawer-overlay" data-drawer-close></div>' +
-      '<div class="admin-drawer-panel">' +
+      '<div class="admin-drawer-panel" role="dialog" aria-modal="true" aria-label="应用详情">' +
         '<div class="admin-drawer-head">' +
           '<div>' +
             '<h2>' + esc(item.title || item.name || '应用详情') + '</h2>' +
@@ -350,6 +351,7 @@ sort($allCategories);
     drawer.querySelectorAll("[data-drawer-close]").forEach(function(el) {
       el.addEventListener("click", function() {
         drawer.hidden = true;
+        document.body.classList.remove("admin-modal-open");
         setTimeout(function() { drawer.remove(); }, 300);
       });
     });

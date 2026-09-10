@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pafish\Services;
 
 use Pafish\Core\Config;
+use Pafish\Core\Hooks;
 
 /**
  * 主题系统：
@@ -23,6 +24,7 @@ final class Theme
 
     private static ?array $manifests = [];
     private static ?array $values = null;
+    private static ?string $bootedTheme = null;
 
     public static function root(): string
     {
@@ -34,6 +36,45 @@ final class Theme
     {
         $name = (string) Settings::get('active_theme', 'default');
         return self::isValidName($name) ? $name : 'default';
+    }
+
+    /** 加载当前主题的 PHP 扩展入口；每个请求只加载一次。 */
+    public static function boot(): void
+    {
+        $name = self::active();
+        if (self::$bootedTheme === $name) {
+            return;
+        }
+        if (self::$bootedTheme !== null) {
+            Hooks::removeByTag('theme:' . self::$bootedTheme);
+        }
+        self::$bootedTheme = $name;
+        $file = self::root() . '/' . $name . '/helpers.php';
+        if (is_file($file)) {
+            // 使用 require 以支持同一长驻进程内切换主题后重新注册钩子；
+            // 主题 helper 内的函数均以 function_exists 保护，重复加载不会重定义。
+            require $file;
+        }
+    }
+
+    /** 渲染当前主题注册的后台/前台扩展注入。 */
+    public static function renderInjection(string $hook, array $context = []): string
+    {
+        self::boot();
+        $result = Hooks::applyFilters('theme_' . $hook, '', $context);
+        return is_string($result) ? $result : '';
+    }
+
+    /** 当前主题编辑器专属样式；主题未提供时不输出任何内容。 */
+    public static function editorHeadExtra(): string
+    {
+        self::boot();
+        $file = self::root() . '/' . self::active() . '/assets/editor.css';
+        if (!is_file($file)) {
+            return '';
+        }
+        $url = url_to('/theme-assets/' . rawurlencode(self::active()) . '/editor.css');
+        return '<link rel="stylesheet" href="' . e($url . '?v=' . (string) filemtime($file)) . '">';
     }
 
     /** 扫描 themes/ 目录下的全部主题名（过滤临时/备份目录：点前缀不扫描；无 theme.json 也列出，由 describe 报错） */
@@ -154,6 +195,33 @@ final class Theme
             }
         }
         return $keys;
+    }
+
+    /** 主题专属文章字段；主题未启用时由编辑器隐藏并原样保留。 */
+    public static function editorFieldKeys(string $name): array
+    {
+        $manifest = self::manifest($name);
+        $raw = is_array($manifest['editorFields'] ?? null) ? $manifest['editorFields'] : [];
+        $keys = [];
+        foreach ($raw as $key) {
+            if (is_string($key) && preg_match('/^[a-zA-Z0-9_.:-]{1,80}$/', $key) === 1) {
+                $keys[] = $key;
+            }
+        }
+        return array_values(array_unique($keys));
+    }
+
+    /** 所有非当前主题的专属文章字段，供编辑器隐藏但保留数据。 */
+    public static function inactiveEditorFieldKeys(): array
+    {
+        $keys = [];
+        foreach (self::list() as $name) {
+            if ($name === self::active()) {
+                continue;
+            }
+            $keys = array_merge($keys, self::editorFieldKeys($name));
+        }
+        return array_values(array_unique($keys));
     }
 
     /** 主题声明的页面模板（过滤后，不含 default） */

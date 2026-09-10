@@ -117,8 +117,9 @@ location ~ ^/(config\.php|runtime/|backups/) { deny all; }
 
 ## 主题
 
-- `themes/{name}/theme.json`：manifest + 设置 schema（8 类型：text/textarea/checkbox/switcher/select/radio/color/image）
+- `themes/{name}/theme.json`：manifest + 设置 schema（8 类型：text/textarea/checkbox/switcher/select/radio/color/image）；可选 `editorFields` 声明主题专属文章字段
 - `themes/{name}/theme.css`：语义 CSS 变量（`--bg/--fg/--accent/...`）
+- `themes/{name}/helpers.php`：可选主题钩子入口（当前主题请求启动时加载），可通过 `theme_post_editor` 等主题钩子扩展编辑器
 - `themes/{name}/header.php` 等：**可选 PHP 模板文件**，覆盖系统模板（WordPress 式）
 - 主题包可直接在 PHP 版使用；PHP 模板文件由当前主题加载
 

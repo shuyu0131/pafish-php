@@ -1,0 +1,24 @@
+.admin-lumina-fields-wrap {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--muted-bg, rgba(99, 102, 241, .035));
+}
+.admin-lumina-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.admin-lumina-field { min-width: 0; }
+.admin-lumina-field > span,
+.admin-lumina-field > small { display: block; }
+.admin-lumina-field > span { margin-bottom: 5px; font-size: 12px; color: var(--muted); }
+.admin-lumina-field > small { margin-top: 4px; color: var(--muted); font-size: 11px; line-height: 1.45; }
+.admin-lumina-field textarea { min-height: 78px; resize: vertical; }
+.admin-lumina-type,
+.admin-lumina-field:has(textarea) { grid-column: 1 / -1; }
+@media (max-width: 720px) {
+  .admin-lumina-fields { grid-template-columns: 1fr; }
+  .admin-lumina-type,
+  .admin-lumina-field:has(textarea) { grid-column: auto; }
+}

@@ -5,7 +5,7 @@
  * 变量：$plugins、$activeCount
  */
 ?>
-<div class="admin-stack">
+<div class="admin-stack admin-extension-page admin-plugin-page">
   <div class="admin-page-head">
     <div>
       <h1 class="admin-h1">插件管理</h1>
@@ -13,7 +13,7 @@
   </div>
   <p class="admin-backup-msg" id="pluginMsg" hidden></p>
 
-  <div class="card">
+  <div class="card admin-resource-list">
     <div class="card-body" style="padding: 0;">
       <div class="admin-table-wrap" style="border: none; border-radius: 0;">
         <table class="admin-table">
@@ -65,19 +65,19 @@
               <?php if (($p['pagesCount'] ?? 0) > 0 || ($p['templatesCount'] ?? 0) > 0): ?><span class="badge">页面能力</span><?php endif; ?>
                   </div>
                 </td>
-                <td class="admin-col-md">
+                <td class="admin-col-md" data-label="状态">
                   <?php if ($p['active']): ?>
                     <span class="badge badge-success">已启用</span>
                   <?php else: ?>
                     <span class="badge">未启用</span>
                   <?php endif; ?>
                 </td>
-                <td class="admin-col-md"><?= e($p['author'] !== '' ? $p['author'] : '未知') ?></td>
-                <td class="admin-col-sm">
+                <td class="admin-col-md" data-label="作者"><?= e($p['author'] !== '' ? $p['author'] : '未知') ?></td>
+                <td class="admin-col-sm" data-label="版本">
                   <?php if ($p['version'] !== ''): ?>v<?= e($p['version']) ?><?php endif; ?>
                   <div class="admin-muted" style="font-size: 11px;">API v<?= (int) $p['apiVersion'] ?></div>
                 </td>
-                <td class="admin-col-ops">
+                <td class="admin-col-ops" data-label="操作">
                   <div class="admin-row-ops">
                     <?php if ($p['active'] && $p['settingsCount'] > 0): ?>
                       <a class="btn btn-sm btn-primary" href="<?= e(url_to('/admin/plugins/' . rawurlencode($p['name']))) ?>">设置</a>
@@ -100,7 +100,7 @@
     </div>
   </div>
 
-  <div class="card admin-theme-install">
+  <div class="card admin-theme-install admin-install-panel">
     <div class="admin-theme-install-head">
       <h2 class="admin-card-title">安装插件</h2>
       <span class="badge">兼容商店分发 zip 格式</span>

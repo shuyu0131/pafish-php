@@ -66,7 +66,7 @@
     <?php endif; ?>
 
     <p class="admin-muted admin-upgrade-source" id="upgSource">
-      更新来源：<?= ($info['source'] ?? 'official') === 'github' ? 'GitHub Release（官网源不可用时自动回退）' : 'pafish.cn 官方更新源' ?>
+      更新来源：<?= ($info['source'] ?? 'official') === 'github' ? 'GitHub Release（默认更新源）' : 'pafish.cn 镜像（GitHub 不可用时回退）' ?>
     </p>
 
     <div class="admin-upgrade-ops">
@@ -128,8 +128,8 @@
     var hasUpdate = !!(j && j.hasUpdate);
     if (sourceBox) {
       sourceBox.textContent = (j && j.source) === "github" ?
-        "更新来源：GitHub Release（官网源不可用时自动回退）" :
-        "更新来源：pafish.cn 官方更新源";
+        "更新来源：GitHub Release（默认更新源）" :
+        "更新来源：pafish.cn 镜像（GitHub 不可用时回退）";
     }
     if (latestBox) {
       if (latest) {

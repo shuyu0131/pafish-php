@@ -65,6 +65,10 @@
       <div class="admin-upgrade-notes" id="upgNotes" hidden></div>
     <?php endif; ?>
 
+    <p class="admin-muted admin-upgrade-source" id="upgSource">
+      更新来源：<?= ($info['source'] ?? 'official') === 'github' ? 'GitHub Release（官网源不可用时自动回退）' : 'pafish.cn 官方更新源' ?>
+    </p>
+
     <div class="admin-upgrade-ops">
       <button type="button" class="btn btn-sm" id="upgradeCheckBtn">检查更新</button>
       <button type="button" class="btn btn-primary btn-sm" id="upgradeRunBtn" <?= (!empty($info['hasUpdate']) && $minOk) ? '' : 'hidden' ?>>立即更新到 v<?= e($info['latest'] ?? '') ?></button>
@@ -85,8 +89,9 @@
   var latestBox = document.getElementById("upgLatest");
   var notesBox = document.getElementById("upgNotes");
   var notesBody = document.getElementById("upgNotesBody");
-  // 当前 showMsg 由 doCheck 调用；保持提示区含义不变
-  var lastRunText = "立即更新到 v";
+  var sourceBox = document.getElementById("upgSource");
+  // 目标版本由检查结果驱动；初始值兼容服务端首屏已有更新结果。
+  var lastRunText = runBtn && runBtn.textContent ? runBtn.textContent.trim() : "立即更新到 v";
 
   function showMsg(text, isError) {
     if (typeof window.pafishToast === "function") {
@@ -112,7 +117,7 @@
   function busy(btn, on) {
     if (!btn) { return; }
     btn.disabled = on;
-    btn.textContent = on ? "处理中…" : btn.dataset.label;
+    btn.textContent = on ? "处理中…" : (btn.dataset.label || btn.textContent);
   }
   if (checkBtn) { checkBtn.dataset.label = checkBtn.textContent; }
   if (runBtn) { runBtn.dataset.label = runBtn.textContent; }
@@ -121,6 +126,11 @@
   function renderInfo(j) {
     var latest = (j && j.latest) || "";
     var hasUpdate = !!(j && j.hasUpdate);
+    if (sourceBox) {
+      sourceBox.textContent = (j && j.source) === "github" ?
+        "更新来源：GitHub Release（官网源不可用时自动回退）" :
+        "更新来源：pafish.cn 官方更新源";
+    }
     if (latestBox) {
       if (latest) {
         latestBox.innerHTML = "v" + escapeHtml(latest) + " <span class=\"badge " + (hasUpdate ? "badge-accent" : "badge-primary") + "\">" + (hasUpdate ? "有新版本" : "已是最新") + "</span>";
@@ -144,8 +154,11 @@
       if (hasUpdate && latest && !minBlocked && compareVersions(latest, CURRENT) > 0) {
         lastRunText = "立即更新到 v" + latest;
         runBtn.dataset.label = lastRunText;
+        // 检查结果异步返回后，同步按钮可见文字，避免保留首屏旧版本号。
+        runBtn.textContent = lastRunText;
         runBtn.hidden = false;
       } else {
+        runBtn.dataset.label = "立即更新到 v";
         runBtn.hidden = true;
       }
     }
@@ -235,8 +248,10 @@
         fd.append("_csrf", CSRF);
         post("/admin/upgrade/run", fd)
           .then(function (j) {
-            showMsg("✓ 升级完成，当前版本 v" + j.current, false);
-            setTimeout(function () { location.href = "/admin/upgrade"; }, 1200);
+            var installedVersion = (j && (j.latest || j.current)) || latest;
+            showMsg("✓ 升级完成，当前版本 v" + installedVersion, false);
+            // 增加查询参数，避免浏览器或反向代理复用旧的更新页响应。
+            setTimeout(function () { location.replace("/admin/upgrade?updated=" + encodeURIComponent(installedVersion)); }, 1200);
           })
           .catch(function (err) {
             showMsg("更新失败：" + err.message + "（已自动回滚到 v" + CURRENT + "）", true);

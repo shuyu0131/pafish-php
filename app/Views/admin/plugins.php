@@ -5,7 +5,7 @@
  * 变量：$plugins、$activeCount
  */
 ?>
-<div class="admin-stack">
+<div class="admin-stack admin-extension-page admin-plugin-page">
   <div class="admin-page-head">
     <div>
       <h1 class="admin-h1">插件管理</h1>
@@ -13,59 +13,94 @@
   </div>
   <p class="admin-backup-msg" id="pluginMsg" hidden></p>
 
-  <h2 class="admin-h2">已安装插件（<?= (int) $activeCount ?> 个已启用）</h2>
-  <?php if ($plugins === []): ?>
-    <div class="card admin-empty">还没有插件，可以从下方安装，或直接把插件目录放入 plugins/。</div>
-  <?php else: ?>
-    <div class="admin-theme-grid">
-      <?php foreach ($plugins as $p): ?>
-        <div class="card admin-theme-card">
-          <div class="admin-theme-head">
-            <p class="admin-theme-name"><?= e($p['title']) ?>
-              <?php if ($p['active']): ?>
-                <span class="badge badge-primary">已启用</span>
-              <?php else: ?>
-                <span class="badge">未启用</span>
-              <?php endif; ?>
-              <?php if ($p['version'] !== ''): ?><span class="admin-theme-version">v<?= e($p['version']) ?></span><?php endif; ?>
-              <span class="badge">API v<?= (int) $p['apiVersion'] ?></span>
-              <?php if ($p['storage'] !== null): ?><span class="badge badge-primary">云存储后端</span><?php endif; ?>
-              <?php if ($p['pagesCount'] > 0 || $p['templatesCount'] > 0): ?><span class="badge">页面能力</span><?php endif; ?>
-              <?php if ($p['requires'] !== []): ?><span class="badge">依赖 <?= (int) count($p['requires']) ?></span><?php endif; ?>
-            </p>
-            <p class="admin-theme-desc<?= $p['error'] !== null ? ' admin-text-danger' : '' ?>"><?= e($p['error'] ?? ($p['description'] !== '' ? $p['description'] : '该插件未提供描述')) ?></p>
-            <?php if ($p['error'] !== null): ?>
-              <p class="admin-muted">（缺少有效 plugin.json）</p>
+  <div class="card admin-resource-list">
+    <div class="card-body" style="padding: 0;">
+      <div class="admin-table-wrap" style="border: none; border-radius: 0;">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>插件</th>
+              <th class="admin-col-md">状态</th>
+              <th class="admin-col-md">作者</th>
+              <th class="admin-col-sm">版本</th>
+              <th class="admin-col-ops">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <?php if ($plugins === []): ?>
+              <tr><td colspan="5">
+                <div class="admin-empty-list">
+                  <?= admin_icon('box', 32) ?>
+                  <p>还没有插件，可以从下方安装，或直接把插件目录放入 plugins/。</p>
+                </div>
+              </td></tr>
             <?php endif; ?>
-            <p class="admin-muted admin-theme-meta">
-              作者：<?= e($p['author'] !== '' ? $p['author'] : '未知') ?>　目录：plugins/<?= e($p['name']) ?>/
-              <?php if ($p['injects'] !== []): ?>　注入：<?= e(implode('/', $p['injects'])) ?><?php endif; ?>
-              　设置项：<?= (int) $p['settingsCount'] ?>
-              <?php if ($p['requires'] !== []): ?>　依赖：<?= e(implode('、', $p['requires'])) ?><?php endif; ?>
-            </p>
-          </div>
-          <div class="admin-theme-ops">
-            <?php if ($p['active'] && $p['settingsCount'] > 0): ?>
-              <a class="btn btn-primary btn-sm" href="<?= e(url_to('/admin/plugins/' . rawurlencode($p['name']))) ?>">设置</a>
-            <?php endif; ?>
-            <?php if ($p['active']): ?>
-              <button type="button" class="btn btn-ghost btn-sm admin-plugin-deactivate" data-name="<?= e($p['name']) ?>" data-title="<?= e($p['title']) ?>">停用</button>
-            <?php else: ?>
-              <?php if ($p['error'] === null): ?>
-                <button type="button" class="btn btn-primary btn-sm admin-plugin-activate" data-name="<?= e($p['name']) ?>" data-title="<?= e($p['title']) ?>">启用</button>
-              <?php endif; ?>
-              <?php if ($p['settingsCount'] > 0): ?>
-                <span class="admin-muted admin-theme-hint">启用后可配置</span>
-              <?php endif; ?>
-            <?php endif; ?>
-            <button type="button" class="btn btn-ghost btn-sm admin-plugin-uninstall" data-name="<?= e($p['name']) ?>" data-title="<?= e($p['title']) ?>">卸载</button>
-          </div>
-        </div>
-      <?php endforeach; ?>
+            <?php foreach ($plugins as $p): ?>
+              <tr>
+                <td>
+                  <div class="admin-plugin-title">
+                    <?php if ($p['active'] && $p['settingsCount'] > 0): ?>
+                      <a href="<?= e(url_to('/admin/plugins/' . rawurlencode($p['name']))) ?>" class="admin-plugin-name"><?= e($p['title']) ?></a>
+                    <?php else: ?>
+                      <span class="admin-plugin-name"><?= e($p['title']) ?></span>
+                    <?php endif; ?>
+                  </div>
+                  <div class="admin-plugin-meta">
+                    <?php if ($p['error'] !== null): ?>
+                      <span class="admin-text-danger"><?= e($p['error']) ?></span>
+                      <span class="admin-muted">（缺少有效 plugin.json）</span>
+                    <?php else: ?>
+                      <span><?= e($p['description'] !== '' ? $p['description'] : '该插件未提供描述') ?></span>
+                    <?php endif; ?>
+                  </div>
+                  <div class="admin-plugin-info">
+                    <span class="admin-muted">目录：plugins/<?= e($p['name']) ?>/</span>
+                    <?php if ($p['injects'] !== []): ?>
+                      <span class="admin-muted">注入：<?= e(implode('/', $p['injects'])) ?></span>
+                    <?php endif; ?>
+                    <?php if ($p['requires'] !== []): ?>
+                      <span class="admin-muted">依赖：<?= e(implode('、', $p['requires'])) ?></span>
+                    <?php endif; ?>
+                    <?php if ($p['storage'] !== null): ?><span class="badge badge-primary">云存储</span><?php endif; ?>
+              <?php if (($p['pagesCount'] ?? 0) > 0 || ($p['templatesCount'] ?? 0) > 0): ?><span class="badge">页面能力</span><?php endif; ?>
+                  </div>
+                </td>
+                <td class="admin-col-md" data-label="状态">
+                  <?php if ($p['active']): ?>
+                    <span class="badge badge-success">已启用</span>
+                  <?php else: ?>
+                    <span class="badge">未启用</span>
+                  <?php endif; ?>
+                </td>
+                <td class="admin-col-md" data-label="作者"><?= e($p['author'] !== '' ? $p['author'] : '未知') ?></td>
+                <td class="admin-col-sm" data-label="版本">
+                  <?php if ($p['version'] !== ''): ?>v<?= e($p['version']) ?><?php endif; ?>
+                  <div class="admin-muted" style="font-size: 11px;">API v<?= (int) $p['apiVersion'] ?></div>
+                </td>
+                <td class="admin-col-ops" data-label="操作">
+                  <div class="admin-row-ops">
+                    <?php if ($p['active'] && $p['settingsCount'] > 0): ?>
+                      <a class="btn btn-sm btn-primary" href="<?= e(url_to('/admin/plugins/' . rawurlencode($p['name']))) ?>">设置</a>
+                    <?php endif; ?>
+                    <?php if ($p['active']): ?>
+                      <button type="button" class="btn btn-ghost btn-sm admin-plugin-deactivate" data-name="<?= e($p['name']) ?>" data-title="<?= e($p['title']) ?>">停用</button>
+                    <?php else: ?>
+                      <?php if ($p['error'] === null): ?>
+                        <button type="button" class="btn btn-primary btn-sm admin-plugin-activate" data-name="<?= e($p['name']) ?>" data-title="<?= e($p['title']) ?>">启用</button>
+                      <?php endif; ?>
+                    <?php endif; ?>
+                    <button type="button" class="btn btn-ghost btn-sm admin-plugin-uninstall" data-name="<?= e($p['name']) ?>" data-title="<?= e($p['title']) ?>">卸载</button>
+                  </div>
+                </td>
+              </tr>
+            <?php endforeach; ?>
+          </tbody>
+        </table>
+      </div>
     </div>
-  <?php endif; ?>
+  </div>
 
-  <div class="card admin-theme-install">
+  <div class="card admin-theme-install admin-install-panel">
     <div class="admin-theme-install-head">
       <h2 class="admin-card-title">安装插件</h2>
       <span class="badge">兼容商店分发 zip 格式</span>

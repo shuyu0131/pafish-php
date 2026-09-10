@@ -14,7 +14,7 @@ $title = $manifest['title'] ?? $themeName;
 $version = $manifest['version'] ?? '';
 $description = is_string($manifest['description'] ?? null) ? $manifest['description'] : '';
 ?>
-<div class="admin-stack">
+<div class="admin-stack admin-settings-page admin-theme-settings">
   <p><a class="admin-back-link" href="<?= e(url_to('/admin/appearance')) ?>">← 返回主题列表</a></p>
   <div class="admin-page-head">
     <div>
@@ -55,7 +55,7 @@ $description = is_string($manifest['description'] ?? null) ? $manifest['descript
     <?php if ($fields === []): ?>
       <div class="card admin-empty">该主题没有可配置的设置项。</div>
     <?php else: ?>
-      <form class="card admin-form-card" id="themeSettingForm" novalidate>
+      <form class="card admin-form-card admin-schema-form" id="themeSettingForm" novalidate>
         <?php if (count($groups) > 1): ?>
           <div class="admin-sf-tabs">
             <?php foreach ($groupNames as $i => $g): ?>
@@ -136,7 +136,7 @@ $description = is_string($manifest['description'] ?? null) ? $manifest['descript
       </form>
     <?php endif; ?>
 
-    <div class="card admin-form-card">
+    <div class="card admin-form-card admin-settings-backup">
       <h2 class="admin-card-title">设置备份与恢复</h2>
       <p class="admin-field-hint">导出当前主题设置（JSON），或导入备份恢复——仅接受本主题声明的设置项，其他键自动忽略。</p>
       <div class="admin-sf-actions">

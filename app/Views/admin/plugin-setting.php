@@ -12,7 +12,7 @@ $title = $manifest['title'] ?? $pluginName;
 $version = $manifest['version'] ?? '';
 $description = is_string($manifest['description'] ?? null) ? $manifest['description'] : '';
 ?>
-<div class="admin-stack">
+<div class="admin-stack admin-settings-page admin-plugin-settings">
   <p><a class="admin-back-link" href="<?= e(url_to('/admin/plugins')) ?>">← 返回插件列表</a></p>
   <div class="admin-page-head">
     <div>
@@ -48,7 +48,7 @@ $description = is_string($manifest['description'] ?? null) ? $manifest['descript
     <?php if ($fields === []): ?>
       <div class="card admin-empty">该插件没有可配置的设置项。</div>
     <?php else: ?>
-      <form class="card admin-form-card" id="pluginSettingForm" novalidate>
+      <form class="card admin-form-card admin-schema-form" id="pluginSettingForm" novalidate>
         <?php if (count($groups) > 1): ?>
           <div class="admin-sf-tabs">
             <?php foreach ($groupNames as $i => $g): ?>

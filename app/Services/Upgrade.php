@@ -8,8 +8,10 @@ use Pafish\Services\Backup;
 
 /**
  * 系统在线更新（参考 emlog / prain 的官方源 + update.php 迁移脚本机制）：
- * - 更新源硬编码：https://www.pafish.cn/pafish-php/pafish-php.json（零配置）
+ * - 更新源首选官网 https://www.pafish.cn/pafish-php/pafish-php.json（零配置）
  *   元数据：{ version, notes, zip, min_version? }，zip 与发布包同一份（顶层 pafish/）
+ * - 官网源不可用或元数据异常时自动回退 GitHub Releases，允许用户直接使用
+ *   shuyu0131/pafish-php 的官方发行包更新；两种来源共用同一套 ZIP 校验、备份和回滚流程
  * - PAFISH_UPDATE_URL 环境变量可覆盖元数据地址（仅测试注入，生产零配置）；
  *   PAFISH_UPGRADE_ROOT 可覆盖更新根目录（测试子目录演练用）
  * - 检查结果缓存 runtime/update_check.json（24h TTL，后台加载静默检查不拖慢页面）
@@ -22,6 +24,7 @@ use Pafish\Services\Backup;
 final class Upgrade
 {
     private const DEFAULT_META_URL = 'https://www.pafish.cn/pafish-php/pafish-php.json';
+    private const GITHUB_RELEASES_URL = 'https://api.github.com/repos/shuyu0131/pafish-php/releases/latest';
     private const MAX_ZIP_BYTES = 50 * 1024 * 1024;
     private const CACHE_TTL = 86400; // 24h
     private const CACHE_FILE = 'update_check.json';
@@ -29,7 +32,7 @@ final class Upgrade
 
     // ---------- 公开 ----------
 
-    /** 更新元数据地址（硬编码官方源；仅测试注入可覆盖） */
+    /** 更新元数据地址（硬编码官网源；仅测试注入可覆盖） */
     public static function metaUrl(): string
     {
         $env = trim((string) getenv('PAFISH_UPDATE_URL'));
@@ -70,23 +73,14 @@ final class Upgrade
             $error = (string) ($cached['error'] ?? '');
         } else {
             try {
-                $body = self::httpGet(self::metaUrl());
-                $raw = json_decode($body, true);
-                if (!is_array($raw)) {
-                    throw new \RuntimeException('元数据格式不正确');
-                }
-                $meta = [
-                    'version' => (string) ($raw['version'] ?? ''),
-                    'notes' => (string) ($raw['notes'] ?? ''),
-                    'zip' => (string) ($raw['zip'] ?? ''),
-                    'min_version' => (string) ($raw['min_version'] ?? ''),
-                    'sha256' => (string) ($raw['sha256'] ?? ''),
-                ];
-                if ($meta['version'] === '' || $meta['zip'] === '') {
-                    throw new \RuntimeException('元数据缺少版本或安装包地址');
-                }
+                $meta = self::loadOfficialMeta();
             } catch (\Throwable $e) {
-                $error = $e->getMessage();
+                $officialError = $e->getMessage();
+                try {
+                    $meta = self::loadGitHubMeta();
+                } catch (\Throwable $githubError) {
+                    $error = '官网更新源：' . $officialError . '；GitHub 更新源：' . $githubError->getMessage();
+                }
             }
             self::writeCache($meta, $error);
         }
@@ -102,6 +96,7 @@ final class Upgrade
             'zip' => $meta['zip'],
             'minVersion' => $meta['min_version'],
             'sha256' => (string) ($meta['sha256'] ?? ''),
+            'source' => (string) ($meta['source'] ?? 'official'),
             'error' => $error !== '' ? $error : '',
         ];
     }
@@ -123,6 +118,7 @@ final class Upgrade
             'zip' => (string) $meta['zip'],
             'minVersion' => (string) $meta['min_version'],
             'sha256' => (string) ($meta['sha256'] ?? ''),
+            'source' => (string) ($meta['source'] ?? 'official'),
             'error' => (string) ($cached['error'] ?? ''),
         ];
     }
@@ -246,10 +242,81 @@ final class Upgrade
         self::rmDir($bak);
         self::resetCache();
         @unlink($root . '/runtime/' . self::STATE_FILE);
-        return ['ok' => true, 'current' => Version::current(), 'latest' => (string) $info['latest']];
+        // 当前 PHP 请求仍加载着升级前的 Version 常量；返回安装包目标版本，
+        // 让更新接口和前端成功提示反映实际已安装的版本。
+        return ['ok' => true, 'current' => (string) $info['latest'], 'latest' => (string) $info['latest']];
     }
 
     // ---------- 内部 ----------
+
+    /** 读取官网 JSON 更新元数据。 */
+    private static function loadOfficialMeta(): array
+    {
+        $raw = json_decode(self::httpGet(self::metaUrl()), true);
+        if (!is_array($raw)) {
+            throw new \RuntimeException('元数据格式不正确');
+        }
+        $meta = [
+            'version' => (string) ($raw['version'] ?? ''),
+            'notes' => (string) ($raw['notes'] ?? ''),
+            'zip' => (string) ($raw['zip'] ?? ''),
+            'min_version' => (string) ($raw['min_version'] ?? ''),
+            'sha256' => (string) ($raw['sha256'] ?? ''),
+            'source' => 'official',
+        ];
+        if ($meta['version'] === '' || $meta['zip'] === '') {
+            throw new \RuntimeException('元数据缺少版本或安装包地址');
+        }
+        return $meta;
+    }
+
+    /**
+     * 从 GitHub 最新 Release 组装与官网相同的更新元数据。
+     * 仅接受 pafish-php-vX.Y.Z.zip 资产，避免误选源码包或其他附件。
+     */
+    private static function loadGitHubMeta(): array
+    {
+        $raw = json_decode(self::httpGet(self::GITHUB_RELEASES_URL), true);
+        if (!is_array($raw)) {
+            throw new \RuntimeException('GitHub Release 响应格式不正确');
+        }
+        $tag = trim((string) ($raw['tag_name'] ?? ''));
+        if (preg_match('/^v?(\d+(?:\.\d+){1,3})$/', $tag, $m) !== 1) {
+            throw new \RuntimeException('GitHub Release 版本号不正确');
+        }
+        $version = $m[1];
+        $asset = null;
+        foreach ((array) ($raw['assets'] ?? []) as $candidate) {
+            if (!is_array($candidate)) {
+                continue;
+            }
+            $name = (string) ($candidate['name'] ?? '');
+            if ($name === 'pafish-php-v' . $version . '.zip') {
+                $asset = $candidate;
+                break;
+            }
+        }
+        if ($asset === null) {
+            throw new \RuntimeException('GitHub Release 缺少匹配的 pafish-php 安装包');
+        }
+        $zip = trim((string) ($asset['browser_download_url'] ?? ''));
+        if (preg_match('#^https://github\.com/[^/]+/[^/]+/releases/download/[^/]+/pafish-php-v[0-9.]+\.zip$#i', $zip) !== 1) {
+            throw new \RuntimeException('GitHub Release 安装包地址不安全');
+        }
+        $digest = trim((string) ($asset['digest'] ?? ''));
+        $sha256 = '';
+        if (preg_match('/^sha256:([0-9a-f]{64})$/i', $digest, $digestMatch) === 1) {
+            $sha256 = strtolower($digestMatch[1]);
+        }
+        return [
+            'version' => $version,
+            'notes' => (string) ($raw['body'] ?? ''),
+            'zip' => $zip,
+            'min_version' => '',
+            'sha256' => $sha256,
+            'source' => 'github',
+        ];
+    }
 
     /** 更新包内的保留目录（不覆盖、不清空、不备份——用户数据区） */
     private const KEEP_DIRS = ['runtime', 'backups', 'public/uploads'];

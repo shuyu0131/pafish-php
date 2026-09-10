@@ -16,7 +16,7 @@
 ### 2. 应用商店优化（阶段一）
 
 #### CSS 样式
-📄 `public/css/admin-store-enhanced.css`
+📄 `public/css/admin.css`
 
 **新增特性**：
 - ✅ 响应式卡片网格（桌面 3 列 → 平板 2 列 → 手机 1 列）
@@ -41,28 +41,9 @@
 
 ## 🚀 如何使用
 
-### 方法一：直接引入（推荐）
+### 使用方式
 
-在 `app/Views/admin/store.php` 文件的 `<head>` 部分添加：
-
-```php
-<!-- 在现有 admin.css 之后添加 -->
-<link rel="stylesheet" href="<?= asset('/css/admin-store-enhanced.css') ?>">
-```
-
-在 `</body>` 前替换现有的 `<script>` 标签：
-
-```php
-<!-- 替换原有的内联 script -->
-<script>
-  var CSRF = <?= json_encode(csrf_token()) ?>;
-</script>
-<script src="<?= asset('/js/admin-store-enhanced.js') ?>"></script>
-```
-
-### 方法二：合并到主样式表
-
-将 `admin-store-enhanced.css` 的内容追加到 `public/css/admin.css` 末尾，然后删除单独的文件。
+应用商店页面直接使用后台布局加载的 `public/css/admin.css`，无需额外引入样式或脚本文件。商店交互逻辑保留在 `app/Views/admin/store.php` 的页面脚本中。
 
 ---
 
@@ -294,8 +275,8 @@ if (/iPhone|iPad/.test(navigator.userAgent)) {
 遇到问题？
 
 1. **查看浏览器控制台**：按 F12 打开开发者工具，查看错误信息
-2. **检查 CSS 加载**：确认 `admin-store-enhanced.css` 成功加载
-3. **检查 JS 加载**：确认 `admin-store-enhanced.js` 成功加载且无报错
+2. **检查 CSS 加载**：确认 `admin.css` 成功加载
+3. **检查 JS 加载**：确认商店页面内联脚本加载且无报错
 4. **清除缓存**：Ctrl+Shift+R 强制刷新页面
 
 ---

@@ -10,7 +10,6 @@ use Pafish\Services\Backup;
 final class Upgrade
 {
     private const DEFAULT_META_URL = 'https://www.pafish.cn/pafish-php/pafish-php.json';
-    private const DEFAULT_GITEE_REPO = 'shuyugit/pafish-php';
     private const GITHUB_RELEASES_URL = 'https://api.github.com/repos/shuyu0131/pafish-php/releases/latest';
     private const MAX_ZIP_BYTES = 50 * 1024 * 1024;
     private const CACHE_TTL = 86400; // 24h
@@ -60,27 +59,18 @@ final class Upgrade
             $error = (string) ($cached['error'] ?? '');
         } else {
             $customMeta = trim((string) getenv('PAFISH_UPDATE_URL')) !== '';
-            $giteeRepo = self::giteeRepo();
-            $sources = [];
-            if ($customMeta) {
-                $sources[] = ['name' => '自定义更新源', 'loader' => static fn (): array => self::loadOfficialMeta()];
-            }
-            if (!$customMeta && $giteeRepo !== '') {
-                $sources[] = ['name' => 'Gitee 更新源', 'loader' => static fn (): array => self::loadGiteeMeta($giteeRepo)];
-            }
-            $sources[] = ['name' => 'GitHub 更新源', 'loader' => static fn (): array => self::loadGitHubMeta()];
-            $sources[] = ['name' => '官网镜像', 'loader' => static fn (): array => self::loadOfficialMeta()];
-            $errors = [];
-            foreach ($sources as $source) {
+            try {
+                // 明确指定的镜像用于测试或私有部署，保留它的优先级；生产默认直连 GitHub。
+                $meta = $customMeta ? self::loadOfficialMeta() : self::loadGitHubMeta();
+            } catch (\Throwable $primaryError) {
                 try {
-                    $meta = ($source['loader'])();
-                    break;
-                } catch (\Throwable $sourceError) {
-                    $errors[] = $source['name'] . '：' . $sourceError->getMessage();
+                    $meta = $customMeta ? self::loadGitHubMeta() : self::loadOfficialMeta();
+                } catch (\Throwable $fallbackError) {
+                    $primaryName = $customMeta ? '自定义更新源' : 'GitHub 更新源';
+                    $fallbackName = $customMeta ? 'GitHub 更新源' : '官网镜像';
+                    $error = $primaryName . '：' . $primaryError->getMessage()
+                        . '；' . $fallbackName . '：' . $fallbackError->getMessage();
                 }
-            }
-            if ($meta === null && $errors !== []) {
-                $error = implode('；', $errors);
             }
             self::writeCache($meta, $error);
         }
@@ -268,55 +258,6 @@ final class Upgrade
             throw new \RuntimeException('元数据缺少版本或安装包地址');
         }
         return $meta;
-    }
-
-    /**
-     * 从 Gitee 最新 Release 组装更新元数据。
-     * Gitee 公共 API 的资产通常不提供 digest，因此没有 sha256 时由更新器跳过哈希校验，
-     * 仍执行 zip 路径与包结构校验；官方镜像含 sha256 时优先使用完整性校验。
-     */
-    private static function loadGiteeMeta(string $repo): array
-    {
-        $raw = json_decode(self::httpGet('https://gitee.com/api/v5/repos/' . $repo . '/releases/latest'), true);
-        if (!is_array($raw)) {
-            throw new \RuntimeException('Gitee Release 响应格式不正确');
-        }
-        $tag = trim((string) ($raw['tag_name'] ?? ''));
-        if (preg_match('/^v?(\d+(?:\.\d+){1,3})$/', $tag, $m) !== 1) {
-            throw new \RuntimeException('Gitee Release 版本号不正确');
-        }
-        $version = $m[1];
-        foreach ((array) ($raw['assets'] ?? []) as $asset) {
-            if (!is_array($asset) || (string) ($asset['name'] ?? '') !== 'pafish-php-v' . $version . '.zip') {
-                continue;
-            }
-            $zip = trim((string) ($asset['browser_download_url'] ?? $asset['download_url'] ?? ''));
-            if (preg_match('#^https://gitee\.com/' . preg_quote($repo, '#') . '/releases/download/v' . preg_quote($version, '#') . '/pafish-php-v' . preg_quote($version, '#') . '\.zip(?:\?.*)?$#i', $zip) !== 1) {
-                throw new \RuntimeException('Gitee Release 安装包地址不安全');
-            }
-            $digest = strtolower(trim((string) ($asset['sha256'] ?? $asset['digest'] ?? '')));
-            if (str_starts_with($digest, 'sha256:')) {
-                $digest = substr($digest, 7);
-            }
-            return [
-                'version' => $version,
-                'notes' => (string) ($raw['body'] ?? $raw['description'] ?? ''),
-                'zip' => $zip,
-                'min_version' => '',
-                'sha256' => preg_match('/^[0-9a-f]{64}$/', $digest) === 1 ? $digest : '',
-                'source' => 'gitee',
-            ];
-        }
-        throw new \RuntimeException('Gitee Release 缺少匹配的 pafish-php 安装包');
-    }
-
-    private static function giteeRepo(): string
-    {
-        $repo = trim((string) getenv('PAFISH_GITEE_REPO'));
-        if ($repo === '') {
-            $repo = self::DEFAULT_GITEE_REPO;
-        }
-        return preg_match('#^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$#', $repo) === 1 ? $repo : '';
     }
 
     /**

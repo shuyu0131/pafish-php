@@ -6,7 +6,7 @@ declare(strict_types=1);
  * 构建发布 zip（预打包 vendor，用户零命令行安装）：
  *   php scripts/build-release.php [--tag=v0.1.0] [--notes=...] [--min=0.1.0]
  * 产物：
- *   dist/pafish-php-{tag}.zip            发布包，顶层目录 pafish/
+ *   dist/pafish-php-{tag}.zip            发布包，顶层目录 pafish/（WordPress 式）
  *   dist/store-php/pafish-php.json       在线更新元数据（version/notes/zip/min_version）
  *   dist/store-php/pafish-php-{tag}.zip  更新包（与发布包同一份）
  * 部署：把 store-php/ 下两个文件上传到官网 public/pafish-php/（www.pafish.cn），

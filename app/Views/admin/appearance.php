@@ -13,60 +13,84 @@
   </div>
   <p class="admin-backup-msg" id="themeMsg" hidden></p>
 
-  <?php if ($themes === []): ?>
-    <div class="card admin-empty-list">
-      <?= admin_icon('layout', 32) ?>
-      <p>还没有主题</p>
+  <div class="card admin-resource-list">
+    <div class="card-body" style="padding: 0;">
+      <div class="admin-table-wrap" style="border: none; border-radius: 0;">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>主题</th>
+              <th class="admin-col-md">状态</th>
+              <th class="admin-col-md">作者</th>
+              <th class="admin-col-sm">版本</th>
+              <th class="admin-col-ops">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <?php if ($themes === []): ?>
+              <tr><td colspan="5">
+                <div class="admin-empty-list">
+                  <?= admin_icon('layout', 32) ?>
+                  <p>还没有主题</p>
+                </div>
+              </td></tr>
+            <?php endif; ?>
+            <?php foreach ($themes as $t): ?>
+              <tr>
+                <td>
+                  <div class="admin-plugin-title">
+                    <?php if ($t['active'] && $t['settingsCount'] > 0): ?>
+                      <a href="<?= e(url_to('/admin/appearance/' . rawurlencode($t['name']))) ?>" class="admin-plugin-name"><?= e($t['title']) ?></a>
+                    <?php else: ?>
+                      <span class="admin-plugin-name"><?= e($t['title']) ?></span>
+                    <?php endif; ?>
+                  </div>
+                  <div class="admin-plugin-meta">
+                    <?php if ($t['error'] !== null): ?>
+                      <span class="admin-text-danger"><?= e($t['error']) ?></span>
+                      <span class="admin-muted">（缺少有效 theme.json）</span>
+                    <?php else: ?>
+                      <span><?= e($t['description'] !== '' ? $t['description'] : '') ?></span>
+                    <?php endif; ?>
+                  </div>
+                  <div class="admin-plugin-info">
+                    <span class="admin-muted">目录：themes/<?= e($t['name']) ?>/</span>
+                    <span class="admin-muted">设置项：<?= (int) $t['settingsCount'] ?></span>
+                  </div>
+                </td>
+                <td class="admin-col-md" data-label="状态">
+                  <?php if ($t['active']): ?>
+                    <span class="badge badge-primary">当前主题</span>
+                  <?php else: ?>
+                    <span class="badge">未启用</span>
+                  <?php endif; ?>
+                </td>
+                <td class="admin-col-md" data-label="作者"><?= e($t['author'] !== '' ? $t['author'] : '未知') ?></td>
+                <td class="admin-col-sm" data-label="版本"><?php if ($t['version'] !== ''): ?>v<?= e($t['version']) ?><?php endif; ?></td>
+                <td class="admin-col-ops" data-label="操作">
+                  <div class="admin-row-ops">
+                    <?php if ($t['active']): ?>
+                      <?php if ($t['settingsCount'] > 0): ?>
+                        <a class="btn btn-primary btn-sm" href="<?= e(url_to('/admin/appearance/' . rawurlencode($t['name']))) ?>">设置</a>
+                      <?php endif; ?>
+                    <?php else: ?>
+                      <button type="button" class="btn btn-primary btn-sm admin-theme-activate" data-name="<?= e($t['name']) ?>" data-title="<?= e($t['title']) ?>">启用</button>
+                      <button type="button" class="btn btn-ghost btn-sm admin-theme-uninstall" data-name="<?= e($t['name']) ?>" data-title="<?= e($t['title']) ?>">卸载</button>
+                    <?php endif; ?>
+                  </div>
+                </td>
+              </tr>
+            <?php endforeach; ?>
+          </tbody>
+        </table>
+      </div>
     </div>
-  <?php else: ?>
-    <div class="admin-installed-theme-grid">
-      <?php foreach ($themes as $t): ?>
-        <article class="card admin-installed-theme-card<?= $t['active'] ? ' is-active' : '' ?>">
-          <div class="admin-installed-theme-preview">
-            <?php if ($t['preview'] !== ''): ?>
-              <img src="<?= e($t['preview']) ?>" alt="<?= e($t['title']) ?> 预览" loading="lazy">
-            <?php else: ?>
-              <span class="admin-installed-theme-placeholder"><?= admin_icon('layout', 34) ?></span>
-            <?php endif; ?>
-          </div>
-          <div class="admin-installed-theme-body">
-            <div class="admin-installed-theme-title">
-              <?php if ($t['active'] && $t['settingsCount'] > 0): ?>
-                <a href="<?= e(url_to('/admin/appearance/' . rawurlencode($t['name']))) ?>"><?= e($t['title']) ?></a>
-              <?php else: ?>
-                <strong><?= e($t['title']) ?></strong>
-              <?php endif; ?>
-              <?php if ($t['active']): ?><span class="badge badge-primary">当前主题</span><?php endif; ?>
-              <?php if ($t['version'] !== ''): ?><span class="admin-theme-version">v<?= e($t['version']) ?></span><?php endif; ?>
-            </div>
-            <?php if ($t['error'] !== null): ?>
-              <p class="admin-installed-theme-desc admin-text-danger"><?= e($t['error']) ?></p>
-            <?php else: ?>
-              <p class="admin-installed-theme-desc"><?= e($t['description'] !== '' ? $t['description'] : '暂无主题说明') ?></p>
-            <?php endif; ?>
-            <p class="admin-installed-theme-meta">
-              <span><?= e($t['author'] !== '' ? $t['author'] : '未知作者') ?></span>
-              <span><?= (int) $t['settingsCount'] ?> 个设置项</span>
-            </p>
-          </div>
-          <div class="admin-installed-theme-actions">
-            <?php if ($t['active']): ?>
-              <?php if ($t['settingsCount'] > 0): ?>
-                <a class="btn btn-primary btn-sm" href="<?= e(url_to('/admin/appearance/' . rawurlencode($t['name']))) ?>">设置</a>
-              <?php endif; ?>
-            <?php else: ?>
-              <button type="button" class="btn btn-primary btn-sm admin-theme-activate" data-name="<?= e($t['name']) ?>" data-title="<?= e($t['title']) ?>">启用</button>
-              <button type="button" class="btn btn-ghost btn-sm admin-theme-uninstall" data-name="<?= e($t['name']) ?>" data-title="<?= e($t['title']) ?>">卸载</button>
-            <?php endif; ?>
-          </div>
-        </article>
-      <?php endforeach; ?>
-    </div>
-  <?php endif; ?>
+  </div>
 
   <div class="card admin-theme-install admin-install-panel">
     <div class="admin-theme-install-head">
       <h2 class="admin-card-title">安装主题</h2>
+      <span class="badge">兼容商店分发 zip 格式</span>
     </div>
     <div class="admin-theme-install-row">
       <div class="admin-theme-install-block">

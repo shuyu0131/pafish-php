@@ -8,6 +8,7 @@
   <div class="admin-page-head">
     <div>
       <h1 class="admin-h1">工作台</h1>
+      <p class="admin-page-sub">你好，<?= e($username) ?> · 欢迎回来</p>
     </div>
     <?php if ($canManage): ?>
       <a class="btn btn-primary" href="<?= e(url_to('/admin/posts/new')) ?>">

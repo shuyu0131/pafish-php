@@ -9,6 +9,7 @@
   <div class="admin-page-head">
     <div>
       <h1 class="admin-h1">页面管理</h1>
+      <p class="admin-page-sub">共 <?= count($pages) ?> 个页面 · 设为首页的页面将直接作为站点首页展示</p>
     </div>
     <div class="admin-head-actions">
       <a class="btn btn-primary" href="<?= e(url_to('/admin/pages/new')) ?>">

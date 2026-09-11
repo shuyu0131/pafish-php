@@ -168,7 +168,7 @@ function friend_links(): array
     return $rows;
 }
 
-/** 渲染主题 header/footer（主题可覆盖 header.php / footer.php） */
+/** 渲染主题 header/footer（WordPress 式，主题可覆盖 header.php / footer.php） */
 function get_header(): void
 {
     echo render('header');

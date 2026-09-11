@@ -22,6 +22,7 @@ $description = is_string($manifest['description'] ?? null) ? $manifest['descript
         <?php if ($version !== ''): ?><span class="admin-theme-version">v<?= e($version) ?></span><?php endif; ?>
         <?php if ($active): ?><span class="badge badge-primary">当前主题</span><?php endif; ?>
       </h1>
+      <p class="admin-page-sub"><?= e($description !== '' ? $description : '主题设置') ?></p>
     </div>
   </div>
   <p class="admin-backup-msg" id="themeSettingMsg" hidden></p>

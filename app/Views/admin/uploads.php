@@ -50,6 +50,7 @@ $accept = 'image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip,.rar
   <div class="admin-page-head">
     <div>
       <h1 class="admin-h1">媒体库</h1>
+      <p class="admin-page-sub">共 <?= (int) $total ?> 个媒体，支持本地上传与外部链接（图片自动压缩，大小限制可在站点设置调整）</p>
     </div>
   </div>
 

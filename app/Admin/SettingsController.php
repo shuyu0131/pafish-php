@@ -17,7 +17,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  * - 保存：22 键白名单整体 upsert，空串覆盖，无校验
  * - SMTP 测试：用表单当前值直接发信（未保存也能测），收件人=登录账号邮箱或 notify_email
  * - 开放 API：api_enabled 开关 + api_key 重新生成（32 位 hex，X-API-Key 头鉴权）
- * 权限：仅 ADMIN（guardAdmin，编辑不可改站点设置）；CSRF 由 AdminAuthMiddleware 统一校验
+ * 权限：仅 ADMIN（guardAdmin，参考 emlog 编辑不可改站点设置）；CSRF 由 AdminAuthMiddleware 统一校验
  */
 final class SettingsController extends AdminController
 {

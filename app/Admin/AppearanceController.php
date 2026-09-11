@@ -13,7 +13,7 @@ use Psr\Http\Message\UploadedFileInterface;
  * 主题与外观：
  * - 列表（manifest 校验 + 当前主题徽章 + 启用/卸载）/ 独立设置页（SchemaForm 8 类型 + 分组 + show_if）
  * - 安装 zip（上传/URL）/ 卸载（独有键清理）/ 导入导出设置备份
- * - 权限：仅 ADMIN（guardAdmin，编辑不可改外观）
+ * - 权限：仅 ADMIN（guardAdmin，参考 emlog 编辑不可改外观）
  */
 final class AppearanceController extends AdminController
 {
@@ -26,18 +26,6 @@ final class AppearanceController extends AdminController
         foreach (Theme::list() as $name) {
             $desc = Theme::describe($name);
             $manifest = $desc['manifest'];
-            $preview = '';
-            if (is_array($manifest)) {
-                $previewPath = ltrim((string) ($manifest['preview'] ?? ''), '/');
-                if (
-                    $previewPath !== ''
-                    && !str_contains($previewPath, '..')
-                    && preg_match('/\.(?:png|jpe?g|webp|avif)$/i', $previewPath) === 1
-                    && is_file(PAFISH_ROOT . '/themes/' . $name . '/assets/' . $previewPath)
-                ) {
-                    $preview = url_to('/theme-assets/' . rawurlencode($name) . '/' . implode('/', array_map('rawurlencode', explode('/', $previewPath))));
-                }
-            }
             $themes[] = [
                 'name' => $name,
                 'title' => $manifest['title'] ?? $name,
@@ -47,7 +35,6 @@ final class AppearanceController extends AdminController
                 'error' => $desc['error'],
                 'settingsCount' => count(Theme::schemaKeys($name)),
                 'active' => $name === $active,
-                'preview' => $preview,
             ];
         }
         $response->getBody()->write($this->render('appearance', [

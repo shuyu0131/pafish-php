@@ -1,4 +1,4 @@
-# pafish
+# pafish![输入图片说明](docs/logo.png)
 
 > 轻量、独立部署的 PHP 博客 CMS。
 

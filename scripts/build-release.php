@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 /**
  * 构建发布 zip（预打包 vendor，用户零命令行安装）：
- *   php scripts/build-release.php [--tag=v0.1.0] [--notes=...] [--min=0.1.0]
+ *   php scripts/build-release.php [--tag=v0.1.0] [--notes=...] [--min=0.1.0] [--legacy-lumina-recovery]
  * 产物：
  *   dist/pafish-php-{tag}.zip            发布包，顶层目录 pafish/（WordPress 式）
  *   dist/store-php/pafish-php.json       在线更新元数据（version/notes/zip/min_version）
@@ -19,9 +19,12 @@ declare(strict_types=1);
 $root = dirname(__DIR__);
 
 $tag = 'v0.1.0';
+$legacyLuminaRecovery = false;
 foreach ($argv as $arg) {
     if (str_starts_with($arg, '--tag=')) {
         $tag = substr($arg, 6);
+    } elseif ($arg === '--legacy-lumina-recovery') {
+        $legacyLuminaRecovery = true;
     }
 }
 
@@ -181,6 +184,18 @@ foreach ($topItems as $item) {
         $zip->addFile($full, $prefix . $item);
         $count++;
     }
+}
+
+// 仅用于从会清空 themes/ 的旧更新器过渡；归档位于不可公开的 runtime/，
+// 由 upgrade.php 在确认当前启用 Lumina 后一次性恢复。常规发行包不携带主题。
+if ($legacyLuminaRecovery) {
+    $luminaArchive = $root . '/themes/lumina.zip';
+    if (!is_file($luminaArchive)) {
+        fwrite(STDERR, "缺少 themes/lumina.zip，无法构建旧版 Lumina 恢复包\n");
+        exit(1);
+    }
+    $zip->addFile($luminaArchive, $prefix . 'runtime/.pafish-lumina-recovery.zip');
+    $count++;
 }
 
 // CHANGELOG 可能不存在：补一个占位说明

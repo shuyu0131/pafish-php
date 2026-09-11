@@ -10,10 +10,12 @@ use Pafish\Services\Backup;
 final class Upgrade
 {
     private const DEFAULT_META_URL = 'https://www.pafish.cn/pafish-php/pafish-php.json';
+    private const DEFAULT_GITEE_REPO = 'shuyugit/pafish-php';
     private const GITHUB_RELEASES_URL = 'https://api.github.com/repos/shuyu0131/pafish-php/releases/latest';
     private const MAX_ZIP_BYTES = 50 * 1024 * 1024;
     private const CACHE_TTL = 86400; // 24h
     private const CACHE_FILE = 'update_check.json';
+    private const CACHE_SCHEMA = 2;
     private const STATE_FILE = 'upgrade_state.json';
 
     // ---------- 公开 ----------
@@ -59,36 +61,22 @@ final class Upgrade
             $error = (string) ($cached['error'] ?? '');
         } else {
             $customMeta = trim((string) getenv('PAFISH_UPDATE_URL')) !== '';
-            try {
-                // 明确指定的镜像用于测试或私有部署，保留它的优先级；生产默认直连 GitHub。
-                $meta = $customMeta ? self::loadOfficialMeta() : self::loadGitHubMeta();
-            } catch (\Throwable $primaryError) {
+            if ($customMeta) {
                 try {
-                    $meta = $customMeta ? self::loadGitHubMeta() : self::loadOfficialMeta();
-                } catch (\Throwable $fallbackError) {
-                    $primaryName = $customMeta ? '自定义更新源' : 'GitHub 更新源';
-                    $fallbackName = $customMeta ? 'GitHub 更新源' : '官网镜像';
-                    $error = $primaryName . '：' . $primaryError->getMessage()
-                        . '；' . $fallbackName . '：' . $fallbackError->getMessage();
+                    // 私有部署显式指定更新地址时，不能被公共源覆盖。
+                    $meta = self::loadOfficialMeta();
+                } catch (\Throwable $sourceError) {
+                    $error = '自定义更新源：' . $sourceError->getMessage();
                 }
+            } else {
+                [$meta, $error] = self::loadDefaultMeta();
             }
             self::writeCache($meta, $error);
         }
         if ($meta === null) {
             return ['hasUpdate' => false, 'current' => $current, 'error' => $error !== '' ? $error : '检查失败'];
         }
-        $latest = $meta['version'];
-        return [
-            'hasUpdate' => self::compareVersions($latest, $current) > 0,
-            'current' => $current,
-            'latest' => $latest,
-            'notes' => $meta['notes'],
-            'zip' => $meta['zip'],
-            'minVersion' => $meta['min_version'],
-            'sha256' => (string) ($meta['sha256'] ?? ''),
-            'source' => (string) ($meta['source'] ?? 'official'),
-            'error' => $error !== '' ? $error : '',
-        ];
+        return self::resultFromMeta($meta, $current, $error);
     }
 
     /** 仅读缓存的检查结果（不触网，零延迟；用于后台布局/工作台渲染红点徽标） */
@@ -99,18 +87,7 @@ final class Upgrade
         if ($cached === null || !is_array($cached['meta'] ?? null)) {
             return ['hasUpdate' => false, 'current' => $current, 'error' => ''];
         }
-        $meta = $cached['meta'];
-        return [
-            'hasUpdate' => self::compareVersions((string) $meta['version'], $current) > 0,
-            'current' => $current,
-            'latest' => (string) $meta['version'],
-            'notes' => (string) $meta['notes'],
-            'zip' => (string) $meta['zip'],
-            'minVersion' => (string) $meta['min_version'],
-            'sha256' => (string) ($meta['sha256'] ?? ''),
-            'source' => (string) ($meta['source'] ?? 'official'),
-            'error' => (string) ($cached['error'] ?? ''),
-        ];
+        return self::resultFromMeta($cached['meta'], $current, (string) ($cached['error'] ?? ''));
     }
 
     /**
@@ -239,6 +216,67 @@ final class Upgrade
 
     // ---------- 内部 ----------
 
+    /**
+     * 默认公共源全部检查，避免某个仓库的 Release 尚未同步时把旧版本误报为最新版。
+     * Gitee 排在首位，因此相同版本时优先使用国内可访问的下载地址。
+     *
+     * @return array{0: ?array, 1: string}
+     */
+    private static function loadDefaultMeta(): array
+    {
+        $sources = [];
+        $giteeRepo = self::giteeRepo();
+        if ($giteeRepo !== '') {
+            $sources[] = ['name' => 'Gitee 更新源', 'loader' => static fn (): array => self::loadGiteeMeta($giteeRepo)];
+        }
+        $sources[] = ['name' => 'GitHub 更新源', 'loader' => static fn (): array => self::loadGitHubMeta()];
+        $sources[] = ['name' => '官网镜像', 'loader' => static fn (): array => self::loadOfficialMeta()];
+
+        $selected = null;
+        $errors = [];
+        foreach ($sources as $source) {
+            try {
+                $candidate = ($source['loader'])();
+                if ($selected === null || self::compareVersions((string) $candidate['version'], (string) $selected['version']) > 0) {
+                    $selected = $candidate;
+                }
+            } catch (\Throwable $sourceError) {
+                $errors[] = $source['name'] . '：' . $sourceError->getMessage();
+            }
+        }
+        return [$selected, $selected === null ? implode('；', $errors) : ''];
+    }
+
+    /** 将不高于当前版本的远端结果归一化，避免旧 Release 的版本号和说明污染后台。 */
+    private static function resultFromMeta(array $meta, string $current, string $error): array
+    {
+        $latest = (string) ($meta['version'] ?? '');
+        if ($latest === '' || self::compareVersions($latest, $current) <= 0) {
+            return [
+                'hasUpdate' => false,
+                'current' => $current,
+                'latest' => $current,
+                'notes' => '',
+                'zip' => '',
+                'minVersion' => '',
+                'sha256' => '',
+                'source' => (string) ($meta['source'] ?? ''),
+                'error' => $error,
+            ];
+        }
+        return [
+            'hasUpdate' => true,
+            'current' => $current,
+            'latest' => $latest,
+            'notes' => (string) ($meta['notes'] ?? ''),
+            'zip' => (string) ($meta['zip'] ?? ''),
+            'minVersion' => (string) ($meta['min_version'] ?? ''),
+            'sha256' => (string) ($meta['sha256'] ?? ''),
+            'source' => (string) ($meta['source'] ?? 'official'),
+            'error' => $error,
+        ];
+    }
+
     /** 读取官网 JSON 更新元数据。 */
     private static function loadOfficialMeta(): array
     {
@@ -258,6 +296,54 @@ final class Upgrade
             throw new \RuntimeException('元数据缺少版本或安装包地址');
         }
         return $meta;
+    }
+
+    /** 从 Gitee Release 组装更新元数据。 */
+    private static function loadGiteeMeta(string $repo): array
+    {
+        $raw = json_decode(self::httpGet('https://gitee.com/api/v5/repos/' . $repo . '/releases/latest'), true);
+        if (!is_array($raw)) {
+            throw new \RuntimeException('Gitee Release 响应格式不正确');
+        }
+        $tag = trim((string) ($raw['tag_name'] ?? ''));
+        if (preg_match('/^v?(\d+(?:\.\d+){1,3})$/', $tag, $m) !== 1) {
+            throw new \RuntimeException('Gitee Release 版本号不正确');
+        }
+        $version = $m[1];
+        foreach ((array) ($raw['assets'] ?? []) as $asset) {
+            if (!is_array($asset) || (string) ($asset['name'] ?? '') !== 'pafish-php-v' . $version . '.zip') {
+                continue;
+            }
+            $zip = trim((string) ($asset['browser_download_url'] ?? $asset['download_url'] ?? ''));
+            $safePath = '#^https://gitee\\.com/' . preg_quote($repo, '#')
+                . '/releases/download/v' . preg_quote($version, '#')
+                . '/pafish-php-v' . preg_quote($version, '#') . '\\.zip(?:\\?.*)?$#i';
+            if (preg_match($safePath, $zip) !== 1) {
+                throw new \RuntimeException('Gitee Release 安装包地址不安全');
+            }
+            $digest = strtolower(trim((string) ($asset['sha256'] ?? $asset['digest'] ?? '')));
+            if (str_starts_with($digest, 'sha256:')) {
+                $digest = substr($digest, 7);
+            }
+            return [
+                'version' => $version,
+                'notes' => (string) ($raw['body'] ?? $raw['description'] ?? ''),
+                'zip' => $zip,
+                'min_version' => '',
+                'sha256' => preg_match('/^[0-9a-f]{64}$/', $digest) === 1 ? $digest : '',
+                'source' => 'gitee',
+            ];
+        }
+        throw new \RuntimeException('Gitee Release 缺少匹配的 pafish-php 安装包');
+    }
+
+    private static function giteeRepo(): string
+    {
+        $repo = trim((string) getenv('PAFISH_GITEE_REPO'));
+        if ($repo === '') {
+            $repo = self::DEFAULT_GITEE_REPO;
+        }
+        return preg_match('#^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$#', $repo) === 1 ? $repo : '';
     }
 
     /**
@@ -668,7 +754,7 @@ final class Upgrade
             return null;
         }
         $data = json_decode($raw, true);
-        if (!is_array($data) || !isset($data['at'])) {
+        if (!is_array($data) || !isset($data['at']) || (int) ($data['schema'] ?? 0) !== self::CACHE_SCHEMA) {
             return null;
         }
         if (time() - (int) $data['at'] > self::CACHE_TTL) {
@@ -680,7 +766,7 @@ final class Upgrade
     private static function writeCache(?array $meta, string $error): void
     {
         $path = PAFISH_ROOT . '/runtime/' . self::CACHE_FILE;
-        $data = ['at' => time(), 'meta' => $meta, 'error' => $error];
+        $data = ['schema' => self::CACHE_SCHEMA, 'at' => time(), 'meta' => $meta, 'error' => $error];
         @file_put_contents($path, json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), LOCK_EX);
     }
 

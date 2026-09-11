@@ -48,7 +48,7 @@ final class HomeController
         $posts = DB::fetchAll(
             "SELECT p.id, p.title, p.slug, p.excerpt, p.cover_url, p.custom_fields, p.published_at,
                     p.is_pinned, p.category_pinned, p.password, p.external_url, p.view_count,
-                    u.username AS author_name,
+                    u.username AS author_name, u.avatar_url AS author_avatar,
                     c.name AS category_name, c.slug AS category_slug
              FROM posts p
              LEFT JOIN users u ON u.id = p.author_id

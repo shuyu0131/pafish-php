@@ -1,6 +1,6 @@
 <?php
 /**
- * 顶栏搜索（系统 fallback 模板；主题可覆盖 themes/{active}/site-search.php）
+ * 顶栏搜索（系统默认模板；主题可覆盖 themes/{active}/site-search.php）
  * 折叠式：默认只显示放大镜按钮，点击展开输入框，回车跳 /search?q=xxx
  */
 ?>

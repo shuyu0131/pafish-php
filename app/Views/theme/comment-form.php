@@ -1,6 +1,6 @@
 <?php
 /**
- * 评论表单（系统 fallback 模板；主题可覆盖 themes/{active}/comment-form.php）
+ * 评论表单（系统默认模板；主题可覆盖 themes/{active}/comment-form.php）
  * 评论表单：
  * - 已登录用户：自动使用登录身份，隐藏昵称/邮箱输入（服务端强制，不可伪造）
  * - 未登录游客：昵称/邮箱 + 图形验证码（后台可关），SVG 点击刷新

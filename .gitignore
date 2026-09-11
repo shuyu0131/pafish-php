@@ -21,6 +21,10 @@ Thumbs.db
 # 构建产物（发布包，随 GitHub Release 分发）
 /dist/
 
+# 本地开发与发布工具不随公开源码分发
+/router.php
+/scripts/
+
 # 文档由独立文档站维护，不进入主程序仓库
 /docs/
 
@@ -28,6 +32,8 @@ Thumbs.db
 /deploy_*.sh
 /test_*.php
 /public/*visual-check*.html
+# 旧版本主题静态镜像，不再生成
+/public/theme-assets/
 /docs/*implementation*.md
 /scripts/port-lumina*.php
 /themes/lumina/

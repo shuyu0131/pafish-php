@@ -4,15 +4,17 @@ declare(strict_types=1);
 
 namespace Pafish\Http;
 
+use Pafish\Services\Theme;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
-/** Serves a theme's packaged static assets without exposing its PHP templates. */
+/** Serves theme static assets without exposing PHP templates. */
 final class ThemeAssetController
 {
     private const TYPES = [
         'css' => 'text/css; charset=utf-8',
         'js' => 'application/javascript; charset=utf-8',
+        'mjs' => 'application/javascript; charset=utf-8',
         'png' => 'image/png',
         'jpg' => 'image/jpeg',
         'jpeg' => 'image/jpeg',
@@ -24,15 +26,25 @@ final class ThemeAssetController
         'woff' => 'font/woff',
         'woff2' => 'font/woff2',
         'ttf' => 'font/ttf',
+        'eot' => 'application/vnd.ms-fontobject',
+        'otf' => 'font/otf',
+        'mp3' => 'audio/mpeg',
+        'mp4' => 'video/mp4',
+        'webm' => 'video/webm',
+        'ogg' => 'audio/ogg',
+        'wav' => 'audio/wav',
+        'json' => 'application/json; charset=utf-8',
+        'map' => 'application/json; charset=utf-8',
+        'txt' => 'text/plain; charset=utf-8',
+        'xml' => 'application/xml',
+        'webmanifest' => 'application/manifest+json; charset=utf-8',
+        'wasm' => 'application/wasm',
     ];
 
     public function serve(Request $request, Response $response, array $args): Response
     {
         $theme = (string) ($args['theme'] ?? '');
         $path = ltrim((string) ($args['path'] ?? ''), '/');
-        if (str_starts_with($path, 'assets/')) {
-            $path = substr($path, 7);
-        }
         if (
             preg_match('/^[a-z0-9_-]{1,50}$/', $theme) !== 1
             || $path === ''
@@ -44,13 +56,17 @@ final class ThemeAssetController
             return $this->notFound($response);
         }
 
-        $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+        $resolved = Theme::resolveAssetPath($theme, $path);
+        if ($resolved === null) {
+            return $this->notFound($response);
+        }
+        $ext = strtolower(pathinfo($resolved, PATHINFO_EXTENSION));
         if (!isset(self::TYPES[$ext])) {
             return $this->notFound($response);
         }
 
-        $file = PAFISH_ROOT . '/themes/' . $theme . '/assets/' . $path;
-        if (!is_file($file)) {
+        $file = Theme::assetFile($theme, $path);
+        if ($file === null) {
             return $this->notFound($response);
         }
 

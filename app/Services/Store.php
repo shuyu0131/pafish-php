@@ -195,8 +195,6 @@ final class Store
         return $result;
     }
 
-    // ---------- 内部 ----------
-
     private static function assertValidName(string $name): void
     {
         if (preg_match(self::NAME_PATTERN, $name) !== 1) {

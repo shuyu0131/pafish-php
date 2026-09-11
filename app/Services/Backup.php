@@ -140,9 +140,9 @@ final class Backup
         return $path;
     }
 
-    // ---------- mysqldump / mysql CLI ----------
+    // ---------- 命令行备份兼容 ----------
 
-    /** 探测 mysqldump 可执行文件（PATH + Windows 常见安装目录） */
+    /** 探测 mysqldump 可执行文件。 */
     public static function dumpCommand(): string
     {
         $candidates = ['mysqldump', 'mysqldump.exe'];
@@ -171,9 +171,7 @@ final class Backup
 
     private static function findBin(string $name, array $extraPaths): ?string
     {
-        // Shared hosting commonly disables exec(). In that case the caller must
-        // use the pure-PHP backup/restore implementation instead of failing
-        // while merely probing for a MySQL CLI binary.
+        // 命令执行不可用时由纯 PHP 实现接管。
         if (!self::canExecuteCommands()) {
             return null;
         }
@@ -225,9 +223,7 @@ final class Backup
         }
     }
 
-    /** 执行命令并从文件喂 stdin（mysql 恢复）。
-     * Windows 上 proc_open 不经过 cmd.exe、对 escapeshellarg 引号解析有 bug（尾参数引号丢失），
-     * 统一用 shell 重定向 < file 喂入（cmd.exe 与 Linux sh 均支持）。 */
+    /** 执行命令并从文件喂入 SQL。 */
     private static function runWithInput(string $cmd, string $inputFile, string $failMsg): void
     {
         if (!self::canExecuteCommands()) {
@@ -257,7 +253,7 @@ final class Backup
         return (string) (Config::get('db', [])['database'] ?? '');
     }
 
-    /** exec() may be disabled by disable_functions on shared hosting. */
+    /** 检查命令执行能力。 */
     private static function canExecuteCommands(): bool
     {
         return function_exists('exec');

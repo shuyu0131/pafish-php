@@ -152,8 +152,6 @@ final class PostController
         return $this->json($response, ['ok' => true, 'active' => !$nowLiked, 'count' => $count]);
     }
 
-    // ---------- 内部 ----------
-
     private function renderPost(Request $request, Response $response, array $post, array $extra, array $neighbors): Response
     {
         $data = array_merge($extra, [
@@ -177,7 +175,7 @@ final class PostController
     private function findPublishedPost(string $slug): ?array
     {
         $post = DB::fetchOne(
-            "SELECT p.*, u.username AS author_name,
+            "SELECT p.*, u.username AS author_name, u.avatar_url AS author_avatar,
                     c.name AS category_name, c.slug AS category_slug
              FROM posts p
              LEFT JOIN users u ON u.id = p.author_id

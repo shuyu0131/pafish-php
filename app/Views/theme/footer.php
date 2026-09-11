@@ -1,6 +1,6 @@
 <?php
 /**
- * 前台页脚（系统 fallback 模板；主题可覆盖 themes/{active}/footer.php）
+ * 前台页脚（系统默认模板；主题可覆盖 themes/{active}/footer.php）
  */
 $siteName = site_name();
 $footerText = (string) theme_value('footer_text');

@@ -125,7 +125,7 @@ img {
   }
 }
 
-/* ============ 整体布局（对应 Node layout.tsx：左侧 40% 侧边栏 + 右侧 60% 内容栏） ============ */
+/* ============ 整体布局 ============ */
 
 .app-shell {
   min-height: 100vh;
@@ -1167,7 +1167,7 @@ input[type="radio"]:focus-visible {
   height: auto;
 }
 
-/* 代码高亮主题（github 暗色近似，M2 接入 Parsedown 后使用） */
+/* 代码高亮主题 */
 .hljs-comment,
 .hljs-quote {
   color: #8b949e;

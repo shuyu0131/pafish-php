@@ -1,6 +1,6 @@
 <?php
 /**
- * 分类页（系统 fallback 模板；主题可覆盖 themes/{active}/category.php）
+ * 分类页（系统默认模板；主题可覆盖 themes/{active}/category.php）
  * 可用数据：$category(name/slug/description)、$posts、$total、$pageNum、$totalPages、$listBaseUrl
  */
 $category = $category ?? [];

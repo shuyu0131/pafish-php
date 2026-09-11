@@ -58,8 +58,6 @@ final class Captcha
         return false;
     }
 
-    // ---------- 内部 ----------
-
     private static function dir(): string
     {
         $dir = dirname(__DIR__, 2) . '/runtime/captcha';

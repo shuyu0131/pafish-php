@@ -730,10 +730,7 @@ final class Plugin
             if (is_dir(self::root() . '/' . $top)) {
                 throw new \RuntimeException('插件"' . $top . '"已存在，请先在插件列表卸载后再安装');
             }
-            // Windows 兼容：不采用「临时目录 + rename」的原子方案——PHP 8.5 + Windows 下
-            // 任何 stat 调用（is_dir/is_file 等）会打开目录/文件句柄，导致随后 rename 返回
-            // 「拒绝访问」且时好时坏；改为 extractTo 直接解压到 plugins/ 根（顶层目录名即
-            // 插件名，已在上面校验），失败/校验不过时用 SPL rmDir 递归清理残留
+            // 直接解压到插件目录，失败或校验不通过时清理残留。
             $target = self::root() . '/' . $top;
             $extracted = @$zip->extractTo(self::root());
             if (!$extracted) {
@@ -789,17 +786,13 @@ final class Plugin
         return self::installFromBuffer((string) $body, $url);
     }
 
-    // ---------- 内部 ----------
-
     private static function setActivePlugins(array $list): void
     {
         Settings::set('active_plugins', json_encode($list));
         self::$activeCache = $list;
     }
 
-    /** 递归删除目录（scandir 快照递归：SPL RDI 在 Windows 上遍历刚被杀软/Defender
-     *  锁定的目录时会无声拖垮 PHP 进程（无错误、无日志直接消失），scandir 返回
-     *  数组快照不走迭代器状态，更稳；文档手工删除同理） */
+    /** 递归删除目录。 */
     private static function rmDir(string $dir): bool
     {
         return self::rmRecursive($dir);
@@ -827,17 +820,10 @@ final class Plugin
         return self::rmRemove($dir, true);
     }
 
-    /** 删除文件/空目录。策略：永远先 rename 换名（释放原路径句柄），再删新名——
-     *  Windows 下 PHP 进程 include 过的文件会以路径级句柄占用原路径（无 DELETE
-     *  共享），任何进程都无法删除原路径；实测 php -S 服务器对「被本进程 include 过
-     *  的 .php」直接 unlink 时，在长时间运行后会出现进程级无声崩溃（无错误无日志，
-     *  可能是 360/Defender 的 minifilter 与 PHP 内部清理交互所致），而 rename 换名
-     *  后原路径即释放。rename 成功即视为删除完成：安全软件（如 360 文件保护）会
-     *  拦截 PHP 内容文件的 unlink，此时新名残留为 .del 文件，不影响原路径与功能。
-     *  rename 失败（源被独占）才回退直接删 */
+    /** 删除文件或空目录。Windows 环境先换名再删除，降低文件占用导致的失败概率。 */
     private static function rmRemove(string $path, bool $isDir): bool
     {
-        // Windows：git 对象等文件带只读属性，rename/unlink 会被拒绝，先清只读位
+        // 清除只读属性，避免删除失败。
         if (!$isDir) {
             @chmod($path, 0666);
         }
@@ -856,7 +842,7 @@ final class Plugin
         return $isDir ? @rmdir($path) : @unlink($path);
     }
 
-    /** 清空全部静态缓存（安装/卸载后调用，保持测试与请求内一致性） */
+    /** 清空静态缓存。 */
     public static function reset(): void
     {
         self::$manifests = [];

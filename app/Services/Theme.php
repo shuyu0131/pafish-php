@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Pafish\Services;
 
-use Pafish\Core\Config;
 use Pafish\Core\Hooks;
 
 /** 主题清单、设置、模板覆盖和安装生命周期管理。 */
@@ -13,6 +12,11 @@ final class Theme
     private const NAME_PATTERN = '/^[a-z0-9_-]{1,50}$/';
     private const TEMPLATE_NAME_PATTERN = '/^[a-z0-9-]{1,40}$/';
     private const FIELD_TYPES = ['text', 'textarea', 'checkbox', 'select', 'color', 'switcher', 'radio', 'image'];
+    private const ASSET_EXTENSIONS = [
+        'css', 'js', 'mjs', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'avif', 'svg', 'ico',
+        'woff', 'woff2', 'ttf', 'eot', 'otf', 'mp3', 'mp4', 'webm', 'ogg', 'wav',
+        'json', 'map', 'txt', 'xml', 'webmanifest', 'wasm',
+    ];
     private const MAX_ZIP_BYTES = 10 * 1024 * 1024;
     private const BACKUP_FORMAT = 'blogcms-theme-settings';
 
@@ -63,12 +67,60 @@ final class Theme
     public static function editorHeadExtra(): string
     {
         self::boot();
-        $file = self::root() . '/' . self::active() . '/assets/editor.css';
-        if (!is_file($file)) {
+        if (self::assetFile(self::active(), 'editor.css') === null) {
             return '';
         }
-        $url = url_to('/theme-assets/' . rawurlencode(self::active()) . '/editor.css');
-        return '<link rel="stylesheet" href="' . e($url . '?v=' . (string) filemtime($file)) . '">';
+        $url = function_exists('theme_asset_url')
+            ? theme_asset_url(self::active(), 'editor.css')
+            : \Pafish\Core\Url::themeAsset(self::active(), 'editor.css');
+        return '<link rel="stylesheet" href="' . e($url) . '">';
+    }
+
+    /** 解析主题静态文件的相对路径：优先主题根目录，兼容现有 assets/ 目录。 */
+    public static function resolveAssetPath(string $name, string $path): ?string
+    {
+        if (!self::isValidName($name)) {
+            return null;
+        }
+        $path = trim(str_replace('\\', '/', $path), '/');
+        $explicitAssets = str_starts_with($path, 'assets/');
+        if ($explicitAssets) {
+            $path = substr($path, 7);
+        }
+        if (!self::isSafeAssetPath($path)) {
+            return null;
+        }
+
+        $candidates = $explicitAssets
+            ? ['assets/' . $path, $path]
+            : [$path, 'assets/' . $path];
+        foreach (array_values(array_unique($candidates)) as $candidate) {
+            if (is_file(self::root() . '/' . $name . '/' . $candidate)) {
+                return $candidate;
+            }
+        }
+        // 文件尚不存在时仍返回稳定的主题路径。
+        return $candidates[0];
+    }
+
+    /** 返回主题静态文件的真实路径；仅允许浏览器静态资源扩展名。 */
+    public static function assetFile(string $name, string $path): ?string
+    {
+        $relative = self::resolveAssetPath($name, $path);
+        if ($relative === null) {
+            return null;
+        }
+        $file = self::root() . '/' . $name . '/' . $relative;
+        return is_file($file) ? $file : null;
+    }
+
+    private static function isSafeAssetPath(string $path): bool
+    {
+        if ($path === '' || str_contains($path, '..') || str_contains($path, "\0")
+            || str_contains($path, '\\') || str_contains($path, '//')) {
+            return false;
+        }
+        return in_array(strtolower((string) pathinfo($path, PATHINFO_EXTENSION)), self::ASSET_EXTENSIONS, true);
     }
 
     /** 扫描 themes/ 目录下的主题名。 */
@@ -293,7 +345,7 @@ final class Theme
     }
 
     /**
-     * 模板文件解析：主题覆盖优先，系统 fallback 兜底
+     * 模板文件解析：主题覆盖优先，系统模板兜底
      * 模板名白名单防路径穿越
      */
     public static function template(string $name): string
@@ -312,7 +364,7 @@ final class Theme
         throw new \RuntimeException('模板不存在：' . $name);
     }
 
-    /** 判断当前主题是否提供指定专属模板，不包含系统 fallback。 */
+    /** 判断当前主题是否提供指定模板。 */
     public static function hasTemplate(string $name): bool
     {
         if (!preg_match(self::NAME_PATTERN, $name)) {
@@ -382,10 +434,7 @@ final class Theme
             if (is_dir(self::root() . '/' . $top)) {
                 throw new \RuntimeException('主题"' . $top . '"已存在，请先在主题列表卸载后再安装');
             }
-            // Windows 兼容：不采用「临时目录 + rename」的原子方案——PHP 8.5 + Windows 下
-            // 任何 stat 调用（is_dir/is_file 等）会打开目录/文件句柄，导致随后 rename 返回
-            // 「拒绝访问」且时好时坏；改为 extractTo 直接解压到 themes/ 根（顶层目录名即
-            // 主题名，已在上面校验），失败/校验不过时用 SPL rmDir 递归清理残留
+            // 直接解压到主题目录，失败或校验不通过时清理残留。
             $target = self::root() . '/' . $top;
             $extracted = @$zip->extractTo(self::root());
             if (!$extracted) {

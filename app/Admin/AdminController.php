@@ -15,9 +15,8 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
- * 后台控制器基类：导航（角色过滤）+ 布局渲染 + 管理员守卫
- * 后台通用控制器和导航辅助方法
- * 权限模型（参考 emlog）：ADMIN 全权；EDITOR 仅内容/互动（文章/页面/分类/标签/媒体/评论/通知/友链）；
+ * 后台控制器基类：导航过滤、布局渲染和权限守卫。
+ * ADMIN 可管理全部功能；EDITOR 仅可管理内容与互动；
  * 外观（导航/组件/主题）、站点设置、商店/插件/用户/备份仅 ADMIN
  */
 abstract class AdminController
@@ -177,8 +176,6 @@ abstract class AdminController
     {
         return Comments::avatarUrl($user['avatar_url'] ?? null, (string) ($user['email'] ?? ''));
     }
-
-    // ---------- 内部 ----------
 
     /** 按角色过滤导航（空分组隐藏） */
     private function navForRole(string $role): array

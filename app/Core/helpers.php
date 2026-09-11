@@ -49,6 +49,12 @@ function asset_url(string $path): string
     return Url::asset($path);
 }
 
+/** 主题资源直链（主题目录直出，兼容 assets/ 子目录）。 */
+function theme_asset_url(string $theme, string $path): string
+{
+    return Url::themeAsset($theme, $path);
+}
+
 /** API 路径（含 query 适配，见 Url::api） */
 function api_url(string $path): string
 {
@@ -92,7 +98,7 @@ function format_date(mixed $date, string $fmt = 'Y年n月j日'): string
     return date(strtr($fmt, $tokens), $ts);
 }
 
-/** 渲染主题模板（主题覆盖 → 系统 fallback）并返回 HTML
+/** 渲染主题模板（主题覆盖 → 系统默认模板）并返回 HTML
  *  数据通过全局上下文在 header/footer/partial 之间共享：
  *  控制器传的 $title/$og/$description 等在 get_header() 中同样可见，
  *  局部模板传入的数据优先于上下文 */
@@ -168,7 +174,7 @@ function friend_links(): array
     return $rows;
 }
 
-/** 渲染主题 header/footer（WordPress 式，主题可覆盖 header.php / footer.php） */
+/** 渲染主题 header/footer，主题可覆盖 header.php / footer.php。 */
 function get_header(): void
 {
     echo render('header');
@@ -290,9 +296,7 @@ function admin_icon(string $name, int $size = 16, bool $fill = false): string
         . 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' . $inner . '</svg>';
 }
 
-/* ============ 模板类别名 ============
-   主题模板 / 系统 fallback 模板均为全局命名空间 PHP 文件，
-   提供 DB / Theme / Hooks 三个全局类别名，模板中可直接调用 */
+/* 模板使用的全局类别名。 */
 
 class_alias(\Pafish\Core\DB::class, 'DB');
 class_alias(\Pafish\Core\Url::class, 'Url');

@@ -1,6 +1,6 @@
 <?php
 /**
- * 文章列表卡片（系统 fallback 模板；主题可覆盖 themes/{active}/post-card.php）
+ * 文章列表卡片（系统默认模板；主题可覆盖 themes/{active}/post-card.php）
  * 可用数据：$post（含 title/slug/excerpt/cover_url/published_at/is_pinned/category_pinned/
  *               password/external_url/view_count/author_name/category_name/category_slug/tags[]）
  */

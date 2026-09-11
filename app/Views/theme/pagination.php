@@ -1,6 +1,6 @@
 <?php
 /**
- * 分页（系统 fallback 模板；主题可覆盖 themes/{active}/pagination.php）
+ * 分页（系统默认模板；主题可覆盖 themes/{active}/pagination.php）
  * 可用数据：$page（当前页）、$totalPages、$baseUrl（列表页基础 URL，自动附加 ?page=N / &page=N）
  */
 $page = max(1, (int) ($page ?? 1));

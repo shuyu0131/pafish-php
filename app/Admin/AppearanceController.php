@@ -13,7 +13,7 @@ use Psr\Http\Message\UploadedFileInterface;
  * 主题与外观：
  * - 列表（manifest 校验 + 当前主题徽章 + 启用/卸载）/ 独立设置页（SchemaForm 8 类型 + 分组 + show_if）
  * - 安装 zip（上传/URL）/ 卸载（独有键清理）/ 导入导出设置备份
- * - 权限：仅 ADMIN（guardAdmin，参考 emlog 编辑不可改外观）
+ * - 权限：仅 ADMIN
  */
 final class AppearanceController extends AdminController
 {

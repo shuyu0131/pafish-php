@@ -7,11 +7,14 @@
     # 子目录部署时取消注释并改为实际目录（如 /blog）
     # RewriteBase /blog/
 
-    # 静态资源在 public/ 下，对外保持根路径（css/ js/ uploads/ vendor/）
+    # 根路径静态资源映射到 public/。
     RewriteRule ^(css|js|uploads|vendor)(/.*)?$ public/$1$2 [L,NC]
 
-    # 主题资源位于 themes/，交给入口直接输出，避免暴露主题 PHP 模板
+    # 兼容旧主题资源地址。
     RewriteRule ^theme-assets/ index.php [QSA,L,NC]
+
+    # 禁止直接执行主题模板。
+    RewriteRule ^themes/.*\.php$ - [F,L,NC]
 
     # 非真实文件/目录请求一律交给 index.php
     RewriteCond %{REQUEST_FILENAME} !-f

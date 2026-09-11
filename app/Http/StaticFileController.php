@@ -8,7 +8,7 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
- * 静态资源兜底路由（M6.5）
+ * 静态资源兜底路由
  * 生产环境静态资源应由 Web 服务器直接映射（Apache .htaccess / Nginx alias），
  * 本路由仅在缺少该配置时兜底：/css/* /js/* /uploads/* → public/ 下对应文件。
  * 白名单 + 禁止路径穿越 + 仅服务存在的真实文件。

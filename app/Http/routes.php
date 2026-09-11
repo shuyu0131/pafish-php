@@ -46,18 +46,17 @@ use Pafish\Http\StaticFileController;
 use Pafish\Http\ThemeAssetController;
 
 /**
- * 路由注册（$app 来自 bootstrap.php include 上下文）
- * 前台路由随里程碑扩展；后台走 /admin 前缀（M3）
+ * 路由注册。
  */
 
 $app->get('/', [HomeController::class, 'index']);
 
-// ---- M2：文章详情与互动 ----
+// 文章详情与互动
 $app->get('/post/{slug}', [PostController::class, 'show']);
 $app->get('/{year:\d{4}}/{month:\d{2}}/{slug}', [PostController::class, 'show']);
 $app->post('/api/post/{id}/{kind}', [PostController::class, 'toggle']); // kind: like | favorite
 
-// ---- M2：分类 / 标签 / 归档 / 搜索 ----
+// 分类、标签、归档和搜索
 $app->get('/category/{slug}', [CategoryController::class, 'show']);
 $app->get('/tag/{slug}', [TagController::class, 'show']);
 $app->get('/archives', [ArchiveController::class, 'index']);
@@ -66,16 +65,16 @@ $app->get('/profile', [PublicProfileController::class, 'index']);
 $app->post('/profile/save', [\Pafish\Admin\ProfileController::class, 'save']);
 $app->post('/profile/password', [\Pafish\Admin\ProfileController::class, 'changePassword']);
 
-// ---- M2：独立页面 / RSS / sitemap / robots ----
+// 独立页面和站点订阅
 $app->get('/pages/{slug}', [PageController::class, 'show']);
 $app->get('/rss.xml', [RssController::class, 'index']);
 $app->get('/sitemap.xml', [SitemapController::class, 'index']);
 $app->get('/robots.txt', [RobotsController::class, 'index']);
 
-// ---- M5：插件前台页面（/plugin/{name}/{path}，path 缺省 index） ----
+// 插件前台页面（/plugin/{name}/{path}，path 缺省 index）
 $app->get('/plugin/{name}/{path:.*}', [PluginPageController::class, 'show']);
 
-// ---- M2：登录 / 注册 / 找回密码 ----
+// 登录、注册和找回密码
 $app->get('/login', [AuthPageController::class, 'login']);
 $app->get('/register', [AuthPageController::class, 'register']);
 $app->get('/forgot-password', [AuthPageController::class, 'forgot']);
@@ -89,13 +88,13 @@ $app->post('/api/auth/reset-by-code', [AuthApiController::class, 'resetByCode'])
 $app->post('/api/auth/reset', [AuthApiController::class, 'reset']);
 $app->post('/api/auth/forgot', [AuthApiController::class, 'forgot']);
 
-// ---- M2：评论（验证码 / 提交 / 点赞） ----
+// 评论、验证码和点赞
 $app->get('/api/captcha', [CommentApiController::class, 'captcha']);
 $app->post('/api/comments', [CommentApiController::class, 'create']);
 $app->post('/api/comments/like', [CommentApiController::class, 'like']);
 $app->post('/api/redpacket/{postId}/claim', [RedPacketController::class, 'claim']);
 
-// ---- M3：后台（守卫中间件：未登录跳 /login?from=，POST 校验 CSRF） ----
+// 后台管理
 $app->group('/admin', function ($group) {
     $group->get('', [DashboardController::class, 'dashboard']);
     $group->get('/', [DashboardController::class, 'dashboard']);
@@ -176,7 +175,7 @@ $app->group('/admin', function ($group) {
     $group->post('/widgets/{id}/toggle', [WidgetsController::class, 'toggle']);
     $group->post('/widgets/{id}/move', [WidgetsController::class, 'move']);
 
-    // 站点设置（7 卡片表单 / 保存 / SMTP 测试 / API Key 重新生成）
+    // 站点设置
     $group->get('/settings', [SettingsController::class, 'index']);
     $group->post('/settings/save', [SettingsController::class, 'save']);
     $group->post('/settings/test-smtp', [SettingsController::class, 'testSmtp']);
@@ -237,13 +236,13 @@ $app->group('/admin', function ($group) {
     $group->post('/upgrade/run', [UpgradeController::class, 'run']);
 })->add(AdminAuthMiddleware::class);
 
-// ---- M3：编辑器配套 API（登录 + 内容权限 + CSRF，控制器内自检） ----
+// 编辑器配套 API
 $app->post('/api/upload', [ApiController::class, 'upload']);
 $app->get('/api/uploads', [ApiController::class, 'uploads']);
 $app->post('/api/md-preview', [ApiController::class, 'mdPreview']);
 $app->post('/api/import-markdown', [ApiController::class, 'importMarkdown']);
 
-// ---- M6：开放 API v1（X-API-Key 鉴权，见 Core/ApiKey） ----
+// 开放 API v1（X-API-Key 鉴权）
 $app->get('/api/v1/posts', [V1Controller::class, 'posts']);
 $app->get('/api/v1/posts/{slug}', [V1Controller::class, 'postDetail']);
 $app->get('/api/v1/categories', [V1Controller::class, 'categories']);
@@ -254,9 +253,8 @@ $app->get('/api/v1/pages', [V1Controller::class, 'pages']);
 $app->get('/api/v1/links', [V1Controller::class, 'links']);
 $app->get('/api/v1/menus', [V1Controller::class, 'menus']);
 
-// ---- 静态资源兜底（最后注册：css/js/uploads → public/ 下文件） ----
-// 生产环境由 Web 服务器直接映射静态目录（见 README Nginx/Apache 配置），
-// 未配置时（如虚拟主机无伪静态）由本路由兜底，保证 ?p= 与直接路径两种模式均可访问。
+// ---- 旧主题资源兼容入口 ----
+// 新主题资源使用 /themes/{name}/... 直链；该入口只兼容旧模板生成的 /theme-assets/... 地址。
 $app->get('/theme-assets/{theme:[a-z0-9_-]+}/{path:.*}', [ThemeAssetController::class, 'serve']);
 $app->get('/{dir:css|js|uploads}/{path:.*}', [StaticFileController::class, 'serve']);
 $app->get('/{slug}', [PostController::class, 'show']);

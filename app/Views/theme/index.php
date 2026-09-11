@@ -1,6 +1,6 @@
 <?php
 /**
- * 首页（系统 fallback 模板；主题可覆盖 themes/{active}/index.php）
+ * 首页（系统默认模板；主题可覆盖 themes/{active}/index.php）
  * 可用数据：$posts、$pageNum、$totalPages、$listBaseUrl、$emptyText
  */
 get_header();

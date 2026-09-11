@@ -1,6 +1,6 @@
 <?php
 /**
- * 评论区容器（系统 fallback 模板；主题可覆盖 themes/{active}/comment-section.php）
+ * 评论区容器（系统默认模板；主题可覆盖 themes/{active}/comment-section.php）
  * 评论区：
  * 顶部表单 → 楼中楼树 → 顶层评论分页（?cpage=N#comments）
  * 可用数据：$postId、$commentPage、$commentRoots、$commentTotal、$commentTotalPages、

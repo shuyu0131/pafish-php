@@ -6,7 +6,7 @@ namespace Pafish\Services;
 use Pafish\Core\Version;
 use Pafish\Services\Backup;
 
-/** 在线更新服务：来源回退、包校验、备份、覆盖和失败回滚。 */
+/** 在线更新服务。 */
 final class Upgrade
 {
     private const DEFAULT_META_URL = 'https://www.pafish.cn/pafish-php/pafish-php.json';
@@ -214,10 +214,8 @@ final class Upgrade
         return ['ok' => true, 'current' => (string) $info['latest'], 'latest' => (string) $info['latest']];
     }
 
-    // ---------- 内部 ----------
-
     /**
-     * 默认公共源全部检查，避免某个仓库的 Release 尚未同步时把旧版本误报为最新版。
+     * 检查所有可用更新源并选择最高版本。
      * Gitee 排在首位，因此相同版本时优先使用国内可访问的下载地址。
      *
      * @return array{0: ?array, 1: string}
@@ -578,7 +576,7 @@ final class Upgrade
                 continue;
             }
             if ($name === 'public' && is_dir($root . '/public')) {
-                // public 只保留 uploads 子目录
+                // public 只保留运行期上传
                 $sub = @scandir($root . '/public');
                 if ($sub !== false) {
                     foreach ($sub as $subName) {
@@ -707,20 +705,10 @@ final class Upgrade
         return self::rmRemove($dir, true);
     }
 
-    /** 删除文件/空目录：先 rename 换名（释放被 include 文件的路径句柄）再删新名 */
-    /**
-     * 删除文件/空目录。策略：永远先 rename 换名（释放原路径句柄），再删新名——
-     * Windows 下 PHP 进程 include 过的文件会以路径级句柄占用原路径，直接 unlink
-     * 可能失败甚至引发进程级无声崩溃；rename 换名后原路径即释放。
-     * rename 成功即视为删除完成：安全软件（如 360 文件保护）会拦截 PHP 内容文件的
-     * unlink（minifilter 级拒绝，无句柄可查），此时新名残留为 .del 文件，不影响
-     * 原路径与功能；真实服务器（Linux）上 unlink 正常。rename 失败（源被独占）
-     * 才回退直接删。
-     */
+    /** 删除文件或空目录。Windows 环境先换名再删除，降低文件占用导致的失败概率。 */
     private static function rmRemove(string $path, bool $isDir): bool
     {
-        // Windows：git 对象等文件带只读属性，rename/unlink 会被拒绝（ACCESS_DENIED），
-        // 先清除只读位（chmod 在 Windows 上仅影响只读属性，目录的只读位含义不同，跳过）
+        // 清除只读属性，避免删除失败。
         if (!$isDir) {
             @chmod($path, 0666);
         }

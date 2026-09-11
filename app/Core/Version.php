@@ -8,7 +8,7 @@ namespace Pafish\Core;
 final class Version
 {
     /** 当前版本。 */
-    public const VERSION = '0.1.27';
+    public const VERSION = '0.1.28';
 
     /** 版本号（供模板/JSON 输出） */
     public static function current(): string

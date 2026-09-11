@@ -268,8 +268,6 @@ final class CommentApiController
         return $this->json($response, ['liked' => !$isLiked, 'count' => $count]);
     }
 
-    // ---------- 内部 ----------
-
     private function clientIp(Request $request): string
     {
         $forwarded = $request->getHeaderLine('X-Forwarded-For');

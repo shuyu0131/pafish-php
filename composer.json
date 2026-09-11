@@ -3,7 +3,7 @@
     "description": "pafish 博客 CMS PHP 版 —— 轻量零构建，支持共享虚拟主机，一键 Web 安装",
     "type": "project",
     "license": "MIT",
-    "version": "0.1.27",
+    "version": "0.1.28",
     "require": {
         "php": ">=8.1",
         "slim/slim": "^4.14",
@@ -30,6 +30,5 @@
                 ]
             }
         }
-    },
-    "_comment": "GHSA-53h4-8rc4-f539（CVE-2026-48157）：Slim HtmlErrorRenderer 反射型 XSS，影响 ≤4.15.1，官方暂无修复版本。pafish 生产使用自研错误页（不渲染异常详情/不输出用户输入），不经过 HtmlErrorRenderer，风险可控；官方补丁发布后移除本忽略并升级。"
+    }
 }

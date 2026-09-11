@@ -1,6 +1,6 @@
 <?php
 /**
- * 标签页（系统 fallback 模板；主题可覆盖 themes/{active}/tag.php）
+ * 标签页（系统默认模板；主题可覆盖 themes/{active}/tag.php）
  * 可用数据：$tag(name/slug)、$posts、$total、$pageNum、$totalPages、$listBaseUrl
  */
 $tag = $tag ?? [];

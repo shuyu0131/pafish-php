@@ -1,6 +1,6 @@
 <?php
 /**
- * 前台页脚（default 主题覆盖系统 fallback：演示 PHP 模板覆盖机制）
+ * 前台页脚。
  * 主题目录的 footer.php 完整替换系统模板，get_footer() 渲染本文件
  */
 $siteName = site_name();
@@ -15,7 +15,7 @@ $icp = (string) settings('site_icp', '');
     <?php if ($icp !== ''): ?>
       <p class="app-footer-icp"><?= e($icp) ?></p>
     <?php endif; ?>
-    <?php /* 插件页脚注入（M5） */ do_action('footer_inject'); ?>
+    <?php do_action('footer_inject'); ?>
   </footer>
 
 </div>

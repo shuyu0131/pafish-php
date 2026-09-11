@@ -15,7 +15,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  * - 新建 max(sort_order)+1；编辑不动 visible/sort_order；is_external 新窗口
  * - 显隐切换；上下移动=相邻交换；删除两步确认物理删
  * - 字段：label(1-100) / url(1-500) / is_external(bool)
- * 权限：仅 ADMIN（guardAdmin，参考 emlog 编辑不可改外观）；CSRF 由 AdminAuthMiddleware 统一校验
+ * 权限：仅 ADMIN；CSRF 由 AdminAuthMiddleware 统一校验
  */
 final class NavController extends AdminController
 {

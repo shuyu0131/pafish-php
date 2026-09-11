@@ -1,6 +1,6 @@
 <?php
 /**
- * 桌面顶栏导航（系统 fallback 模板；主题可覆盖 themes/{active}/public-nav.php）
+ * 桌面顶栏导航（系统默认模板；主题可覆盖 themes/{active}/public-nav.php）
  * 可用数据：$items（导航项数组：label/url/is_external）
  */
 $items = $items ?? [];

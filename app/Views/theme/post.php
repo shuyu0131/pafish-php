@@ -1,6 +1,6 @@
 <?php
 /**
- * 文章详情页（系统 fallback 模板；主题可覆盖 themes/{active}/post.php）
+ * 文章详情页（系统默认模板；主题可覆盖 themes/{active}/post.php）
  * 可用数据：$post（含 author_name/category_name/tags[]/content）、$contentHtml（Markdown 渲染结果）、
  *           $locked、$passwordError、$liked、$favorited、$customFields、$prevPost、$nextPost、
  *           $related、$showCustomFields、$showRelated、$settings、$commentPage

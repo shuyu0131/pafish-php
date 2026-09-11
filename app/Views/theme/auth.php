@@ -1,6 +1,6 @@
 <?php
 /**
- * 认证页（登录/注册/找回密码/重置密码；系统 fallback 模板，主题可覆盖）
+ * 认证页（登录/注册/找回密码/重置密码；系统默认模板，主题可覆盖）
  * 可用数据：$mode（login|register|forgot|reset）、$siteName、$subtitle、$showRegister、
  *           $requireVerify、$from（登录后跳转）、$token（重置令牌）
  * 认证页面：独立居中卡片，无博客壳

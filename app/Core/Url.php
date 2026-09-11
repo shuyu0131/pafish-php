@@ -71,6 +71,35 @@ final class Url
         return $url . (str_contains($path, '?') ? '&' : '?') . 'v=' . (string) filemtime($file);
     }
 
+    /** 主题资源 URL。 */
+    public static function themeAsset(string $theme, string $path): string
+    {
+        $theme = trim($theme, '/');
+        $path = trim(str_replace('\\', '/', $path), '/');
+        if (
+            preg_match('/^[a-z0-9_-]{1,50}$/', $theme) !== 1
+            || $path === ''
+            || str_contains($path, '..')
+            || str_contains($path, "\0")
+            || str_contains($path, '\\')
+            || str_contains($path, '//')
+        ) {
+            return self::base() . '/index.php?p=theme-assets';
+        }
+
+        $resolved = \Pafish\Services\Theme::resolveAssetPath($theme, $path);
+        if ($resolved === null) {
+            return self::base() . '/index.php?p=theme-assets';
+        }
+        $segments = array_values(array_filter(explode('/', $resolved), static fn (string $part): bool => $part !== ''));
+        $url = self::base() . '/themes/' . rawurlencode($theme) . '/' . implode('/', array_map('rawurlencode', $segments));
+        $file = dirname(__DIR__, 2) . '/themes/' . $theme . '/' . $resolved;
+        if (is_file($file)) {
+            $url .= '?v=' . (string) filemtime($file);
+        }
+        return $url;
+    }
+
     /**
      * API 路径（含 query 适配）：pretty 模式 /api/xxx?q=1；
      * 非 pretty 模式 /index.php?p=api/xxx&q=1（?p= 后不能出现 '?'，query 改用 & 拼接）

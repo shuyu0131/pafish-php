@@ -1,6 +1,6 @@
 <?php
 /**
- * 侧边栏组件区（系统 fallback 模板；主题可覆盖 themes/{active}/sidebar-widgets.php）
+ * 侧边栏组件区（系统默认模板；主题可覆盖 themes/{active}/sidebar-widgets.php）
  * 6 种组件：categories / tags / recent_posts / hot_posts / recent_comments / custom
  */
 use Pafish\Core\DB;

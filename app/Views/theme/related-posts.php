@@ -1,6 +1,6 @@
 <?php
 /**
- * 相关推荐（系统 fallback 模板；主题可覆盖 themes/{active}/related-posts.php）
+ * 相关推荐（系统默认模板；主题可覆盖 themes/{active}/related-posts.php）
  * 可用数据：$posts（同分类或共享标签的文章）
  */
 $posts = $posts ?? [];

@@ -15,7 +15,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  * - 列表 sort_order ASC, id ASC；行内编辑可改 type；新建 max(sort_order)+1
  * - title 留空用类型默认标题；content 仅 custom 类型保存，其余强制 NULL
  * - 显隐切换；上下移动=相邻交换；删除两步确认物理删
- * 权限：仅 ADMIN（guardAdmin，参考 emlog 编辑不可改外观）；CSRF 由 AdminAuthMiddleware 统一校验
+ * 权限：仅 ADMIN；CSRF 由 AdminAuthMiddleware 统一校验
  */
 final class WidgetsController extends AdminController
 {

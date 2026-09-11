@@ -1,6 +1,6 @@
 <?php
 /**
- * 搜索页（系统 fallback 模板；主题可覆盖 themes/{active}/search.php）
+ * 搜索页（系统默认模板；主题可覆盖 themes/{active}/search.php）
  * 可用数据：$keyword、$posts、$total、$pageNum、$totalPages、$listBaseUrl
  */
 $keyword = (string) ($keyword ?? '');

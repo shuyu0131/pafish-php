@@ -1,6 +1,6 @@
 <?php
 /**
- * 评论楼中楼树（系统 fallback 模板；主题可覆盖 themes/{active}/comment-thread.php）
+ * 评论楼中楼树（系统默认模板；主题可覆盖 themes/{active}/comment-thread.php）
  * 评论楼层：
  * 置顶徽标（仅顶层）、回复展开/收起、点赞乐观更新（失败回滚）、楼中楼最多 5 层
  * 可用数据：$nodes（评论树 roots）、$postId、$needReview、$user、$captchaEnabled

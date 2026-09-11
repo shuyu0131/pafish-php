@@ -95,6 +95,7 @@ if ($__dir !== null) {
     $__types = [
         'css' => 'text/css; charset=utf-8',
         'js' => 'application/javascript; charset=utf-8',
+        'mjs' => 'application/javascript; charset=utf-8',
         'json' => 'application/json; charset=utf-8',
         'map' => 'application/json; charset=utf-8',
         'png' => 'image/png',
@@ -109,6 +110,12 @@ if ($__dir !== null) {
         'woff2' => 'font/woff2',
         'ttf' => 'font/ttf',
         'eot' => 'application/vnd.ms-fontobject',
+        'otf' => 'font/otf',
+        'mp3' => 'audio/mpeg',
+        'mp4' => 'video/mp4',
+        'webm' => 'video/webm',
+        'ogg' => 'audio/ogg',
+        'wav' => 'audio/wav',
         'zip' => 'application/zip',
         'txt' => 'text/plain; charset=utf-8',
         'md' => 'text/markdown; charset=utf-8',
@@ -122,12 +129,15 @@ if ($__dir !== null) {
     exit;
 }
 
-if (str_starts_with($__path, '/theme-assets/')) {
-    $__assetPath = trim(substr($__path, strlen('/theme-assets/')), '/');
-    [$__theme, $__relative] = array_pad(explode('/', $__assetPath, 2), 2, '');
-    if (str_starts_with($__relative, 'assets/')) {
-        $__relative = substr($__relative, 7);
-    }
+// 主题资源直出，并兼容旧资源地址。
+if (str_starts_with($__path, '/themes/') || str_starts_with($__path, '/theme-assets/')) {
+    $__prefix = str_starts_with($__path, '/theme-assets/') ? '/theme-assets/' : '/themes/';
+    $__assetPath = trim(substr($__path, strlen($__prefix)), '/');
+    [$__theme, $__requested] = array_pad(explode('/', $__assetPath, 2), 2, '');
+    $__requested = trim((string) $__requested, '/');
+    $__relative = str_starts_with($__requested, 'assets/')
+        ? substr($__requested, 7)
+        : $__requested;
     $__types = [
         'css' => 'text/css; charset=utf-8',
         'js' => 'application/javascript; charset=utf-8',
@@ -143,6 +153,18 @@ if (str_starts_with($__path, '/theme-assets/')) {
         'woff2' => 'font/woff2',
         'ttf' => 'font/ttf',
         'eot' => 'application/vnd.ms-fontobject',
+        'otf' => 'font/otf',
+        'mp3' => 'audio/mpeg',
+        'mp4' => 'video/mp4',
+        'webm' => 'video/webm',
+        'ogg' => 'audio/ogg',
+        'wav' => 'audio/wav',
+        'json' => 'application/json; charset=utf-8',
+        'map' => 'application/json; charset=utf-8',
+        'txt' => 'text/plain; charset=utf-8',
+        'xml' => 'application/xml',
+        'webmanifest' => 'application/manifest+json; charset=utf-8',
+        'wasm' => 'application/wasm',
     ];
     $__ext = strtolower(pathinfo($__relative, PATHINFO_EXTENSION));
     if (
@@ -157,8 +179,18 @@ if (str_starts_with($__path, '/theme-assets/')) {
         http_response_code(404);
         exit;
     }
-    $__file = PAFISH_ROOT . '/themes/' . $__theme . '/assets/' . $__relative;
-    if (!is_file($__file)) {
+    $__candidates = str_starts_with($__requested, 'assets/')
+        ? ['assets/' . $__relative, $__relative]
+        : [$__relative, 'assets/' . $__relative];
+    $__file = null;
+    foreach (array_values(array_unique($__candidates)) as $__candidate) {
+        $__candidateFile = PAFISH_ROOT . '/themes/' . $__theme . '/' . $__candidate;
+        if (is_file($__candidateFile)) {
+            $__file = $__candidateFile;
+            break;
+        }
+    }
+    if ($__file === null) {
         http_response_code(404);
         exit;
     }
@@ -227,7 +259,7 @@ $errorMiddleware->setDefaultErrorHandler(
 );
 
 // 7.5 插件系统启动：注册激活插件的钩子 + 系统注入渲染器 + 云存储管线
-//（PHP 每请求新进程，天然无缓存/节流问题；boot 内部 try/catch，DB 不可用时不阻断前台）
+// 定时任务失败不阻断前台请求。
 \Pafish\Services\Plugin::boot();
 
 // 7.6 定时发布兜底：无 cron 环境时由请求低频触发（runtime/scheduler.lock 60s 限频），

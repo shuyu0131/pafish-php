@@ -259,7 +259,7 @@ final class PostsController extends AdminController
         return $this->json($response, ['ok' => true]);
     }
 
-    // ---------- 核心保存逻辑（M3d 导入复用） ----------
+    // ---------- 核心保存逻辑 ----------
 
     /**
      * 创建/更新文章。$id 为 null 创建；返回 ['id','status','created']
@@ -440,8 +440,6 @@ final class PostsController extends AdminController
         return ['id' => $id, 'status' => $status, 'created' => $created];
     }
 
-    // ---------- 内部 ----------
-
     private function renderEditor(Request $request, Response $response, ?array $post): Response
     {
         $isEdit = $post !== null;
@@ -542,7 +540,7 @@ final class PostsController extends AdminController
         return null;
     }
 
-    /** 标签解析：按名称匹配已有，否则新建（slug 去冲突），返回 id 数组（M3d 导入复用） */
+    /** 标签解析：按名称匹配已有，否则新建（slug 去冲突），返回 id 数组。 */
     public static function resolveNewTags(array $names): array
     {
         $ids = [];
@@ -575,7 +573,7 @@ final class PostsController extends AdminController
         return (int) DB::pdo()->lastInsertId();
     }
 
-    /** 全量重建文章标签关联（M3d 导入复用） */
+    /** 全量重建文章标签关联。 */
     public static function replaceTags(int $postId, array $tagIds): void
     {
         DB::execute('DELETE FROM post_tags WHERE post_id = ?', [$postId]);

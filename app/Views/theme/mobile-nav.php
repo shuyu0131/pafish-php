@@ -1,6 +1,6 @@
 <?php
 /**
- * 移动端抽屉导航（系统 fallback 模板；主题可覆盖 themes/{active}/mobile-nav.php）
+ * 移动端抽屉导航（系统默认模板；主题可覆盖 themes/{active}/mobile-nav.php）
  * 可用数据：$items（导航项）、$loggedIn（是否登录）
  * 纯 CSS 抽屉：checkbox hack，无需 JS
  */

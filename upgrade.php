@@ -2,27 +2,24 @@
 
 declare(strict_types=1);
 
-// v0.1.24 及更早版本的更新器会先清空 themes/。本发行包把 Lumina 恢复包
-// 暂存到 runtime/（不对外公开）；仅当当前实际启用了 Lumina 且主题目录缺失时恢复。
+// 兼容旧版本升级时的主题恢复包。
 $luminaRecovery = PAFISH_ROOT . '/runtime/.pafish-lumina-recovery.zip';
 if (is_file($luminaRecovery) && !is_dir(PAFISH_ROOT . '/themes/lumina')) {
     $activeTheme = (string) \Pafish\Services\Settings::get('active_theme', 'default');
     if ($activeTheme === 'lumina') {
         $zip = new \ZipArchive();
         if ($zip->open($luminaRecovery) !== true || !$zip->extractTo(PAFISH_ROOT . '/themes')) {
-            throw new \RuntimeException('Lumina 主题恢复失败');
+            throw new \RuntimeException('主题恢复失败');
         }
         $zip->close();
         if (!is_file(PAFISH_ROOT . '/themes/lumina/theme.json')) {
-            throw new \RuntimeException('Lumina 主题恢复包不完整');
+            throw new \RuntimeException('主题恢复包不完整');
         }
     }
 }
 @unlink($luminaRecovery);
 
-// 仅由在线升级器在新代码覆盖后执行；成功或失败都会由升级器删除/回滚该文件。
-// v0.1.9 首次引入积分/红包，四张表已并入 app/install/schema.sql（新装直接建成）；
-// 此处为存量库在线升级时幂等补建，重复执行（含旧版本 upgrade.php）同样安全。
+// 在线升级后补齐存量站点所需的数据结构。
 $pdo = \Pafish\Core\DB::pdo();
 
 $pdo->exec('CREATE TABLE IF NOT EXISTS user_points (

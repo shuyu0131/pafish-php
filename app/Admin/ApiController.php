@@ -173,7 +173,7 @@ final class ApiController extends AdminController
         }
         $raw = $request->getUploadedFiles()['files'] ?? [];
         // 单文件时 PSR-7 返回单个对象，多文件（files[] 字段）返回数组；统一为数组
-        // 注意：PHP 8.4+ 新 multipart 解析器对同名 files 字段只保留最后一个，前端须用 files[]
+                // 多文件请求使用 files[] 字段。
         $files = is_array($raw) ? $raw : [$raw];
         $files = array_values(array_filter(
             $files,
@@ -210,8 +210,6 @@ final class ApiController extends AdminController
         }
         return $this->json($response, ['created' => $created, 'failed' => $failed, 'results' => $results]);
     }
-
-    // ---------- 内部 ----------
 
     /** 解析单个文件并创建文章 */
     private function importOne(string $name, string $buffer, string $status): void

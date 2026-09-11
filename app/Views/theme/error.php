@@ -1,6 +1,6 @@
 <?php
 /**
- * 错误页（404/500；系统 fallback 模板，主题可覆盖 themes/{active}/error.php）
+ * 错误页（404/500；系统默认模板，主题可覆盖 themes/{active}/error.php）
  * 可用数据：$status、$message、$backUrl
  * 注意：绝不输出异常详情或用户输入（防 XSS）
  */

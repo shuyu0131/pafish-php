@@ -1,6 +1,6 @@
 <?php
 /**
- * 文章归档页（系统 fallback 模板；主题可覆盖 themes/{active}/archives.php）
+ * 文章归档页（系统默认模板；主题可覆盖 themes/{active}/archives.php）
  * 可用数据：$groups（[['month' => '2026年08月', 'posts' => [...]]]）、$total
  */
 $groups = $groups ?? [];

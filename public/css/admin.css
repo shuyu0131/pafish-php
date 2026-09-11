@@ -751,7 +751,7 @@ input[type="radio"]:focus-visible {
   margin-top: 4px;
 }
 
-/* ---------- 后台表格（参考 Halo 风格） ---------- */
+/* ---------- 后台表格 ---------- */
 .admin-table-wrap {
   overflow-x: auto;
   border-radius: 12px;
@@ -977,7 +977,7 @@ input[type="radio"]:focus-visible {
   }
 }
 
-/* ================= M3c：文章编辑器 ================= */
+/* ================= 文章编辑器 ================= */
 .admin-editor-grid {
   display: grid;
   grid-template-columns: 1fr;
@@ -1813,7 +1813,7 @@ input[type="radio"]:focus-visible {
   color: var(--accent);
 }
 
-/* ---------- 通用表格辅助（M3c 遗留裸类，本块统一补齐） ---------- */
+/* ---------- 通用表格辅助 ---------- */
 .admin-col-check { width: 36px; }
 .admin-col-sm { width: 64px; }
 .admin-col-md { width: 120px; }
@@ -1857,7 +1857,7 @@ input[type="radio"]:focus-visible {
   opacity: 0.45;
 }
 
-/* ---------- 分类 / 标签管理布局（M3e） ---------- */
+/* ---------- 分类 / 标签管理布局 ---------- */
 .admin-cat-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 340px;
@@ -1901,7 +1901,7 @@ input[type="radio"]:focus-visible {
   margin-top: 4px;
 }
 
-/* ---------- 页面编辑器顶栏（M3e） ---------- */
+/* ---------- 页面编辑器顶栏 ---------- */
 .admin-editor-topline {
   display: flex;
   align-items: center;
@@ -1923,7 +1923,7 @@ input[type="radio"]:focus-visible {
   }
 }
 
-/* ---------- M3f 媒体库 ---------- */
+/* ---------- 媒体库 ---------- */
 .admin-modal-title {
   margin: 0;
   font-size: 15px;
@@ -2255,7 +2255,7 @@ a.admin-pg-btn:hover {
   }
 }
 
-/* ---------- 评论审核 / 通知中心（M4a） ---------- */
+/* ---------- 评论审核 / 通知中心 ---------- */
 .admin-comment-tabs {
   display: flex;
   gap: 6px;
@@ -2454,7 +2454,7 @@ a.admin-pg-btn:hover {
   }
 }
 
-/* ---------- 友链 / 导航 / 组件列表（M4b） ---------- */
+/* ---------- 友链 / 导航 / 组件列表 ---------- */
 .admin-check-row {
   display: flex;
   align-items: center;
@@ -2548,7 +2548,7 @@ a.admin-pg-btn:hover {
   margin-top: 12px;
 }
 
-/* ---------- 站点设置（M4c） ---------- */
+/* ---------- 站点设置 ---------- */
 .admin-field-narrow {
   max-width: 320px;
 }
@@ -2612,7 +2612,7 @@ a.admin-pg-btn:hover {
   margin-bottom: 16px;
 }
 
-/* ---------- 用户管理 / 个人资料（M4d） ---------- */
+/* ---------- 用户管理 / 个人资料 ---------- */
 .admin-user-list {
   display: flex;
   flex-direction: column;
@@ -2730,7 +2730,7 @@ a.admin-pg-btn:hover {
   color: var(--accent);
 }
 
-/* ---------- 数据备份（M4e） ---------- */
+/* ---------- 数据备份 ---------- */
 .admin-backup-toolbar {
   display: flex;
   align-items: center;
@@ -2836,7 +2836,7 @@ a.admin-pg-btn:hover {
   line-height: 1.6;
 }
 
-/* ---------- M5a 主题与外观（appearance 列表 + 设置 SchemaForm） ---------- */
+/* ---------- 主题与外观 ---------- */
 .admin-h2 {
   margin: 4px 0 12px;
   font-size: 14px;
@@ -2851,7 +2851,7 @@ a.admin-pg-btn:hover {
   color: var(--accent);
   border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
 }
-/* ========== 应用商店 & 主题插件管理（WordPress/Halo 风格优化） ========== */
+/* ========== 应用商店与主题插件管理 ========== */
 
 /* 商店网格：更好的响应式布局 */
 .admin-theme-grid {
@@ -2867,7 +2867,7 @@ a.admin-pg-btn:hover {
   }
 }
 
-/* 商店卡片：WordPress 风格的悬停效果 */
+/* 商店卡片悬停效果 */
 .admin-theme-card {
   background: var(--card);
   border: 1px solid var(--border);
@@ -3555,7 +3555,7 @@ a.admin-pg-btn:hover {
   font-size: 0.875rem;
 }
 
-/* 移动端优化（参考 emlog）*/
+/* 移动端优化 */
 @media (max-width: 768px) {
   /* 页面头部 */
   .admin-page-head {
@@ -3716,7 +3716,7 @@ a.admin-pg-btn:hover {
   }
 }
 /* ==========================================================================
-   应用商店详情抽屉 & 额外优化样式（参考 WordPress 插件详情）
+   应用商店详情抽屉与附加样式
    ========================================================================== */
 
 /* ---------- 详情抽屉 ---------- */
@@ -4029,7 +4029,7 @@ a.admin-pg-btn:hover {
   color: var(--danger);
 }
 
-/* ---------- 响应式表格卡片化（< 960px，参考 emlog） ---------- */
+/* ---------- 响应式表格卡片化（< 960px） ---------- */
 @media (max-width: 959px) {
   /* 隐藏表头 */
   .admin-table thead {

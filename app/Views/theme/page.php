@@ -1,6 +1,6 @@
 <?php
 /**
- * 独立页面详情（系统 fallback 模板；主题可覆盖 themes/{active}/page.php）
+ * 独立页面详情（系统默认模板；主题可覆盖 themes/{active}/page.php）
  * 可用数据：$page（pages 表行，含 title/content/template/updated_at）、$contentHtml、$title、$description
  * 独立页面布局：
  * - 非 default 模板时容器带 data-page-template + page-template-{name} 类（主题 CSS 据此布局）

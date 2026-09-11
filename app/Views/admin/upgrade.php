@@ -65,8 +65,7 @@
 
     <p class="admin-muted admin-upgrade-source" id="upgSource">
       更新来源：<?php
-        $source = (string) ($info['source'] ?? 'official');
-        echo $source === 'gitee' ? 'Gitee Release（优先更新源）' : ($source === 'github' ? 'GitHub Release（Gitee 不可用时回退）' : 'pafish.cn 镜像（托管平台不可用时回退）');
+        echo 'Gitee Release';
       ?>
     </p>
 
@@ -128,11 +127,7 @@
     var latest = (j && j.latest) || "";
     var hasUpdate = !!(j && j.hasUpdate);
     if (sourceBox) {
-      sourceBox.textContent = (j && j.source) === "gitee" ?
-        "更新来源：Gitee Release（优先更新源）" :
-        ((j && j.source) === "github" ?
-          "更新来源：GitHub Release（Gitee 不可用时回退）" :
-          "更新来源：pafish.cn 镜像（托管平台不可用时回退）");
+      sourceBox.textContent = "更新来源：Gitee Release";
     }
     if (latestBox) {
       if (latest) {

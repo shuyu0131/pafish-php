@@ -1,151 +1,118 @@
-# pafish（PHP 版）
+# pafish
 
-极简博客系统，纯 PHP 实现：开箱即用，适合共享虚拟主机和常规 PHP 环境。
-面向虚拟主机 / 宝塔等 PHP 环境，**零命令行**安装。
+> 轻量、独立部署的 PHP 博客 CMS。
 
-## 功能特性
+pafish 面向个人博客、内容站和小型团队站点。它使用 PHP 与 MySQL，提供浏览器安装向导、完整的内容后台、主题和插件扩展能力，并可直接运行在宝塔和常见共享主机环境中。
 
-- **前台**：文章列表/详情（Markdown、点赞、收藏、密码门、评论楼中楼、相关推荐）、分类（递归子分类）、标签、全文搜索（FULLTEXT ngram）、归档、独立页面（模板分发）、RSS / sitemap / robots、左侧边栏组件（导航/分类/标签/友链/公告/自定义 HTML）、亮暗主题切换
-- **后台**：工作台统计（自绘 SVG 图表）、文章管理（筛选/排序/批量/回收站/置顶/定时发布）、Markdown 编辑器（工具栏/实时预览/拖拽上传/自动保存）、Markdown 批量导入、分类树、标签、媒体库（GD 压缩、云存储）、评论审核（楼中楼/拉黑）、通知、友链/导航/组件、外观（主题设置 8 类控件/导入导出）、站点设置（含 SMTP 测试、开放 API 面板）、应用商店（主题/插件安装更新回滚）、插件管理、用户管理、数据库备份（默认纯 PHP，兼容禁用 exec() 的共享主机）
-- **开放 API v1**：posts / categories / tags / comments，X-API-Key 鉴权
-- **扩展**：主题（`theme.json` + CSS 变量；可选 PHP 模板文件覆盖）、插件（11 个事件钩子、云存储管线、前台页面/页面模板）、内置应用商店
-- **定时发布双通道**：`cron.php`（宝塔计划任务）+ 前台请求低频兜底，查询层 `published_at <= NOW()` 双保险
+[官网](https://www.pafish.cn) · [使用文档](https://www.pafish.cn/docs) · [应用商店](https://www.pafish.cn/store) · [Gitee](https://gitee.com/shuyugit/pafish-php) · [GitHub](https://github.com/shuyu0131/pafish-php)
 
-## 技术栈
+## pafish 是什么？
 
-- PHP 8.1+（pdo_mysql / gd / zip / mbstring / openssl / json / fileinfo）
-- MySQL 5.7.6+（推荐 8.0，搜索需要 FULLTEXT ngram）
-- Slim 4（微框架）+ PHP-DI + PDO
-- 原生 PHP 模板（无模板引擎；主题可用 PHP 模板文件覆盖）
+pafish 是一个以博客写作和内容发布为核心的独立 CMS。系统不依赖 Node.js 构建环境，也不要求 Docker 或命令行：上传发行包、访问安装页、填写数据库信息后即可使用。
+
+它把日常内容管理、站点外观和应用扩展放在同一套后台中。主题和插件通过清晰的清单文件与钩子机制扩展，官方应用统一从系统内置应用商店安装和更新。
+
+## 快速开始
+
+1. 从[官网下载页](https://www.pafish.cn/download)获取最新发行包。
+2. 上传 zip 到网站根目录并解压，将 `pafish/` 目录内的文件放到站点根目录。
+3. 访问 `https://你的域名/install.php`，按向导填写数据库和管理员信息。
+4. 安装结束后删除 `install.php`，登录后台开始创建内容。
+
+发行包已包含 `vendor/`，生产部署无需执行 Composer。
+
+> 数据库账号具有建库权限时，安装向导可以自动创建数据库。若主机不支持伪静态，可在安装时关闭它，系统会使用 `index.php?p=...` 形式的链接。
+
+## 核心能力
+
+- **内容发布**：Markdown 编辑、草稿、定时发布、置顶、回收站、文章密码、独立页面、分类和标签。
+- **读者体验**：评论与楼中楼回复、点赞收藏、全文搜索、归档、RSS、sitemap、robots 和亮暗模式。
+- **媒体与运营**：图片上传与压缩、媒体库、评论审核、导航、友链、侧栏组件、通知与 SMTP 邮件设置。
+- **站点管理**：用户和角色、数据备份、开放 API、迁移、纯 PHP 备份与在线更新，兼容禁用 `exec()` 的共享主机。
+- **扩展生态**：主题设置、可覆盖模板、插件事件钩子、云存储管线和官方应用商店。
+
+## 应用生态
+
+主题负责呈现，插件负责功能。管理员可以在后台的“应用商店”中查看、安装、更新或回滚官方应用；不需要为应用单独寻找下载地址。
+
+- **主题**：使用 `theme.json` 描述信息和设置 schema，支持 CSS 变量以及可选 PHP 模板覆盖。
+- **插件**：使用 `plugin.json` 和 `index.php`，可接入内容、SEO、上传、评论、认证和编辑器等扩展点。
+- **开发文档**：[插件开发](docs/plugins.md)；主题的 manifest 与编辑器字段规范位于主题目录的 `theme.json` 中。
 
 ## 环境要求
 
 | 项目 | 要求 |
-|---|---|
-| PHP | 8.1+（扩展见上） |
-| MySQL | 5.7.6+（推荐 8.0） |
-| 上传限制 | `post_max_size` ≥ 16M、`upload_max_filesize` ≥ 12M（主题/插件 zip 包上限 10MB） |
+| --- | --- |
+| PHP | 8.1+，启用 `pdo_mysql`、`gd`、`zip`、`mbstring`、`openssl`、`json`、`fileinfo` |
+| MySQL | 5.7.6+，推荐 MySQL 8.0 |
+| Web 服务 | Nginx 或 Apache |
+| 上传限制 | 建议 `post_max_size >= 16M`、`upload_max_filesize >= 12M` |
 
-上传限制不满足时博客核心功能可正常使用，仅应用商店 / 主题插件 zip 安装会失败；
-安装向导会以警告形式提示当前值（修改 `php.ini` 后需重启 Web 服务生效）。
+上传限制不足不会影响写作和阅读，但主题、插件或应用 zip 的安装会受限。安装向导会提示当前环境状态。
 
-## 安装
+## 部署与运维
 
-### 方式一：发布包（推荐，零命令行）
-
-1. 下载 `pafish-php-vX.Y.Z.zip`（已预打包 `vendor/`，无需 Composer）
-2. 上传到网站根目录（或子目录），解压后把 `pafish/` 内容移动到站点根目录
-3. 浏览器访问 `http://你的域名/install.php`，按向导填写数据库信息与管理员账号
-4. 安装完成，**删除 `install.php`**，打开首页即可
-
-> 数据库不存在时会自动创建（数据库账号需有建库权限）。
-> 不支持伪静态的主机：安装时取消勾选「启用伪静态」，链接自动使用 `index.php?p=xxx` 形式。
-
-### 方式二：源码运行（开发调试）
-
-```bash
-composer install
-php -S localhost:8000 router.php
-```
-
-### Web 服务器配置
-
-- **Apache**：已内置 `.htaccess`（伪静态 + 静态资源重写 + 禁止直接访问 `config.php` / `runtime/` / `backups/`），默认即可
-- **Nginx**：
+### Nginx
 
 ```nginx
-# 伪静态：所有前台路径交给 index.php
 location / {
     try_files $uri $uri/ /index.php?$query_string;
 }
 
-# 静态资源在 public/ 下，对外保持根路径（css/ js/ uploads/ vendor/）。
-# v0.1.2+ 已内置 PHP 兜底：仅上面一条 try_files 即可让 /css/… 等资源正常加载
-#（框架在会话/路由启动前按原内容直出，功能与视觉不受影响）。
-# 以下 location 仅为性能优化（让 Nginx 直接读盘、绕过 PHP），可按需添加：
-# location ~ ^/(css|js|uploads|vendor)/ {
-#     root /www/wwwroot/你的站点/public;
-#     try_files $uri =404;
-# }
-
-# 禁止直接访问敏感文件/目录
-location ~ ^/(config\.php|runtime/|backups/) { deny all; }
+location ~ ^/(config\.php|runtime/|backups/) {
+    deny all;
+}
 ```
 
-> **两种部署模式**（安装向导可勾选）：
-> - **启用伪静态**（默认）：按上表配置 Nginx，或使用 Apache（`.htaccess` 已内置），链接为 `/post/xxx` 形式
-> - **关闭伪静态**：无需任何重写规则，链接自动使用 `/index.php?p=post/xxx` 形式（`config.php` 中 `pretty_urls` 设为 `false`）
+Apache 可直接使用发行包中的 `.htaccess`。更完整的宝塔配置见 [宝塔部署说明](docs/install-bt.md) 和 [Nginx 配置示例](docs/nginx-bt.conf.example)。
 
-## 定时发布（可选）
+### 定时发布
 
-后台「高级选项 → 定时发布」排期的文章，由以下任一通道发布：
-
-1. **宝塔计划任务**（推荐）：Shell 脚本，每 1 分钟执行一次
-   `php /www/wwwroot/你的站点/cron.php`
-2. **URL 访问**：计划任务选「访问 URL」，填 `https://你的域名/cron.php`
-3. **兜底**：什么都没配置时，前台请求也会低频（60 秒限频）自动发布到期文章
-
-即使全部通道都没跑，定时文章也不会提前泄露（前台只显示 PUBLISHED 且发布时间已到的文章）。
-
-## 默认账号（安装向导种子数据）
-
-| 角色 | 用户名 | 密码 |
-|---|---|---|
-| 管理员 | admin | Admin@12345 |
-| 编辑 | editor | Editor@12345 |
-
-> 安装完成后请立即修改管理员密码。
-
-## 目录结构
-
-```
-├── index.php          # 入口
-├── install.php        # Web 安装向导（安装后请删除）
-├── cron.php           # 定时发布（计划任务可选）
-├── config.php         # 安装生成（勿入库，.htaccess 已禁止访问）
-├── app/               # 应用代码（Core/Services/Http/Views）
-├── admin/             # 后台
-├── themes/            # 主题（theme.json + theme.css + 可选 PHP 模板）
-├── plugins/           # 插件
-├── public/            # 静态资源（css/js/uploads/store）
-├── backups/           # 数据库备份
-├── runtime/           # 运行期缓存（验证码/限速/日志）
-├── migrations/        # 增量迁移
-├── scripts/           # 构建脚本（商店源 / 发布包）
-└── docs/              # 详细文档（宝塔部署、常见问题）
-```
-
-## 主题
-
-- `themes/{name}/theme.json`：manifest + 设置 schema（8 类型：text/textarea/checkbox/switcher/select/radio/color/image）；可选 `editorFields` 声明主题专属文章字段
-- `themes/{name}/theme.css`：语义 CSS 变量（`--bg/--fg/--accent/...`）
-- `themes/{name}/helpers.php`：可选主题钩子入口（当前主题请求启动时加载），可通过 `theme_post_editor` 等主题钩子扩展编辑器
-- `themes/{name}/header.php` 等：**可选 PHP 模板文件**，覆盖系统模板（模板解析优先级：主题目录文件 → 系统内置兜底）
-- 主题包可直接在 PHP 版使用；PHP 模板文件由当前主题加载
-
-## 插件与应用商店
-
-- 插件 = `plugin.json` + `index.php`；API v2 支持 action/filter、发布事件、SEO/Markdown/上传过滤器，以及评论/认证/文章编辑器插槽（完整规范见 [`docs/plugins.md`](docs/plugins.md)）
-- 云存储插件（如缤纷云 S4，S3 协议 + SigV4 签名）：媒体上传自动入云，失败回退本地
-- 内置应用商店开箱即用（默认源内置在 `public/store/`）。官方源固定为 `https://www.pafish.cn`，支持在官网账号设置生成商城令牌，粘贴到「站点设置 → 应用商店」后可同步已购应用并安装付费包；付费权益统一按官网账号购买记录校验
-- 内置插件新增 SEO 主动推送（IndexNow/百度）与通知中心（Bark/Telegram/钉钉/飞书/企微/Webhook）
-
-## 开发与测试
+定时发布推荐通过宝塔计划任务每分钟执行一次：
 
 ```bash
-# 启动开发服务器
-php -S 127.0.0.1:8123 router.php
+php /www/wwwroot/你的站点/cron.php
+```
 
-# 运行插件 API v2 测试（需本地 3307 端口的 pafish_php 测试库）
-php scripts/test-plugin-api-v2.php
+未配置计划任务时，前台请求会以低频方式兜底执行；文章在 `published_at` 到达之前不会出现在前台。
+
+### 在线更新
+
+后台“系统更新”默认按 Gitee Release、GitHub Release、官网镜像的顺序检查新版本。更新包会进行 HTTPS、哈希和包结构校验，并在替换前创建站点与数据库备份；备份不依赖 `exec()`、`mysqldump` 或 `mysql` 命令。
+
+## 开发
+
+源码开发需要 PHP 8.1+ 与 Composer：
+
+```bash
+composer install
+php -S 127.0.0.1:8123 router.php
+```
+
+常用入口：
+
+```text
+app/          应用、服务、控制器和后台视图
+themes/       主题
+plugins/      插件
+migrations/   数据库增量迁移
+public/       静态资源和内置商店目录
+docs/         部署、迁移与插件文档
+scripts/      发行包和商店包构建脚本
+```
+
+构建发行包：
+
+```bash
+php scripts/build-release.php --tag=vX.Y.Z
 ```
 
 ## 常见问题
 
-- **应用商店安装包报错/上传失败**：检查 `post_max_size` / `upload_max_filesize`（见环境要求）
-- **发布文章前台不显示**：多为服务器 MySQL 时区为 UTC，应用已自动按站点时区设置会话时区；若仍异常请检查站点设置的时区
-- **搜索中文无结果**：MySQL 需 5.7.6+（FULLTEXT ngram）；老版本自动回退 LIKE 搜索
-- **备份提示 mysqldump 不可用**：当前版本默认使用纯 PHP 逐表导出，不依赖 `exec()` 或 mysqldump
+- **中文搜索无结果**：建议使用 MySQL 5.7.6+ 的 FULLTEXT ngram；旧版本会回退到 LIKE 查询。
+- **应用安装失败**：确认 `post_max_size` 和 `upload_max_filesize` 满足要求，并检查站点目录的写入权限。
+- **计划文章未发布**：确认 `cron.php` 可由计划任务执行；即使任务未执行，未到发布时间的文章也不会提前显示。
+- **备份提示命令不可用**：pafish 默认使用纯 PHP 导出，无需开启 `exec()` 或安装 `mysqldump`。
 
 ## 许可证
 

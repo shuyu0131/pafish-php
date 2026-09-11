@@ -6,16 +6,7 @@ namespace Pafish\Services;
 
 use Pafish\Core\Hooks;
 
-/**
- * 插件系统：负责加载、生命周期和前台注入。
- * - 目录约定：plugins/{name}/plugin.json（manifest + 设置 schema）+ index.php（返回约定函数数组的 PHP 文件）
- * - manifest 校验：名称白名单 / title+version 必填 / settings 9 类型过滤（非法字段忽略）
- *   / injects 白名单 / pageTemplates·pages 白名单（声明但过滤后为空 = 声明无效）/ storage 非法忽略
- * - 生命周期：activate（写列表 + 注册钩子 + onActivate）→ deactivate（移除 + 注销钩子 + onDeactivate）
- *   → uninstall（停用 + onUninstall + 删数据键 + 删目录）
- * - 注入：head（白名单标签过滤）/ footer / sidebar 即时渲染（PHP 每请求新进程，无缓存/节流问题）
- * - 云存储：激活插件首个声明 storage 且实现 storeFile 者生效（Upload 经 apply_filters 接入），失败回退本地
- */
+/** 插件清单、生命周期、钩子注入和扩展存储管理。 */
 final class Plugin
 {
     public const API_VERSION = 2;
@@ -61,7 +52,7 @@ final class Plugin
         return $names;
     }
 
-    /** 激活插件名列表（settings active_plugins JSON；非法名过滤，对齐 getActivePlugins） */
+    /** 读取激活插件名列表。 */
     public static function activeNames(): array
     {
         if (self::$activeCache !== null) {
@@ -85,7 +76,7 @@ final class Plugin
         return in_array($name, self::activeNames(), true);
     }
 
-    /** 读取插件 manifest（plugin.json 已校验缓存）；无效返回 null */
+    /** 读取插件 manifest。 */
     public static function manifest(string $name): ?array
     {
         $desc = self::describe($name);
@@ -263,10 +254,7 @@ final class Plugin
         ];
     }
 
-    /**
-     * 加载插件模块：require plugins/{name}/index.php，约定返回约定函数数组
-     * 无 index.php 返回 null（插件仍可启用，只是无能力）；require 失败记日志返回 []（对齐 loadPluginModule）
-     */
+    /** 加载插件模块；入口缺失或加载失败时返回空结果。 */
     public static function module(string $name): ?array
     {
         if (preg_match(self::NAME_PATTERN, $name) !== 1) {
@@ -288,7 +276,7 @@ final class Plugin
         }
     }
 
-    /** 插件上下文（PHP 版同步 API） */
+    /** 当前插件上下文。 */
     public static function context(string $name): object
     {
         if (isset(self::$contexts[$name])) {
@@ -377,7 +365,7 @@ final class Plugin
         Settings::set('plugin_settings:' . $name, json_encode(array_merge(self::settings($name), $partial), JSON_UNESCAPED_UNICODE));
     }
 
-    /** 追加日志（对齐 ctx.log：logs 数组，最多 50 条） */
+    /** 追加插件日志。 */
     public static function log(string $name, string $message): void
     {
         $data = self::data($name);
@@ -423,7 +411,7 @@ final class Plugin
         }
     }
 
-    /** 启用插件（对齐 activatePlugin：写列表 + 注册钩子 + onActivate）；manifest 无效抛异常 */
+    /** 启用插件。 */
     public static function activate(string $name): void
     {
         $desc = self::describe($name);
@@ -439,7 +427,7 @@ final class Plugin
         self::runLifecycle($name, 'onActivate');
     }
 
-    /** 停用插件（对齐 deactivatePlugin：移除列表 + 注销钩子 + onDeactivate） */
+    /** 停用插件。 */
     public static function deactivate(string $name): void
     {
         $list = array_values(array_filter(self::activeNames(), static fn (string $n): bool => $n !== $name));
@@ -463,7 +451,7 @@ final class Plugin
         unset(self::$manifests[$name], self::$modules[$name], self::$contexts[$name]);
     }
 
-    /** 保存插件设置（对齐 savePluginSettings：schema 白名单 + 仅收提交键 + 字符串化 + 合并写回） */
+    /** 按 manifest schema 保存插件设置。 */
     public static function saveSettings(string $name, array $body): array
     {
         $desc = self::describe($name);
@@ -546,7 +534,7 @@ final class Plugin
         return $out;
     }
 
-    /** 前台页面模板分发：激活插件 renderPageTemplate(template, page, ctx) 首个非空输出（对齐 renderPageTemplateHtml） */
+    /** 分发激活插件的前台页面模板。 */
     public static function renderPageTemplate(array $page): string
     {
         foreach (self::activeNames() as $name) {
@@ -607,7 +595,7 @@ final class Plugin
 
     // ---------- 云存储管线 ----------
 
-    /** 当前云存储后端：激活插件首个声明 storage 且实现 storeFile 者（对齐 getActiveStorage） */
+    /** 获取当前云存储后端。 */
     public static function activeStorage(): ?array
     {
         foreach (self::activeNames() as $name) {
@@ -648,7 +636,7 @@ final class Plugin
         }
     }
 
-    /** 删除云端文件（仅完整 http(s) URL 时调用；失败静默并记日志，对齐 deleteFromCloud） */
+    /** 删除云端文件。 */
     public static function deleteFromCloud(string $url): void
     {
         if (preg_match('/^https?:\/\//i', $url) !== 1) {

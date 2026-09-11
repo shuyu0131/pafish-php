@@ -82,7 +82,7 @@ final class PagesController extends AdminController
         return $response;
     }
 
-    /** 保存（新建/更新共用；对齐 createPage/updatePage） */
+    /** 保存页面。 */
     public function save(Request $request, Response $response, array $args): Response
     {
         $this->guardCanManage();

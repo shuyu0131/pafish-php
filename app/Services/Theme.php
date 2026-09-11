@@ -7,13 +7,7 @@ namespace Pafish\Services;
 use Pafish\Core\Config;
 use Pafish\Core\Hooks;
 
-/**
- * 主题系统：
- * - 主题 = themes/{name}/theme.json（manifest + 设置 schema）+ theme.css（语义 CSS 变量）+ 可选 PHP 模板文件
- * - 模板解析优先级：主题目录文件 → 系统内置 fallback（app/Views/theme/）
- * - 安装 zip：唯一顶层目录=主题名 / 10MB 上限 / 穿越防护 / manifest 校验失败回滚
- * - 卸载保护：不能卸载当前主题；只删该主题独有的 theme:{key} 键（跨主题共享键保留）
- */
+/** 主题清单、设置、模板覆盖和安装生命周期管理。 */
 final class Theme
 {
     private const NAME_PATTERN = '/^[a-z0-9_-]{1,50}$/';
@@ -77,7 +71,7 @@ final class Theme
         return '<link rel="stylesheet" href="' . e($url . '?v=' . (string) filemtime($file)) . '">';
     }
 
-    /** 扫描 themes/ 目录下的全部主题名（过滤临时/备份目录：点前缀不扫描；无 theme.json 也列出，由 describe 报错） */
+    /** 扫描 themes/ 目录下的主题名。 */
     public static function list(): array
     {
         $names = [];
@@ -316,6 +310,15 @@ final class Theme
             return $systemFile;
         }
         throw new \RuntimeException('模板不存在：' . $name);
+    }
+
+    /** 判断当前主题是否提供指定专属模板，不包含系统 fallback。 */
+    public static function hasTemplate(string $name): bool
+    {
+        if (!preg_match(self::NAME_PATTERN, $name)) {
+            return false;
+        }
+        return is_file(self::root() . '/' . self::active() . '/' . $name . '.php');
     }
 
     /** 切换激活主题 */

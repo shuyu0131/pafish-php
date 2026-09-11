@@ -9,6 +9,7 @@ use Pafish\Core\DB;
 use Pafish\Core\Url;
 use Pafish\Services\RedPacket;
 use Pafish\Services\Points;
+use Pafish\Services\Theme;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -17,6 +18,14 @@ final class ProfileController
 {
     public function index(Request $request, Response $response): Response
     {
+        if (!Theme::hasTemplate('profile')) {
+            $response->getBody()->write(\render('error', [
+                'status' => 404,
+                'message' => '当前主题未提供个人中心页面',
+                'backUrl' => Url::to('/'),
+            ]));
+            return $response->withStatus(404);
+        }
         if (!Auth::check()) {
             return $response->withHeader('Location', Url::to('/login') . '?from=%2Fprofile')->withStatus(302);
         }

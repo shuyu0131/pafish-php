@@ -36,7 +36,6 @@ $loggedIn = (bool) ($loggedIn ?? false);
 </div>
 <?php if ($loggedIn): ?>
 <script>
-  // 退出登录（POST + CSRF，成功后回首页；对齐后台退出逻辑）
   document.querySelectorAll('.mobile-nav-logout').forEach(function (f) {
     f.addEventListener('submit', function (e) {
       e.preventDefault();

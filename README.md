@@ -37,7 +37,7 @@ pafish 是一个以博客写作和内容发布为核心的独立 CMS。系统不
 
 - **主题**：使用 `theme.json` 描述信息和设置 schema，支持 CSS 变量以及可选 PHP 模板覆盖。
 - **插件**：使用 `plugin.json` 和 `index.php`，可接入内容、SEO、上传、评论、认证和编辑器等扩展点。
-- **开发文档**：[插件开发](docs/plugins.md)；主题的 manifest 与编辑器字段规范位于主题目录的 `theme.json` 中。
+- **开发文档**：请访问[官网文档](https://www.pafish.cn/docs)；主题的 manifest 与编辑器字段规范位于主题目录的 `theme.json` 中。
 
 ## 环境要求
 
@@ -55,8 +55,20 @@ pafish 是一个以博客写作和内容发布为核心的独立 CMS。系统不
 ### Nginx
 
 ```nginx
+# 网站 root 指向 pafish 项目根目录（不是 public/）
 location / {
     try_files $uri $uri/ /index.php?$query_string;
+}
+
+# 主题资源由入口安全输出；显式规则兼容宝塔 error_page 模板
+location ^~ /theme-assets/ {
+    try_files $uri /index.php?p=$uri&$query_string;
+}
+
+# 静态文件可由 Nginx 直接读取；不配置也可由 PHP 入口兜底
+location ~ ^/(css|js|uploads|vendor)/ {
+    root /www/wwwroot/你的站点目录/public;
+    try_files $uri =404;
 }
 
 location ~ ^/(config\.php|runtime/|backups/) {
@@ -64,7 +76,11 @@ location ~ ^/(config\.php|runtime/|backups/) {
 }
 ```
 
-Apache 可直接使用发行包中的 `.htaccess`。更完整的宝塔配置见 [宝塔部署说明](docs/install-bt.md) 和 [Nginx 配置示例](docs/nginx-bt.conf.example)。
+改完后执行 `nginx -t` 并重载 Nginx。用浏览器分别访问 `/post/已有文章slug` 与
+`/index.php?p=post/已有文章slug`：前者 404、后者正常，说明是服务器伪静态规则没有生效，
+不是 PHP 路由问题。应用入口同时兼容 `/index.php/路径` 和子目录部署。
+
+Apache 可直接使用发行包中的 `.htaccess`。部署说明与 Nginx 配置示例请访问[官网文档](https://www.pafish.cn/docs)。
 
 ### 定时发布
 
@@ -97,7 +113,6 @@ themes/       主题
 plugins/      插件
 migrations/   数据库增量迁移
 public/       静态资源和内置商店目录
-docs/         部署、迁移与插件文档
 scripts/      发行包和商店包构建脚本
 ```
 

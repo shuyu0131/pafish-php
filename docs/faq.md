@@ -14,6 +14,11 @@ Linux 下给站点目录执行 `chown -R www:www /www/wwwroot/你的站点`（�
 安装向导中取消勾选「启用伪静态」，或在 `config.php` 把 `pretty_urls` 设为 `false`。
 链接会自动切换为 `index.php?p=文章slug` 形式，功能不受影响。
 
+**Q：`/post/...` 返回 Nginx 404，但 `index.php?p=post/...` 正常？**
+这是伪静态规则没有生效。Nginx 的 `location /` 需要将不存在的路径回退到 `/index.php?$query_string`，
+不要使用 `try_files $uri =404` 处理整个站点。修改后执行 `nginx -t` 并重载 Nginx。若服务器确实不能
+配置该转发，再关闭 `pretty_urls` 使用查询串链接。
+
 **Q：能从其他系统迁移数据吗？**
 两版数据表结构完全一致（14 张表 + settings 键值），理论可用 mysqldump 导出的 SQL 直接导入
 PHP 版的库后改 `config.php` 指向该库。正式迁移前请完整备份，并确认两版 schema 版本一致。

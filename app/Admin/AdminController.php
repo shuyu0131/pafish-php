@@ -121,7 +121,7 @@ abstract class AdminController
         return strtoupper((string) $request->getHeaderLine('X-Requested-With')) === 'XMLHTTPREQUEST';
     }
 
-    /** 统一 JSON 响应（对齐现有 API 控制器） */
+    /** 统一 JSON 响应。 */
     protected function json(Response $response, array $data, int $status = 200): Response
     {
         $response->getBody()->write(json_encode($data, JSON_UNESCAPED_UNICODE));

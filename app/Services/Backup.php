@@ -8,16 +8,7 @@ use Pafish\Core\Config;
 use Pafish\Core\DB;
 use PDO;
 
-/**
- * 数据备份（含纯 PHP 备份模式）：
- * - 目录：项目根 backups/，文件名 backup-YYYYMMDD-HHmmss.sql / upload-YYYYMMDD-HHmmss.sql
- * - 导出：默认使用 PDO 纯 PHP 逐表导出，适配禁用 exec() 的共享主机
- *   （SET FOREIGN_KEY_CHECKS=0 + DROP + CREATE + INSERT）
- * - 恢复：默认使用 PDO 纯 PHP 逐语句解析（支持 DELIMITER 块）
- *   命令行 mysqldump/mysql 仅保留为显式辅助能力，不参与在线更新核心链路
- * - 上传：≤200MB，仅 .sql，头部 4096 字节须含 CREATE TABLE|INSERT INTO|mysqldump
- * - upload-* 文件不可删除
- */
+/** 纯 PHP 数据库备份、上传、恢复和文件生命周期管理。 */
 final class Backup
 {
     private const PREFIX_BACKUP = 'backup-';

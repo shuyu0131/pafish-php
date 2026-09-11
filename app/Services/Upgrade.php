@@ -6,20 +6,7 @@ namespace Pafish\Services;
 use Pafish\Core\Version;
 use Pafish\Services\Backup;
 
-/**
- * 系统在线更新：
- * - 更新源默认优先使用 Gitee Releases，GitHub 作为回退；配置 PAFISH_GITEE_REPO 可替换仓库；
- * - 官网 https://www.pafish.cn/pafish-php/pafish-php.json 仅作为托管平台不可用时的
- *   轻量元数据镜像，可直接指向任一代码托管平台的安装包；
- * - PAFISH_UPDATE_URL 环境变量可覆盖元数据地址（仅测试/私有镜像注入，覆盖时优先）；
- *   PAFISH_UPGRADE_ROOT 可覆盖更新根目录（测试子目录演练用）
- * - 检查结果缓存 runtime/update_check.json（24h TTL，后台加载静默检查不拖慢页面）
- * - 执行：下载 → 校验（≤50MB / 全部条目位于 pafish/ 顶层 / 逐段防穿越）→ 整站备份
- *   （排除 public/uploads、backups、runtime）→ 清空非保留项 → 解压覆盖 → 执行包内
- *   upgrade.php（迁移脚本，执行后删除）→ 失败自动整体回滚
- * - Windows 兼容：删除一律「先 rename 换名再删」（同 Plugin::rmRemove，避免被 include
- *   的 .php 直接 unlink 在长时运行后引发进程级无声崩溃）；复制用 SPL 递归
- */
+/** 在线更新服务：来源回退、包校验、备份、覆盖和失败回滚。 */
 final class Upgrade
 {
     private const DEFAULT_META_URL = 'https://www.pafish.cn/pafish-php/pafish-php.json';
@@ -32,7 +19,7 @@ final class Upgrade
 
     // ---------- 公开 ----------
 
-    /** 更新元数据地址（硬编码官网源；仅测试注入可覆盖） */
+    /** 更新元数据地址。 */
     public static function metaUrl(): string
     {
         $env = trim((string) getenv('PAFISH_UPDATE_URL'));
@@ -42,7 +29,7 @@ final class Upgrade
         return self::DEFAULT_META_URL;
     }
 
-    /** 更新目标根目录（默认站点根；PAFISH_UPGRADE_ROOT 仅测试注入） */
+    /** 更新目标根目录。 */
     public static function root(): string
     {
         $env = trim((string) getenv('PAFISH_UPGRADE_ROOT'));
@@ -194,7 +181,7 @@ final class Upgrade
             } catch (\Throwable $e) {
                 throw new \RuntimeException('更新前数据库备份失败：' . $e->getMessage());
             }
-            if (!self::copyDirFiltered($root, $bak, self::KEEP_DIRS)) {
+            if (!self::copyDirFiltered($root, $bak, self::BACKUP_EXCLUDE_DIRS)) {
                 throw new \RuntimeException('更新失败：无法备份站点（' . $bak . '）');
             }
             // 4. 清空非保留项
@@ -380,8 +367,11 @@ final class Upgrade
         ];
     }
 
-    /** 更新包内的保留目录（不覆盖、不清空、不备份——用户数据区） */
-    private const KEEP_DIRS = ['runtime', 'backups', 'public/uploads'];
+    /** 核心更新不接管的已安装应用目录。 */
+    private const APP_DIRS = ['themes', 'plugins'];
+
+    /** 升级备份排除运行期数据，主题和插件必须进入备份以支持完整回滚。 */
+    private const BACKUP_EXCLUDE_DIRS = ['runtime', 'backups', 'public/uploads'];
 
     /** 解析 zip 下载地址：相对路径基于元数据 URL 的目录解析，http(s) 直用 */
     private static function resolveZipUrl(string $zip): string
@@ -533,15 +523,15 @@ final class Upgrade
     /** 回滚：清空当前非保留项 → 从备份整体复制回根 → 删备份（失败抛异常，备份保留） */
     private static function rollback(string $root, string $bak): void
     {
-        self::clearRoot($root);
+        self::clearRoot($root, false);
         if (!self::copyDirFiltered($bak, $root, [])) {
             throw new \RuntimeException('无法从备份恢复文件');
         }
         self::rmDir($bak);
     }
 
-    /** 清空根目录非保留项（保留 runtime/、backups/、public/uploads/、config.php） */
-    private static function clearRoot(string $root): bool
+    /** 清空核心文件；正常升级保留已安装主题/插件，回滚时清理后从备份恢复。 */
+    private static function clearRoot(string $root, bool $preserveApps = true): bool
     {
         $items = @scandir($root);
         if ($items === false) {
@@ -555,6 +545,9 @@ final class Upgrade
                 continue;
             }
             if (in_array($name, ['runtime', 'backups'], true)) {
+                continue;
+            }
+            if ($preserveApps && in_array($name, self::APP_DIRS, true)) {
                 continue;
             }
             if ($name === 'public' && is_dir($root . '/public')) {

@@ -253,7 +253,7 @@ CREATE TABLE IF NOT EXISTS point_transactions (
   CONSTRAINT fk_point_transactions_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
--- 积分红包（lumina 主题配套；机制由核心承载）
+-- 积分红包数据表
 CREATE TABLE IF NOT EXISTS redpackets (
   id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   post_id         BIGINT UNSIGNED NOT NULL,

@@ -33,7 +33,7 @@ final class Listings
         $pageNum = max(1, (int) ($request->getQueryParams()['page'] ?? 1));
         $offset = ($pageNum - 1) * $perPage;
 
-        // Lumina 的“仅自己可看”字段保存在规范化 JSON 中。列表层过滤，避免私密内容进入
+        // 私密字段在列表层过滤，避免泄露。
         // 搜索、分类和标签页；详情页还会再校验一次，防止直链绕过。
         $privateMarker = '%"key":"lumina_private","value":"y"%';
         $visibility = "(COALESCE(p.custom_fields, '') NOT LIKE ? OR p.author_id = ?)";
@@ -58,7 +58,6 @@ final class Listings
         );
         $posts = HomeController::attachTags($posts);
 
-        // Lumina 信息流卡片底部展示每帖最近 6 条已通过评论(非回复),批量取避免 N+1
         if ($posts !== []) {
             $ids = array_map(static fn (array $post): int => (int) $post['id'], $posts);
             $placeholders = implode(',', array_fill(0, count($ids), '?'));
@@ -100,7 +99,7 @@ final class Listings
         return $response->withStatus(404);
     }
 
-    /** 列表页 OG/canonical（当前完整 URL，对齐 Next 自动生成的 canonical） */
+    /** 列表页 OG 与 canonical。 */
     public static function og(Request $request, string $title, string $description = ''): array
     {
         $uri = $request->getUri();

@@ -76,7 +76,6 @@ foreach ($jsonLdItems as $item):
   } catch (e) {}
 })();
 </script>
-<?php /* 布局样式 + 主题变量内联注入：主题自包含、不依赖 Web 服务器静态配置，开箱即用 */ ?>
 <?php if ($layoutCss !== null || $themeCss !== null): ?>
 <style data-theme="<?= e($activeTheme) ?>"><?= $layoutCss ?? '' ?><?= $themeCss ?? '' ?></style>
 <?php endif; ?>

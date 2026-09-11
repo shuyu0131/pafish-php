@@ -788,6 +788,9 @@ input[type="radio"]:focus-visible {
 .admin-table tbody tr:last-child {
   border-bottom: none;
 }
+.admin-table tbody tr.admin-list-edit-row[hidden] {
+  display: none;
+}
 
 .admin-table tbody tr:hover {
   background: var(--accent-soft);
@@ -1959,6 +1962,24 @@ input[type="radio"]:focus-visible {
   flex-wrap: wrap;
 }
 
+.admin-media-view-toggle {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-soft);
+}
+.admin-media-view-toggle .admin-icon-btn {
+  border: 0;
+  border-radius: 6px;
+}
+.admin-media-view-toggle .admin-icon-btn.active {
+  color: var(--accent);
+  background: var(--card);
+  box-shadow: 0 1px 3px rgba(0,0,0,.08);
+}
+
 .admin-media-filter {
   padding: 6px 13px;
   border-radius: 9px;
@@ -2078,6 +2099,106 @@ input[type="radio"]:focus-visible {
   display: flex;
   gap: 2px;
   margin-top: 6px;
+}
+.admin-media-table-wrap,
+.admin-comment-table-wrap,
+.admin-user-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+}
+.admin-media-table,
+.admin-comment-table,
+.admin-user-table {
+  min-width: 760px;
+}
+.admin-media-table .admin-media-row td,
+.admin-comment-table .admin-comment-card td,
+.admin-user-table .admin-user-row td {
+  vertical-align: top;
+}
+.admin-media-table .admin-media-row,
+.admin-comment-table .admin-comment-card,
+.admin-user-table .admin-user-row {
+  display: table-row;
+  padding: 0;
+}
+.admin-media-list-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 220px;
+  max-width: 420px;
+}
+.admin-media-list-name > span:nth-child(2) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admin-media-list-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--muted);
+}
+.admin-media-list-date,
+.admin-user-date {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.admin-comment-table {
+  min-width: 980px;
+}
+.admin-comment-table .admin-comment-content {
+  max-width: 430px;
+  margin: 8px 0 5px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  line-height: 1.55;
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+.admin-comment-time {
+  font-size: 12px;
+}
+.admin-comment-post {
+  max-width: 230px;
+  line-height: 1.5;
+}
+.admin-comment-post a {
+  color: var(--accent);
+  text-decoration: none;
+}
+.admin-comment-table .admin-comment-ops {
+  min-width: 300px;
+  margin-top: 0;
+}
+.admin-user-table {
+  min-width: 900px;
+}
+.admin-user-table .admin-user-name-row {
+  flex-wrap: nowrap;
+}
+.admin-user-table .admin-user-avatar-lg {
+  width: 32px;
+  height: 32px;
+}
+.admin-user-counts {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.admin-user-points-value {
+  font-variant-numeric: tabular-nums;
+}
+.admin-user-table .admin-user-ops {
+  min-width: 330px;
 }
 
 /* 分页（媒体库/文章列表共用） */
@@ -2386,6 +2507,41 @@ a.admin-pg-btn:hover {
   padding-top: 12px;
   border-top: 1px dashed var(--border);
 }
+.admin-order-table {
+  min-width: 720px;
+}
+.admin-order-table .admin-list-row td {
+  vertical-align: middle;
+}
+.admin-order-table .admin-list-name {
+  white-space: nowrap;
+}
+.admin-order-table td[data-label="地址"] {
+  max-width: 420px;
+}
+.admin-order-table td[data-label="地址"] .admin-muted {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admin-order-table td[data-label="地址"] a {
+  color: var(--accent);
+  text-decoration: none;
+}
+.admin-order-table .admin-list-ops {
+  margin-top: 0;
+  flex-wrap: nowrap;
+}
+.admin-order-table .admin-list-edit-row td {
+  padding: 0;
+  border-top: 0;
+}
+.admin-order-table .admin-list-edit {
+  margin: 0;
+  padding: 14px 16px 16px;
+  border-top: 1px dashed var(--border);
+  background: var(--bg-soft);
+}
 .admin-inline-edit .admin-cat-form-actions {
   margin-top: 12px;
 }
@@ -2437,7 +2593,21 @@ a.admin-pg-btn:hover {
   overflow-x: auto;
 }
 .admin-settings-form .card + .card {
-  margin-top: 16px;
+  margin-top: 0;
+  border-top: 0;
+  border-radius: 0;
+}
+.admin-settings-form .card:first-of-type {
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+.admin-settings-form .card:nth-last-of-type(1) {
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+.admin-settings-form .card {
+  border-bottom-color: var(--border);
+}
+.admin-settings-form .admin-card-title {
+  margin-bottom: 16px;
 }
 
 /* ---------- 用户管理 / 个人资料（M4d） ---------- */
@@ -2447,11 +2617,7 @@ a.admin-pg-btn:hover {
   gap: 10px;
 }
 .admin-user-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px 16px;
-  flex-wrap: wrap;
+  display: table-row;
 }
 .admin-user-avatar-lg {
   width: 40px;
@@ -2717,6 +2883,95 @@ a.admin-pg-btn:hover {
 .admin-theme-card:hover {
   box-shadow: none;
   border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+}
+
+/* 已安装主题属于视觉选择对象，使用带预览的卡片。 */
+.admin-installed-theme-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+.admin-installed-theme-card {
+  display: flex;
+  min-width: 0;
+  overflow: hidden;
+  flex-direction: column;
+}
+.admin-installed-theme-card.is-active {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+}
+.admin-installed-theme-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: var(--bg-soft);
+  border-bottom: 1px solid var(--border);
+}
+.admin-installed-theme-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.admin-installed-theme-placeholder {
+  display: inline-flex;
+  color: var(--meta);
+  opacity: .55;
+}
+.admin-installed-theme-body {
+  flex: 1;
+  padding: 14px 16px 12px;
+}
+.admin-installed-theme-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--title);
+  font-size: 15px;
+  font-weight: 600;
+}
+.admin-installed-theme-title > a,
+.admin-installed-theme-title > strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admin-installed-theme-title > a:hover {
+  color: var(--accent);
+}
+.admin-installed-theme-title .admin-theme-version {
+  margin-left: auto;
+}
+.admin-installed-theme-desc {
+  display: -webkit-box;
+  margin: 10px 0 12px;
+  overflow: hidden;
+  color: var(--body);
+  font-size: 13px;
+  line-height: 1.6;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.admin-installed-theme-meta {
+  display: flex;
+  gap: 12px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.admin-installed-theme-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
+}
+@media (max-width: 640px) {
+  .admin-installed-theme-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* 缩略图容器：16:9 比例 + 优雅的加载效果 */

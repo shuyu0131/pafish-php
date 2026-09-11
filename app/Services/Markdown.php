@@ -6,21 +6,7 @@ namespace Pafish\Services;
 
 use Pafish\Core\Hooks;
 
-/**
- * Markdown 渲染（ParsedownExtra：GFM 表格/删除线/围栏代码等）
- * Markdown 渲染：
- * - 全部链接新窗口打开（target="_blank" rel="noopener noreferrer"）
- * - 宽表格包 .md-table-wrap 滚动容器（窄屏不撑破版面）
- * - GFM 任务列表 → 复选框
- * - 代码块交给前台 highlight.js 上色（.hljs 样式已在 style.css）
- * - 数学公式（$...$ / $$...$$）与 mermaid/flowchart 围栏：渲染期用占位符保护，
- *   输出带 .md-math / .md-mermaid 标记，前台 KaTeX / mermaid 按需渲染（编辑器可写、前台可显示）
- *
- * 安全：默认开启 Parsedown safe mode（原始 HTML 转义为文本、危险链接协议清洗），
- * 默认不渲染原始 HTML，防止文章内容存储型 XSS。
- * 后台设置 md_allow_raw_html=1（仅管理员可改）时放行原始 HTML。
- * 游客评论等用户输入不走本服务。
- */
+/** Markdown 渲染与安全过滤。 */
 final class Markdown
 {
     private static ?\ParsedownExtra $parser = null;

@@ -30,6 +30,9 @@ final class ThemeAssetController
     {
         $theme = (string) ($args['theme'] ?? '');
         $path = ltrim((string) ($args['path'] ?? ''), '/');
+        if (str_starts_with($path, 'assets/')) {
+            $path = substr($path, 7);
+        }
         if (
             preg_match('/^[a-z0-9_-]{1,50}$/', $theme) !== 1
             || $path === ''
@@ -53,6 +56,8 @@ final class ThemeAssetController
 
         $response->getBody()->write((string) file_get_contents($file));
         return $response
+            // 某些服务器通过 error_page 404 转发到入口，明确设置成功状态。
+            ->withStatus(200)
             ->withHeader('Content-Type', self::TYPES[$ext])
             ->withHeader('Content-Length', (string) filesize($file))
             ->withHeader('Cache-Control', 'public, max-age=86400');

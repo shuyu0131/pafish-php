@@ -5,28 +5,10 @@ namespace Pafish\Services;
 
 use Pafish\Core\Version;
 
-/**
- * 应用商店（官方源硬编码，零配置）：
- * - 官方源：https://www.pafish.cn（官网 pafish-web 的商店 API，无需用户填写地址）
- * - 远程协议：GET {base}/api/runtime-store/v1/catalog?kind=theme|plugin → {protocol, items:[...]}
- *   字段映射：slug→name（安装目录名）、title→title、
- *   packageSha256→sha256（下载后校验）、requiresPhp→安装前 PHP 版本门槛、
- *   licenseRequired→paid（付费标记）、changelog、screenshots[0]→preview；详情保留完整截图与包元数据
- * - 目录缓存 runtime/store_catalog_{kind}.json（5 分钟 TTL）；
- *   远程目录失败 → 自动回退本地内置源 public/store/{themes,plugins}.json（zip 本地直读），
- *   商店页永不自挂，使用本地兜底
- * - 名称正则 /^[a-z0-9][a-z0-9-]{1,48}[a-z0-9]$/（与服务端 slug 规则一致，仅长度上限 50）；
- *   zip 相对路径拼 base，http(s) 直用；本地兜底走文件直读
- * - 版本比较：数字分段（容忍 v 前缀，非数字段按 0）
- * - 安装拒绝已存在（提示直接更新）；更新 = 备份旧版 → 移除 → 装新版，失败自动恢复旧版
- * - Windows 兼容：全程 SPL 递归复制/删除，不依赖 rename（PHP 8.5 + Windows 上
- *   stat 句柄会导致 rename/rmdir「拒绝访问」且时好时坏）
- * - 付费应用仅使用官网账号令牌校验购买权益，不再使用授权码下载
- * - PAFISH_STORE_URL 环境变量可覆盖官方源（仅测试注入用，生产零配置）
- */
+/** 官方应用商店：目录读取、包校验、安装更新和付费权益校验。 */
 final class Store
 {
-    /** 官方商店（官网 pafish-web 部署域名），测试可用环境变量覆盖 */
+    /** 官方商店地址。 */
     private const OFFICIAL_STORE_URL = 'https://www.pafish.cn';
 
     private const NAME_PATTERN = '/^[a-z0-9][a-z0-9-]{1,48}[a-z0-9]$/';
@@ -34,7 +16,7 @@ final class Store
     private const KIND_FILE = ['theme' => 'themes.json', 'plugin' => 'plugins.json'];
     private const CATALOG_CACHE_TTL = 300;
 
-    /** 商店地址（官方源硬编码；仅测试注入可覆盖） */
+    /** 返回商店地址。 */
     public static function baseUrl(): string
     {
         $env = trim((string) getenv('PAFISH_STORE_URL'));
@@ -239,7 +221,7 @@ final class Store
         }
     }
 
-    /** 读取目录缓存（1h TTL 内有效，对齐 Upgrade::readCache） */
+    /** 读取目录缓存。 */
     private static function readCatalogCache(string $kind): ?array
     {
         $path = PAFISH_ROOT . '/runtime/store_catalog_' . $kind . '.json';

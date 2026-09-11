@@ -15,24 +15,59 @@ use Slim\Factory\AppFactory;
 
 define('PAFISH_ROOT', dirname(__DIR__));
 
-// 1.5 静态资源直出：public/ 下的 css/ js/ uploads/ vendor/ 对外保持根路径，
-// 由 PHP 直接输出（Web 服务器静态规则未命中时兜底，功能不受影响）。
-// - Apache：.htaccess 的 RewriteRule ^(css|js|uploads)… 已映射到 public/，不会进到这里；
-// - Nginx：只需一条 try_files $uri $uri/ /index.php;，静态请求进入框架后由此输出；
-// - 本地 php -S：router.php 自带静态映射，同样不会进到这里。
-// 放在框架/会话启动之前：静态请求零框架开销（不建 session、不触发插件钩子）。
-// 静态文件一律按原内容直出，不会执行其中的 PHP。
-$__path = rawurldecode(parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/');
-// 子目录部署（如 /blog/）时资源路径带站点前缀，剥掉后匹配，与 Url::asset() 一致。
-// 仅当 SCRIPT_NAME 是入口 index.php 时才计算前缀：php -S 对「目录存在但文件不存在」
-// 的路径会把 URI 塞进 SCRIPT_NAME（如 /vendor/xxx.js），此时必须视为根部署，否则会误剥路径。
-$__scriptName = $_SERVER['SCRIPT_NAME'] ?? '/index.php';
-$__base = basename($__scriptName) === 'index.php'
-    ? (($__d = dirname($__scriptName)) === '/' || $__d === '\\' || $__d === '.' ? '' : rtrim($__d, '/\\'))
-    : '';
-if ($__base !== '' && str_starts_with($__path, $__base . '/')) {
-    $__path = substr($__path, strlen($__base));
+// 入口路径归一化：支持根目录/子目录、index.php?p=、index.php/路径三种形式。
+$__scriptName = (string) ($_SERVER['SCRIPT_NAME'] ?? '/index.php');
+$__scriptPath = parse_url($__scriptName, PHP_URL_PATH) ?: '/index.php';
+$__scriptPath = '/' . ltrim(str_replace('\\', '/', (string) $__scriptPath), '/');
+$__base = '';
+if (preg_match('#^(.*?)/index\\.php(?:/.*)?$#i', $__scriptPath, $__scriptMatch) === 1) {
+    $__base = rtrim((string) ($__scriptMatch[1] ?? ''), '/');
 }
+$__normalizePath = static function (string $path, ?string $queryPath = null) use ($__base): array {
+    $path = rawurldecode(parse_url($path, PHP_URL_PATH) ?: '/');
+    $path = '/' . ltrim($path, '/');
+
+    $relative = $path;
+    if ($__base !== '' && ($relative === $__base || str_starts_with($relative, $__base . '/'))) {
+        $relative = substr($relative, strlen($__base));
+        $relative = $relative === '' ? '/' : $relative;
+    }
+    $relative = '/' . ltrim($relative, '/');
+    $frontController = $relative === '/' || $relative === '/index.php';
+
+    if ($relative === '/index.php') {
+        $pathInfo = $_SERVER['PATH_INFO'] ?? $_SERVER['ORIG_PATH_INFO'] ?? '';
+        if (is_string($pathInfo) && $pathInfo !== '' && $pathInfo !== '/index.php') {
+            $pathInfo = rawurldecode(parse_url($pathInfo, PHP_URL_PATH) ?: '');
+            $relative = str_starts_with($pathInfo, '/index.php/')
+                ? substr($pathInfo, strlen('/index.php'))
+                : '/' . ltrim($pathInfo, '/');
+            $relative = $relative === '' ? '/' : $relative;
+            $frontController = false;
+        } else {
+            $relative = '/';
+        }
+    } elseif (str_starts_with($relative, '/index.php/')) {
+        $relative = substr($relative, strlen('/index.php')) ?: '/';
+        $frontController = false;
+    }
+
+    if ($frontController && is_string($queryPath) && $queryPath !== '') {
+        $relative = '/' . ltrim(rawurldecode($queryPath), '/');
+        $relative = $relative === '' ? '/' : $relative;
+    }
+
+    $canonical = $__base . ($relative === '/' ? '/' : $relative);
+    return [$canonical === '' ? '/' : $canonical, $relative];
+};
+
+// 静态资源在框架启动前直出；子目录部署时匹配已去掉站点前缀。
+$__requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+$__queryPath = $_GET['p'] ?? null;
+[, $__path] = $__normalizePath(
+    (string) $__requestPath,
+    is_string($__queryPath) ? $__queryPath : null
+);
 // asset() 输出 /public/ 前缀：剥掉前缀后匹配（兼容 /css/ 直链与 /public/css/ 两种）
 if (str_starts_with($__path, '/public/')) {
     $__path = substr($__path, strlen('/public'));
@@ -54,6 +89,9 @@ if ($__dir !== null) {
         http_response_code(404);
         exit;
     }
+    // 某些 Nginx 配置通过 error_page 404 回退到 index.php，
+    // 此时 PHP 进程会继承上游 404；文件已找到时必须明确恢复成功状态。
+    http_response_code(200);
     $__types = [
         'css' => 'text/css; charset=utf-8',
         'js' => 'application/javascript; charset=utf-8',
@@ -84,13 +122,62 @@ if ($__dir !== null) {
     exit;
 }
 
+if (str_starts_with($__path, '/theme-assets/')) {
+    $__assetPath = trim(substr($__path, strlen('/theme-assets/')), '/');
+    [$__theme, $__relative] = array_pad(explode('/', $__assetPath, 2), 2, '');
+    if (str_starts_with($__relative, 'assets/')) {
+        $__relative = substr($__relative, 7);
+    }
+    $__types = [
+        'css' => 'text/css; charset=utf-8',
+        'js' => 'application/javascript; charset=utf-8',
+        'png' => 'image/png',
+        'jpg' => 'image/jpeg',
+        'jpeg' => 'image/jpeg',
+        'gif' => 'image/gif',
+        'webp' => 'image/webp',
+        'avif' => 'image/avif',
+        'svg' => 'image/svg+xml',
+        'ico' => 'image/x-icon',
+        'woff' => 'font/woff',
+        'woff2' => 'font/woff2',
+        'ttf' => 'font/ttf',
+        'eot' => 'application/vnd.ms-fontobject',
+    ];
+    $__ext = strtolower(pathinfo($__relative, PATHINFO_EXTENSION));
+    if (
+        preg_match('/^[a-z0-9_-]{1,50}$/', $__theme) !== 1
+        || $__relative === ''
+        || !isset($__types[$__ext])
+        || str_contains($__relative, '..')
+        || str_contains($__relative, "\0")
+        || str_contains($__relative, '\\')
+        || str_contains($__relative, '//')
+    ) {
+        http_response_code(404);
+        exit;
+    }
+    $__file = PAFISH_ROOT . '/themes/' . $__theme . '/assets/' . $__relative;
+    if (!is_file($__file)) {
+        http_response_code(404);
+        exit;
+    }
+    // 兼容 error_page 404 → index.php 的主机配置，避免资源正文带着 404 状态返回。
+    http_response_code(200);
+    header('Content-Type: ' . $__types[$__ext]);
+    header('Content-Length: ' . (string) filesize($__file));
+    header('Cache-Control: public, max-age=86400');
+    readfile($__file);
+    exit;
+}
+
 // 1. Composer 自动加载（发布包已包含 vendor）
 require PAFISH_ROOT . '/vendor/autoload.php';
 
 // 2. 配置：未安装（无 config.php）时引导到安装向导
 $configFile = PAFISH_ROOT . '/config.php';
 if (!is_file($configFile)) {
-    header('Location: ' . ($_SERVER['SCRIPT_NAME'] ? rtrim(dirname($_SERVER['SCRIPT_NAME']), '/') . '/install.php' : 'install.php'));
+    header('Location: ' . ($__base !== '' ? $__base : '') . '/install.php');
     exit;
 }
 Config::load($configFile);
@@ -119,13 +206,16 @@ AppFactory::setContainer($container);
 $app = AppFactory::create();
 $app->setBasePath(Url::base());
 
-// 6. 中间件：JSON/表单请求体解析（Slim 4 默认不解析，需显式启用）+ ?p= 查询串兜底路由
+// 6. 中间件：请求体解析 + 入口路径归一化
 $app->addBodyParsingMiddleware();
-$app->add(function ($request, $handler) {
-    $p = $_GET['p'] ?? null;
-    if (is_string($p) && $p !== '') {
-        $uri = $request->getUri()->withPath('/' . ltrim($p, '/'));
-        $request = $request->withUri($uri);
+$app->add(function ($request, $handler) use ($__normalizePath) {
+    $uri = $request->getUri();
+    [$canonical] = $__normalizePath(
+        $uri->getPath(),
+        is_string($_GET['p'] ?? null) ? $_GET['p'] : null
+    );
+    if ($canonical !== $uri->getPath()) {
+        $request = $request->withUri($uri->withPath($canonical));
     }
     return $handler->handle($request);
 });

@@ -52,12 +52,19 @@
 
 ## 六、伪静态（Nginx）
 
-宝塔建站默认已配置 `try_files`，一般无需额外操作。若站点使用了其他 Nginx 配置，确认包含：
+伪静态的关键是：不存在的前台路径必须交给项目根目录的 `index.php`。宝塔建站通常已配置
+`try_files`，若站点使用了其他 Nginx 模板，请确认包含下面规则（root 必须是项目根目录，不能指向
+`public/`）：
 
 ```nginx
 # 伪静态：所有前台路径交给 index.php
 location / {
     try_files $uri $uri/ /index.php?$query_string;
+}
+
+# 主题资源（推荐显式添加，兼容部分宝塔模板的 error_page 404 回退）
+location ^~ /theme-assets/ {
+    try_files $uri /index.php?p=$uri&$query_string;
 }
 
 # 静态资源在 public/ 下，对外保持根路径（css/ js/ uploads/ vendor/）。
@@ -73,7 +80,16 @@ location / {
 location ~ ^/(config\.php|runtime/|backups/) { deny all; }
 ```
 
+不要把 `location /` 写成 `try_files $uri =404`，否则 `/post/...`、`/category/...` 等动态路径会在
+进入 PHP 前直接返回 404。修改后执行 `nginx -t`，再重载 Nginx。
+
+> **快速判断**：用同一篇已发布文章测试 `/post/文章slug` 和
+> `/index.php?p=post/文章slug`。只有后者能打开时，就是伪静态配置未生效；两者都打不开再检查
+> 文章状态、站点目录和 PHP 错误日志。项目入口也兼容 `/index.php/路径` 及子目录部署。
+
 > **排查提示**：若页面能打开但 CSS/JS 加载不出来（样式全丢），是**旧版本（v0.1.1 及更早）**缺少静态兜底、且服务器未配上面的「静态资源」规则所致。**v0.1.2 起已内置 PHP 静态兜底**，只需伪静态一条 `try_files`，无需再配置静态 location（配了则 Nginx 直接读盘，性能更佳）。
+
+> **主题资源 404**：如果 `/theme-assets/主题名/css/style.css` 的响应正文有内容但状态仍为 404，说明宝塔模板通过 `error_page 404` 转发入口并保留了状态码。请添加上面的 `location ^~ /theme-assets/`，或改用 `index.php?p=theme-assets/主题名/...` 验证；新版入口也会在找到文件时显式返回 200。
 
 Apache（.htaccess）已随发布包内置（含静态资源重写），无需配置。
 若服务器无法启用伪静态，可重新运行安装向导时取消勾选「启用伪静态」，或编辑 `config.php` 关闭 `pretty_urls`——该模式下链接自动使用 `index.php?p=xxx` 形式，**无需任何重写规则**。

@@ -26,60 +26,76 @@ $roleLabel = static function (string $role): string {
   </div>
 
   <?php if ($users === []): ?>
-    <div class="card admin-empty">暂无用户</div>
+    <div class="admin-empty-list card">暂无用户</div>
+  <?php else: ?>
+    <div class="admin-table-wrap admin-user-table-wrap">
+      <table class="admin-table admin-user-table">
+        <thead>
+          <tr>
+            <th>用户</th>
+            <th>角色</th>
+            <th>注册时间</th>
+            <th>内容</th>
+            <?php if ($pointsEnabled): ?><th>积分</th><?php endif; ?>
+            <th class="admin-col-ops">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <?php foreach ($users as $u): ?>
+            <?php
+            $uid = (int) $u['id'];
+            $isMe = $uid === $meId;
+            $avatar = !empty($u['avatar_url']) ? $u['avatar_url'] : admin_gravatar((string) $u['email']);
+            $disabled = ((int) $u['disabled']) === 1;
+            ?>
+            <tr class="admin-user-row" data-id="<?= $uid ?>">
+              <td data-label="用户">
+                <div class="admin-user-main">
+                  <div class="admin-user-name-row">
+                    <img class="admin-user-avatar-lg" src="<?= e($avatar) ?>" alt="" width="32" height="32">
+                    <span class="admin-user-name"><?= e((string) ($u['nickname'] ?: $u['username'])) ?></span>
+                    <?php if ($disabled): ?><span class="badge badge-danger">已禁用</span><?php endif; ?>
+                  </div>
+                  <div class="admin-muted admin-user-subline">@<?= e($u['username']) ?> · <?= e($u['email']) ?></div>
+                </div>
+              </td>
+              <td data-label="角色">
+                <select class="input admin-role-select" aria-label="角色">
+                  <?php foreach (['ADMIN' => '管理员', 'EDITOR' => '编辑', 'USER' => '用户'] as $val => $label): ?>
+                    <option value="<?= $val ?>" <?= (string) $u['role'] === $val ? 'selected' : '' ?>><?= $label ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </td>
+              <td data-label="注册时间" class="admin-user-date"><?= e(date('Y-m-d', strtotime((string) $u['created_at']))) ?></td>
+              <td data-label="内容" class="admin-user-counts"><span><?= (int) $u['post_count'] ?> 篇文章</span><span><?= (int) $u['comment_count'] ?> 条评论</span></td>
+              <?php if ($pointsEnabled): ?><td data-label="积分" class="admin-user-points-value"><?= (int) ($u['points_balance'] ?? 0) ?></td><?php endif; ?>
+              <td data-label="操作" class="admin-col-ops">
+                <div class="admin-user-ops">
+                  <?php if ($isMe): ?>
+                    <span class="admin-muted admin-current-account">当前账号</span>
+                  <?php else: ?>
+                    <?php if ($disabled): ?>
+                      <button type="button" class="btn btn-outline admin-user-unban">解禁</button>
+                    <?php else: ?>
+                      <button type="button" class="btn btn-outline admin-user-ban" data-state="idle">禁用</button>
+                    <?php endif; ?>
+                    <button type="button" class="btn btn-outline admin-user-reset">重置密码</button>
+                    <?php if ($pointsEnabled): ?><button type="button" class="btn btn-outline admin-user-points">调整积分</button><?php endif; ?>
+                    <div class="admin-user-reset-box" hidden>
+                      <input type="password" class="input admin-user-newpass" placeholder="新密码（≥6 位）" autocomplete="off" maxlength="72">
+                      <button type="button" class="btn btn-primary admin-user-reset-save" disabled>保存</button>
+                      <button type="button" class="btn btn-ghost admin-user-reset-cancel">取消</button>
+                    </div>
+                    <?php if ($pointsEnabled): ?><div class="admin-user-points-box" hidden><input type="number" class="input admin-user-points-amount" placeholder="正数发放，负数扣减"><input class="input admin-user-points-reason" placeholder="调整原因" maxlength="120"><button type="button" class="btn btn-primary admin-user-points-save">保存</button></div><?php endif; ?>
+                  <?php endif; ?>
+                </div>
+              </td>
+            </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
   <?php endif; ?>
-
-  <div class="admin-user-list">
-    <?php foreach ($users as $u): ?>
-      <?php
-      $uid = (int) $u['id'];
-      $isMe = $uid === $meId;
-      $avatar = !empty($u['avatar_url']) ? $u['avatar_url'] : admin_gravatar((string) $u['email']);
-      $disabled = ((int) $u['disabled']) === 1;
-      ?>
-      <div class="card admin-user-row" data-id="<?= $uid ?>">
-        <img class="admin-user-avatar-lg" src="<?= e($avatar) ?>" alt="" width="40" height="40">
-        <div class="admin-user-main">
-          <div class="admin-user-name-row">
-            <span class="admin-user-name"><?= e((string) ($u['nickname'] ?: $u['username'])) ?></span>
-            <span class="admin-muted">@<?= e($u['username']) ?></span>
-            <span class="badge badge-accent"><?= e($roleLabel((string) $u['role'])) ?></span>
-            <?php if ($disabled): ?>
-              <span class="badge badge-danger">已禁用</span>
-            <?php endif; ?>
-          </div>
-          <p class="admin-muted admin-user-subline">
-            <?= e($u['email']) ?> · 注册于 <?= date('Y-m-d', strtotime((string) $u['created_at'])) ?>
-            · <?= (int) $u['post_count'] ?> 篇文章 · <?= (int) $u['comment_count'] ?> 条评论
-            <?php if ($pointsEnabled): ?> · 积分 <?= (int) ($u['points_balance'] ?? 0) ?><?php endif; ?>
-          </p>
-        </div>
-        <div class="admin-user-ops">
-          <select class="input admin-role-select" aria-label="角色">
-            <?php foreach (['ADMIN' => '管理员', 'EDITOR' => '编辑', 'USER' => '用户'] as $val => $label): ?>
-              <option value="<?= $val ?>" <?= (string) $u['role'] === $val ? 'selected' : '' ?>><?= $label ?></option>
-            <?php endforeach; ?>
-          </select>
-          <?php if ($isMe): ?>
-            <span class="admin-muted admin-current-account">当前账号</span>
-          <?php else: ?>
-            <?php if ($disabled): ?>
-              <button type="button" class="btn btn-outline admin-user-unban">解禁</button>
-            <?php else: ?>
-              <button type="button" class="btn btn-outline admin-user-ban" data-state="idle">禁用</button>
-            <?php endif; ?>
-            <button type="button" class="btn btn-outline admin-user-reset">重置密码</button>
-            <?php if ($pointsEnabled): ?><button type="button" class="btn btn-outline admin-user-points">调整积分</button><div class="admin-user-points-box" hidden><input type="number" class="input admin-user-points-amount" placeholder="正数发放，负数扣减"><input class="input admin-user-points-reason" placeholder="调整原因" maxlength="120"><button type="button" class="btn btn-primary admin-user-points-save">保存</button></div><?php endif; ?>
-            <div class="admin-user-reset-box" hidden>
-              <input type="password" class="input admin-user-newpass" placeholder="新密码（≥6 位）" autocomplete="off" maxlength="72">
-              <button type="button" class="btn btn-primary admin-user-reset-save" disabled>保存</button>
-              <button type="button" class="btn btn-ghost admin-user-reset-cancel">取消</button>
-            </div>
-          <?php endif; ?>
-        </div>
-      </div>
-    <?php endforeach; ?>
-  </div>
 </div>
 
 <?php $usersCsrf = csrf_token(); ?>

@@ -147,7 +147,6 @@ $description = is_string($manifest['description'] ?? null) ? $manifest['descript
   <?php endif; ?>
 </div>
 
-<!-- 媒体库选择弹窗（对齐编辑器弹窗：浏览 /api/uploads + 点击选中） -->
 <div class="admin-modal-backdrop" id="themeMediaModal" hidden>
   <div class="admin-modal" role="dialog" aria-modal="true" aria-label="从媒体库选择">
     <div class="admin-modal-head">

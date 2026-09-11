@@ -53,21 +53,23 @@ foreach ($items as $l) {
       <p>还没有友情链接，在上方添加第一个</p>
     </div>
   <?php else: ?>
-    <div class="admin-list">
+    <div class="admin-table-wrap admin-order-table-wrap">
+      <table class="admin-table admin-order-table">
+        <thead><tr><th>名称</th><th>地址</th><th>状态</th><th class="admin-col-ops">操作</th></tr></thead>
+        <tbody>
       <?php foreach ($items as $i => $l): ?>
-        <div class="admin-list-row card" data-id="<?= (int) $l['id'] ?>"
+        <tr class="admin-list-row" data-id="<?= (int) $l['id'] ?>"
              data-name="<?= e($l['name']) ?>" data-url="<?= e($l['url']) ?>"
              data-description="<?= e($l['description'] ?? '') ?>">
-          <div class="admin-list-main">
-            <span class="admin-list-name"><?= e($l['name']) ?></span>
+          <td data-label="名称"><span class="admin-list-name"><?= e($l['name']) ?></span></td>
+          <td data-label="地址"><div class="admin-muted"><?= e($l['url']) ?><?= ($l['description'] ?? '') !== '' ? ' · ' . e($l['description']) : '' ?></div></td>
+          <td data-label="状态">
             <?php if ((int) $l['visible'] === 0): ?>
               <span class="badge badge-danger">已隐藏</span>
             <?php endif; ?>
-            <div class="admin-muted">
-              <?= e($l['url']) ?><?= ($l['description'] ?? '') !== '' ? ' · ' . e($l['description']) : '' ?>
-            </div>
-          </div>
-          <div class="admin-list-ops">
+            <?php if ((int) $l['visible'] === 1): ?><span class="badge">已显示</span><?php endif; ?>
+          </td>
+          <td data-label="操作" class="admin-col-ops"><div class="admin-list-ops">
             <button type="button" class="admin-icon-btn" data-move="up" title="上移" <?= $i === 0 ? 'disabled' : '' ?>><?= admin_icon('chevron-up', 15) ?></button>
             <button type="button" class="admin-icon-btn" data-move="down" title="下移" <?= $i === $count - 1 ? 'disabled' : '' ?>><?= admin_icon('chevron-down', 15) ?></button>
             <button type="button" class="admin-icon-btn" data-toggle title="<?= (int) $l['visible'] === 1 ? '隐藏' : '显示' ?>">
@@ -75,9 +77,9 @@ foreach ($items as $l) {
             </button>
             <button type="button" class="admin-icon-btn" data-edit title="编辑"><?= admin_icon('edit', 15) ?></button>
             <button type="button" class="admin-icon-btn admin-icon-danger" data-delete title="删除"><?= admin_icon('trash', 15) ?></button>
-          </div>
-          <!-- 行内编辑表单 -->
-          <div class="admin-list-edit" hidden>
+          </div></td>
+        </tr>
+        <tr class="admin-list-edit-row" hidden><td colspan="4"><div class="admin-list-edit">
             <form class="admin-inline-edit" method="post" novalidate>
               <?= csrf_field() ?>
               <div class="admin-form-grid">
@@ -100,9 +102,10 @@ foreach ($items as $l) {
               </div>
               <div class="admin-editor-error" hidden></div>
             </form>
-          </div>
-        </div>
+          </div></td></tr>
       <?php endforeach; ?>
+        </tbody>
+      </table>
     </div>
   <?php endif; ?>
 </div>
@@ -144,11 +147,12 @@ foreach ($items as $l) {
   document.querySelectorAll("[data-edit]").forEach(function (btn) {
     btn.addEventListener("click", function () {
       var row = btn.closest(".admin-list-row");
-      var box = row.querySelector(".admin-list-edit");
-      var open = !box.hidden;
-      document.querySelectorAll(".admin-list-edit").forEach(function (b) { b.hidden = true; });
+      var editRow = row.nextElementSibling;
+      var box = editRow.querySelector(".admin-list-edit");
+      var open = !editRow.hidden;
+      document.querySelectorAll(".admin-list-edit-row").forEach(function (b) { b.hidden = true; });
       if (open) return;
-      box.hidden = false;
+      editRow.hidden = false;
       var f = box.querySelector("form");
       f.action = base + "/" + row.getAttribute("data-id") + "/save";
       f.querySelector('[name="name"]').value = row.getAttribute("data-name");
@@ -159,7 +163,7 @@ foreach ($items as $l) {
   });
   document.querySelectorAll("[data-edit-cancel]").forEach(function (btn) {
     btn.addEventListener("click", function () {
-      btn.closest(".admin-list-edit").hidden = true;
+      btn.closest(".admin-list-edit-row").hidden = true;
     });
   });
   document.querySelectorAll(".admin-inline-edit").forEach(function (form) {

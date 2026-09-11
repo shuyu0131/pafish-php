@@ -21,7 +21,12 @@ final class ErrorHandler extends SlimErrorHandler
     protected function respond(): ResponseInterface
     {
         $status = $this->exception instanceof HttpException ? $this->exception->getCode() : 500;
-        $isApi = str_starts_with((string) $this->request->getUri()->getPath(), '/api');
+        $path = (string) $this->request->getUri()->getPath();
+        $base = Url::base();
+        if ($base !== '' && ($path === $base || str_starts_with($path, $base . '/'))) {
+            $path = substr($path, strlen($base)) ?: '/';
+        }
+        $isApi = str_starts_with($path, '/api');
 
         if ($isApi) {
             $response = $this->responseFactory->createResponse($status);

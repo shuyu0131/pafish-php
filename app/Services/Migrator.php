@@ -4,19 +4,7 @@ declare(strict_types=1);
 
 namespace Pafish\Services;
 
-/**
- * 版本化数据库迁移（v0.1.6+）：
- * - migrations/*.sql 按文件名排序逐个应用，已应用的记录在 schema_migrations 表
- * - 安装路径：install.php 仍执行 app/install/schema.sql（宽松、已验证），完成后
- *   把 0001_initial 标记为已应用基线；此后结构演进一律新增 migrations/0002_*.sql 增量
- * - 存量库升级：检测到已有业务表（users）且无迁移记录时，自动把 0001_initial
- *   视为已应用基线，只应用其后增量——新装/老装同一条演进路径
- * - 全新库也可直接导入 migrations/0001_initial.sql 建表（与 schema.sql 内容一致，
- *   由 build-release.php 校验二者同步）
- * - 失败语义：单个迁移内逐语句执行，失败即抛异常中止。注意 MySQL DDL 隐式提交、
- *   无法整体回滚，因此每个迁移文件应只包含一个目的；升级整体回滚由在线更新的
- *   整站备份机制负责（见 docs/migrations.md）
- */
+/** 运行按文件名排序的增量迁移，并记录已应用版本。 */
 final class Migrator
 {
     private const TABLE = 'schema_migrations';

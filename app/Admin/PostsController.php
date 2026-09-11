@@ -143,7 +143,7 @@ final class PostsController extends AdminController
         return $this->renderEditor($request, $response, $post);
     }
 
-    /** 保存文章（新建/更新共用；对齐 createPost/updatePost） */
+    /** 保存文章。 */
     public function save(Request $request, Response $response, array $args): Response
     {
         $this->guardCanManage();
@@ -296,7 +296,7 @@ final class PostsController extends AdminController
             throw new \RuntimeException('别名已被使用，请更换');
         }
 
-        // 摘要/封面：仅填空（对齐 fillExcerptCover）
+        // 摘要和封面仅在为空时自动补全。
         $excerpt = trim((string) ($body['excerpt'] ?? ''));
         $coverUrl = trim((string) ($body['cover_url'] ?? ''));
         if ($excerpt === '') {
@@ -585,7 +585,7 @@ final class PostsController extends AdminController
         }
     }
 
-    /** 自定义字段解析：JSON 数组，过滤空行，空则 null（对齐 serializeCustomFields） */
+    /** 解析自定义字段。 */
     private static function parseCustomFields(string $raw): ?string
     {
         $rows = json_decode($raw, true);

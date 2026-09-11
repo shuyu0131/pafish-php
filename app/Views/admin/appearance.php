@@ -5,7 +5,7 @@
  * 变量：$themes、$activeTheme
  */
 ?>
-<div class="admin-stack admin-extension-page admin-theme-page">
+<div class="admin-stack admin-theme-page">
   <div class="admin-page-head">
     <div>
       <h1 class="admin-h1">主题与外观</h1>

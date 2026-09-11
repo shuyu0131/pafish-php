@@ -43,7 +43,7 @@ final class CategoriesController extends AdminController
         return $response;
     }
 
-    /** 保存（新建/更新共用；对齐 createCategory/updateCategory） */
+    /** 保存分类。 */
     public function save(Request $request, Response $response, array $args): Response
     {
         $this->guardCanManage();

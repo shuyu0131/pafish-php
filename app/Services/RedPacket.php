@@ -6,7 +6,7 @@ namespace Pafish\Services;
 
 use Pafish\Core\DB;
 
-/** 积分红包(lumina 主题配套)：创建时冻结作者积分，领取时锁定红包并写入双方账本。机制由核心承载，界面仅 lumina 主题实现。 */
+/** 积分红包账本与领取流程。 */
 final class RedPacket
 {
     public static function fields(array|string|null $raw): array

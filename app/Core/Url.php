@@ -17,8 +17,13 @@ final class Url
     /** 初始化：根据入口脚本位置计算子目录前缀（如 /blog） */
     public static function init(string $scriptName): void
     {
-        $dir = dirname($scriptName);
-        self::$base = ($dir === '/' || $dir === '\\') ? '' : rtrim($dir, '/\\');
+        $path = parse_url($scriptName, PHP_URL_PATH) ?: '/index.php';
+        $path = '/' . ltrim(str_replace('\\', '/', (string) $path), '/');
+        if (preg_match('#^(.*?)/index\\.php(?:/.*)?$#i', $path, $match) === 1) {
+            self::$base = rtrim((string) ($match[1] ?? ''), '/');
+            return;
+        }
+        self::$base = '';
     }
 
     public static function base(): string

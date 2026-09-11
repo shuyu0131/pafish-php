@@ -31,14 +31,16 @@ $formatSize = function (int $size): string {
 $filters = [
     '' => '全部', 'image' => '图片', 'doc' => '文档', 'archive' => '压缩包', 'audio' => '音频', 'video' => '视频',
 ];
+$view = (($_GET['view'] ?? 'grid') === 'list') ? 'list' : 'grid';
 // 分页/筛选链接：t 传空=不筛选，传筛选值时保留当前搜索词
 $date = $date ?? '';
-$pageUrl = function (int $p, string $t = '') use ($q, $date): string {
+$pageUrl = function (int $p, string $t = '') use ($q, $date, $view): string {
     $qs = [];
     if ($p > 1) $qs['page'] = $p;
     if ($q !== '') $qs['q'] = $q;
     if ($t !== '') $qs['type'] = $t;
     if ($date !== '') $qs['date'] = $date;
+    if ($view !== 'grid') $qs['view'] = $view;
     return url_to('/admin/uploads' . ($qs === [] ? '' : '?' . http_build_query($qs)));
 };
 $pageCsrf = csrf_token();
@@ -59,6 +61,18 @@ $accept = 'image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip,.rar
         <a class="admin-media-filter <?= $type === $val ? 'active' : '' ?>" href="<?= e($pageUrl(1, $val)) ?>"><?= e($label) ?></a>
       <?php endforeach; ?>
     </div>
+    <?php
+      $viewParams = [];
+      if ($q !== '') $viewParams['q'] = $q;
+      if ($type !== '') $viewParams['type'] = $type;
+      if ($date !== '') $viewParams['date'] = $date;
+      $viewBase = url_to('/admin/uploads') . ($viewParams === [] ? '' : '?' . http_build_query($viewParams));
+      $viewSep = $viewParams === [] ? '?' : '&';
+    ?>
+    <div class="admin-media-view-toggle" role="group" aria-label="媒体视图">
+      <a class="admin-icon-btn<?= $view === 'grid' ? ' active' : '' ?>" href="<?= e($viewBase . $viewSep . 'view=grid') ?>" title="网格视图" aria-label="网格视图"><?= admin_icon('dashboard', 15) ?></a>
+      <a class="admin-icon-btn<?= $view === 'list' ? ' active' : '' ?>" href="<?= e($viewBase . $viewSep . 'view=list') ?>" title="列表视图" aria-label="列表视图"><?= admin_icon('list', 15) ?></a>
+    </div>
     <div class="admin-head-actions">
       <button type="button" class="btn btn-primary" id="btnUploadMedia">
         <?= admin_icon('upload', 15) ?><span id="btnUploadLabel">上传媒体</span>
@@ -74,6 +88,7 @@ $accept = 'image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip,.rar
       <p><?= ($q !== '' || $type !== '') ? '没有符合筛选条件的媒体' : '还没有媒体' ?></p>
     </div>
   <?php else: ?>
+    <?php if ($view === 'grid'): ?>
     <div class="admin-media-grid">
       <?php foreach ($items as $u): ?>
         <?php $kind = $kindOf($u); $isExternal = !str_contains((string) $u['url'], '/uploads/');
@@ -106,6 +121,26 @@ $accept = 'image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip,.rar
         </div>
       <?php endforeach; ?>
     </div>
+    <?php else: ?>
+    <div class="admin-table-wrap admin-media-table-wrap">
+      <table class="admin-table admin-media-table">
+        <thead><tr><th>文件</th><th>类型</th><th>大小</th><th>上传时间</th><th>引用</th><th class="admin-col-ops">操作</th></tr></thead>
+        <tbody>
+          <?php foreach ($items as $u): ?>
+            <?php $kind = $kindOf($u); $isExternal = !str_contains((string) $u['url'], '/uploads/'); $ext = strtolower(pathinfo((string) parse_url((string) $u['url'], PHP_URL_PATH), PATHINFO_EXTENSION)); ?>
+            <tr class="admin-media-row" data-media-id="<?= (int) $u['id'] ?>">
+              <td data-label="文件"><div class="admin-media-list-name"><span class="admin-media-list-icon"><?= admin_icon($kindIcon[$kind], 18) ?></span><span title="<?= e($u['original_name']) ?>"><?= e($u['original_name']) ?></span><?php if ($isExternal): ?><span class="badge">外链</span><?php endif; ?></div></td>
+              <td data-label="类型"><?= e(strtoupper($ext !== '' ? $ext : $kind)) ?></td>
+              <td data-label="大小"><?= e($formatSize((int) $u['size'])) ?></td>
+              <td data-label="上传时间" class="admin-media-list-date"><?= e(format_date($u['created_at'], 'yyyy-MM-dd HH:mm')) ?></td>
+              <td data-label="引用"><?= (int) ($u['usage_count'] ?? 0) ?></td>
+              <td data-label="操作" class="admin-col-ops"><div class="admin-media-ops"><button type="button" class="admin-icon-btn" data-copy-url="<?= e(absolute_url($u['url'])) ?>" title="复制完整 URL"><?= admin_icon('copy', 14) ?></button><a class="admin-icon-btn" href="<?= e($u['url']) ?>" target="_blank" rel="noopener" title="新窗口打开"><?= admin_icon('external-link', 14) ?></a><button type="button" class="admin-icon-btn admin-icon-danger" data-delete-media="<?= (int) $u['id'] ?>" data-name="<?= e($u['original_name']) ?>" title="删除"><?= admin_icon('trash', 14) ?></button></div></td>
+            </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+    <?php endif; ?>
 
     <?php if ($pages > 1): ?>
       <div class="admin-pagination">
@@ -168,6 +203,8 @@ $accept = 'image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip,.rar
       if (type) qs.push("type=" + encodeURIComponent(type));
       var date = document.getElementById("mediaDate").value;
       if (date) qs.push("date=" + encodeURIComponent(date));
+      var view = <?= json_encode($view) ?>;
+      if (view !== "grid") qs.push("view=" + encodeURIComponent(view));
       location.href = <?= json_encode(url_to('/admin/uploads')) ?> + (qs.length ? "?" + qs.join("&") : "");
     }, 500);
   });

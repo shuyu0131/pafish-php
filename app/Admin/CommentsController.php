@@ -63,7 +63,7 @@ final class CommentsController extends AdminController
         return $response;
     }
 
-    /** POST /admin/comments/{id}/status：通过 / 驳回（驳回即 SPAM，对齐 setCommentStatus） */
+    /** POST /admin/comments/{id}/status。 */
     public function status(Request $request, Response $response, array $args): Response
     {
         $this->guardCanManage();
@@ -151,7 +151,7 @@ final class CommentsController extends AdminController
         return $this->json($response, ['ok' => true, 'pinned' => $next === 1]);
     }
 
-    /** POST /admin/comments/{id}/delete：物理删除（级联删子评论，对齐 deleteComment） */
+    /** POST /admin/comments/{id}/delete。 */
     public function delete(Request $request, Response $response, array $args): Response
     {
         $this->guardCanManage();

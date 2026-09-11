@@ -215,7 +215,6 @@ $canEdit = in_array($role ?? '', ['ADMIN', 'EDITOR'], true);
     </table>
   </div>
 
-  <!-- 分页（全部页码，对齐 posts-manager） -->
   <?php if ($totalPages > 1): ?>
     <div class="admin-pager">
       <?php for ($n = 1; $n <= $totalPages; $n++): ?>

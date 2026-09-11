@@ -26,12 +26,19 @@ server {
         access_log off;
     }
 
-    # 【2】伪静态:不存在的请求回退到 index.php(让 /post/xxx 等路由生效)
+    # 【2】主题资源:主题文件在 themes/，由入口安全输出（禁止直接暴露 PHP 模板）
+    #     显式改写可兼容将 error_page 404 保留为响应状态的 Nginx 模板
+    location ^~ /theme-assets/ {
+        try_files $uri /index.php?p=$uri&$query_string;
+    }
+
+    # 【3】伪静态:不存在的请求回退到 index.php(让 /post/xxx 等路由生效)
+    #     不要改成 try_files $uri =404，否则动态路径会在进入 PHP 前直接 404
     location / {
         try_files $uri $uri/ /index.php?$query_string;
     }
 
-    # 【3】PHP:执行 index.php / install.php / cron.php
+    # 【4】PHP:执行 index.php / install.php / cron.php
     #     宝塔不同 PHP 版本 socket 不同;若用方案 B,请保留宝塔原有的 fastcgi_pass
     #     PHP 8.1 示例 socket:/tmp/php-cgi-81.sock;或 TCP:127.0.0.1:9000
     location ~ [^/]\.php(/|$) {
@@ -42,14 +49,14 @@ server {
         fastcgi_param PHP_VALUE "upload_max_filesize=20M\n post_max_size=24M\n memory_limit=256M";
     }
 
-    # 【4】敏感文件/目录禁止外部访问
+    # 【5】敏感文件/目录禁止外部访问
     location ~ ^/(config\.php|composer\.(json|lock)|\.env) { deny all; }
     location ^~ /runtime/ { deny all; }
     location ^~ /backups/ { deny all; }
 
-    # 【5】安装完成后取消注释,禁止他人访问 install.php 重装
+    # 【6】安装完成后取消注释,禁止他人访问 install.php 重装
     # location = /install.php { deny all; }
 
-    # 【6】上传大小(应用商店/主题插件 zip、备份导入)
+    # 【7】上传大小(应用商店/主题插件 zip、备份导入)
     client_max_body_size 50m;
 }

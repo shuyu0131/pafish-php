@@ -13,7 +13,7 @@ declare(strict_types=1);
  * 更新系统按元数据目录解析 zip 相对路径。notes 默认取自 CHANGELOG.md 的「## {tag}」小节。
  *
  * 排除：.git、本地 config.php、运行时产物（runtime/*、public/uploads/*、backups/*）、
- * 测试文件、编辑器文件。vendor/ 完整打包。
+ * docs/、测试文件、编辑器文件。vendor/ 完整打包；已安装主题/插件不由核心包接管。
  */
 
 $root = dirname(__DIR__);
@@ -75,6 +75,7 @@ $excludeTops = ['.git', '.gitignore', '.gitattributes', 'config.php', 'dbg_jar.t
 /** 任意层级排除的文件名/目录名 */
 function isExcluded(string $rel): bool
 {
+    $rel = preg_replace('#^pafish/#', '', str_replace('\\', '/', $rel)) ?? $rel;
     foreach (['.DS_Store', 'Thumbs.db', '*.log'] as $p) {
         if (fnmatch($p, basename($rel))) {
             return true;
@@ -85,6 +86,10 @@ function isExcluded(string $rel): bool
         return true;
     }
     if (preg_match('#^public/uploads/#', $rel) || preg_match('#^backups/#', $rel)) {
+        return true;
+    }
+    // 本地实验主题、插件和移植脚本不进入发行包。
+    if (preg_match('#^(themes/lumina(?:/|$|\.zip$)|plugins/(notify-hub|seo-push)(?:/|$|\.zip$)|scripts/port-lumina[^/]*\.php$)#i', $rel)) {
         return true;
     }
     // 自产调试/测试脚本（scripts/ 下 test*、*_test*、*_dbg*）
@@ -150,7 +155,7 @@ $packDir = static function (string $dir, string $zipPrefix) use (&$packDir, $zip
 
 // 顶层文件与目录（vendor 在列表内，完整打包）
 $topItems = [
-    'app', 'admin', 'themes', 'plugins', 'public', 'migrations', 'docs', 'scripts',
+    'app', 'admin', 'themes', 'plugins', 'public', 'migrations', 'scripts',
     'vendor', 'backups', 'runtime',
     'index.php', 'install.php', 'cron.php', 'router.php', 'upgrade.php', '.htaccess',
     'composer.json', 'composer.lock', 'config.example.php', 'README.md', 'CHANGELOG.md',

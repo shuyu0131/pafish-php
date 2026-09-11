@@ -29,7 +29,7 @@ try {
 } catch (\Throwable) {
 }
 ?>
-<div class="admin-stack">
+<div class="admin-stack admin-settings-page">
   <div class="admin-page-head">
     <div>
       <h1 class="admin-h1">站点设置</h1>
@@ -41,6 +41,7 @@ try {
 
     <!-- 站点信息 -->
     <div class="card admin-form-card">
+      <h2 class="admin-card-title">站点信息</h2>
       <div class="admin-form-grid">
         <div class="admin-field">
           <span class="label">站点名称</span>

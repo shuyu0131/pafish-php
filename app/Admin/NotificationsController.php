@@ -47,7 +47,7 @@ final class NotificationsController extends AdminController
         return $response;
     }
 
-    /** POST /admin/notifications/read-all：全部标已读（对齐 markAllNotificationsRead） */
+    /** POST /admin/notifications/read-all。 */
     public function readAll(Request $request, Response $response): Response
     {
         $this->guardCanManage();

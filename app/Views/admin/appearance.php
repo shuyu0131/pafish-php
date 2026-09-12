@@ -1,92 +1,80 @@
 <?php
-/**
- * 主题与外观：
- * 说明 → 消息条 → 已安装主题卡片（启用/设置/卸载）→ 安装卡（上传 zip / URL 下载）
- * 变量：$themes、$activeTheme
- */
+$themeTotal = count($themes);
+$themeActive = count(array_filter($themes, static fn (array $theme): bool => !empty($theme['active'])));
 ?>
 <div class="admin-stack admin-theme-page">
   <div class="admin-page-head">
     <div>
       <h1 class="admin-h1">主题与外观</h1>
     </div>
+    <div class="admin-head-actions">
+      <a class="btn btn-outline" href="<?= e(url_to('/admin/store')) ?>">应用商店</a>
+      <a class="btn btn-primary" href="#theme-install">安装主题</a>
+    </div>
   </div>
-  <p class="admin-backup-msg" id="themeMsg" hidden></p>
 
-  <div class="admin-resource-list">
-      <div class="admin-table-wrap">
-        <table class="admin-table">
-          <thead>
-            <tr>
-              <th>主题</th>
-              <th class="admin-col-md">状态</th>
-              <th class="admin-col-md">作者</th>
-              <th class="admin-col-sm">版本</th>
-              <th class="admin-col-ops">操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <?php if ($themes === []): ?>
-              <tr><td colspan="5">
-                <div class="admin-empty-list">
-                  <?= admin_icon('layout', 32) ?>
-                  <p>还没有主题</p>
-                </div>
-              </td></tr>
-            <?php endif; ?>
-            <?php foreach ($themes as $t): ?>
-              <tr>
-                <td>
-                  <div class="admin-plugin-title">
-                    <?php if ($t['active'] && $t['settingsCount'] > 0): ?>
-                      <a href="<?= e(url_to('/admin/appearance/' . rawurlencode($t['name']))) ?>" class="admin-plugin-name"><?= e($t['title']) ?></a>
-                    <?php else: ?>
-                      <span class="admin-plugin-name"><?= e($t['title']) ?></span>
-                    <?php endif; ?>
-                  </div>
-                  <div class="admin-plugin-meta">
-                    <?php if ($t['error'] !== null): ?>
-                      <span class="admin-text-danger"><?= e($t['error']) ?></span>
-                      <span class="admin-muted">（缺少有效 theme.json）</span>
-                    <?php else: ?>
-                      <span><?= e($t['description'] !== '' ? $t['description'] : '') ?></span>
-                    <?php endif; ?>
-                  </div>
-                </td>
-                <td class="admin-col-md" data-label="状态">
-                  <?php if ($t['active']): ?>
-                    <span class="badge badge-primary">当前主题</span>
-                  <?php else: ?>
-                    <span class="badge">未启用</span>
-                  <?php endif; ?>
-                </td>
-                <td class="admin-col-md" data-label="作者">
-                  <?php if (($t['authorUrl'] ?? '') !== ''): ?><a href="<?= e($t['authorUrl']) ?>" target="_blank" rel="noopener noreferrer"><?= e($t['author'] !== '' ? $t['author'] : '未知') ?></a><?php else: ?><?= e($t['author'] !== '' ? $t['author'] : '未知') ?><?php endif; ?>
-                </td>
-                <td class="admin-col-sm" data-label="版本"><?php if ($t['version'] !== ''): ?>v<?= e($t['version']) ?><?php endif; ?></td>
-                <td class="admin-col-ops" data-label="操作">
-                  <div class="admin-row-ops">
-                    <?php if ($t['active']): ?>
-                      <?php if ($t['settingsCount'] > 0): ?>
-                        <a class="btn btn-primary btn-sm" href="<?= e(url_to('/admin/appearance/' . rawurlencode($t['name']))) ?>">设置</a>
-                      <?php endif; ?>
-                    <?php else: ?>
-                      <button type="button" class="btn btn-primary btn-sm admin-theme-activate" data-name="<?= e($t['name']) ?>" data-title="<?= e($t['title']) ?>">启用</button>
-                      <button type="button" class="btn btn-ghost btn-sm admin-theme-uninstall" data-name="<?= e($t['name']) ?>" data-title="<?= e($t['title']) ?>">卸载</button>
-                    <?php endif; ?>
-                  </div>
-                </td>
-              </tr>
-            <?php endforeach; ?>
-          </tbody>
-        </table>
+  <div class="admin-resource-toolbar">
+    <div class="admin-tabs admin-resource-tabs" role="tablist" aria-label="主题筛选">
+      <button type="button" class="admin-tab is-active" data-theme-filter="all" role="tab" aria-selected="true">全部 <span class="admin-resource-count"><?= $themeTotal ?></span></button>
+      <button type="button" class="admin-tab" data-theme-filter="active" role="tab" aria-selected="false">当前主题 <span class="admin-resource-count"><?= $themeActive ?></span></button>
+      <button type="button" class="admin-tab" data-theme-filter="inactive" role="tab" aria-selected="false">未启用 <span class="admin-resource-count"><?= $themeTotal - $themeActive ?></span></button>
+    </div>
+    <input type="search" id="themeSearch" class="input admin-resource-search" placeholder="搜索主题名称或描述" autocomplete="off">
+  </div>
+
+  <div class="admin-installed-theme-grid">
+    <?php if ($themes === []): ?>
+      <div class="admin-empty-list">
+        <?= admin_icon('layout', 32) ?>
+        <p>还没有主题</p>
       </div>
+    <?php endif; ?>
+    <?php foreach ($themes as $t): ?>
+      <article class="card admin-installed-theme-card" data-theme-state="<?= $t['active'] ? 'active' : 'inactive' ?>">
+        <div class="admin-installed-theme-preview">
+          <?php if (($t['preview'] ?? '') !== ''): ?>
+            <img src="<?= e($t['preview']) ?>" alt="<?= e($t['title']) ?>" loading="lazy">
+          <?php else: ?>
+            <span class="admin-installed-theme-placeholder"><?= admin_icon('layout', 36) ?></span>
+          <?php endif; ?>
+        </div>
+        <div class="admin-installed-theme-body">
+          <div class="admin-installed-theme-title">
+            <?php if ($t['active'] && $t['settingsCount'] > 0): ?>
+              <a href="<?= e(url_to('/admin/appearance/' . rawurlencode($t['name']))) ?>"><?= e($t['title']) ?></a>
+            <?php else: ?>
+              <strong><?= e($t['title']) ?></strong>
+            <?php endif; ?>
+            <?php if ($t['active']): ?><span class="badge badge-primary">当前</span><?php endif; ?>
+          </div>
+          <p class="admin-installed-theme-desc">
+            <?= $t['error'] !== null ? e($t['error']) : e($t['description']) ?>
+            <?php if (($t['homepage'] ?? '') !== ''): ?><a class="admin-resource-link" href="<?= e($t['homepage']) ?>" target="_blank" rel="noopener noreferrer">主题主页</a><?php endif; ?>
+          </p>
+          <p class="admin-installed-theme-meta">
+            <span>
+              <?php if (($t['authorUrl'] ?? '') !== ''): ?><a href="<?= e($t['authorUrl']) ?>" target="_blank" rel="noopener noreferrer"><?= e($t['author'] !== '' ? $t['author'] : '未知作者') ?></a><?php else: ?><?= e($t['author'] !== '' ? $t['author'] : '未知作者') ?><?php endif; ?>
+            </span>
+            <?php if ($t['version'] !== ''): ?><span>v<?= e($t['version']) ?></span><?php endif; ?>
+          </p>
+        </div>
+        <div class="admin-installed-theme-actions">
+          <?php if ($t['active']): ?>
+            <?php if ($t['settingsCount'] > 0): ?>
+              <a class="btn btn-primary btn-sm" href="<?= e(url_to('/admin/appearance/' . rawurlencode($t['name']))) ?>">设置</a>
+            <?php endif; ?>
+          <?php else: ?>
+            <button type="button" class="btn btn-primary btn-sm admin-theme-activate" data-name="<?= e($t['name']) ?>" data-title="<?= e($t['title']) ?>">启用</button>
+            <button type="button" class="btn btn-ghost btn-sm admin-theme-uninstall" data-name="<?= e($t['name']) ?>" data-title="<?= e($t['title']) ?>">卸载</button>
+          <?php endif; ?>
+        </div>
+      </article>
+    <?php endforeach; ?>
   </div>
 
-  <div class="card admin-theme-install admin-install-panel">
+  <div class="admin-theme-install admin-install-panel" id="theme-install">
     <div class="admin-theme-install-head">
       <h2 class="admin-card-title">安装主题</h2>
-      <span class="badge">兼容商店分发 zip 格式</span>
     </div>
     <div class="admin-theme-install-row">
       <div class="admin-theme-install-block">
@@ -115,16 +103,10 @@
 (function () {
   "use strict";
   var CSRF = <?= json_encode($themeCsrf) ?>;
-  var msg = document.getElementById("themeMsg");
-
   function showMsg(text, isError) {
     if (typeof window.pafishToast === "function") {
       window.pafishToast(text, isError ? "error" : "success");
-      return;
     }
-    msg.textContent = text;
-    msg.className = "admin-backup-msg " + (isError ? "admin-backup-msg-error" : "admin-backup-msg-ok");
-    msg.hidden = false;
   }
   function persistMsg(text, isError) {
     try { sessionStorage.setItem("themeMsg", JSON.stringify({ t: text, e: isError ? 1 : 0 })); } catch (e) {}
@@ -137,6 +119,30 @@
       showMsg(m.t, !!m.e);
     }
   } catch (e) {}
+
+  var themeRows = Array.prototype.slice.call(document.querySelectorAll("[data-theme-state]"));
+  var themeSearch = document.getElementById("themeSearch");
+  var themeFilter = "all";
+  function filterThemes() {
+    var query = themeSearch ? themeSearch.value.trim().toLowerCase() : "";
+    themeRows.forEach(function (row) {
+      var stateMatch = themeFilter === "all" || row.dataset.themeState === themeFilter;
+      var textMatch = !query || row.textContent.toLowerCase().indexOf(query) !== -1;
+      row.hidden = !(stateMatch && textMatch);
+    });
+  }
+  document.querySelectorAll("[data-theme-filter]").forEach(function (tab) {
+    tab.addEventListener("click", function () {
+      themeFilter = tab.dataset.themeFilter;
+      document.querySelectorAll("[data-theme-filter]").forEach(function (item) {
+        var selected = item === tab;
+        item.classList.toggle("is-active", selected);
+        item.setAttribute("aria-selected", selected ? "true" : "false");
+      });
+      filterThemes();
+    });
+  });
+  if (themeSearch) themeSearch.addEventListener("input", filterThemes);
 
   function post(url, fd, onOk) {
     return fetch(url, {

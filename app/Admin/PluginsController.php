@@ -9,14 +9,8 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Psr\Http\Message\UploadedFileInterface;
 
-/**
- * 插件管理（仅 ADMIN）：
- * - 列表卡片（启用徽章/云存储后端/注入/设置项/错误标注）
- * - 启用 / 停用 / 卸载（确认删除目录与数据）/ 设置页（SchemaForm）/ zip·URL 安装
- */
 final class PluginsController extends AdminController
 {
-    /** GET /admin/plugins：插件列表 */
     public function index(Request $request, Response $response): Response
     {
         $this->guardAdmin();
@@ -34,24 +28,16 @@ final class PluginsController extends AdminController
                 'authorUrl' => self::manifestUrl($m, 'authorUrl'),
                 'homepage' => self::manifestUrl($m, 'homepage'),
                 'error' => $desc['error'],
-                'injects' => $m['injects'] ?? [],
                 'settingsCount' => count($m['settings'] ?? []),
-                'storage' => $m['storage'] ?? null,
-                'requires' => is_array($m['requires'] ?? null) ? array_values(array_filter(array_map(static fn ($v): string => is_scalar($v) ? trim((string) $v) : '', $m['requires']))) : [],
-                // 保证缺少页面声明的插件也能正常显示列表。
-                'pagesCount' => is_array($m['pages'] ?? null) ? count($m['pages']) : 0,
-                'templatesCount' => is_array($m['pageTemplates'] ?? null) ? count($m['pageTemplates']) : 0,
                 'active' => Plugin::isActive($name),
             ];
         }
         $response->getBody()->write($this->render('plugins', [
             'plugins' => $plugins,
-            'activeCount' => count(Plugin::activeNames()),
         ], '插件管理'));
         return $response;
     }
 
-    /** 兼容新旧 manifest 的外链字段，只允许 http(s)。 */
     private static function manifestUrl(?array $manifest, string $key): string
     {
         if (!is_array($manifest)) return '';
@@ -59,7 +45,6 @@ final class PluginsController extends AdminController
         return is_string($value) && preg_match('/^https?:\\/\\//i', $value) === 1 ? $value : '';
     }
 
-    /** GET /admin/plugins/{name}：插件设置页 */
     public function settings(Request $request, Response $response, array $args): Response
     {
         $this->guardAdmin();
@@ -78,7 +63,6 @@ final class PluginsController extends AdminController
         return $response;
     }
 
-    /** POST /admin/plugins/activate */
     public function activate(Request $request, Response $response): Response
     {
         $this->guardAdmin();
@@ -91,7 +75,6 @@ final class PluginsController extends AdminController
         }
     }
 
-    /** POST /admin/plugins/deactivate */
     public function deactivate(Request $request, Response $response): Response
     {
         $this->guardAdmin();
@@ -104,7 +87,6 @@ final class PluginsController extends AdminController
         }
     }
 
-    /** POST /admin/plugins/uninstall：卸载（删数据 + 目录，前端二次确认） */
     public function uninstall(Request $request, Response $response): Response
     {
         $this->guardAdmin();
@@ -117,7 +99,6 @@ final class PluginsController extends AdminController
         }
     }
 
-    /** POST /admin/plugins/save-settings：保存插件设置 */
     public function saveSettings(Request $request, Response $response): Response
     {
         $this->guardAdmin();
@@ -131,7 +112,6 @@ final class PluginsController extends AdminController
         }
     }
 
-    /** POST /admin/plugins/install：上传 zip 或 URL 下载安装 */
     public function install(Request $request, Response $response): Response
     {
         $this->guardAdmin();

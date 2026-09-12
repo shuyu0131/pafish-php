@@ -115,9 +115,33 @@
   }
 
   function init() {
-    var observer = new MutationObserver(sync);
-    observer.observe(document.body, { subtree: true, attributes: true, attributeFilter: ['hidden'] });
+    function addTooltips(root) {
+      var elements = [];
+      if (root && root.nodeType === 1 && root.matches && root.matches('button[aria-label],a[aria-label],[role="button"][aria-label]')) elements.push(root);
+      Array.prototype.push.apply(elements, (root || document).querySelectorAll('button[aria-label],a[aria-label],[role="button"][aria-label]'));
+      elements.forEach(function (el) {
+        if (!el.getAttribute('title')) el.setAttribute('title', el.getAttribute('aria-label'));
+      });
+    }
+    var observer = new MutationObserver(function (records) {
+      sync();
+      records.forEach(function (record) {
+        Array.prototype.forEach.call(record.addedNodes || [], function (node) {
+          if (node.nodeType === 1) addTooltips(node);
+        });
+      });
+    });
+    observer.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['hidden'] });
     document.addEventListener('click', function (event) {
+      var opener = event.target.closest('[data-open-install]');
+      if (opener) {
+        var target = document.querySelector(opener.getAttribute('data-open-install'));
+        if (target) {
+          target.hidden = false;
+          sync();
+        }
+        return;
+      }
       var close = event.target.closest('[data-modal-close]');
       if (close) closeModal(close.closest('.admin-modal-backdrop'));
       if (event.target.classList && event.target.classList.contains('admin-modal-backdrop')) closeModal(event.target);
@@ -139,6 +163,7 @@
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
     });
     sync();
+    addTooltips(document);
     window.pafishConfirm = confirmDialog;
     window.pafishModalSync = sync;
   }

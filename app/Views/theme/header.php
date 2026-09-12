@@ -99,7 +99,7 @@ window.pafishApi = function (p) {
     <span class="app-brand-name"><?= e($siteName) ?></span>
     <?php if ($subtitle !== ''): ?><span class="app-brand-sub"><?= e($subtitle) ?></span><?php endif; ?>
   </a>
-  <?= render_partial('sidebar-widgets') ?>
+  <?= render_partial('sidebar-widgets', ['area' => 'sidebar']) ?>
   <?php /* 插件侧边栏注入 */ do_action('sidebar_inject', ['template' => $GLOBALS['pafish_tpl_ctx'] ?? []]); ?>
 </aside>
 <?php endif; ?>

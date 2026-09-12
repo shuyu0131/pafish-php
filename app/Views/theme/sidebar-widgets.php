@@ -5,7 +5,8 @@
  */
 use Pafish\Core\DB;
 
-$widgets = widget_items();
+$area = preg_match('/^[a-z0-9_-]{1,50}$/', (string) ($area ?? 'sidebar')) === 1 ? (string) ($area ?? 'sidebar') : 'sidebar';
+$widgets = widget_items($area);
 if (!$widgets) {
     return;
 }

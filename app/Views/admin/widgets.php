@@ -3,7 +3,7 @@
  * 侧边栏组件管理：
  * - 顶部新建表单：类型下拉（6 种）+ 标题（留空用默认）+ content（仅 custom 显示）
  * - 列表行：标题（无标题显示类型名）+ 类型徽标 + 「已隐藏」badge + custom 预览首行
- * - 操作：↑/↓ 上下移动（边界禁用）、显隐、编辑（行内展开）、删除（两步确认）
+ * - 操作：↑/↓ 上下移动（边界禁用）、显隐、编辑（行内展开）、删除（确认弹窗）
  * 变量：$items $types $typeLabels $defaultTitles $role
  */
 $count = count($items);
@@ -14,13 +14,13 @@ foreach ($items as $w) {
     }
 }
 $typeJson = json_encode($defaultTitles, JSON_UNESCAPED_UNICODE);
-$labelJson = json_encode($typeLabels, JSON_UNESCAPED_UNICODE);
+$areaJson = json_encode($areas ?? ['sidebar' => '侧边栏'], JSON_UNESCAPED_UNICODE);
 ?>
 <div class="admin-stack">
   <div class="admin-page-head">
     <div>
-      <h1 class="admin-h1">侧边栏组件</h1>
-      <p class="admin-page-sub">共 <?= $count ?> 个（含隐藏 <?= $hidden ?> 个）· 组件按顺序显示在左侧栏</p>
+      <h1 class="admin-h1">组件管理</h1>
+      <p class="admin-page-sub">共 <?= $count ?> 个（含隐藏 <?= $hidden ?> 个）· 区域和顺序由当前主题决定</p>
     </div>
   </div>
 
@@ -35,6 +35,14 @@ $labelJson = json_encode($typeLabels, JSON_UNESCAPED_UNICODE);
           <select class="input" name="type" id="newType">
             <?php foreach ($types as $t): ?>
               <option value="<?= e($t) ?>" data-default="<?= e($defaultTitles[$t]) ?>"><?= e($typeLabels[$t]) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="admin-field">
+          <span class="label">显示区域 *</span>
+          <select class="input" name="area" id="newArea">
+            <?php foreach (($areas ?? ['sidebar' => '侧边栏']) as $areaKey => $areaLabel): ?>
+              <option value="<?= e($areaKey) ?>"><?= e($areaLabel) ?></option>
             <?php endforeach; ?>
           </select>
         </div>
@@ -66,15 +74,25 @@ $labelJson = json_encode($typeLabels, JSON_UNESCAPED_UNICODE);
     <div class="admin-list">
       <?php foreach ($items as $i => $w): ?>
         <?php
+        $rowArea = (string) ($w['area'] ?? 'sidebar');
+        $areaRows = array_values(array_filter($items, static fn (array $item): bool => (string) ($item['area'] ?? 'sidebar') === $rowArea));
+        $areaPosition = 0;
+        foreach ($areaRows as $areaRowIndex => $areaRow) {
+            if ((int) $areaRow['id'] === (int) $w['id']) {
+                $areaPosition = $areaRowIndex;
+                break;
+            }
+        }
         $wTitle = trim((string) ($w['title'] ?? ''));
         $showTitle = $wTitle !== '' ? $wTitle : $defaultTitles[$w['type']] ?? $w['type'];
         ?>
         <div class="admin-list-row card" data-id="<?= (int) $w['id'] ?>"
-             data-type="<?= e($w['type']) ?>" data-title="<?= e($wTitle) ?>"
+             data-type="<?= e($w['type']) ?>" data-area="<?= e((string) ($w['area'] ?? 'sidebar')) ?>" data-title="<?= e($wTitle) ?>"
              data-content="<?= e((string) ($w['content'] ?? '')) ?>">
           <div class="admin-list-main">
             <span class="admin-list-name"><?= e($showTitle) ?></span>
             <span class="badge badge-accent"><?= e($typeLabels[$w['type']] ?? $w['type']) ?></span>
+            <span class="badge"><?= e(($areas ?? ['sidebar' => '侧边栏'])[$w['area'] ?? 'sidebar'] ?? (string) ($w['area'] ?? 'sidebar')) ?></span>
             <?php if ((int) $w['visible'] === 0): ?>
               <span class="badge badge-danger">已隐藏</span>
             <?php endif; ?>
@@ -86,8 +104,8 @@ $labelJson = json_encode($typeLabels, JSON_UNESCAPED_UNICODE);
             <?php endif; ?>
           </div>
           <div class="admin-list-ops">
-            <button type="button" class="admin-icon-btn" data-move="up" title="上移" <?= $i === 0 ? 'disabled' : '' ?>><?= admin_icon('chevron-up', 15) ?></button>
-            <button type="button" class="admin-icon-btn" data-move="down" title="下移" <?= $i === $count - 1 ? 'disabled' : '' ?>><?= admin_icon('chevron-down', 15) ?></button>
+            <button type="button" class="admin-icon-btn" data-move="up" title="上移" <?= $areaPosition === 0 ? 'disabled' : '' ?>><?= admin_icon('chevron-up', 15) ?></button>
+            <button type="button" class="admin-icon-btn" data-move="down" title="下移" <?= $areaPosition === count($areaRows) - 1 ? 'disabled' : '' ?>><?= admin_icon('chevron-down', 15) ?></button>
             <button type="button" class="admin-icon-btn" data-toggle title="<?= (int) $w['visible'] === 1 ? '隐藏' : '显示' ?>">
               <?= admin_icon((int) $w['visible'] === 1 ? 'eye' : 'eye-off', 15) ?>
             </button>
@@ -104,6 +122,14 @@ $labelJson = json_encode($typeLabels, JSON_UNESCAPED_UNICODE);
                   <select class="input" name="type">
                     <?php foreach ($types as $t): ?>
                       <option value="<?= e($t) ?>" data-default="<?= e($defaultTitles[$t]) ?>"><?= e($typeLabels[$t]) ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                </div>
+                <div class="admin-field">
+                  <span class="label">显示区域 *</span>
+                  <select class="input" name="area">
+                    <?php foreach (($areas ?? ['sidebar' => '侧边栏']) as $areaKey => $areaLabel): ?>
+                      <option value="<?= e($areaKey) ?>"><?= e($areaLabel) ?></option>
                     <?php endforeach; ?>
                   </select>
                 </div>
@@ -137,7 +163,7 @@ $labelJson = json_encode($typeLabels, JSON_UNESCAPED_UNICODE);
   var CSRF = <?= json_encode($widgetsCsrf) ?>;
   var base = <?= json_encode(url_to('/admin/widgets')) ?>;
   var defaults = <?= $typeJson ?>;
-  var labels = <?= $labelJson ?>;
+  var areas = <?= $areaJson ?>;
 
   function post(url, body) {
     var fd = new FormData();
@@ -200,6 +226,7 @@ $labelJson = json_encode($typeLabels, JSON_UNESCAPED_UNICODE);
       var f = box.querySelector("form");
       f.action = base + "/" + row.getAttribute("data-id") + "/save";
       f.querySelector('[name="type"]').value = row.getAttribute("data-type");
+      f.querySelector('[name="area"]').value = row.getAttribute("data-area") || "sidebar";
       f.querySelector('[name="title"]').value = row.getAttribute("data-title");
       f.querySelector('[name="content"]').value = row.getAttribute("data-content");
       wireForm(f, true);
@@ -242,15 +269,7 @@ $labelJson = json_encode($typeLabels, JSON_UNESCAPED_UNICODE);
   });
 
   document.querySelectorAll("[data-delete]").forEach(function (btn) {
-    var armed = false;
-    var original = btn.innerHTML;
     btn.addEventListener("click", function () {
-      if (!armed) {
-        armed = true;
-        btn.textContent = "确认？";
-        setTimeout(function () { armed = false; btn.innerHTML = original; }, 2500);
-        return;
-      }
       var row = btn.closest(".admin-list-row");
       var name = row.querySelector(".admin-list-name").textContent.trim();
       (window.pafishConfirm ? window.pafishConfirm("确定删除组件「" + name + "」？", { title: "删除组件" }) : Promise.resolve(window.confirm("确定删除组件「" + name + "」？"))).then(function (ok) {

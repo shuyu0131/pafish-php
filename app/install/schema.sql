@@ -144,6 +144,7 @@ CREATE TABLE IF NOT EXISTS widgets (
   type       VARCHAR(30)     NOT NULL,
   title      VARCHAR(100)    NULL,
   content    TEXT            NULL,
+  area       VARCHAR(50)     NOT NULL DEFAULT 'sidebar',
   sort_order INT             NOT NULL DEFAULT 0,
   visible    TINYINT(1)      NOT NULL DEFAULT 1,
   created_at DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,

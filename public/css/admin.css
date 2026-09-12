@@ -238,11 +238,12 @@ select.input:hover:not(:disabled) {
 }
 .admin-control {
   position: relative;
-  display: inline-block;
+  display: inline-flex;
+  width: 100%;
   min-width: 0;
   vertical-align: middle;
 }
-.admin-control > .admin-native-control {
+.admin-control.is-enhanced > .admin-native-control {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -256,6 +257,7 @@ select.input:hover:not(:disabled) {
 .admin-control-trigger {
   position: relative;
   display: block;
+  width: 100%;
   min-width: 120px;
   padding-right: 2.2rem;
   text-align: left;
@@ -2429,9 +2431,32 @@ input[type="radio"]:focus-visible {
   font-variant-numeric: tabular-nums;
 }
 .admin-user-table .admin-user-ops {
-  min-width: 230px;
+  min-width: 190px;
   justify-content: flex-start;
 }
+.admin-user-action-modal { width: min(440px, 100%); }
+.admin-user-action-tabs {
+  display: flex;
+  gap: 4px;
+  margin: 0 0 16px;
+  border-bottom: 1px solid var(--border);
+}
+.admin-user-action-tab {
+  padding: 7px 10px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+.admin-user-action-tab:hover,
+.admin-user-action-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+.admin-user-action-modal [data-user-panel] .label + .input { margin-bottom: 12px; }
+.admin-user-action-modal [data-user-panel] .input + .label { margin-top: 4px; }
 
 /* 分页（媒体库/文章列表共用） */
 .admin-pagination {
@@ -2893,40 +2918,6 @@ a.admin-pg-btn:hover {
   font-size: 12.5px;
   white-space: nowrap;
 }
-.admin-user-reset-box {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-  flex-basis: 100%;
-  margin-top: 6px;
-  padding-top: 10px;
-  border-top: 1px dashed var(--border);
-}
-.admin-user-newpass {
-  flex: 1;
-  min-width: 180px;
-  padding: 0.35rem 0.7rem;
-  font-size: 13px;
-}
-.admin-user-reset-box .btn {
-  padding: 0.35rem 0.9rem;
-  font-size: 13px;
-  white-space: nowrap;
-}
-.admin-user-points-box {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-  flex-basis: 100%;
-  margin-top: 6px;
-  padding-top: 10px;
-  border-top: 1px dashed var(--border);
-}
-.admin-user-points-box .input { min-width: 130px; padding: 0.35rem 0.7rem; font-size: 13px; }
-.admin-user-points-box .admin-user-points-reason { flex: 1; }
-.admin-user-points-box .btn { padding: 0.35rem 0.9rem; font-size: 13px; white-space: nowrap; }
 .admin-form-actions {
   display: flex;
   align-items: center;
@@ -5089,8 +5080,6 @@ input[type="radio"] {
 
 /* 用户/文章工具栏：按钮组保持紧凑，批量操作不再挤成一条长横线。 */
 .admin-user-ops { align-items: center; flex-wrap: wrap; white-space: normal; justify-content: flex-start; }
-.admin-user-ops .admin-user-reset-box,
-.admin-user-ops .admin-user-points-box { flex-wrap: wrap; white-space: normal; }
 .admin-batch-bar {
   display: flex;
   align-items: center;

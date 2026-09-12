@@ -155,12 +155,13 @@ function nav_items(): array
 }
 
 /** 前台可见侧边栏组件（排序升序） */
-function widget_items(): array
+function widget_items(string $area = 'sidebar'): array
 {
-    $cached = \Pafish\Core\Cache::get('widgets.visible');
+    $area = preg_match('/^[a-z0-9_-]{1,50}$/', $area) === 1 ? $area : 'sidebar';
+    $cached = \Pafish\Core\Cache::get('widgets.visible.' . $area);
     if (is_array($cached)) return $cached;
-    $rows = DB::fetchAll("SELECT * FROM widgets WHERE visible = 1 ORDER BY sort_order ASC, id ASC");
-    \Pafish\Core\Cache::set('widgets.visible', $rows, 300);
+    $rows = DB::fetchAll("SELECT * FROM widgets WHERE visible = 1 AND area = ? ORDER BY sort_order ASC, id ASC", [$area]);
+    \Pafish\Core\Cache::set('widgets.visible.' . $area, $rows, 300);
     return $rows;
 }
 

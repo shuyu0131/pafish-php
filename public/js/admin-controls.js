@@ -47,7 +47,6 @@
     control.className = "admin-control admin-select-control";
     select.parentNode.insertBefore(control, select);
     control.appendChild(select);
-    select.classList.add("admin-native-control");
 
     var trigger = document.createElement("button");
     trigger.type = "button";
@@ -103,6 +102,9 @@
     });
     select.addEventListener("change", sync);
     sync();
+    // 只有触发器和菜单都建立完成后才隐藏原生控件，初始化中断时仍保留可用控件。
+    select.classList.add("admin-native-control");
+    control.classList.add("is-enhanced");
   }
 
   function initDate(input) {
@@ -112,7 +114,6 @@
     control.className = "admin-control admin-date-control";
     input.parentNode.insertBefore(control, input);
     control.appendChild(input);
-    input.classList.add("admin-native-control");
     var trigger = document.createElement("button");
     trigger.type = "button";
     trigger.className = "input admin-control-trigger";
@@ -178,6 +179,9 @@
     trigger.addEventListener("keydown", function (event) { if (event.key === "Escape") close(control); });
     input.addEventListener("change", sync);
     sync();
+    // 自定义日期面板完成后再隐藏原生输入，避免脚本异常造成字段消失。
+    input.classList.add("admin-native-control");
+    control.classList.add("is-enhanced");
   }
 
   function init(root) {

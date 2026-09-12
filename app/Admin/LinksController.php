@@ -13,7 +13,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  * 友情链接管理：
  * - 列表 sort_order ASC, id ASC；标题「展示在首页底部，共 N 个（含隐藏）」
  * - 新建 max(sort_order)+1 追加末尾；编辑不动 visible/sort_order
- * - 显隐切换；上下移动=与相邻项交换 sort_order（事务）；删除两步确认物理删
+ * - 显隐切换；上下移动=与相邻项交换 sort_order（事务）；删除确认后物理删
  * - 字段：name(1-100) / url(1-500) / description(≤255 可空，空串存 NULL)
  * 权限：ADMIN+EDITOR（guardCanManage）；CSRF 由 AdminAuthMiddleware 统一校验
  */

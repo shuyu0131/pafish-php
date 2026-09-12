@@ -2,8 +2,8 @@
 /**
  * 用户管理：
  * 全量用户按注册时间正序；每行：头像/昵称/@用户名/角色徽章/已禁用徽章/
- * 邮箱·注册日期·文章数·评论数；操作：角色下拉（含自己）、他人可禁用（两段确认）/
- * 解禁/重置密码（内联表单）
+ * 邮箱·注册日期·文章数·评论数；操作：角色下拉（含自己）、他人可禁用（确认弹窗）/
+ * 解禁/重置密码/积分调整（统一操作弹窗）
  * 变量：$users $me
  */
 $users = $users ?? [];
@@ -93,16 +93,9 @@ $roleLabel = static function (string $role): string {
                     <?php if ($disabled): ?>
                       <button type="button" class="btn btn-outline admin-user-unban">解禁</button>
                     <?php else: ?>
-                      <button type="button" class="btn btn-outline admin-user-ban" data-state="idle">禁用</button>
+                      <button type="button" class="btn btn-outline admin-user-ban">禁用</button>
                     <?php endif; ?>
-                    <button type="button" class="btn btn-outline admin-user-reset">重置密码</button>
-                    <?php if ($pointsEnabled): ?><button type="button" class="btn btn-outline admin-user-points">调整积分</button><?php endif; ?>
-                    <div class="admin-user-reset-box" hidden>
-                      <input type="password" class="input admin-user-newpass" placeholder="新密码（≥6 位）" autocomplete="off" maxlength="72">
-                      <button type="button" class="btn btn-primary admin-user-reset-save" disabled>保存</button>
-                      <button type="button" class="btn btn-ghost admin-user-reset-cancel">取消</button>
-                    </div>
-                    <?php if ($pointsEnabled): ?><div class="admin-user-points-box" hidden><input type="number" class="input admin-user-points-amount" placeholder="正数发放，负数扣减"><input class="input admin-user-points-reason" placeholder="调整原因" maxlength="120"><button type="button" class="btn btn-primary admin-user-points-save">保存</button></div><?php endif; ?>
+                    <button type="button" class="btn btn-outline admin-user-more" data-user-action="more">更多操作</button>
                   <?php endif; ?>
                 </div>
               </td>
@@ -112,6 +105,37 @@ $roleLabel = static function (string $role): string {
       </table>
     </div>
   <?php endif; ?>
+</div>
+
+<div class="admin-modal-backdrop" id="adminUserActionModal" hidden>
+  <div class="admin-modal admin-user-action-modal" role="dialog" aria-modal="true" aria-labelledby="adminUserActionTitle">
+    <div class="admin-modal-head">
+      <h2 class="admin-modal-title" id="adminUserActionTitle">用户操作</h2>
+      <button type="button" class="admin-icon-btn" data-modal-close aria-label="关闭">×</button>
+    </div>
+    <div class="admin-modal-body">
+      <p class="admin-modal-hint" id="adminUserActionHint"></p>
+      <div class="admin-user-action-tabs" role="tablist">
+        <button type="button" class="admin-user-action-tab active" data-user-mode="password">重置密码</button>
+        <?php if ($pointsEnabled): ?><button type="button" class="admin-user-action-tab" data-user-mode="points">调整积分</button><?php endif; ?>
+      </div>
+      <div data-user-panel="password">
+        <label class="label" for="adminUserNewPassword">新密码</label>
+        <input type="password" class="input" id="adminUserNewPassword" autocomplete="new-password" maxlength="72" placeholder="6-72 位">
+      </div>
+      <?php if ($pointsEnabled): ?><div data-user-panel="points" hidden>
+        <label class="label" for="adminUserPointsAmount">调整数量</label>
+        <input type="number" class="input" id="adminUserPointsAmount" placeholder="正数发放，负数扣减">
+        <label class="label" for="adminUserPointsReason">原因</label>
+        <input class="input" id="adminUserPointsReason" maxlength="120" placeholder="管理员调整">
+      </div><?php endif; ?>
+      <p class="admin-modal-error" id="adminUserActionError" hidden></p>
+    </div>
+    <div class="admin-modal-actions">
+      <button type="button" class="btn btn-ghost" data-modal-close>取消</button>
+      <button type="button" class="btn btn-primary" id="adminUserActionSave">保存</button>
+    </div>
+  </div>
 </div>
 
 <?php $usersCsrf = csrf_token(); ?>
@@ -156,27 +180,19 @@ $roleLabel = static function (string $role): string {
     });
   });
 
-  // 禁用：两段确认（「禁用」→ 红色「确认禁用？」→ 再点提交；2.5s 复位）
+  // 禁用确认
   document.querySelectorAll(".admin-user-ban").forEach(function (btn) {
     btn.addEventListener("click", function () {
-      if (btn.dataset.state === "confirm") {
-        var row = btn.closest(".admin-user-row");
+      var row = btn.closest(".admin-user-row");
+      var name = row.querySelector(".admin-user-name").textContent.trim();
+      (window.pafishConfirm ? window.pafishConfirm("确定禁用用户「" + name + "」？", { title: "禁用用户" }) : Promise.resolve(window.confirm("确定禁用该用户？"))).then(function (ok) {
+        if (!ok) return;
         var fd = new FormData();
         fd.append("_csrf", CSRF);
         post("/admin/users/" + row.dataset.id + "/toggle", fd, function () {
           pafishToastReload("用户已禁用", "success");
         });
-        return;
-      }
-      btn.dataset.state = "confirm";
-      btn.textContent = "确认禁用？";
-      btn.classList.add("btn-danger");
-      clearTimeout(btn._t);
-      btn._t = setTimeout(function () {
-        btn.dataset.state = "idle";
-        btn.textContent = "禁用";
-        btn.classList.remove("btn-danger");
-      }, 2500);
+      });
     });
   });
 
@@ -192,62 +208,52 @@ $roleLabel = static function (string $role): string {
     });
   });
 
-  // 重置密码：内联表单（新密码 ≥6 位才能保存）
-  document.querySelectorAll(".admin-user-reset").forEach(function (btn) {
+  var actionModal = document.getElementById("adminUserActionModal");
+  var actionMode = "password";
+  var actionRow = null;
+  var actionError = document.getElementById("adminUserActionError");
+  function closeActionModal() {
+    actionModal.hidden = true;
+    if (window.pafishModalSync) window.pafishModalSync();
+  }
+  function setActionMode(mode) {
+    actionMode = mode;
+    document.querySelectorAll(".admin-user-action-tab").forEach(function (tab) { tab.classList.toggle("active", tab.dataset.userMode === mode); });
+    document.querySelectorAll("[data-user-panel]").forEach(function (panel) { panel.hidden = panel.dataset.userPanel !== mode; });
+    actionError.hidden = true;
+  }
+  document.querySelectorAll(".admin-user-action-tab").forEach(function (tab) { tab.addEventListener("click", function () { setActionMode(tab.dataset.userMode); }); });
+  document.querySelectorAll(".admin-user-more").forEach(function (btn) {
     btn.addEventListener("click", function () {
-      var ops = btn.closest(".admin-user-ops");
-      var box = ops.querySelector(".admin-user-reset-box");
-      box.hidden = !box.hidden;
-      if (!box.hidden) {
-        var input = box.querySelector(".admin-user-newpass");
-        input.value = "";
-        box.querySelector(".admin-user-reset-save").disabled = true;
-        input.focus();
-      }
+      actionRow = btn.closest(".admin-user-row");
+      document.getElementById("adminUserActionHint").textContent = "正在操作：" + (actionRow.querySelector(".admin-user-name").textContent || "用户");
+      document.getElementById("adminUserNewPassword").value = "";
+      <?php if ($pointsEnabled): ?>document.getElementById("adminUserPointsAmount").value = ""; document.getElementById("adminUserPointsReason").value = "";<?php endif; ?>
+      setActionMode("password");
+      actionModal.hidden = false;
+      if (window.pafishModalSync) window.pafishModalSync();
+      document.getElementById("adminUserNewPassword").focus();
     });
   });
-  document.querySelectorAll(".admin-user-reset-cancel").forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      btn.closest(".admin-user-reset-box").hidden = true;
-    });
-  });
-  document.querySelectorAll(".admin-user-newpass").forEach(function (input) {
-    input.addEventListener("input", function () {
-      var box = input.closest(".admin-user-reset-box");
-      box.querySelector(".admin-user-reset-save").disabled = input.value.length < 6;
-    });
-  });
-  document.querySelectorAll(".admin-user-reset-save").forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      var box = btn.closest(".admin-user-reset-box");
-      var row = btn.closest(".admin-user-row");
-      var fd = new FormData();
-      fd.append("password", box.querySelector(".admin-user-newpass").value);
-      fd.append("_csrf", CSRF);
-      post("/admin/users/" + row.dataset.id + "/reset-password", fd, function () {
-        box.hidden = true;
-        pafishToast("密码已重置", "success");
-      });
-    });
-  });
-  document.querySelectorAll(".admin-user-points").forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      var box = btn.closest(".admin-user-ops").querySelector(".admin-user-points-box");
-      box.hidden = !box.hidden;
-      if (!box.hidden) box.querySelector(".admin-user-points-amount").focus();
-    });
-  });
-  document.querySelectorAll(".admin-user-points-save").forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      var box = btn.closest(".admin-user-points-box");
-      var row = btn.closest(".admin-user-row");
-      var amount = box.querySelector(".admin-user-points-amount").value;
-      if (!amount || Number(amount) === 0) { pafishNotify("请输入非零积分", true); return; }
-      var fd = new FormData();
+  document.getElementById("adminUserActionSave").addEventListener("click", function () {
+    if (!actionRow) return;
+    var fd = new FormData();
+    fd.append("_csrf", CSRF);
+    var endpoint = "reset-password";
+    if (actionMode === "password") {
+      var password = document.getElementById("adminUserNewPassword").value;
+      if (password.length < 6 || password.length > 72) { actionError.textContent = "密码长度需 6-72 位"; actionError.hidden = false; return; }
+      fd.append("password", password);
+    } else {
+      endpoint = "points";
+      var amount = document.getElementById("adminUserPointsAmount").value;
+      if (!amount || Number(amount) === 0) { actionError.textContent = "请输入非零积分"; actionError.hidden = false; return; }
       fd.append("amount", amount);
-      fd.append("reason", box.querySelector(".admin-user-points-reason").value);
-      fd.append("_csrf", CSRF);
-      post("/admin/users/" + row.dataset.id + "/points", fd, function () { pafishToastReload("积分已调整", "success"); });
+      fd.append("reason", document.getElementById("adminUserPointsReason").value);
+    }
+    post("/admin/users/" + actionRow.dataset.id + "/" + endpoint, fd, function () {
+      closeActionModal();
+      pafishToastReload(actionMode === "password" ? "密码已重置" : "积分已调整", "success");
     });
   });
 

@@ -1,9 +1,5 @@
 <?php
-/**
- * 应用商店：
- * 消息条 → 源标识 → 双 Tab（主题/插件）→ 卡片网格 → 应用详情弹窗
- * 变量：$themeCat、$pluginCat、$catError、$storeUrl、$storeAccountStatus
- */
+/** 应用商店目录与安装更新。 */
 function store_kind_label(string $kind): string
 {
     return $kind === 'theme' ? '主题' : '插件';
@@ -51,6 +47,12 @@ sort($allCategories);
     <button type="button" class="admin-tab" data-kind="plugin" role="tab">插件（<?= count($pluginCat['items']) ?>）</button>
   </div>
 
+  <div class="admin-store-view-tabs" role="tablist" aria-label="应用状态">
+    <button type="button" class="admin-store-view-tab is-active" data-store-state="all" role="tab" aria-selected="true">全部</button>
+    <button type="button" class="admin-store-view-tab" data-store-state="installed" role="tab" aria-selected="false">已安装</button>
+    <button type="button" class="admin-store-view-tab" data-store-state="upgradeable" role="tab" aria-selected="false">可更新</button>
+  </div>
+
   <div class="admin-store-toolbar">
     <input type="search" id="storeSearch" class="input admin-store-search" placeholder="搜索已上架的主题与插件…" autocomplete="off">
     <?php if ($allCategories): ?>
@@ -70,33 +72,36 @@ sort($allCategories);
       <?php else: ?>
         <div class="admin-theme-grid">
           <?php foreach ($cat['items'] as $item): ?>
-            <div class="card admin-theme-card" data-search="<?= e(mb_strtolower(($item['title'] ?? '') . ' ' . ($item['description'] ?? ''))) ?>" data-category="<?= e($item['category'] ?? '') ?>" data-store-item="<?= e(json_encode($item, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>" data-store-kind="<?= e($kind) ?>">
-              <?php if (($item['preview'] ?? '') !== ''): ?>
-                <div class="admin-store-thumb">
-                  <img src="<?= e($item['preview']) ?>" alt="<?= e($item['title']) ?>" loading="lazy" onerror="this.closest('.admin-store-thumb').hidden = true">
-                </div>
-              <?php endif; ?>
-              <div class="admin-theme-head">
-                <p class="admin-theme-name"><?= e($item['title']) ?>
-                  <?php if (($item['category'] ?? '') !== ''): ?><span class="badge"><?= e($item['category']) ?></span><?php endif; ?>
-                  <?php if (!empty($item['paid'])): ?><span class="badge badge-accent">付费</span><?php endif; ?>
-                  <?php if (!empty($item['paid']) && !empty($item['purchased'])): ?><span class="badge badge-primary">已购买</span><?php endif; ?>
-                  <?php if ($item['installed']): ?>
-                    <?php if ($item['updateAvailable']): ?>
-                      <span class="badge badge-accent">可更新</span>
-                    <?php else: ?>
-                      <span class="badge badge-primary">已安装</span>
+            <div class="card admin-theme-card" data-search="<?= e(mb_strtolower(($item['title'] ?? '') . ' ' . ($item['description'] ?? ''))) ?>" data-category="<?= e($item['category'] ?? '') ?>" data-installed="<?= $item['installed'] ? '1' : '0' ?>" data-upgradeable="<?= $item['updateAvailable'] ? '1' : '0' ?>" data-store-item="<?= e(json_encode($item, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>" data-store-kind="<?= e($kind) ?>">
+              <div class="admin-store-card-main">
+                <?php if (($item['preview'] ?? '') !== ''): ?>
+                  <div class="admin-store-thumb">
+                    <img src="<?= e($item['preview']) ?>" alt="<?= e($item['title']) ?>" loading="lazy" onerror="this.closest('.admin-store-thumb').classList.add('is-empty'); this.remove()">
+                  </div>
+                <?php else: ?>
+                  <div class="admin-store-thumb is-empty" aria-hidden="true"></div>
+                <?php endif; ?>
+                <div class="admin-theme-head">
+                  <p class="admin-theme-name">
+                    <span class="admin-theme-title-text"><?= e($item['title']) ?></span>
+                    <?php if (!empty($item['paid'])): ?><span class="badge badge-accent">付费</span><?php else: ?><span class="badge badge-primary">免费</span><?php endif; ?>
+                    <?php if (!empty($item['paid']) && !empty($item['purchased'])): ?><span class="badge badge-primary">已购买</span><?php endif; ?>
+                    <?php if ($item['installed']): ?>
+                      <?php if ($item['updateAvailable']): ?><span class="badge badge-accent">可更新</span>
+                      <?php else: ?><span class="badge badge-primary">已安装</span><?php endif; ?>
                     <?php endif; ?>
-                  <?php endif; ?>
-                  <span class="admin-theme-version">v<?= e($item['version']) ?></span>
-                </p>
-                <p class="admin-theme-desc"><?= e($item['description'] !== '' ? $item['description'] : '（该条目未提供描述）') ?></p>
-                <p class="admin-muted admin-theme-meta">
-                  作者：<?= e($item['author'] !== '' ? $item['author'] : '未知') ?>
-                  <?php if ($item['installed']): ?>
-                    　本地版本：v<?= e($item['localVersion']) ?><?= $item['updateAvailable'] ? '' : '（最新）' ?>
-                  <?php endif; ?>
-                </p>
+                  </p>
+                  <p class="admin-theme-desc"><?= e($item['description'] !== '' ? $item['description'] : '暂无描述') ?></p>
+                  <p class="admin-theme-meta">
+                    <span>作者：<?= e($item['author'] !== '' ? $item['author'] : '未知') ?></span>
+                    <span>最新 v<?= e($item['version']) ?></span>
+                  </p>
+                </div>
+              </div>
+              <div class="admin-store-card-info">
+                <?php if (($item['category'] ?? '') !== ''): ?><span><?= e($item['category']) ?></span><?php endif; ?>
+                <span><?= e($item['name']) ?></span>
+                <?php if ($item['installed']): ?><span>本地 v<?= e($item['localVersion']) ?></span><?php endif; ?>
               </div>
               <div class="admin-theme-ops">
                 <button type="button" class="btn btn-ghost btn-sm admin-store-detail">查看详情</button>
@@ -226,6 +231,7 @@ sort($allCategories);
   // ========== 搜索 + 分类筛选 ==========
   var search = document.getElementById("storeSearch");
   var catSelect = document.getElementById("storeCategory");
+  var storeState = "all";
   var searchTimer = null;
 
   function applyStoreFilters() {
@@ -241,7 +247,10 @@ sort($allCategories);
     cards.forEach(function(card) {
       var matchQ = q === "" || (card.dataset.search || "").indexOf(q) !== -1;
       var matchCat = cat === "" || card.dataset.category === cat;
-      var isVisible = matchQ && matchCat;
+      var matchState = storeState === "all" ||
+        (storeState === "installed" && card.dataset.installed === "1") ||
+        (storeState === "upgradeable" && card.dataset.upgradeable === "1");
+      var isVisible = matchQ && matchCat && matchState;
 
       card.style.display = isVisible ? "" : "none";
       if (isVisible) {
@@ -275,6 +284,18 @@ sort($allCategories);
   if (catSelect) {
     catSelect.addEventListener("change", applyStoreFilters);
   }
+
+  document.querySelectorAll("[data-store-state]").forEach(function(tab) {
+    tab.addEventListener("click", function() {
+      storeState = tab.dataset.storeState || "all";
+      document.querySelectorAll("[data-store-state]").forEach(function(item) {
+        var active = item === tab;
+        item.classList.toggle("is-active", active);
+        item.setAttribute("aria-selected", active ? "true" : "false");
+      });
+      applyStoreFilters();
+    });
+  });
 
   // ========== 详情抽屉 ==========
   function openDrawer(card) {

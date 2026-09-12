@@ -8,6 +8,9 @@
 get_header();
 ?>
 <div class="container container-narrow">
+  <header class="page-header">
+    <h1 class="page-title"><?= e((string) ($title ?? $pluginName ?? '')) ?></h1>
+  </header>
   <div class="plugin-page"><?= $pluginPageHtml ?></div>
 </div>
 <?php

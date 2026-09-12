@@ -4527,9 +4527,40 @@ a.admin-pg-btn:hover {
 .admin-resource-list .admin-table td:last-child { white-space: nowrap; overflow-wrap: normal; }
 .admin-resource-list .admin-row-ops { display: inline-flex; align-items: center; flex-wrap: nowrap; gap: 8px; white-space: nowrap; }
 .admin-resource-list .admin-row-ops .btn { flex: 0 0 auto; white-space: nowrap; }
+.admin-table { table-layout: fixed; }
+.admin-table th, .admin-table td { min-width: 0; }
+.admin-table th.admin-col-check, .admin-table td.admin-col-check { width: 42px; }
+.admin-table th.admin-col-ops, .admin-table td.admin-col-ops { width: 150px; }
+.admin-table td:not(.admin-col-ops) { overflow-wrap: anywhere; }
 @media (max-width: 767px) {
   .admin-store-page .admin-theme-ops .btn { white-space: nowrap; }
 }
+
+.btn {
+  min-height: 32px;
+  padding: 4px 15px;
+  border-radius: 6px;
+  font-weight: 400;
+  box-shadow: none;
+  transition: color .15s, background-color .15s, border-color .15s, box-shadow .15s;
+}
+.btn-sm { min-height: 28px; padding: 3px 10px; border-radius: 5px; }
+.btn-primary { box-shadow: 0 1px 2px rgba(22,119,255,.16); }
+.btn-primary:hover { box-shadow: 0 2px 4px rgba(22,119,255,.2); }
+.input { min-height: 32px; padding: 4px 11px; border-radius: 6px; border-color: #d9d9d9; }
+.input:hover { border-color: color-mix(in srgb, var(--accent) 65%, #d9d9d9); }
+.card { border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,.03); }
+.badge { border-radius: 5px; padding: 2px 7px; }
+.admin-icon-btn { border-radius: 6px; }
+.admin-tabs { background: transparent; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; padding: 0; gap: 4px; }
+.admin-tabs .admin-tab { border-radius: 0; margin-bottom: -1px; padding: 9px 14px; }
+.admin-tabs .admin-tab.is-active,
+.admin-tabs .admin-tab[aria-selected="true"] { border-color: transparent transparent var(--accent); border-bottom-width: 2px; box-shadow: none; background: transparent; }
+.admin-table-wrap { border-radius: 8px; box-shadow: none; }
+.admin-table thead th { background: #fafafa; font-weight: 500; }
+.dark .admin-table thead th { background: #202020; }
+.admin-table tbody tr:hover { background: #fafafa; }
+.dark .admin-table tbody tr:hover { background: #242424; }
 
 /* 文章编辑：移动端先展示标题和编辑器，再展示发布及页面设置。 */
 @media (max-width: 1023px) {

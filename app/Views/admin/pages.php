@@ -18,8 +18,6 @@
     </div>
   </div>
 
-  <div class="admin-page-note">页面用于独立内容（关于、联系等）；模板仅决定页面的呈现方式，主题或插件停用后对应模板会自动隐藏。</div>
-
   <div class="admin-table-wrap">
     <table class="admin-table">
       <thead>
@@ -50,11 +48,13 @@
                   <span class="admin-post-title-text"><?= e($p['title']) ?></span>
                 </a>
                 <div class="admin-post-meta">
-                  <span class="badge <?= $p['status'] === 'PUBLISHED' ? 'badge-success' : '' ?>">
-                    <?= $p['status'] === 'PUBLISHED' ? '已发布' : '草稿' ?>
-                  </span>
                   <span>/<?= e($p['slug']) ?></span>
                 </div>
+              </td>
+              <td data-label="状态">
+                <span class="badge <?= $p['status'] === 'PUBLISHED' ? 'badge-success' : '' ?>">
+                  <?= $p['status'] === 'PUBLISHED' ? '已发布' : '草稿' ?>
+                </span>
               </td>
               <td class="admin-muted" data-label="模板"><?= e(($templateOptions[$p['template']] ?? $p['template'])) ?></td>
               <td class="admin-muted" data-label="更新时间"><?= e(format_date($p['updated_at'], 'yyyy-MM-dd HH:mm')) ?></td>

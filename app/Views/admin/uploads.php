@@ -224,8 +224,8 @@ $accept = 'image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip,.rar
     uploadBtn.disabled = true;
     function next() {
       if (i >= files.length) {
-        if (failed) pafishNotify(failed + " 个文件上传失败（检查类型与大小限制）");
-        location.reload();
+        if (failed) pafishToastReload("上传完成，失败 " + failed + " 个文件", "error");
+        else pafishToastReload("文件上传成功", "success");
         return;
       }
       var f = files[i++];
@@ -275,14 +275,14 @@ $accept = 'image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip,.rar
         return post(<?= json_encode(url_to('/admin/uploads')) ?> + "/" + id + "/delete")
         .then(function (r) { return r.json(); })
         .then(function (j) {
-          if (j && j.ok) location.reload();
+          if (j && j.ok) pafishToastReload("媒体已删除", "success");
           else if (j && j.usageCount) {
             (window.pafishConfirm ? window.pafishConfirm("该媒体仍被引用 " + j.usageCount + " 次，确认强制删除？", { title: "强制删除媒体" }) : Promise.resolve(window.confirm("确认强制删除？"))).then(function (force) {
-              if (force) post(<?= json_encode(url_to('/admin/uploads')) ?> + "/" + id + "/delete", { force: "1" }).then(function () { location.reload(); });
+              if (force) post(<?= json_encode(url_to('/admin/uploads')) ?> + "/" + id + "/delete", { force: "1" }).then(function (forced) { if (forced && forced.ok) pafishToastReload("媒体已强制删除", "success"); else pafishNotify("强制删除失败", true); });
             });
-          } else pafishNotify((j && j.error) || "删除失败");
+          } else pafishNotify((j && j.error) || "删除失败", true);
         })
-        .catch(function () { pafishNotify("网络错误"); });
+        .catch(function () { pafishNotify("网络错误", true); });
       });
     });
   });
@@ -303,10 +303,10 @@ $accept = 'image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip,.rar
     post(<?= json_encode(url_to('/admin/uploads/external')) ?>, { url: url, name: extName.value.trim() })
       .then(function (r) { return r.json(); })
       .then(function (j) {
-        if (j && j.ok) location.reload();
-        else { extError.textContent = (j && j.error) || "添加失败"; extError.hidden = false; }
+        if (j && j.ok) pafishToastReload("外部媒体已添加", "success");
+        else { extError.textContent = (j && j.error) || "添加失败"; extError.hidden = false; pafishNotify((j && j.error) || "添加失败", true); }
       })
-      .catch(function () { extError.textContent = "网络错误"; extError.hidden = false; });
+      .catch(function () { extError.textContent = "网络错误"; extError.hidden = false; pafishNotify("网络错误", true); });
   });
 })();
 </script>

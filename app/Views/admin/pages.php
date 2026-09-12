@@ -100,10 +100,10 @@
         set: btn.getAttribute("data-set")
       }).then(function (r) { return r.json(); })
         .then(function (j) {
-          if (j && j.ok) location.reload();
-          else pafishNotify((j && j.error) || "操作失败");
+          if (j && j.ok) pafishToastReload("页面状态已更新", "success");
+          else pafishNotify((j && j.error) || "操作失败", true);
         })
-        .catch(function () { pafishNotify("网络错误"); });
+        .catch(function () { pafishNotify("网络错误", true); });
     });
   });
 
@@ -120,10 +120,14 @@
           if (j && j.ok) {
             var row = btn.closest("[data-page-row]");
             if (row) row.remove();
-            if (!document.querySelector("[data-page-row]")) location.reload();
-          } else pafishNotify((j && j.error) || "删除失败");
+            if (document.querySelector("[data-page-row]")) {
+              pafishToast("页面已删除", "success");
+            } else {
+              pafishToastReload("页面已删除", "success");
+            }
+          } else pafishNotify((j && j.error) || "删除失败", true);
         })
-        .catch(function () { pafishNotify("网络错误"); });
+        .catch(function () { pafishNotify("网络错误", true); });
       });
     });
   });

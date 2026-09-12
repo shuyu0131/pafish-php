@@ -97,6 +97,12 @@
   var errorBox = document.querySelector(".admin-editor-error");
   var submitBtn = document.querySelector("#tagForm .btn-primary");
 
+  function showError(message) {
+    errorBox.textContent = message;
+    errorBox.hidden = false;
+    if (typeof window.pafishToast === "function") window.pafishToast(message, "error");
+  }
+
   function post(url, body) {
     var fd = new FormData();
     Object.keys(body || {}).forEach(function (k) { fd.append(k, body[k]); });
@@ -130,16 +136,17 @@
   form.addEventListener("submit", function (e) {
     e.preventDefault();
     errorBox.hidden = true;
-    if (!fName.value.trim()) { errorBox.textContent = "请填写标签名称"; errorBox.hidden = false; return; }
+    if (!fName.value.trim()) { showError("请填写标签名称"); return; }
     var fd = new FormData(form);
     fd.set("_csrf", CSRF);
     fetch(form.action, { method: "POST", body: fd, headers: { "X-Requested-With": "XMLHttpRequest" } })
       .then(function (r) { return r.json(); })
       .then(function (j) {
-        if (j && j.ok) location.reload();
-        else { errorBox.textContent = (j && j.error) || "保存失败"; errorBox.hidden = false; }
+        if (j && j.ok) {
+          pafishToastReload(fId.value ? "标签已更新" : "标签已创建", "success");
+        } else { showError((j && j.error) || "保存失败"); }
       })
-      .catch(function () { errorBox.textContent = "网络错误"; errorBox.hidden = false; });
+      .catch(function () { showError("网络错误"); });
   });
 
   document.querySelectorAll("[data-delete-tag]").forEach(function (btn) {
@@ -150,10 +157,10 @@
         return post(<?= json_encode(url_to('/admin/tags')) ?> + "/" + btn.getAttribute("data-delete-tag") + "/delete")
         .then(function (r) { return r.json(); })
         .then(function (j) {
-          if (j && j.ok) location.reload();
-          else pafishNotify((j && j.error) || "删除失败");
+          if (j && j.ok) pafishToastReload("标签已删除", "success");
+          else pafishNotify((j && j.error) || "删除失败", true);
         })
-        .catch(function () { pafishNotify("网络错误"); });
+        .catch(function () { pafishNotify("网络错误", true); });
       });
     });
   });

@@ -95,10 +95,14 @@ $avatar = !empty($me['avatar_url']) ? $me['avatar_url'] : admin_gravatar((string
       body: fd,
       headers: { "X-Requested-With": "XMLHttpRequest" }
     })
-      .then(function (r) { return r.json(); })
+      .then(function (r) {
+        return r.json().then(function (j) {
+          if (!r.ok || !j || !j.ok) throw new Error((j && j.error) || "操作失败");
+          return j;
+        });
+      })
       .then(function (j) {
-        if (j && j.ok) onOk(j);
-        else { throw new Error((j && j.error) || "操作失败"); }
+        onOk(j);
       });
   }
   function bind(formId, errId, onOk) {
@@ -107,20 +111,25 @@ $avatar = !empty($me['avatar_url']) ? $me['avatar_url'] : admin_gravatar((string
     form.addEventListener("submit", function (e) {
       e.preventDefault();
       errBox.hidden = true;
+      var submit = form.querySelector("button[type=submit]");
+      if (submit) { submit.disabled = true; submit.dataset.label = submit.textContent; submit.textContent = "保存中…"; }
       post(form.action, new FormData(form), onOk)
         .catch(function (err) {
           errBox.textContent = err.message;
           errBox.hidden = false;
+          if (typeof window.pafishToast === "function") window.pafishToast(err.message, "error");
+        })
+        .finally(function () {
+          if (submit) { submit.disabled = false; submit.textContent = submit.dataset.label || "保存"; }
         });
     });
   }
 
-  // 资料保存：成功显示「已保存」
+  // 资料保存：统一使用后台 toast
   var savedBox = document.getElementById("profileSaved");
   bind("profileForm", "profileError", function () {
-    savedBox.hidden = false;
-    clearTimeout(savedBox._t);
-    savedBox._t = setTimeout(function () { savedBox.hidden = true; }, 2500);
+    savedBox.hidden = true;
+    if (typeof window.pafishToast === "function") window.pafishToast("个人资料已保存", "success");
   });
 
   // 修改密码：前端先比对两次输入；成功后清空三框
@@ -140,15 +149,16 @@ $avatar = !empty($me['avatar_url']) ? $me['avatar_url'] : admin_gravatar((string
     var fd = new FormData(pwForm);
     fd.delete("confirm_password");
     post(pwForm.action, fd, function () {
-      pwOk.hidden = false;
+      pwOk.hidden = true;
       clearTimeout(pwOk._t);
-      pwOk._t = setTimeout(function () { pwOk.hidden = true; }, 3000);
+      if (typeof window.pafishToast === "function") window.pafishToast("密码已修改，下次登录请使用新密码", "success");
       ["current_password", "new_password", "confirm_password"].forEach(function (k) {
         pwForm.elements[k].value = "";
       });
     }).catch(function (err) {
       errBox.textContent = err.message;
       errBox.hidden = false;
+      if (typeof window.pafishToast === "function") window.pafishToast(err.message, "error");
     });
   });
 
@@ -169,7 +179,7 @@ $avatar = !empty($me['avatar_url']) ? $me['avatar_url'] : admin_gravatar((string
       preview.src = j.url;
       fileInput.value = "";
     }).catch(function (err) {
-      pafishNotify(err.message || "上传失败");
+      pafishNotify(err.message || "上传失败", true);
       fileInput.value = "";
     });
   });

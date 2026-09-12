@@ -35,7 +35,7 @@
   function showError(msg) {
     errorBox.textContent = msg;
     errorBox.hidden = false;
-    if (typeof window.pafishNotify === "function") window.pafishNotify(msg);
+    if (typeof window.pafishNotify === "function") window.pafishNotify(msg, true);
   }
   function hideError() {
     errorBox.hidden = true;

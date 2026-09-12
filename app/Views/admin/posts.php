@@ -107,32 +107,6 @@ $canEdit = in_array($role ?? '', ['ADMIN', 'EDITOR'], true);
     </select>
   </div>
 
-  <!-- 批量操作栏 -->
-  <form method="post" action="<?= e(url_to('/admin/posts/batch')) ?>" class="admin-batch-bar" hidden>
-    <?= csrf_field() ?>
-    <input type="hidden" name="ids" value="">
-    <span class="admin-batch-count">已选 <b>0</b> 篇</span>
-    <?php if ($isTrash): ?>
-      <button type="submit" name="op" value="restore" class="btn btn-outline">恢复</button>
-      <button type="submit" name="op" value="purge" class="btn btn-danger" data-batch-confirm="确定彻底删除选中的 {n} 篇文章？此操作不可恢复！">彻底删除</button>
-    <?php else: ?>
-      <button type="submit" name="op" value="publish" class="btn btn-outline">立即发布</button>
-      <button type="submit" name="op" value="draft" class="btn btn-outline">转草稿</button>
-      <button type="submit" name="op" value="pin" class="btn btn-outline">置顶</button>
-      <button type="submit" name="op" value="unpin" class="btn btn-outline">取消置顶</button>
-      <select class="input admin-batch-move" name="category_id">
-        <option value="">移动到分类…</option>
-        <option value="">未分类</option>
-        <?php foreach ($catTree as $c): ?>
-          <option value="<?= (int) $c['id'] ?>"><?= str_repeat('　', (int) $c['depth']) . e($c['name']) ?></option>
-        <?php endforeach; ?>
-      </select>
-      <button type="submit" name="op" value="move" class="btn btn-outline" data-batch-move>移动</button>
-      <button type="submit" name="op" value="delete" class="btn btn-danger" data-batch-confirm="确定将选中的 {n} 篇文章移入回收站？可在回收站恢复。">移入回收站</button>
-    <?php endif; ?>
-    <button type="button" class="btn btn-ghost" data-batch-clear>取消选择</button>
-  </form>
-
   <!-- 表格 -->
   <div class="admin-table-wrap">
     <table class="admin-table">
@@ -217,6 +191,37 @@ $canEdit = in_array($role ?? '', ['ADMIN', 'EDITOR'], true);
       </tbody>
     </table>
   </div>
+
+  <!-- 批量操作栏 -->
+  <form method="post" action="<?= e(url_to('/admin/posts/batch')) ?>" class="admin-batch-bar" hidden>
+    <?= csrf_field() ?>
+    <input type="hidden" name="ids" value="">
+    <span class="admin-batch-count">已选 <b>0</b> 篇</span>
+    <?php if ($isTrash): ?>
+      <select class="input admin-batch-op" name="op" aria-label="批量操作">
+        <option value="restore">恢复</option>
+        <option value="purge" data-batch-confirm="确定彻底删除选中的 {n} 篇文章？此操作不可恢复！">彻底删除</option>
+      </select>
+    <?php else: ?>
+      <select class="input admin-batch-op" name="op" aria-label="批量操作">
+        <option value="publish">立即发布</option>
+        <option value="draft">转草稿</option>
+        <option value="pin">置顶</option>
+        <option value="unpin">取消置顶</option>
+        <option value="move">移动到分类</option>
+        <option value="delete" data-batch-confirm="确定将选中的 {n} 篇文章移入回收站？可在回收站恢复。">移入回收站</option>
+      </select>
+      <select class="input admin-batch-move" name="category_id">
+        <option value="">选择分类…</option>
+        <option value="none">未分类</option>
+        <?php foreach ($catTree as $c): ?>
+          <option value="<?= (int) $c['id'] ?>"><?= str_repeat('　', (int) $c['depth']) . e($c['name']) ?></option>
+        <?php endforeach; ?>
+      </select>
+    <?php endif; ?>
+    <button type="submit" class="btn btn-primary admin-batch-apply">应用</button>
+    <button type="button" class="btn btn-ghost" data-batch-clear>取消选择</button>
+  </form>
 
   <?php if ($totalPages > 1): ?>
     <div class="admin-pager">

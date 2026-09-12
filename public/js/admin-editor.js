@@ -203,7 +203,7 @@
     els.errorBox.textContent = msg;
     els.errorBox.hidden = false;
     // 全局 toast 同步提示（admin-toast.js 已随后台布局加载）
-    if (typeof window.pafishNotify === "function") window.pafishNotify(msg);
+    if (typeof window.pafishNotify === "function") window.pafishNotify(msg, true);
   }
   function clearError() { els.errorBox.hidden = true; }
   function updatePendingUI() {
@@ -275,7 +275,7 @@
       .then(function (d) {
         if (!d.ok) throw new Error(d.error || "保存失败");
         // 保存后跳转到编辑页（服务端最新状态）
-        window.location.href = DATA.editUrl.replace("{id}", d.id);
+        pafishToastNavigate(DATA.editUrl.replace("{id}", d.id), "文章已保存", "success");
       })
       .catch(function (e) {
         showError(e.message || "保存失败");
@@ -304,7 +304,7 @@
       .catch(function () {
         if (!autosaveFailed) {
           autosaveFailed = true;
-          if (typeof window.pafishNotify === "function") window.pafishNotify("自动保存失败，请手动保存");
+          if (typeof window.pafishNotify === "function") window.pafishNotify("自动保存失败，请手动保存", true);
         }
       })
       .then(function () {

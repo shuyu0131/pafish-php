@@ -153,10 +153,10 @@ $labelJson = json_encode($typeLabels, JSON_UNESCAPED_UNICODE);
     fetch(form.action, { method: "POST", body: fd, headers: { "X-Requested-With": "XMLHttpRequest" } })
       .then(function (r) { return r.json(); })
       .then(function (j) {
-        if (j && j.ok) location.reload();
-        else { err.textContent = (j && j.error) || "保存失败"; err.hidden = false; }
+        if (j && j.ok) pafishToastReload("组件已保存", "success");
+        else { err.textContent = (j && j.error) || "保存失败"; err.hidden = false; pafishNotify((j && j.error) || "保存失败", true); }
       })
-      .catch(function () { err.textContent = "网络错误"; err.hidden = false; });
+      .catch(function () { err.textContent = "网络错误"; err.hidden = false; pafishNotify("网络错误", true); });
   }
 
   // 类型切换：custom 才显示内容框；切换时标题为空自动填默认标题
@@ -224,10 +224,10 @@ $labelJson = json_encode($typeLabels, JSON_UNESCAPED_UNICODE);
       post(base + "/" + row.getAttribute("data-id") + "/toggle")
         .then(function (r) { return r.json(); })
         .then(function (j) {
-          if (j && j.ok) location.reload();
-          else pafishNotify((j && j.error) || "操作失败");
+          if (j && j.ok) pafishToastReload("组件状态已更新", "success");
+          else pafishNotify((j && j.error) || "操作失败", true);
         })
-        .catch(function () { pafishNotify("网络错误"); });
+        .catch(function () { pafishNotify("网络错误", true); });
     });
   });
 
@@ -236,8 +236,8 @@ $labelJson = json_encode($typeLabels, JSON_UNESCAPED_UNICODE);
       var row = btn.closest(".admin-list-row");
       post(base + "/" + row.getAttribute("data-id") + "/move", { dir: btn.getAttribute("data-move") })
         .then(function (r) { return r.json(); })
-        .then(function (j) { if (j && j.ok) location.reload(); })
-        .catch(function () { pafishNotify("网络错误"); });
+        .then(function (j) { if (j && j.ok) pafishToastReload("组件顺序已更新", "success"); else pafishNotify((j && j.error) || "操作失败", true); })
+        .catch(function () { pafishNotify("网络错误", true); });
     });
   });
 
@@ -258,10 +258,10 @@ $labelJson = json_encode($typeLabels, JSON_UNESCAPED_UNICODE);
         return post(base + "/" + row.getAttribute("data-id") + "/delete")
         .then(function (r) { return r.json(); })
         .then(function (j) {
-          if (j && j.ok) location.reload();
-          else pafishNotify((j && j.error) || "删除失败");
+          if (j && j.ok) pafishToastReload("组件已删除", "success");
+          else pafishNotify((j && j.error) || "删除失败", true);
         })
-        .catch(function () { pafishNotify("网络错误"); });
+        .catch(function () { pafishNotify("网络错误", true); });
       });
     });
   });

@@ -231,7 +231,10 @@ final class PostsController extends AdminController
                     break;
                 case 'move':
                     $rawCat = (string) ($body['category_id'] ?? '');
-                    $categoryId = ctype_digit($rawCat) ? (int) $rawCat : null;
+                    $categoryId = $rawCat === 'none' ? null : (ctype_digit($rawCat) ? (int) $rawCat : null);
+                    if ($rawCat === '') {
+                        return $this->json($response, ['error' => '请选择分类'], 400);
+                    }
                     if ($categoryId !== null && !DB::fetchOne('SELECT id FROM categories WHERE id = ?', [$categoryId])) {
                         return $this->json($response, ['error' => '分类不存在'], 400);
                     }

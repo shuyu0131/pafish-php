@@ -1,12 +1,6 @@
-/* 后台文章列表交互：
-   - 筛选/排序/每页条数变更跳转（保留现有参数、重置页码；per_page 写 cookie）
-   - checkbox 选择 → 批量操作栏（全选 indeterminate）
-   - 批量操作 fetch 提交（confirm 文案 {n} 替换；移动需选分类）
-   - 单行操作 fetch 提交；删除按钮二次点击确认（对齐 DeleteButton） */
 (function () {
   "use strict";
 
-  // ---------- URL 工具 ----------
   function currentParams() {
     return new URLSearchParams(location.search);
   }
@@ -23,7 +17,6 @@
     return s ? "/admin/posts?" + s : "/admin/posts";
   }
 
-  // ---------- 筛选 select ----------
   document.querySelectorAll(".admin-filter-select[data-filter-url]").forEach(function (sel) {
     sel.addEventListener("change", function () {
       var key = sel.dataset.filterUrl;
@@ -47,11 +40,19 @@
     });
   }
 
-  // ---------- 选择与批量操作栏 ----------
   var batchBar = document.querySelector(".admin-batch-bar");
   var allCheck = document.getElementById("adminCheckAll");
   var rowChecks = Array.prototype.slice.call(document.querySelectorAll(".admin-row-check"));
   var countEl = batchBar ? batchBar.querySelector(".admin-batch-count b") : null;
+  var opSelect = batchBar ? batchBar.querySelector(".admin-batch-op") : null;
+  var moveSelect = batchBar ? batchBar.querySelector(".admin-batch-move") : null;
+  var applyBtn = batchBar ? batchBar.querySelector(".admin-batch-apply") : null;
+
+  function syncBatchControls() {
+    if (!opSelect || !moveSelect) return;
+    moveSelect.hidden = opSelect.value !== "move";
+  }
+  if (opSelect) { opSelect.addEventListener("change", syncBatchControls); syncBatchControls(); }
 
   function selectedIds() {
     return rowChecks.filter(function (c) { return c.checked; }).map(function (c) { return c.value; });
@@ -87,20 +88,20 @@
     });
   }
 
-  // ---------- 批量操作提交 ----------
   if (batchBar) {
     batchBar.addEventListener("submit", function (e) {
       e.preventDefault();
       var ids = selectedIds();
       if (ids.length === 0) return;
-      var submitter = e.submitter;
+      var submitter = e.submitter || applyBtn;
       if (!submitter) return;
-      var op = submitter.value;
+      var op = opSelect ? opSelect.value : submitter.value;
       if (op === "move") {
-        var moveSel = batchBar.querySelector(".admin-batch-move");
-        if (!moveSel.value) { pafishNotify("请先选择要移动到的分类"); return; }
+        var moveSel = moveSelect;
+        if (!moveSel.value) { pafishNotify("请先选择要移动到的分类", true); return; }
       }
-      var confirmText = submitter.dataset.batchConfirm || "";
+      var selectedOption = opSelect ? opSelect.options[opSelect.selectedIndex] : submitter;
+      var confirmText = (selectedOption && selectedOption.dataset.batchConfirm) || submitter.dataset.batchConfirm || "";
       var ask = confirmText.replace(/\{n\}/g, String(ids.length));
       var confirmed = !confirmText
         ? Promise.resolve(true)
@@ -109,26 +110,25 @@
           : Promise.resolve(window.confirm(ask)));
       confirmed.then(function (ok) {
         if (!ok) return;
-        submitter.disabled = true; // 提交期间防重复点击（成功刷新 / 失败恢复）
+        submitter.disabled = true;
         var fd = new FormData(batchBar);
         fd.set("ids", JSON.stringify(ids));
         fd.set("op", op);
         fetch(batchBar.action, { method: "POST", body: fd, headers: { "X-Requested-With": "XMLHttpRequest" } })
           .then(function (r) { return r.json().catch(function () { return {}; }); })
           .then(function (d) {
-            if (d && d.ok) { location.reload(); return; }
+            if (d && d.ok) { pafishToastReload("批量操作已完成", "success"); return; }
             submitter.disabled = false;
-            pafishNotify((d && d.error) || "操作失败");
+            pafishNotify((d && d.error) || "操作失败", true);
           })
           .catch(function () {
             submitter.disabled = false;
-            pafishNotify("网络错误，请重试");
+            pafishNotify("网络错误，请重试", true);
           });
       });
     });
   }
 
-  // ---------- 单行操作（二次确认 + fetch） ----------
   document.querySelectorAll(".admin-inline-form").forEach(function (f) {
     var btn = f.querySelector("button[type=submit]");
     var original = btn ? btn.innerHTML : "";
@@ -138,7 +138,6 @@
       e.preventDefault();
       var confirmText = f.dataset.confirm || "";
       if (confirmText && !armed) {
-        // 二次点击确认（对齐 DeleteButton：第一次点击变红显示「确认？」）
         armed = true;
         btn.classList.add("admin-confirm-armed");
         btn.title = "再次点击确认删除";
@@ -153,13 +152,13 @@
       fetch(f.action, { method: "POST", body: new FormData(f), headers: { "X-Requested-With": "XMLHttpRequest" } })
         .then(function (r) { return r.json().catch(function () { return {}; }); })
         .then(function (d) {
-          if (d && d.ok) { location.reload(); return; }
+          if (d && d.ok) { pafishToastReload("操作已完成", "success"); return; }
           disarm();
-          pafishNotify((d && d.error) || "操作失败");
+          pafishNotify((d && d.error) || "操作失败", true);
         })
         .catch(function () {
           disarm();
-          pafishNotify("网络错误，请重试");
+          pafishNotify("网络错误，请重试", true);
         });
     });
     function disarm() {

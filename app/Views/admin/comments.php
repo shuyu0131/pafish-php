@@ -5,7 +5,7 @@
  * - 每条评论：作者、置顶徽标、回复 @父作者、时间「评论于」、文章链接（新窗口）、
  *   内容、邮箱 + IP（等宽）、当前状态、操作行
  * - 操作：回复（展开输入框，以管理员身份直接通过）、通过、垃圾、置顶/取消、
- *   按 IP 删除（提示删除条数）、拉黑 IP、删除（两段式「确认？」）
+ *   按 IP 删除（提示删除条数）、拉黑 IP、删除（确认弹窗）
  * 变量：$items $status $total $page $pages $statusCounts
  */
 $tabs = ['PENDING' => '待审核', 'APPROVED' => '已通过', 'SPAM' => '垃圾', 'TRASH' => '已删除'];
@@ -138,22 +138,17 @@ $listUrl = url_to('/admin/comments') . '?status=' . $status;
     });
   });
 
-  // ---- 删除（两段式确认：第一次变「确认？」，再点才执行） ----
+  // ---- 删除确认 ----
   document.querySelectorAll("[data-delete]").forEach(function (btn) {
-    var armed = false;
-    var original = btn.innerHTML;
     btn.addEventListener("click", function () {
-      if (!armed) {
-        armed = true;
-        btn.textContent = "确认？";
-        setTimeout(function () { armed = false; btn.innerHTML = original; }, 2500);
-        return;
-      }
       var card = btn.closest("[data-comment]");
       var id = card.getAttribute("data-comment");
-      post(listUrl + "/" + id + "/delete")
-        .then(function (r) { return jsonOrAlert(r, "删除失败"); })
-        .then(function (j) { if (j) pafishToastReload("评论已删除", "success"); });
+      (window.pafishConfirm ? window.pafishConfirm("确定删除该评论？此操作不可恢复。", { title: "删除评论" }) : Promise.resolve(window.confirm("确定删除该评论？"))).then(function (ok) {
+        if (!ok) return;
+        post(listUrl + "/" + id + "/delete")
+          .then(function (r) { return jsonOrAlert(r, "删除失败"); })
+          .then(function (j) { if (j) pafishToastReload("评论已删除", "success"); });
+      });
     });
   });
 

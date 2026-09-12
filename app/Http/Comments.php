@@ -103,7 +103,7 @@ final class Comments
         ];
     }
 
-    /** 评论者头像：用户设置了 avatarUrl 用之，否则使用 cravatar 默认头像 */
+    /** 评论者头像：用户设置了头像用之，否则返回本地稳定的默认头像 */
     public static function avatarUrl(?string $avatarUrl, string $email): string
     {
         $avatarUrl = trim((string) $avatarUrl);
@@ -111,7 +111,16 @@ final class Comments
             return $avatarUrl;
         }
         $hash = md5(strtolower(trim($email)));
-        return "https://cravatar.cn/avatar/{$hash}?d=identicon&s=80";
+        $palette = ['#2563eb', '#0f766e', '#7c3aed', '#c2410c', '#be123c', '#0369a1', '#4d7c0f', '#9333ea'];
+        $color = $palette[hexdec(substr($hash, 0, 2)) % count($palette)];
+        $mark = substr($hash, 2, 2);
+        $svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80">'
+            . '<rect width="80" height="80" rx="40" fill="#f1f5f9"/>'
+            . '<circle cx="40" cy="31" r="14" fill="' . $color . '"/>'
+            . '<path d="M16 72c2-15 11-23 24-23s22 8 24 23" fill="' . $color . '"/>'
+            . '<text x="40" y="76" text-anchor="middle" font-family="Arial,sans-serif" font-size="8" fill="#fff">' . $mark . '</text>'
+            . '</svg>';
+        return 'data:image/svg+xml;charset=UTF-8,' . rawurlencode($svg);
     }
 
     private static function columns(): string

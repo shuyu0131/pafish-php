@@ -138,10 +138,10 @@ foreach ($items as $n) {
     fetch(form.action, { method: "POST", body: fd, headers: { "X-Requested-With": "XMLHttpRequest" } })
       .then(function (r) { return r.json(); })
       .then(function (j) {
-        if (j && j.ok) location.reload();
-        else { err.textContent = (j && j.error) || "保存失败"; err.hidden = false; }
+        if (j && j.ok) pafishToastReload("导航项已保存", "success");
+        else { err.textContent = (j && j.error) || "保存失败"; err.hidden = false; pafishNotify((j && j.error) || "保存失败", true); }
       })
-      .catch(function () { err.textContent = "网络错误"; err.hidden = false; });
+      .catch(function () { err.textContent = "网络错误"; err.hidden = false; pafishNotify("网络错误", true); });
   }
 
   document.getElementById("createForm").addEventListener("submit", function (e) {
@@ -184,10 +184,10 @@ foreach ($items as $n) {
       post(base + "/" + row.getAttribute("data-id") + "/toggle")
         .then(function (r) { return r.json(); })
         .then(function (j) {
-          if (j && j.ok) location.reload();
-          else pafishNotify((j && j.error) || "操作失败");
+          if (j && j.ok) pafishToastReload("导航项状态已更新", "success");
+          else pafishNotify((j && j.error) || "操作失败", true);
         })
-        .catch(function () { pafishNotify("网络错误"); });
+        .catch(function () { pafishNotify("网络错误", true); });
     });
   });
 
@@ -196,8 +196,8 @@ foreach ($items as $n) {
       var row = btn.closest(".admin-list-row");
       post(base + "/" + row.getAttribute("data-id") + "/move", { dir: btn.getAttribute("data-move") })
         .then(function (r) { return r.json(); })
-        .then(function (j) { if (j && j.ok) location.reload(); })
-        .catch(function () { pafishNotify("网络错误"); });
+        .then(function (j) { if (j && j.ok) pafishToastReload("导航顺序已更新", "success"); else pafishNotify((j && j.error) || "操作失败", true); })
+        .catch(function () { pafishNotify("网络错误", true); });
     });
   });
 
@@ -218,10 +218,10 @@ foreach ($items as $n) {
         return post(base + "/" + row.getAttribute("data-id") + "/delete")
         .then(function (r) { return r.json(); })
         .then(function (j) {
-          if (j && j.ok) location.reload();
-          else pafishNotify((j && j.error) || "删除失败");
+          if (j && j.ok) pafishToastReload("导航项已删除", "success");
+          else pafishNotify((j && j.error) || "删除失败", true);
         })
-        .catch(function () { pafishNotify("网络错误"); });
+        .catch(function () { pafishNotify("网络错误", true); });
       });
     });
   });

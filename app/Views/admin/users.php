@@ -26,6 +26,21 @@ $roleLabel = static function (string $role): string {
     </div>
   </div>
 
+  <div class="admin-user-toolbar" role="search">
+    <input type="search" class="input" id="adminUserSearch" placeholder="搜索昵称、用户名或邮箱…" autocomplete="off">
+    <select class="input" id="adminUserRole" aria-label="筛选角色">
+      <option value="">全部角色</option>
+      <option value="ADMIN">管理员</option>
+      <option value="EDITOR">编辑</option>
+      <option value="USER">用户</option>
+    </select>
+    <select class="input" id="adminUserState" aria-label="筛选状态">
+      <option value="">全部状态</option>
+      <option value="active">正常</option>
+      <option value="disabled">已禁用</option>
+    </select>
+  </div>
+
   <?php if ($users === []): ?>
     <div class="admin-empty-list card">暂无用户</div>
   <?php else: ?>
@@ -49,7 +64,7 @@ $roleLabel = static function (string $role): string {
             $avatar = !empty($u['avatar_url']) ? $u['avatar_url'] : admin_gravatar((string) $u['email']);
             $disabled = ((int) $u['disabled']) === 1;
             ?>
-            <tr class="admin-user-row" data-id="<?= $uid ?>">
+            <tr class="admin-user-row" data-id="<?= $uid ?>" data-search="<?= e(mb_strtolower(implode(' ', [(string) ($u['nickname'] ?? ''), (string) ($u['username'] ?? ''), (string) ($u['email'] ?? '')]))) ?>" data-role="<?= e((string) $u['role']) ?>" data-state="<?= $disabled ? 'disabled' : 'active' ?>">
               <td data-label="用户">
                 <div class="admin-user-main">
                   <div class="admin-user-name-row">
@@ -114,9 +129,9 @@ $roleLabel = static function (string $role): string {
       .then(function (r) { return r.json(); })
       .then(function (j) {
         if (j && j.ok) onOk(j);
-        else pafishNotify((j && j.error) || "操作失败");
+        else pafishNotify((j && j.error) || "操作失败", true);
       })
-      .catch(function () { pafishNotify("操作失败"); });
+      .catch(function () { pafishNotify("操作失败", true); });
   }
 
   // 角色下拉：变更即确认后提交，成功刷新列表
@@ -135,7 +150,7 @@ $roleLabel = static function (string $role): string {
         fd.append("role", sel.value);
         fd.append("_csrf", CSRF);
         post("/admin/users/" + row.dataset.id + "/role", fd, function () {
-          location.reload();
+          pafishToastReload("用户角色已更新", "success");
         });
       });
     });
@@ -149,7 +164,7 @@ $roleLabel = static function (string $role): string {
         var fd = new FormData();
         fd.append("_csrf", CSRF);
         post("/admin/users/" + row.dataset.id + "/toggle", fd, function () {
-          location.reload();
+          pafishToastReload("用户已禁用", "success");
         });
         return;
       }
@@ -172,7 +187,7 @@ $roleLabel = static function (string $role): string {
       var fd = new FormData();
       fd.append("_csrf", CSRF);
       post("/admin/users/" + row.dataset.id + "/toggle", fd, function () {
-        location.reload();
+        pafishToastReload("用户已解禁", "success");
       });
     });
   });
@@ -211,6 +226,7 @@ $roleLabel = static function (string $role): string {
       fd.append("_csrf", CSRF);
       post("/admin/users/" + row.dataset.id + "/reset-password", fd, function () {
         box.hidden = true;
+        pafishToast("密码已重置", "success");
       });
     });
   });
@@ -226,13 +242,26 @@ $roleLabel = static function (string $role): string {
       var box = btn.closest(".admin-user-points-box");
       var row = btn.closest(".admin-user-row");
       var amount = box.querySelector(".admin-user-points-amount").value;
-      if (!amount || Number(amount) === 0) { pafishNotify("请输入非零积分"); return; }
+      if (!amount || Number(amount) === 0) { pafishNotify("请输入非零积分", true); return; }
       var fd = new FormData();
       fd.append("amount", amount);
       fd.append("reason", box.querySelector(".admin-user-points-reason").value);
       fd.append("_csrf", CSRF);
-      post("/admin/users/" + row.dataset.id + "/points", fd, function () { location.reload(); });
+      post("/admin/users/" + row.dataset.id + "/points", fd, function () { pafishToastReload("积分已调整", "success"); });
     });
   });
+
+  var userSearch = document.getElementById("adminUserSearch");
+  var userRole = document.getElementById("adminUserRole");
+  var userState = document.getElementById("adminUserState");
+  function filterUsers() {
+    var q = (userSearch.value || "").trim().toLowerCase();
+    var role = userRole.value;
+    var state = userState.value;
+    document.querySelectorAll(".admin-user-row").forEach(function (row) {
+      row.hidden = !!((q && (row.dataset.search || "").indexOf(q) < 0) || (role && row.dataset.role !== role) || (state && row.dataset.state !== state));
+    });
+  }
+  [userSearch, userRole, userState].forEach(function (el) { if (el) el.addEventListener("input", filterUsers); });
 })();
 </script>

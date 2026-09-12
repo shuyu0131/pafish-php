@@ -9,7 +9,7 @@
   <div class="admin-page-head">
     <div>
       <h1 class="admin-h1">页面管理</h1>
-      <p class="admin-page-sub">共 <?= count($pages) ?> 个页面 · 设为首页的页面将直接作为站点首页展示</p>
+      <p class="admin-page-sub">共 <?= count($pages) ?> 个页面</p>
     </div>
     <div class="admin-head-actions">
       <a class="btn btn-primary" href="<?= e(url_to('/admin/pages/new')) ?>">
@@ -48,15 +48,17 @@
                   <span class="admin-post-title-text"><?= e($p['title']) ?></span>
                 </a>
                 <div class="admin-post-meta">
-                  <span class="badge <?= $p['status'] === 'PUBLISHED' ? 'badge-success' : '' ?>">
-                    <?= $p['status'] === 'PUBLISHED' ? '已发布' : '草稿' ?>
-                  </span>
                   <span>/<?= e($p['slug']) ?></span>
                 </div>
               </td>
-              <td class="admin-muted"><?= e(($templateOptions[$p['template']] ?? $p['template'])) ?></td>
-              <td class="admin-muted"><?= e(format_date($p['updated_at'], 'yyyy-MM-dd HH:mm')) ?></td>
-              <td class="admin-col-ops">
+              <td data-label="状态">
+                <span class="badge <?= $p['status'] === 'PUBLISHED' ? 'badge-success' : '' ?>">
+                  <?= $p['status'] === 'PUBLISHED' ? '已发布' : '草稿' ?>
+                </span>
+              </td>
+              <td class="admin-muted" data-label="模板"><?= e(($templateOptions[$p['template']] ?? $p['template'])) ?></td>
+              <td class="admin-muted" data-label="更新时间"><?= e(format_date($p['updated_at'], 'yyyy-MM-dd HH:mm')) ?></td>
+              <td class="admin-col-ops" data-label="操作">
                 <div class="admin-row-ops">
                   <?php if ($p['status'] === 'PUBLISHED'): ?>
                     <a class="admin-icon-btn" href="<?= e(url_to('/pages/' . rawurlencode($p['slug']))) ?>" target="_blank" rel="noopener" title="查看"><?= admin_icon('eye', 15) ?></a>
@@ -98,10 +100,10 @@
         set: btn.getAttribute("data-set")
       }).then(function (r) { return r.json(); })
         .then(function (j) {
-          if (j && j.ok) location.reload();
-          else pafishNotify((j && j.error) || "操作失败");
+          if (j && j.ok) pafishToastReload("页面状态已更新", "success");
+          else pafishNotify((j && j.error) || "操作失败", true);
         })
-        .catch(function () { pafishNotify("网络错误"); });
+        .catch(function () { pafishNotify("网络错误", true); });
     });
   });
 
@@ -118,10 +120,14 @@
           if (j && j.ok) {
             var row = btn.closest("[data-page-row]");
             if (row) row.remove();
-            if (!document.querySelector("[data-page-row]")) location.reload();
-          } else pafishNotify((j && j.error) || "删除失败");
+            if (document.querySelector("[data-page-row]")) {
+              pafishToast("页面已删除", "success");
+            } else {
+              pafishToastReload("页面已删除", "success");
+            }
+          } else pafishNotify((j && j.error) || "删除失败", true);
         })
-        .catch(function () { pafishNotify("网络错误"); });
+        .catch(function () { pafishNotify("网络错误", true); });
       });
     });
   });

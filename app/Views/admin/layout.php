@@ -46,7 +46,10 @@ window.pafishApi = function (p) {
   <header class="admin-topbar">
     <button type="button" class="admin-drawer-toggle admin-icon-btn" aria-label="打开菜单"><?= admin_icon('menu', 20) ?></button>
     <a class="admin-topbar-brand" href="<?= e(url_to('/admin')) ?>"><?= e($siteName) ?></a>
-    <img class="admin-avatar-sm" src="<?= e($user['avatar_url'] ?: admin_gravatar((string) $user['email'])) ?>" alt="" width="28" height="28">
+    <a class="admin-topbar-account" href="<?= e(url_to('/admin/profile')) ?>">
+      <img class="admin-avatar-sm" src="<?= e($user['avatar_url'] ?: admin_gravatar((string) $user['email'])) ?>" alt="" width="28" height="28">
+      <span><?= e($user['nickname'] ?: $user['username']) ?></span>
+    </a>
   </header>
   <div class="admin-drawer-backdrop" hidden></div>
 
@@ -123,11 +126,23 @@ window.pafishApi = function (p) {
           'info' => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>',
         ];
         $toastIcon = $toastIcons[$toastType] ?? $toastIcons['info'];
+        $toastTitles = [
+          'success' => '成功',
+          'error' => '错误',
+          'warning' => '警告',
+          'info' => '提示',
+        ];
+        $toastTitle = $toastTitles[$toastType] ?? $toastTitles['info'];
       ?>
-        <div class="admin-toast admin-toast-<?= e($toastType) ?>" data-toast role="status" aria-live="polite">
-          <span class="admin-toast-icon" aria-hidden="true"><?= $toastIcon ?></span>
-          <span class="admin-toast-msg"><?= e($flash['message']) ?></span>
-          <button type="button" class="admin-toast-close" aria-label="关闭提示" title="关闭">&times;</button>
+        <div class="admin-toast-stack" data-toast-stack>
+          <div class="admin-toast admin-toast-<?= e($toastType) ?>" data-toast role="<?= $toastType === 'error' ? 'alert' : 'status' ?>" aria-live="polite">
+            <span class="admin-toast-icon" aria-hidden="true"><?= $toastIcon ?></span>
+            <span class="admin-toast-content">
+              <strong class="admin-toast-title"><?= e($toastTitle) ?></strong>
+              <span class="admin-toast-msg"><?= e($flash['message']) ?></span>
+            </span>
+            <button type="button" class="admin-toast-close" aria-label="关闭提示" title="关闭">&times;</button>
+          </div>
         </div>
       <?php endif; ?>
       <?= $content ?>

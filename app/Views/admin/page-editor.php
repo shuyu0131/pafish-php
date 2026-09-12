@@ -66,7 +66,7 @@ $template = $isEdit ? (string) $page['template'] : 'default';
                   <option value="<?= e($key) ?>" <?= $template === $key ? 'selected' : '' ?>><?= e($label) ?></option>
                 <?php endforeach; ?>
               </select>
-              <span class="admin-field-hint">由当前主题提供；「default」为系统默认模板</span>
+              <span class="admin-field-hint">模板只负责呈现页面内容；停用提供方后将回退到系统默认模板。</span>
             </div>
           <?php else: ?>
             <input type="hidden" name="template" value="default">

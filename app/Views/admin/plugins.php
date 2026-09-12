@@ -1,21 +1,29 @@
 <?php
-/**
- * 插件管理：
- * 说明 → 消息条 → 插件卡片（启用徽章/云存储后端/注入/设置项/错误标注）→ 安装卡（上传 zip / URL 下载）
- * 变量：$plugins、$activeCount
- */
+$pluginTotal = count($plugins);
+$pluginActive = count(array_filter($plugins, static fn (array $plugin): bool => !empty($plugin['active'])));
 ?>
 <div class="admin-stack admin-extension-page admin-plugin-page">
   <div class="admin-page-head">
     <div>
       <h1 class="admin-h1">插件管理</h1>
     </div>
+    <div class="admin-head-actions">
+      <a class="btn btn-outline" href="<?= e(url_to('/admin/store')) ?>">应用商店</a>
+      <a class="btn btn-primary" href="#plugin-install">安装插件</a>
+    </div>
   </div>
-  <p class="admin-backup-msg" id="pluginMsg" hidden></p>
 
-  <div class="card admin-resource-list">
-    <div class="card-body" style="padding: 0;">
-      <div class="admin-table-wrap" style="border: none; border-radius: 0;">
+  <div class="admin-resource-toolbar">
+    <div class="admin-tabs admin-resource-tabs" role="tablist" aria-label="插件筛选">
+      <button type="button" class="admin-tab is-active" data-plugin-filter="all" role="tab" aria-selected="true">全部 <span class="admin-resource-count"><?= $pluginTotal ?></span></button>
+      <button type="button" class="admin-tab" data-plugin-filter="active" role="tab" aria-selected="false">已启用 <span class="admin-resource-count"><?= $pluginActive ?></span></button>
+      <button type="button" class="admin-tab" data-plugin-filter="inactive" role="tab" aria-selected="false">未启用 <span class="admin-resource-count"><?= $pluginTotal - $pluginActive ?></span></button>
+    </div>
+    <input type="search" id="pluginSearch" class="input admin-resource-search" placeholder="搜索插件名称或描述" autocomplete="off">
+  </div>
+
+  <div class="admin-resource-list">
+      <div class="admin-table-wrap">
         <table class="admin-table">
           <thead>
             <tr>
@@ -36,9 +44,12 @@
               </td></tr>
             <?php endif; ?>
             <?php foreach ($plugins as $p): ?>
-              <tr>
+              <tr data-plugin-state="<?= $p['active'] ? 'active' : 'inactive' ?>">
                 <td>
-                  <div class="admin-plugin-title">
+                  <div class="admin-plugin-cell">
+                    <span class="admin-plugin-icon" aria-hidden="true"><?= admin_icon('puzzle', 22) ?></span>
+                    <div class="admin-plugin-info">
+                    <div class="admin-plugin-title">
                     <?php if ($p['active'] && $p['settingsCount'] > 0): ?>
                       <a href="<?= e(url_to('/admin/plugins/' . rawurlencode($p['name']))) ?>" class="admin-plugin-name"><?= e($p['title']) ?></a>
                     <?php else: ?>
@@ -51,18 +62,10 @@
                       <span class="admin-muted">（缺少有效 plugin.json）</span>
                     <?php else: ?>
                       <span><?= e($p['description'] !== '' ? $p['description'] : '该插件未提供描述') ?></span>
+                      <?php if (($p['homepage'] ?? '') !== ''): ?><a class="admin-resource-link" href="<?= e($p['homepage']) ?>" target="_blank" rel="noopener noreferrer">项目主页</a><?php endif; ?>
                     <?php endif; ?>
                   </div>
-                  <div class="admin-plugin-info">
-                    <span class="admin-muted">目录：plugins/<?= e($p['name']) ?>/</span>
-                    <?php if ($p['injects'] !== []): ?>
-                      <span class="admin-muted">注入：<?= e(implode('/', $p['injects'])) ?></span>
-                    <?php endif; ?>
-                    <?php if ($p['requires'] !== []): ?>
-                      <span class="admin-muted">依赖：<?= e(implode('、', $p['requires'])) ?></span>
-                    <?php endif; ?>
-                    <?php if ($p['storage'] !== null): ?><span class="badge badge-primary">云存储</span><?php endif; ?>
-              <?php if (($p['pagesCount'] ?? 0) > 0 || ($p['templatesCount'] ?? 0) > 0): ?><span class="badge">页面能力</span><?php endif; ?>
+                    </div>
                   </div>
                 </td>
                 <td class="admin-col-md" data-label="状态">
@@ -72,7 +75,9 @@
                     <span class="badge">未启用</span>
                   <?php endif; ?>
                 </td>
-                <td class="admin-col-md" data-label="作者"><?= e($p['author'] !== '' ? $p['author'] : '未知') ?></td>
+                <td class="admin-col-md" data-label="作者">
+                  <?php if (($p['authorUrl'] ?? '') !== ''): ?><a href="<?= e($p['authorUrl']) ?>" target="_blank" rel="noopener noreferrer"><?= e($p['author'] !== '' ? $p['author'] : '未知') ?></a><?php else: ?><?= e($p['author'] !== '' ? $p['author'] : '未知') ?><?php endif; ?>
+                </td>
                 <td class="admin-col-sm" data-label="版本">
                   <?php if ($p['version'] !== ''): ?>v<?= e($p['version']) ?><?php endif; ?>
                   <div class="admin-muted" style="font-size: 11px;">API v<?= (int) $p['apiVersion'] ?></div>
@@ -97,13 +102,11 @@
           </tbody>
         </table>
       </div>
-    </div>
   </div>
 
-  <div class="card admin-theme-install admin-install-panel">
+  <div class="admin-theme-install admin-install-panel" id="plugin-install">
     <div class="admin-theme-install-head">
       <h2 class="admin-card-title">安装插件</h2>
-      <span class="badge">兼容商店分发 zip 格式</span>
     </div>
     <div class="admin-theme-install-row">
       <div class="admin-theme-install-block">
@@ -132,16 +135,10 @@
 (function () {
   "use strict";
   var CSRF = <?= json_encode($pluginCsrf) ?>;
-  var msg = document.getElementById("pluginMsg");
-
   function showMsg(text, isError) {
     if (typeof window.pafishToast === "function") {
       window.pafishToast(text, isError ? "error" : "success");
-      return;
     }
-    msg.textContent = text;
-    msg.className = "admin-backup-msg " + (isError ? "admin-backup-msg-error" : "admin-backup-msg-ok");
-    msg.hidden = false;
   }
   function persistMsg(text, isError) {
     try { sessionStorage.setItem("pluginMsg", JSON.stringify({ t: text, e: isError ? 1 : 0 })); } catch (e) {}
@@ -154,6 +151,30 @@
       showMsg(m.t, !!m.e);
     }
   } catch (e) {}
+
+  var pluginRows = Array.prototype.slice.call(document.querySelectorAll("[data-plugin-state]"));
+  var pluginSearch = document.getElementById("pluginSearch");
+  var pluginFilter = "all";
+  function filterPlugins() {
+    var query = pluginSearch ? pluginSearch.value.trim().toLowerCase() : "";
+    pluginRows.forEach(function (row) {
+      var stateMatch = pluginFilter === "all" || row.dataset.pluginState === pluginFilter;
+      var textMatch = !query || row.textContent.toLowerCase().indexOf(query) !== -1;
+      row.hidden = !(stateMatch && textMatch);
+    });
+  }
+  document.querySelectorAll("[data-plugin-filter]").forEach(function (tab) {
+    tab.addEventListener("click", function () {
+      pluginFilter = tab.dataset.pluginFilter;
+      document.querySelectorAll("[data-plugin-filter]").forEach(function (item) {
+        var selected = item === tab;
+        item.classList.toggle("is-active", selected);
+        item.setAttribute("aria-selected", selected ? "true" : "false");
+      });
+      filterPlugins();
+    });
+  });
+  if (pluginSearch) pluginSearch.addEventListener("input", filterPlugins);
 
   function post(url, fd) {
     return fetch(url, {

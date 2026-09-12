@@ -67,7 +67,6 @@ abstract class AdminController
                 ['href' => '/admin/upgrade', 'label' => '系统更新', 'icon' => 'refresh', 'capability' => 'upgrade.manage'],
                 ['href' => '/admin/users', 'label' => '用户管理', 'icon' => 'users', 'capability' => 'users.manage'],
                 ['href' => '/admin/backup', 'label' => '数据备份', 'icon' => 'database', 'capability' => 'backup.manage'],
-                ['href' => '/admin/health', 'label' => '系统健康', 'icon' => 'activity', 'capability' => 'health.view'],
                 ['href' => '/admin/tools/transfer', 'label' => '内容迁移', 'icon' => 'download', 'capability' => 'transfer.manage'],
             ],
         ],

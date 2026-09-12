@@ -245,6 +245,8 @@ final class Plugin
             'apiVersion' => is_int($json['apiVersion'] ?? null) ? $json['apiVersion'] : 1,
             'description' => is_string($json['description'] ?? null) ? $json['description'] : '',
             'author' => is_string($json['author'] ?? null) ? $json['author'] : '',
+            'authorUrl' => self::manifestUrl($json, 'authorUrl'),
+            'homepage' => self::manifestUrl($json, 'homepage'),
             'requires' => is_array($json['requires'] ?? null) ? $json['requires'] : [],
             'settings' => $settings,
             'injects' => $injects,
@@ -252,6 +254,13 @@ final class Plugin
             'pages' => $pages,
             'storage' => $storage,
         ];
+    }
+
+    /** 兼容 author_url/url 旧字段，过滤非网页地址。 */
+    private static function manifestUrl(array $json, string $key): string
+    {
+        $value = $json[$key] ?? ($key === 'homepage' ? ($json['url'] ?? '') : ($json['author_url'] ?? ''));
+        return is_string($value) && preg_match('/^https?:\\/\\//i', $value) === 1 ? $value : '';
     }
 
     /** 加载插件模块；入口缺失或加载失败时返回空结果。 */
@@ -727,28 +736,44 @@ final class Plugin
             if (preg_match(self::NAME_PATTERN, (string) $top) !== 1) {
                 throw new \RuntimeException('插件名不合法（仅限小写字母/数字/下划线/连字符）');
             }
-            if (is_dir(self::root() . '/' . $top)) {
-                throw new \RuntimeException('插件"' . $top . '"已存在，请先在插件列表卸载后再安装');
-            }
-            // 直接解压到插件目录，失败或校验不通过时清理残留。
             $target = self::root() . '/' . $top;
-            $extracted = @$zip->extractTo(self::root());
+            $stage = self::root() . '/.' . $top . '.install-' . bin2hex(random_bytes(4));
+            $backup = null;
+            if (@mkdir($stage, 0755, true) === false) {
+                throw new \RuntimeException('无法创建插件临时目录');
+            }
+            $extracted = @$zip->extractTo($stage);
             if (!$extracted) {
                 $zip->close();
-                self::rmDir($target);
+                self::rmDir($stage);
                 throw new \RuntimeException('解压失败（已回滚）');
             }
             $zip->close();
-            if (!is_file($target . '/plugin.json')) {
-                self::rmDir($target);
+            $stagedTarget = $stage . '/' . $top;
+            if (!is_file($stagedTarget . '/plugin.json')) {
+                self::rmDir($stage);
                 throw new \RuntimeException('安装失败：缺少 plugin.json（已回滚）');
             }
-            $json = json_decode((string) file_get_contents($target . '/plugin.json'), true);
+            $json = json_decode((string) file_get_contents($stagedTarget . '/plugin.json'), true);
             $error = is_array($json) ? self::validateManifest($json, (string) $top) : 'plugin.json 不是合法 JSON';
             if ($error !== null) {
-                self::rmDir($target);
+                self::rmDir($stage);
                 throw new \RuntimeException('安装失败：' . $error . '（已回滚）');
             }
+            if (is_dir($target)) {
+                $backup = self::root() . '/.' . $top . '.backup-' . bin2hex(random_bytes(4));
+                if (!@rename($target, $backup)) {
+                    self::rmDir($stage);
+                    throw new \RuntimeException('无法替换已安装插件，请检查目录权限');
+                }
+            }
+            if (!@rename($stagedTarget, $target)) {
+                if ($backup !== null) @rename($backup, $target);
+                self::rmDir($stage);
+                throw new \RuntimeException('插件更新失败（已回滚）');
+            }
+            self::rmDir($stage);
+            if ($backup !== null) self::rmDir($backup);
             self::reset();
             return [
                 'name' => (string) $top,

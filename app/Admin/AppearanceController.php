@@ -5,19 +5,13 @@ declare(strict_types=1);
 namespace Pafish\Admin;
 
 use Pafish\Services\Theme;
+use Pafish\Core\Url;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Psr\Http\Message\UploadedFileInterface;
 
-/**
- * 主题与外观：
- * - 列表（manifest 校验 + 当前主题徽章 + 启用/卸载）/ 独立设置页（SchemaForm 8 类型 + 分组 + show_if）
- * - 安装 zip（上传/URL）/ 卸载（独有键清理）/ 导入导出设置备份
- * - 权限：仅 ADMIN
- */
 final class AppearanceController extends AdminController
 {
-    /** GET /admin/appearance */
     public function index(Request $request, Response $response): Response
     {
         $this->guardAdmin();
@@ -32,6 +26,9 @@ final class AppearanceController extends AdminController
                 'version' => $manifest['version'] ?? '',
                 'description' => $manifest['description'] ?? '',
                 'author' => $manifest['author'] ?? '',
+                'authorUrl' => self::manifestUrl($manifest, 'authorUrl'),
+                'homepage' => self::manifestUrl($manifest, 'homepage'),
+                'preview' => self::previewUrl($name),
                 'error' => $desc['error'],
                 'settingsCount' => count(Theme::schemaKeys($name)),
                 'active' => $name === $active,
@@ -39,12 +36,27 @@ final class AppearanceController extends AdminController
         }
         $response->getBody()->write($this->render('appearance', [
             'themes' => $themes,
-            'activeTheme' => $active,
         ], '主题与外观'));
         return $response;
     }
 
-    /** GET /admin/appearance/{name}：主题设置页 */
+    private static function manifestUrl(?array $manifest, string $key): string
+    {
+        if (!is_array($manifest)) return '';
+        $value = $manifest[$key] ?? ($key === 'homepage' ? ($manifest['url'] ?? '') : ($manifest['author_url'] ?? ''));
+        return is_string($value) && preg_match('/^https?:\\/\\//i', $value) === 1 ? $value : '';
+    }
+
+    private static function previewUrl(string $name): string
+    {
+        foreach (['preview.png', 'preview.jpg', 'preview.jpeg', 'preview.webp', 'screenshot.png', 'screenshot.jpg'] as $file) {
+            if (Theme::assetFile($name, $file) !== null) {
+                return Url::themeAsset($name, $file);
+            }
+        }
+        return '';
+    }
+
     public function settings(Request $request, Response $response, array $args): Response
     {
         $this->guardAdmin();
@@ -60,7 +72,6 @@ final class AppearanceController extends AdminController
         return $response;
     }
 
-    /** POST /admin/appearance/save：保存主题设置（只接受 schema 声明的键） */
     public function save(Request $request, Response $response): Response
     {
         $this->guardAdmin();
@@ -97,7 +108,6 @@ final class AppearanceController extends AdminController
         return $this->json($response, ['ok' => true, 'saved' => $pairs]);
     }
 
-    /** POST /admin/appearance/activate */
     public function activate(Request $request, Response $response): Response
     {
         $this->guardAdmin();
@@ -110,7 +120,6 @@ final class AppearanceController extends AdminController
         }
     }
 
-    /** POST /admin/appearance/uninstall */
     public function uninstall(Request $request, Response $response): Response
     {
         $this->guardAdmin();
@@ -123,7 +132,6 @@ final class AppearanceController extends AdminController
         }
     }
 
-    /** POST /admin/appearance/install：上传 zip 或 URL 下载安装 */
     public function install(Request $request, Response $response): Response
     {
         $this->guardAdmin();
@@ -147,13 +155,13 @@ final class AppearanceController extends AdminController
                 'name' => $result['name'],
                 'title' => $result['title'],
                 'version' => $result['version'],
+                'updated' => !empty($result['updated']),
             ]);
         } catch (\Throwable $e) {
             return $this->json($response, ['error' => $e->getMessage()], 400);
         }
     }
 
-    /** POST /admin/appearance/import：导入设置备份（JSON 文件） */
     public function import(Request $request, Response $response): Response
     {
         $this->guardAdmin();
@@ -180,7 +188,6 @@ final class AppearanceController extends AdminController
         }
     }
 
-    /** GET /admin/appearance/export?name=：导出设置备份 */
     public function export(Request $request, Response $response): Response
     {
         $this->guardAdmin();

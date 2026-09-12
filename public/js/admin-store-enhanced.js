@@ -3,7 +3,7 @@
  *
  * 改进点：
  * 1. 加载状态管理
- * 2. 抽屉式详情面板
+ * 2. 居中详情对话框
  * 3. 骨架屏加载
  * 4. 搜索防抖
  * 5. 更好的错误提示
@@ -172,7 +172,7 @@
     catSelect.addEventListener("change", applyStoreFilters);
   }
 
-  // ========== 详情抽屉 ==========
+  // ========== 详情对话框 ==========
   function openDrawer(card) {
     let item;
     try {
@@ -188,12 +188,14 @@
     // 强制重排后显示（触发动画）
     requestAnimationFrame(() => {
       drawer.hidden = false;
+      document.body.classList.add("admin-modal-open");
+      drawer.querySelector('[role="dialog"]')?.focus();
     });
   }
 
   function createDrawer(item, kind, sourceCard) {
     const drawer = document.createElement("div");
-    drawer.className = "admin-drawer";
+    drawer.className = "admin-store-modal-backdrop";
     drawer.id = "storeDetailDrawer";
 
     const shots = Array.isArray(item.screenshots) ? item.screenshots : [];
@@ -214,16 +216,16 @@
     const purchase = item.paid ? (item.purchased ? '已购买' : '需要购买') : '免费';
 
     drawer.innerHTML = `
-      <div class="admin-drawer-overlay" data-drawer-close></div>
-      <div class="admin-drawer-panel">
-        <div class="admin-drawer-head">
+      <div class="admin-store-modal-overlay" data-drawer-close></div>
+      <div class="admin-store-modal" role="dialog" aria-modal="true" aria-label="应用详情" tabindex="-1">
+        <div class="admin-store-modal-head">
           <div>
             <h2>${esc(item.title || item.name || '应用详情')}</h2>
             <p>${kind} · v${esc(item.version || '未知')}${item.author ? ' · ' + esc(item.author) : ''}</p>
           </div>
           <button class="admin-icon-btn" data-drawer-close aria-label="关闭">×</button>
         </div>
-        <div class="admin-drawer-body">
+        <div class="admin-store-modal-body">
           ${gallery}
           <p class="admin-store-detail-description">${esc(item.description || '该条目未提供描述')}</p>
           <dl class="admin-store-detail-facts">
@@ -238,7 +240,7 @@
           </dl>
           ${item.changelog ? '<div class="admin-store-detail-log"><h3>更新日志</h3><p>' + esc(item.changelog) + '</p></div>' : ''}
         </div>
-        <div class="admin-drawer-actions">
+        <div class="admin-store-modal-actions">
           ${safeUrl(item.homepage) ? `<a class="btn btn-ghost" href="${esc(safeUrl(item.homepage))}" target="_blank" rel="noopener">查看官网</a>` : ''}
           <button class="btn btn-ghost" data-drawer-close>关闭</button>
         </div>
@@ -249,14 +251,15 @@
     drawer.querySelectorAll("[data-drawer-close]").forEach(el => {
       el.addEventListener("click", () => {
         drawer.hidden = true;
-        setTimeout(() => drawer.remove(), 300);
+        document.body.classList.remove("admin-modal-open");
+        drawer.remove();
       });
     });
 
     // 复制操作按钮
     const action = sourceCard.querySelector(".admin-store-install, .admin-store-update");
     if (action) {
-      const actions = drawer.querySelector(".admin-drawer-actions");
+      const actions = drawer.querySelector(".admin-store-modal-actions, .admin-drawer-actions");
       const clonedBtn = action.cloneNode(true);
       actions.insertBefore(clonedBtn, actions.lastElementChild);
 
@@ -276,6 +279,14 @@
     btn.addEventListener("click", function() {
       openDrawer(btn.closest(".admin-theme-card"));
     });
+  });
+
+  document.addEventListener("keydown", event => {
+    if (event.key !== "Escape") return;
+    const modal = document.querySelector(".admin-store-modal-backdrop:not([hidden])");
+    if (!modal) return;
+    modal.remove();
+    document.body.classList.remove("admin-modal-open");
   });
 
   // ========== 安装处理 ==========

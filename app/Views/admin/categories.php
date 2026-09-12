@@ -136,6 +136,12 @@ window.PAFISH_CAT_DATA = <?= json_encode($catJs) ?>;
   var cancelBtn = document.getElementById("catFormCancel");
   var errorBox = document.querySelector(".admin-editor-error");
 
+  function showError(message) {
+    errorBox.textContent = message;
+    errorBox.hidden = false;
+    if (typeof window.pafishToast === "function") window.pafishToast(message, "error");
+  }
+
   function post(url, body) {
     var fd = new FormData();
     Object.keys(body || {}).forEach(function (k) { fd.append(k, body[k]); });
@@ -180,16 +186,17 @@ window.PAFISH_CAT_DATA = <?= json_encode($catJs) ?>;
   form.addEventListener("submit", function (e) {
     e.preventDefault();
     errorBox.hidden = true;
-    if (!fName.value.trim()) { errorBox.textContent = "请填写分类名称"; errorBox.hidden = false; return; }
+    if (!fName.value.trim()) { showError("请填写分类名称"); return; }
     var fd = new FormData(form);
     fd.set("_csrf", D.csrf);
     fetch(form.action, { method: "POST", body: fd, headers: { "X-Requested-With": "XMLHttpRequest" } })
       .then(function (r) { return r.json(); })
       .then(function (j) {
-        if (j && j.ok) location.reload();
-        else { errorBox.textContent = (j && j.error) || "保存失败"; errorBox.hidden = false; }
+        if (j && j.ok) {
+          pafishToastReload(fId.value ? "分类已更新" : "分类已创建", "success");
+        } else { showError((j && j.error) || "保存失败"); }
       })
-      .catch(function () { errorBox.textContent = "网络错误"; errorBox.hidden = false; });
+      .catch(function () { showError("网络错误"); });
   });
 
   // 上移/下移（同级交换 sortOrder）
@@ -197,8 +204,8 @@ window.PAFISH_CAT_DATA = <?= json_encode($catJs) ?>;
     btn.addEventListener("click", function () {
       post(D.moveUrl + "/" + btn.getAttribute("data-move-cat") + "/move", { dir: btn.getAttribute("data-dir") })
         .then(function (r) { return r.json(); })
-        .then(function (j) { if (j && j.ok) location.reload(); else pafishNotify((j && j.error) || "操作失败"); })
-        .catch(function () { pafishNotify("网络错误"); });
+        .then(function (j) { if (j && j.ok) pafishToastReload("分类顺序已更新", "success"); else pafishNotify((j && j.error) || "操作失败", true); })
+        .catch(function () { pafishNotify("网络错误", true); });
     });
   });
 
@@ -211,10 +218,10 @@ window.PAFISH_CAT_DATA = <?= json_encode($catJs) ?>;
         return post(D.deleteUrl + "/" + btn.getAttribute("data-delete-cat") + "/delete")
         .then(function (r) { return r.json(); })
         .then(function (j) {
-          if (j && j.ok) location.reload();
-          else pafishNotify((j && j.error) || "删除失败");
+          if (j && j.ok) pafishToastReload("分类已删除", "success");
+          else pafishNotify((j && j.error) || "删除失败", true);
         })
-        .catch(function () { pafishNotify("网络错误"); });
+        .catch(function () { pafishNotify("网络错误", true); });
       });
     });
   });

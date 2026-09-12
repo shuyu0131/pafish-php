@@ -20,12 +20,12 @@ final class Auth
         'dashboard.view', 'posts.manage', 'pages.manage', 'taxonomy.manage',
         'media.manage', 'comments.manage', 'links.manage', 'appearance.manage',
         'settings.manage', 'plugins.manage', 'store.manage', 'upgrade.manage',
-        'users.manage', 'backup.manage', 'transfer.manage', 'health.view', 'api.manage',
+        'users.manage', 'backup.manage', 'transfer.manage', 'api.manage',
     ];
 
     private const DEFAULT_ROLE_CAPABILITIES = [
         'ADMIN' => self::CAPABILITIES,
-        'EDITOR' => ['dashboard.view', 'posts.manage', 'pages.manage', 'taxonomy.manage', 'media.manage', 'comments.manage', 'links.manage', 'transfer.manage', 'health.view'],
+        'EDITOR' => ['dashboard.view', 'posts.manage', 'pages.manage', 'taxonomy.manage', 'media.manage', 'comments.manage', 'links.manage', 'transfer.manage'],
         'USER' => ['dashboard.view'],
     ];
 

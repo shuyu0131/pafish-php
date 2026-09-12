@@ -304,9 +304,9 @@ $accept = 'image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip,.rar
       .then(function (r) { return r.json(); })
       .then(function (j) {
         if (j && j.ok) pafishToastReload("外部媒体已添加", "success");
-        else { extError.textContent = (j && j.error) || "添加失败"; extError.hidden = false; pafishNotify((j && j.error) || "添加失败", true); }
+        else { extError.textContent = (j && j.error) || "添加失败"; extError.hidden = false; }
       })
-      .catch(function () { extError.textContent = "网络错误"; extError.hidden = false; pafishNotify("网络错误", true); });
+      .catch(function () { extError.textContent = "网络错误"; extError.hidden = false; });
   });
 })();
 </script>

@@ -46,7 +46,10 @@ window.pafishApi = function (p) {
   <header class="admin-topbar">
     <button type="button" class="admin-drawer-toggle admin-icon-btn" aria-label="打开菜单"><?= admin_icon('menu', 20) ?></button>
     <a class="admin-topbar-brand" href="<?= e(url_to('/admin')) ?>"><?= e($siteName) ?></a>
-    <img class="admin-avatar-sm" src="<?= e($user['avatar_url'] ?: admin_gravatar((string) $user['email'])) ?>" alt="" width="28" height="28">
+    <a class="admin-topbar-account" href="<?= e(url_to('/admin/profile')) ?>">
+      <img class="admin-avatar-sm" src="<?= e($user['avatar_url'] ?: admin_gravatar((string) $user['email'])) ?>" alt="" width="28" height="28">
+      <span><?= e($user['nickname'] ?: $user['username']) ?></span>
+    </a>
   </header>
   <div class="admin-drawer-backdrop" hidden></div>
 

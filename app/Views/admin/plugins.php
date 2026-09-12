@@ -53,18 +53,6 @@
                       <span><?= e($p['description'] !== '' ? $p['description'] : '该插件未提供描述') ?></span>
                     <?php endif; ?>
                   </div>
-                  <div class="admin-plugin-info">
-                    <span class="admin-muted">目录：plugins/<?= e($p['name']) ?>/</span>
-                    <?php if ($p['injects'] !== []): ?>
-                      <span class="admin-muted">注入：<?= e(implode('/', $p['injects'])) ?></span>
-                    <?php endif; ?>
-                    <?php if ($p['requires'] !== []): ?>
-                      <span class="admin-muted">依赖：<?= e(implode('、', $p['requires'])) ?></span>
-                    <?php endif; ?>
-                    <?php if ($p['storage'] !== null): ?><span class="badge badge-primary">云存储</span><?php endif; ?>
-                    <?php if (($p['homepage'] ?? '') !== ''): ?><a class="admin-muted" href="<?= e($p['homepage']) ?>" target="_blank" rel="noopener noreferrer">插件主页</a><?php endif; ?>
-              <?php if (($p['pagesCount'] ?? 0) > 0 || ($p['templatesCount'] ?? 0) > 0): ?><span class="badge">页面能力</span><?php endif; ?>
-                  </div>
                 </td>
                 <td class="admin-col-md" data-label="状态">
                   <?php if ($p['active']): ?>

@@ -198,23 +198,43 @@ img {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
 }
+.input:hover:not(:disabled):not([readonly]) {
+  border-color: color-mix(in srgb, var(--accent) 58%, var(--border));
+}
+.input:disabled,
+.input[aria-disabled="true"] {
+  color: var(--muted);
+  background: var(--bg-soft);
+  cursor: not-allowed;
+  opacity: .72;
+}
 .input[aria-invalid="true"] {
   border-color: var(--danger);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 15%, transparent);
 }
+.input.is-warning,
+.input[aria-invalid="warning"] {
+  border-color: #d9822b;
+  box-shadow: 0 0 0 3px color-mix(in srgb, #d9822b 15%, transparent);
+}
 select.input {
   appearance: none;
   -webkit-appearance: none;
-  background-image:
-    linear-gradient(45deg, transparent 50%, var(--muted) 50%),
-    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
-  background-position:
-    calc(100% - 1.1rem) center,
-    calc(100% - 0.8rem) center;
-  background-size: 0.3em 0.3em, 0.3em 0.3em;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14'%3E%3Cpath d='M3.25 5.25 7 9l3.75-3.75' fill='none' stroke='%238694a6' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5'/%3E%3C/svg%3E");
+  background-position: right .7rem center;
+  background-size: 14px 14px;
   background-repeat: no-repeat;
   padding-right: 2.4rem;
   cursor: pointer;
+}
+select.input:hover:not(:disabled) {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14'%3E%3Cpath d='M3.25 5.25 7 9l3.75-3.75' fill='none' stroke='%23165dff' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5'/%3E%3C/svg%3E");
+}
+.dark select.input {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14'%3E%3Cpath d='M3.25 5.25 7 9l3.75-3.75' fill='none' stroke='%23a9b3c1' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5'/%3E%3C/svg%3E");
+}
+.dark select.input:hover:not(:disabled) {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14'%3E%3Cpath d='M3.25 5.25 7 9l3.75-3.75' fill='none' stroke='%234d8dff' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5'/%3E%3C/svg%3E");
 }
 input[type="checkbox"]:focus-visible,
 input[type="radio"]:focus-visible {
@@ -3047,14 +3067,14 @@ a.admin-pg-btn:hover {
   margin-left: auto;
 }
 .admin-installed-theme-desc {
-  display: -webkit-box;
+  display: block;
   margin: 10px 0 12px;
   overflow: hidden;
   color: var(--body);
   font-size: 13px;
-  line-height: 1.6;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  line-height: 1.5;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .admin-installed-theme-meta {
   display: flex;
@@ -3664,6 +3684,11 @@ input[type="time"]::-webkit-calendar-picker-indicator {
   opacity: .65;
   cursor: pointer;
   padding: 2px;
+}
+.dark input[type="date"]::-webkit-calendar-picker-indicator,
+.dark input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+.dark input[type="time"]::-webkit-calendar-picker-indicator {
+  filter: invert(.82);
 }
 input[type="file"] {
   min-height: 36px;
@@ -4333,8 +4358,10 @@ input[type="radio"] {
 
 .admin-resource-list .admin-plugin-meta {
   max-width: 48ch;
-  overflow-wrap: anywhere;
+  overflow: hidden;
   line-height: 1.5;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .admin-resource-list .admin-plugin-info { gap: 8px 14px; }
@@ -4456,7 +4483,7 @@ input[type="radio"] {
   max-width: none;
   width: 100%;
 }
-.admin-resource-link { display: inline-block; margin-top: 5px; font-size: 12px; color: var(--accent); }
+.admin-resource-link { display: inline; margin-top: 0; font-size: 12px; color: var(--accent); }
 .admin-resource-link:hover { text-decoration: underline; }
 .admin-topbar-account { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; color: var(--fg); font-size: 13px; }
 .admin-topbar-account:hover { color: var(--accent); }

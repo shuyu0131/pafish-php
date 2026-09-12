@@ -131,44 +131,38 @@
 
   document.querySelectorAll(".admin-inline-form").forEach(function (f) {
     var btn = f.querySelector("button[type=submit]");
-    var original = btn ? btn.innerHTML : "";
-    var armed = false;
-    var timer = null;
     f.addEventListener("submit", function (e) {
       e.preventDefault();
       var confirmText = f.dataset.confirm || "";
-      if (confirmText && !armed) {
-        armed = true;
-        btn.classList.add("admin-confirm-armed");
-        btn.title = "再次点击确认删除";
-        btn.textContent = "确认？";
-        timer = setTimeout(function () { disarm(); }, 3000);
-        return;
-      }
-      if (btn) {
-        btn.disabled = true; // 提交期间防重复点击（成功刷新 / 失败恢复）
-        btn.textContent = "提交中…";
-      }
-      fetch(f.action, { method: "POST", body: new FormData(f), headers: { "X-Requested-With": "XMLHttpRequest" } })
-        .then(function (r) { return r.json().catch(function () { return {}; }); })
-        .then(function (d) {
-          if (d && d.ok) { pafishToastReload("操作已完成", "success"); return; }
-          disarm();
-          pafishNotify((d && d.error) || "操作失败", true);
-        })
-        .catch(function () {
-          disarm();
-          pafishNotify("网络错误，请重试", true);
-        });
+      var confirmed = !confirmText
+        ? Promise.resolve(true)
+        : (window.pafishConfirm
+          ? window.pafishConfirm(confirmText, { title: "确认操作", danger: true })
+          : Promise.resolve(window.confirm(confirmText)));
+      confirmed.then(function (ok) {
+        if (!ok) return;
+        if (btn) {
+          btn.disabled = true;
+          btn.dataset.originalHtml = btn.dataset.originalHtml || btn.innerHTML;
+          btn.textContent = "提交中…";
+        }
+        fetch(f.action, { method: "POST", body: new FormData(f), headers: { "X-Requested-With": "XMLHttpRequest" } })
+          .then(function (r) { return r.json().catch(function () { return {}; }); })
+          .then(function (d) {
+            if (d && d.ok) { pafishToastReload("操作已完成", "success"); return; }
+            restoreButton();
+            pafishNotify((d && d.error) || "操作失败", true);
+          })
+          .catch(function () {
+            restoreButton();
+            pafishNotify("网络错误，请重试", true);
+          });
+      });
     });
-    function disarm() {
-      armed = false;
-      if (btn) {
-        btn.disabled = false;
-        btn.classList.remove("admin-confirm-armed");
-        btn.title = "";
-        btn.innerHTML = original;
-      }
+    function restoreButton() {
+      if (!btn) return;
+      btn.disabled = false;
+      if (btn.dataset.originalHtml) btn.innerHTML = btn.dataset.originalHtml;
     }
   });
 })();

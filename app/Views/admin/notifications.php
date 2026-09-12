@@ -78,10 +78,10 @@
       })
         .then(function (r) { return r.json(); })
         .then(function (j) {
-          if (j && j.ok) location.reload();
-          else pafishNotify((j && j.error) || "操作失败");
+          if (j && j.ok) pafishToastReload("通知已全部标记为已读", "success");
+          else pafishNotify((j && j.error) || "操作失败", true);
         })
-        .catch(function () { pafishNotify("网络错误"); });
+        .catch(function () { pafishNotify("网络错误", true); });
     });
   }
 })();

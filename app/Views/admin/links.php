@@ -133,9 +133,9 @@ foreach ($items as $l) {
       .then(function (r) { return r.json(); })
       .then(function (j) {
         if (j && j.ok) pafishToastReload("链接已保存", "success");
-        else { err.textContent = (j && j.error) || "保存失败"; err.hidden = false; pafishNotify((j && j.error) || "保存失败", true); }
+        else { err.textContent = (j && j.error) || "保存失败"; err.hidden = false; }
       })
-      .catch(function () { err.textContent = "网络错误"; err.hidden = false; pafishNotify("网络错误", true); });
+      .catch(function () { err.textContent = "网络错误"; err.hidden = false; });
   }
 
   // 新建

@@ -1,7 +1,7 @@
 <?php
 /**
  * 工作台
- * 变量：$username $canManage $stats $trend $catRows $latest $totalTrend
+ * 变量：$username $stats $trend $catRows $latest $totalTrend
  */
 ?>
 <div class="admin-stack">
@@ -10,12 +10,6 @@
       <h1 class="admin-h1">工作台</h1>
       <p class="admin-page-sub">你好，<?= e($username) ?> · 欢迎回来</p>
     </div>
-    <?php if ($canManage): ?>
-      <a class="btn btn-primary" href="<?= e(url_to('/admin/posts/new')) ?>">
-        <?= admin_icon('pen', 15) ?>
-        写文章
-      </a>
-    <?php endif; ?>
   </div>
 
   <!-- 统计卡片 -->
@@ -94,7 +88,7 @@
     <h2 class="admin-chart-title">最近更新</h2>
     <div class="card admin-latest">
       <?php if ($latest === []): ?>
-        <p class="admin-empty">还没有文章，点击右上角「写文章」开始创作。</p>
+        <p class="admin-empty">还没有文章，请前往文章管理创建第一篇。</p>
       <?php endif; ?>
       <?php foreach ($latest as $p): ?>
         <a class="admin-latest-item" href="<?= e(url_to('/admin/posts/' . $p['id'] . '/edit')) ?>">
@@ -120,11 +114,106 @@
       <span class="admin-muted">纸鱼博客系统版本</span>
     </div>
     <?php if (!empty($canUpgrade)): ?>
-      <?php if (!empty($upgradeInfo['hasUpdate'])): ?>
-        <a class="btn btn-primary btn-sm" href="<?= e(url_to('/admin/upgrade')) ?>">发现新版本 v<?= e($upgradeInfo['latest']) ?>，前往更新</a>
-      <?php else: ?>
-        <a class="btn btn-sm" href="<?= e(url_to('/admin/upgrade')) ?>">系统更新</a>
-      <?php endif; ?>
+      <button type="button" class="btn <?= !empty($upgradeInfo['hasUpdate']) ? 'btn-primary' : '' ?> btn-sm"
+              id="dashboardUpgradeBtn"
+              data-latest="<?= e((string) ($upgradeInfo['latest'] ?? '')) ?>"
+              data-has-update="<?= !empty($upgradeInfo['hasUpdate']) ? '1' : '0' ?>">
+        <?= !empty($upgradeInfo['hasUpdate']) ? '发现新版本 v' . e((string) $upgradeInfo['latest']) : '检查更新' ?>
+      </button>
     <?php endif; ?>
   </div>
 </div>
+
+<?php if (!empty($canUpgrade)): ?>
+<div class="admin-modal-backdrop" id="dashboardUpgradeModal" hidden>
+  <div class="admin-modal admin-upgrade-modal" role="dialog" aria-modal="true" aria-labelledby="dashboard-upgrade-title">
+    <div class="admin-modal-head">
+      <h2 class="admin-modal-title" id="dashboard-upgrade-title">系统更新</h2>
+      <button type="button" class="admin-icon-btn" data-modal-close aria-label="关闭" title="关闭"><?= admin_icon('x', 16) ?></button>
+    </div>
+    <div class="admin-modal-body">
+      <p class="admin-modal-hint" id="dashboardUpgradeMessage">正在检查更新…</p>
+      <div class="admin-upgrade-modal-notes" id="dashboardUpgradeNotes" hidden></div>
+      <p class="admin-modal-error" id="dashboardUpgradeError" hidden></p>
+    </div>
+    <div class="admin-modal-actions">
+      <button type="button" class="btn btn-ghost" data-modal-close id="dashboardUpgradeCancel">关闭</button>
+      <button type="button" class="btn btn-primary" id="dashboardUpgradeRun" hidden>立即更新</button>
+    </div>
+  </div>
+</div>
+<?php $dashboardUpgradeCsrf = csrf_token(); ?>
+<script>
+(function () {
+  "use strict";
+  var trigger = document.getElementById("dashboardUpgradeBtn");
+  var modal = document.getElementById("dashboardUpgradeModal");
+  if (!trigger || !modal) return;
+  var message = document.getElementById("dashboardUpgradeMessage");
+  var notes = document.getElementById("dashboardUpgradeNotes");
+  var error = document.getElementById("dashboardUpgradeError");
+  var run = document.getElementById("dashboardUpgradeRun");
+  var cancel = document.getElementById("dashboardUpgradeCancel");
+  var csrf = <?= json_encode($dashboardUpgradeCsrf) ?>;
+  var current = <?= json_encode($current) ?>;
+  var latest = trigger.dataset.latest || "";
+  var hasUpdate = trigger.dataset.hasUpdate === "1";
+  var completed = false;
+
+  function post(path, force) {
+    var fd = new FormData();
+    fd.append("_csrf", csrf);
+    if (force) fd.append("force", "1");
+    return fetch(path, { method: "POST", body: fd, headers: { "X-Requested-With": "XMLHttpRequest" } })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok || !j.ok) throw new Error(j.error || "操作失败"); return j; }); });
+  }
+  function open() {
+    modal.hidden = false;
+    if (window.pafishModalSync) window.pafishModalSync();
+    message.textContent = "正在检查更新…";
+    notes.hidden = true;
+    error.hidden = true;
+    run.hidden = true;
+    run.disabled = false;
+    run.textContent = "立即更新";
+    completed = false;
+    post(<?= json_encode(url_to('/admin/upgrade/check')) ?>, true)
+      .then(function (j) {
+        latest = j.latest || "";
+        hasUpdate = !!j.hasUpdate && latest !== current;
+        trigger.dataset.latest = latest;
+        trigger.dataset.hasUpdate = hasUpdate ? "1" : "0";
+        trigger.classList.toggle("btn-primary", hasUpdate);
+        trigger.textContent = hasUpdate ? "发现新版本 v" + latest : "检查更新";
+        if (hasUpdate) {
+          message.textContent = "发现新版本 v" + latest + "，可以开始更新。";
+          if (j.notes) { notes.textContent = j.notes; notes.hidden = false; }
+          run.hidden = false;
+        } else {
+          message.textContent = "当前已是最新版本（v" + (j.current || current) + "）。";
+        }
+      })
+      .catch(function (e) { message.textContent = "检查更新失败"; error.textContent = e.message; error.hidden = false; });
+  }
+  trigger.addEventListener("click", open);
+  run.addEventListener("click", function () {
+    if (!hasUpdate || completed || run.disabled) return;
+    run.disabled = true;
+    run.textContent = "更新中…";
+    message.textContent = "正在更新，请不要关闭页面…";
+    post(<?= json_encode(url_to('/admin/upgrade/run')) ?>, false)
+      .then(function (j) {
+        var installed = j.latest || j.current || latest;
+        completed = true;
+        message.textContent = "更新完成，当前版本 v" + installed + "。";
+        notes.hidden = true;
+        run.textContent = "刷新页面";
+        run.disabled = false;
+        run.onclick = function () { window.location.reload(); };
+        cancel.textContent = "稍后刷新";
+      })
+      .catch(function (e) { message.textContent = "更新失败，系统已恢复原版本"; error.textContent = e.message; error.hidden = false; run.disabled = false; run.textContent = "重试更新"; });
+  });
+})();
+</script>
+<?php endif; ?>

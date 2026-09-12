@@ -35,7 +35,6 @@
   function showError(msg) {
     errorBox.textContent = msg;
     errorBox.hidden = false;
-    if (typeof window.pafishNotify === "function") window.pafishNotify(msg, true);
   }
   function hideError() {
     errorBox.hidden = true;
@@ -146,15 +145,6 @@
       })
       .then(function (data) {
         renderResult(data);
-        // 结果面板之外同步一条 toast 总结
-        if (typeof window.pafishNotify === "function") {
-          var okCount = data.created || 0;
-          var failCount = data.failed || 0;
-          window.pafishNotify(
-            failCount === 0 ? "导入完成：全部成功（" + okCount + " 篇）" : "导入完成：成功 " + okCount + " 篇，失败 " + failCount + " 篇",
-            failCount > 0
-          );
-        }
         files = [];
         renderList();
       })

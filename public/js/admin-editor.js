@@ -202,8 +202,6 @@
   function showError(msg) {
     els.errorBox.textContent = msg;
     els.errorBox.hidden = false;
-    // 全局 toast 同步提示（admin-toast.js 已随后台布局加载）
-    if (typeof window.pafishNotify === "function") window.pafishNotify(msg, true);
   }
   function clearError() { els.errorBox.hidden = true; }
   function updatePendingUI() {
@@ -334,7 +332,7 @@
   function renderCatSelect() {
     var list = catOptionList();
     els.catSelect.dataset.open = catOpen ? "1" : "0";
-    var html = '<button type="button" class="admin-cat-trigger" id="catTrigger">' +
+    var html = '<button type="button" class="admin-cat-trigger" id="catTrigger" title="选择分类" aria-label="选择分类">' +
       '<span class="admin-cat-label">' + esc(catCurrentLabel()) + "</span>" +
       '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" class="admin-cat-chevron"><path d="m6 9 6 6 6-6"/></svg></button>';
     if (catOpen) {
@@ -425,11 +423,11 @@
       var t = allTags.filter(function (x) { return String(x.id) === id; })[0];
       if (!t) return;
       sel += '<span class="badge badge-accent admin-tag-chip">' + esc(t.name) +
-        '<button type="button" data-tag-remove="' + esc(id) + '" aria-label="移除标签 ' + esc(t.name) + '">×</button></span>';
+        '<button type="button" data-tag-remove="' + esc(id) + '" title="移除标签 ' + esc(t.name) + '" aria-label="移除标签 ' + esc(t.name) + '">×</button></span>';
     });
     newTagNames.forEach(function (n) {
       sel += '<span class="badge badge-accent admin-tag-chip">' + esc(n) +
-        '<button type="button" data-newtag-remove="' + esc(n) + '" aria-label="移除标签 ' + esc(n) + '">×</button></span>';
+        '<button type="button" data-newtag-remove="' + esc(n) + '" title="移除标签 ' + esc(n) + '" aria-label="移除标签 ' + esc(n) + '">×</button></span>';
     });
     els.tagsSelected.innerHTML = sel;
     $$("[data-tag-remove]", els.tagsSelected).forEach(function (b) { b.addEventListener("click", function () { toggleTag(b.getAttribute("data-tag-remove")); }); });

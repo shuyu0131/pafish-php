@@ -4,34 +4,23 @@ declare(strict_types=1);
 
 namespace Pafish\Admin;
 
-use Pafish\Core\Version;
 use Pafish\Services\Upgrade;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
  * 系统更新（仅 ADMIN）：
- * - GET /admin/upgrade：更新页面（当前版本/最新版本/变更说明/检查·更新按钮）
+ * - GET /admin/upgrade：旧入口重定向到工作台
  * - POST /admin/upgrade/check：检查更新（JSON，force 跳过 24h 缓存）
  * - POST /admin/upgrade/run：执行更新（下载→校验→备份→覆盖→upgrade.php，失败自动回滚）
  */
 final class UpgradeController extends AdminController
 {
-    /** GET /admin/upgrade：系统更新页 */
+    /** GET /admin/upgrade：旧入口兼容重定向到工作台 */
     public function index(Request $request, Response $response): Response
     {
         $this->guardAdmin();
-        $info = Upgrade::check();
-        $current = Version::current();
-        $minVersion = (string) ($info['minVersion'] ?? '');
-        $minOk = $minVersion === '' || Version::compare($current, $minVersion) >= 0;
-        $response->getBody()->write($this->render('upgrade', [
-            'info' => $info,
-            'current' => $current,
-            'minOk' => $minOk,
-            'upgradeState' => Upgrade::state(),
-        ], '系统更新'));
-        return $response;
+        return $this->redirect($response, '/admin');
     }
 
     /** POST /admin/upgrade/check：检查更新（JSON） */

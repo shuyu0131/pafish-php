@@ -52,7 +52,9 @@ $app->get('/', [HomeController::class, 'index']);
 
 // 文章详情与互动
 $app->get('/post/{slug}', [PostController::class, 'show']);
+$app->post('/post/{slug}', [PostController::class, 'show']);
 $app->get('/{year:\d{4}}/{month:\d{2}}/{slug}', [PostController::class, 'show']);
+$app->post('/{year:\d{4}}/{month:\d{2}}/{slug}', [PostController::class, 'show']);
 $app->post('/api/post/{id}/{kind}', [PostController::class, 'toggle']); // kind: like | favorite
 
 // 分类、标签、归档和搜索

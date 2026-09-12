@@ -30,6 +30,7 @@ $roleLabel = match ((string) ($user['role'] ?? '')) {
 <link rel="stylesheet" href="<?= e(asset_url('/css/admin.css')) ?>">
 <script src="<?= e(asset_url('/js/admin-toast.js')) ?>"></script>
 <script src="<?= e(asset_url('/js/admin-ui.js')) ?>"></script>
+<script src="<?= e(asset_url('/js/admin-controls.js')) ?>"></script>
 <?php if (!empty($headExtra)): ?><?= $headExtra ?><?php endif; ?>
 <script>
 /* API 路径适配：pretty_urls=false 时请求走 index.php?p=api/...，query 用 & 拼接 */
@@ -78,15 +79,11 @@ window.pafishApi = function (p) {
             <div class="admin-nav-group-items">
             <?php foreach ($group['items'] as $item): ?>
               <a class="admin-nav-item<?= admin_nav_active($item, $currentPath) ? ' active' : '' ?>"
-                 href="<?= e(url_to($item['href'])) ?>"
-                 <?= ($item['href'] ?? '') === '/admin/upgrade' ? 'data-upgrade-nav' : '' ?>>
+                 href="<?= e(url_to($item['href'])) ?>">
                 <?= admin_icon($item['icon']) ?>
                 <span><?= e($item['label']) ?></span>
                 <?php if (($item['href'] ?? '') === '/admin/notifications' && $unreadNotifications > 0): ?>
                   <span class="admin-nav-badge"><?= $unreadNotifications > 99 ? '99+' : $unreadNotifications ?></span>
-                <?php endif; ?>
-                <?php if (($item['href'] ?? '') === '/admin/upgrade' && !empty($upgradeAvailable)): ?>
-                  <span class="admin-nav-badge" data-upgrade-badge>!</span>
                 <?php endif; ?>
               </a>
             <?php endforeach; ?>
@@ -188,30 +185,6 @@ window.pafishApi = function (p) {
     });
   });
 
-  // 系统更新静默检查（服务端 24h 缓存，不阻塞页面；有新版本 → 导航「系统更新」加红点徽标）
-  (function () {
-    var item = document.querySelector('[data-upgrade-nav]');
-    if (!item) { return; }
-    var fd = new FormData();
-    fd.append('_csrf', <?= json_encode(csrf_token()) ?>);
-    fetch(<?= json_encode(url_to('/admin/upgrade/check')) ?>, {
-      method: 'POST',
-      body: fd,
-      headers: { 'X-Requested-With': 'XMLHttpRequest' }
-    })
-      .then(function (r) { return r.json(); })
-      .then(function (j) {
-        if (!j || !j.hasUpdate) { return; }
-        if (!item.querySelector('[data-upgrade-badge]')) {
-          var b = document.createElement('span');
-          b.className = 'admin-nav-badge';
-          b.setAttribute('data-upgrade-badge', '');
-          b.textContent = '!';
-          item.appendChild(b);
-        }
-      })
-      .catch(function () {});
-  })();
 })();
 </script>
 </body>

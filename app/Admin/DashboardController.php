@@ -20,8 +20,6 @@ final class DashboardController extends AdminController
     public function dashboard(Request $request, Response $response): Response
     {
         $user = Auth::user();
-        $canManage = in_array((string) ($user['role'] ?? ''), ['ADMIN', 'EDITOR'], true);
-
         // 统计卡片
         $stats = [
             ['label' => '全部文章', 'value' => (int) DB::value('SELECT COUNT(*) FROM posts WHERE deleted_at IS NULL'),
@@ -83,7 +81,6 @@ final class DashboardController extends AdminController
 
         $html = $this->render('dashboard', [
             'username' => (string) ($user['username'] ?? ''),
-            'canManage' => $canManage,
             'stats' => $stats,
             'trend' => $trend,
             'catRows' => $catRows,

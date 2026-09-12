@@ -9,7 +9,7 @@ $themeActive = count(array_filter($themes, static fn (array $theme): bool => !em
     </div>
     <div class="admin-head-actions">
       <a class="btn btn-outline" href="<?= e(url_to('/admin/store')) ?>">应用商店</a>
-      <a class="btn btn-primary" href="#theme-install">安装主题</a>
+      <button type="button" class="btn btn-primary" data-open-install="#theme-install">安装主题</button>
     </div>
   </div>
 
@@ -72,11 +72,13 @@ $themeActive = count(array_filter($themes, static fn (array $theme): bool => !em
     <?php endforeach; ?>
   </div>
 
-  <div class="admin-theme-install admin-install-panel" id="theme-install">
-    <div class="admin-theme-install-head">
-      <h2 class="admin-card-title">安装主题</h2>
+  <div class="admin-modal-backdrop admin-install-modal" id="theme-install" hidden>
+    <div class="admin-modal admin-install-dialog" role="dialog" aria-modal="true" aria-labelledby="theme-install-title">
+    <div class="admin-modal-head admin-theme-install-head">
+      <h2 class="admin-modal-title" id="theme-install-title">安装主题</h2>
+      <button type="button" class="admin-icon-btn" data-modal-close aria-label="关闭安装面板" title="关闭安装面板">×</button>
     </div>
-    <div class="admin-theme-install-row">
+    <div class="admin-modal-body"><div class="admin-theme-install-row">
       <div class="admin-theme-install-block">
         <p class="admin-muted">上传 zip 包</p>
         <input type="file" id="themeZipInput" accept=".zip" hidden>
@@ -86,15 +88,8 @@ $themeActive = count(array_filter($themes, static fn (array $theme): bool => !em
         </div>
         <p class="admin-field-hint" id="themeZipName"></p>
       </div>
-      <div class="admin-theme-install-block">
-        <p class="admin-muted">从 URL 下载安装</p>
-        <div class="admin-theme-install-line">
-          <input type="url" id="themeUrlInput" class="input" placeholder="https://example.com/themes/demo.zip" autocomplete="off">
-          <button type="button" id="themeUrlBtn" class="btn btn-primary">下载安装</button>
-        </div>
-      </div>
     </div>
-    <p class="admin-field-hint">zip 顶层目录需为主题名，安装前校验目录名与路径安全。</p>
+    </div></div></div>
   </div>
 </div>
 
@@ -103,23 +98,12 @@ $themeActive = count(array_filter($themes, static fn (array $theme): bool => !em
 (function () {
   "use strict";
   var CSRF = <?= json_encode($themeCsrf) ?>;
+  try { sessionStorage.removeItem("themeMsg"); } catch (e) {}
   function showMsg(text, isError) {
     if (typeof window.pafishToast === "function") {
       window.pafishToast(text, isError ? "error" : "success");
     }
   }
-  function persistMsg(text, isError) {
-    try { sessionStorage.setItem("themeMsg", JSON.stringify({ t: text, e: isError ? 1 : 0 })); } catch (e) {}
-  }
-  try {
-    var saved = sessionStorage.getItem("themeMsg");
-    if (saved) {
-      sessionStorage.removeItem("themeMsg");
-      var m = JSON.parse(saved);
-      showMsg(m.t, !!m.e);
-    }
-  } catch (e) {}
-
   var themeRows = Array.prototype.slice.call(document.querySelectorAll("[data-theme-state]"));
   var themeSearch = document.getElementById("themeSearch");
   var themeFilter = "all";
@@ -158,8 +142,8 @@ $themeActive = count(array_filter($themes, static fn (array $theme): bool => !em
   }
   function run(url, fd, okText) {
     post(url, fd, function () {
-      persistMsg(okText, false);
-      location.reload();
+      if (typeof window.pafishToastReload === "function") window.pafishToastReload(okText, "success");
+      else location.reload();
     }).catch(function (err) {
       showMsg(err.message, true);
     });
@@ -216,8 +200,9 @@ $themeActive = count(array_filter($themes, static fn (array $theme): bool => !em
     fd.append("zip", zipInput.files[0]);
     fd.append("_csrf", CSRF);
     post("/admin/appearance/install", fd, function (j) {
-      persistMsg("✓ " + (j.updated ? "已更新主题 " : "已安装主题 ") + j.title + " v" + j.version, false);
-      location.reload();
+      var message = (j.updated ? "已更新主题 " : "已安装主题 ") + j.title + " v" + j.version;
+      if (typeof window.pafishToastReload === "function") window.pafishToastReload(message, "success");
+      else location.reload();
     }).catch(function (err) {
       showMsg(err.message, true);
       uploadBtn.disabled = false;
@@ -225,28 +210,5 @@ $themeActive = count(array_filter($themes, static fn (array $theme): bool => !em
     });
   });
 
-  // URL 下载安装
-  var urlInput = document.getElementById("themeUrlInput");
-  var urlBtn = document.getElementById("themeUrlBtn");
-  urlBtn.addEventListener("click", function () {
-    var url = urlInput.value.trim();
-    if (!url) {
-      showMsg("请填写主题包下载地址", true);
-      return;
-    }
-    urlBtn.disabled = true;
-    urlBtn.textContent = "下载中…";
-    var fd = new FormData();
-    fd.append("url", url);
-    fd.append("_csrf", CSRF);
-    post("/admin/appearance/install", fd, function (j) {
-      persistMsg("✓ " + (j.updated ? "已更新主题 " : "已安装主题 ") + j.title + " v" + j.version, false);
-      location.reload();
-    }).catch(function (err) {
-      showMsg(err.message, true);
-      urlBtn.disabled = false;
-      urlBtn.textContent = "下载安装";
-    });
-  });
 })();
 </script>

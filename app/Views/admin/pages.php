@@ -120,11 +120,8 @@
           if (j && j.ok) {
             var row = btn.closest("[data-page-row]");
             if (row) row.remove();
-            if (document.querySelector("[data-page-row]")) {
-              pafishToast("页面已删除", "success");
-            } else {
-              pafishToastReload("页面已删除", "success");
-            }
+            if (document.querySelector("[data-page-row]")) pafishToast("页面已删除", "success");
+            else pafishToastReload("页面已删除", "success");
           } else pafishNotify((j && j.error) || "删除失败", true);
         })
         .catch(function () { pafishNotify("网络错误", true); });

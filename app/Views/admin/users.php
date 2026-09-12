@@ -129,9 +129,9 @@ $roleLabel = static function (string $role): string {
       .then(function (r) { return r.json(); })
       .then(function (j) {
         if (j && j.ok) onOk(j);
-        else pafishNotify((j && j.error) || "操作失败");
+        else pafishNotify((j && j.error) || "操作失败", true);
       })
-      .catch(function () { pafishNotify("操作失败"); });
+      .catch(function () { pafishNotify("操作失败", true); });
   }
 
   // 角色下拉：变更即确认后提交，成功刷新列表
@@ -150,7 +150,7 @@ $roleLabel = static function (string $role): string {
         fd.append("role", sel.value);
         fd.append("_csrf", CSRF);
         post("/admin/users/" + row.dataset.id + "/role", fd, function () {
-          location.reload();
+          pafishToastReload("用户角色已更新", "success");
         });
       });
     });
@@ -164,7 +164,7 @@ $roleLabel = static function (string $role): string {
         var fd = new FormData();
         fd.append("_csrf", CSRF);
         post("/admin/users/" + row.dataset.id + "/toggle", fd, function () {
-          location.reload();
+          pafishToastReload("用户已禁用", "success");
         });
         return;
       }
@@ -187,7 +187,7 @@ $roleLabel = static function (string $role): string {
       var fd = new FormData();
       fd.append("_csrf", CSRF);
       post("/admin/users/" + row.dataset.id + "/toggle", fd, function () {
-        location.reload();
+        pafishToastReload("用户已解禁", "success");
       });
     });
   });
@@ -226,6 +226,7 @@ $roleLabel = static function (string $role): string {
       fd.append("_csrf", CSRF);
       post("/admin/users/" + row.dataset.id + "/reset-password", fd, function () {
         box.hidden = true;
+        pafishToast("密码已重置", "success");
       });
     });
   });
@@ -241,12 +242,12 @@ $roleLabel = static function (string $role): string {
       var box = btn.closest(".admin-user-points-box");
       var row = btn.closest(".admin-user-row");
       var amount = box.querySelector(".admin-user-points-amount").value;
-      if (!amount || Number(amount) === 0) { pafishNotify("请输入非零积分"); return; }
+      if (!amount || Number(amount) === 0) { pafishNotify("请输入非零积分", true); return; }
       var fd = new FormData();
       fd.append("amount", amount);
       fd.append("reason", box.querySelector(".admin-user-points-reason").value);
       fd.append("_csrf", CSRF);
-      post("/admin/users/" + row.dataset.id + "/points", fd, function () { location.reload(); });
+      post("/admin/users/" + row.dataset.id + "/points", fd, function () { pafishToastReload("积分已调整", "success"); });
     });
   });
 

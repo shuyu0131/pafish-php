@@ -50,7 +50,6 @@ $avatar = !empty($me['avatar_url']) ? $me['avatar_url'] : admin_gravatar((string
       </div>
       <div class="admin-form-actions">
         <p class="admin-editor-error" id="profileError" hidden></p>
-        <p class="admin-settings-msg" id="profileSaved" hidden>已保存</p>
         <button type="submit" id="profileSaveBtn" class="btn btn-primary">保存资料</button>
       </div>
     </form>
@@ -75,7 +74,6 @@ $avatar = !empty($me['avatar_url']) ? $me['avatar_url'] : admin_gravatar((string
       </div>
       <div class="admin-form-actions">
         <p class="admin-editor-error" id="passwordError" hidden></p>
-        <p class="admin-settings-msg" id="passwordOk" hidden>密码已修改，下次登录请使用新密码</p>
         <button type="submit" id="passwordSaveBtn" class="btn btn-primary">修改密码</button>
       </div>
     </form>
@@ -117,7 +115,6 @@ $avatar = !empty($me['avatar_url']) ? $me['avatar_url'] : admin_gravatar((string
         .catch(function (err) {
           errBox.textContent = err.message;
           errBox.hidden = false;
-          if (typeof window.pafishToast === "function") window.pafishToast(err.message, "error");
         })
         .finally(function () {
           if (submit) { submit.disabled = false; submit.textContent = submit.dataset.label || "保存"; }
@@ -126,15 +123,12 @@ $avatar = !empty($me['avatar_url']) ? $me['avatar_url'] : admin_gravatar((string
   }
 
   // 资料保存：统一使用后台 toast
-  var savedBox = document.getElementById("profileSaved");
   bind("profileForm", "profileError", function () {
-    savedBox.hidden = true;
     if (typeof window.pafishToast === "function") window.pafishToast("个人资料已保存", "success");
   });
 
   // 修改密码：前端先比对两次输入；成功后清空三框
   var pwForm = document.getElementById("passwordForm");
-  var pwOk = document.getElementById("passwordOk");
   pwForm.addEventListener("submit", function (e) {
     e.preventDefault();
     var errBox = document.getElementById("passwordError");
@@ -149,8 +143,6 @@ $avatar = !empty($me['avatar_url']) ? $me['avatar_url'] : admin_gravatar((string
     var fd = new FormData(pwForm);
     fd.delete("confirm_password");
     post(pwForm.action, fd, function () {
-      pwOk.hidden = true;
-      clearTimeout(pwOk._t);
       if (typeof window.pafishToast === "function") window.pafishToast("密码已修改，下次登录请使用新密码", "success");
       ["current_password", "new_password", "confirm_password"].forEach(function (k) {
         pwForm.elements[k].value = "";
@@ -158,7 +150,6 @@ $avatar = !empty($me['avatar_url']) ? $me['avatar_url'] : admin_gravatar((string
     }).catch(function (err) {
       errBox.textContent = err.message;
       errBox.hidden = false;
-      if (typeof window.pafishToast === "function") window.pafishToast(err.message, "error");
     });
   });
 

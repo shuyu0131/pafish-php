@@ -154,9 +154,9 @@ $labelJson = json_encode($typeLabels, JSON_UNESCAPED_UNICODE);
       .then(function (r) { return r.json(); })
       .then(function (j) {
         if (j && j.ok) pafishToastReload("组件已保存", "success");
-        else { err.textContent = (j && j.error) || "保存失败"; err.hidden = false; pafishNotify((j && j.error) || "保存失败", true); }
+        else { err.textContent = (j && j.error) || "保存失败"; err.hidden = false; }
       })
-      .catch(function () { err.textContent = "网络错误"; err.hidden = false; pafishNotify("网络错误", true); });
+      .catch(function () { err.textContent = "网络错误"; err.hidden = false; });
   }
 
   // 类型切换：custom 才显示内容框；切换时标题为空自动填默认标题

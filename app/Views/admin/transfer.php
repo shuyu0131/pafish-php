@@ -76,13 +76,11 @@
         msg.textContent = "导入完成：处理 " + (c.posts || 0) + " 篇文章、" + (c.pages || 0) + " 个页面、" + (c.categories || 0) + " 个分类、" + (c.tags || 0) + " 个标签";
         msg.className = "admin-settings-msg admin-settings-msg-ok";
         msg.hidden = false;
-        if (typeof window.pafishToast === "function") window.pafishToast(msg.textContent, "success");
       })
       .catch(function (error) {
         msg.textContent = error.message || "网络错误，请稍后重试";
         msg.className = "admin-settings-msg admin-settings-msg-error";
         msg.hidden = false;
-        if (typeof window.pafishToast === "function") window.pafishToast(msg.textContent, "error");
       })
       .finally(function () {
         if (submit) { submit.disabled = false; submit.innerHTML = '<?= admin_icon('upload', 15) ?>导入内容'; }

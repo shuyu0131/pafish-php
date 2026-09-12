@@ -95,15 +95,13 @@ final class CategoriesController extends AdminController
         if ($idx === null || !isset($siblings[$swapWith])) {
             return $this->json($response, ['ok' => true]); // 边界（已在首/尾）静默
         }
-        $other = $siblings[$swapWith];
-        DB::execute(
-            'UPDATE categories SET sort_order = ? WHERE id = ?',
-            [(int) $other['sort_order'], $id]
-        );
-        DB::execute(
-            'UPDATE categories SET sort_order = ? WHERE id = ?',
-            [(int) $cat['sort_order'], (int) $other['id']]
-        );
+        DB::transaction(function () use ($siblings, $idx, $swapWith): void {
+            $ordered = $siblings;
+            [$ordered[$idx], $ordered[$swapWith]] = [$ordered[$swapWith], $ordered[$idx]];
+            foreach ($ordered as $position => $item) {
+                DB::execute('UPDATE categories SET sort_order = ? WHERE id = ?', [$position, (int) $item['id']]);
+            }
+        });
         Cache::clearPrefix('categories.');
         return $this->json($response, ['ok' => true]);
     }

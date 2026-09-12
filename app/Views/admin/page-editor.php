@@ -88,7 +88,7 @@ $template = $isEdit ? (string) $page['template'] : 'default';
         <button type="button" class="admin-modal-tab active" data-mtab="upload">本地上传</button>
         <button type="button" class="admin-modal-tab" data-mtab="library">媒体库</button>
       </div>
-      <button type="button" class="admin-icon-btn" data-close-modal aria-label="关闭"><?= admin_icon('x', 16) ?></button>
+      <button type="button" class="admin-icon-btn" data-close-modal aria-label="关闭" title="关闭"><?= admin_icon('x', 16) ?></button>
     </div>
     <div class="admin-modal-body">
       <div data-mpanel="upload">

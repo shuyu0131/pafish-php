@@ -13,9 +13,8 @@
   </div>
   <p class="admin-backup-msg" id="pluginMsg" hidden></p>
 
-  <div class="card admin-resource-list">
-    <div class="card-body" style="padding: 0;">
-      <div class="admin-table-wrap" style="border: none; border-radius: 0;">
+  <div class="admin-resource-list">
+      <div class="admin-table-wrap">
         <table class="admin-table">
           <thead>
             <tr>
@@ -88,7 +87,6 @@
           </tbody>
         </table>
       </div>
-    </div>
   </div>
 
   <div class="card admin-theme-install admin-install-panel">

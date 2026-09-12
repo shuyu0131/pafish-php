@@ -157,6 +157,7 @@ final class AppearanceController extends AdminController
                 'name' => $result['name'],
                 'title' => $result['title'],
                 'version' => $result['version'],
+                'updated' => !empty($result['updated']),
             ]);
         } catch (\Throwable $e) {
             return $this->json($response, ['error' => $e->getMessage()], 400);

@@ -9,7 +9,7 @@ $pluginActive = count(array_filter($plugins, static fn (array $plugin): bool => 
     </div>
     <div class="admin-head-actions">
       <a class="btn btn-outline" href="<?= e(url_to('/admin/store')) ?>">应用商店</a>
-      <a class="btn btn-primary" href="#plugin-install">安装插件</a>
+      <button type="button" class="btn btn-primary" data-open-install="#plugin-install">安装插件</button>
     </div>
   </div>
 
@@ -39,7 +39,7 @@ $pluginActive = count(array_filter($plugins, static fn (array $plugin): bool => 
               <tr><td colspan="5">
                 <div class="admin-empty-list">
                   <?= admin_icon('box', 32) ?>
-                  <p>还没有插件，可以从下方安装，或直接把插件目录放入 plugins/。</p>
+                  <p>还没有插件</p>
                 </div>
               </td></tr>
             <?php endif; ?>
@@ -104,11 +104,13 @@ $pluginActive = count(array_filter($plugins, static fn (array $plugin): bool => 
       </div>
   </div>
 
-  <div class="admin-theme-install admin-install-panel" id="plugin-install">
-    <div class="admin-theme-install-head">
-      <h2 class="admin-card-title">安装插件</h2>
+  <div class="admin-modal-backdrop admin-install-modal" id="plugin-install" hidden>
+    <div class="admin-modal admin-install-dialog" role="dialog" aria-modal="true" aria-labelledby="plugin-install-title">
+    <div class="admin-modal-head admin-theme-install-head">
+      <h2 class="admin-modal-title" id="plugin-install-title">安装插件</h2>
+      <button type="button" class="admin-icon-btn" data-modal-close aria-label="关闭安装面板" title="关闭安装面板">×</button>
     </div>
-    <div class="admin-theme-install-row">
+    <div class="admin-modal-body"><div class="admin-theme-install-row">
       <div class="admin-theme-install-block">
         <p class="admin-muted">上传 zip 包</p>
         <input type="file" id="pluginZipInput" accept=".zip" hidden>
@@ -118,15 +120,8 @@ $pluginActive = count(array_filter($plugins, static fn (array $plugin): bool => 
         </div>
         <p class="admin-field-hint" id="pluginZipName"></p>
       </div>
-      <div class="admin-theme-install-block">
-        <p class="admin-muted">从 URL 下载安装</p>
-        <div class="admin-theme-install-line">
-          <input type="url" id="pluginUrlInput" class="input" placeholder="https://example.com/plugins/demo.zip" autocomplete="off">
-          <button type="button" id="pluginUrlBtn" class="btn btn-primary">下载安装</button>
-        </div>
-      </div>
     </div>
-    <p class="admin-field-hint">zip 顶层目录需为插件名，安装前校验目录名与路径安全。安装成功后需手动启用。</p>
+    </div></div></div>
   </div>
 </div>
 
@@ -135,23 +130,12 @@ $pluginActive = count(array_filter($plugins, static fn (array $plugin): bool => 
 (function () {
   "use strict";
   var CSRF = <?= json_encode($pluginCsrf) ?>;
+  try { sessionStorage.removeItem("pluginMsg"); } catch (e) {}
   function showMsg(text, isError) {
     if (typeof window.pafishToast === "function") {
       window.pafishToast(text, isError ? "error" : "success");
     }
   }
-  function persistMsg(text, isError) {
-    try { sessionStorage.setItem("pluginMsg", JSON.stringify({ t: text, e: isError ? 1 : 0 })); } catch (e) {}
-  }
-  try {
-    var saved = sessionStorage.getItem("pluginMsg");
-    if (saved) {
-      sessionStorage.removeItem("pluginMsg");
-      var m = JSON.parse(saved);
-      showMsg(m.t, !!m.e);
-    }
-  } catch (e) {}
-
   var pluginRows = Array.prototype.slice.call(document.querySelectorAll("[data-plugin-state]"));
   var pluginSearch = document.getElementById("pluginSearch");
   var pluginFilter = "all";
@@ -196,7 +180,7 @@ $pluginActive = count(array_filter($plugins, static fn (array $plugin): bool => 
       fd.append("name", btn.dataset.name);
       fd.append("_csrf", CSRF);
       post("/admin/plugins/activate", fd)
-        .then(function () { persistMsg("✓ 已启用 " + btn.dataset.title, false); location.reload(); })
+        .then(function () { if (typeof window.pafishToastReload === "function") window.pafishToastReload("已启用 " + btn.dataset.title, "success"); else location.reload(); })
         .catch(function (err) { showMsg(err.message, true); });
     });
   });
@@ -206,7 +190,7 @@ $pluginActive = count(array_filter($plugins, static fn (array $plugin): bool => 
       fd.append("name", btn.dataset.name);
       fd.append("_csrf", CSRF);
       post("/admin/plugins/deactivate", fd)
-        .then(function () { persistMsg("已停用 " + btn.dataset.title, false); location.reload(); })
+        .then(function () { if (typeof window.pafishToastReload === "function") window.pafishToastReload("已停用 " + btn.dataset.title, "success"); else location.reload(); })
         .catch(function (err) { showMsg(err.message, true); });
     });
   });
@@ -218,7 +202,7 @@ $pluginActive = count(array_filter($plugins, static fn (array $plugin): bool => 
         fd.append("name", btn.dataset.name);
         fd.append("_csrf", CSRF);
         post("/admin/plugins/uninstall", fd)
-          .then(function () { persistMsg("已卸载 " + btn.dataset.title, false); location.reload(); })
+          .then(function () { if (typeof window.pafishToastReload === "function") window.pafishToastReload("已卸载 " + btn.dataset.title, "success"); else location.reload(); })
           .catch(function (err) { showMsg(err.message, true); });
       });
     });
@@ -229,8 +213,6 @@ $pluginActive = count(array_filter($plugins, static fn (array $plugin): bool => 
   var zipBtn = document.getElementById("pluginZipBtn");
   var uploadBtn = document.getElementById("pluginUploadBtn");
   var zipName = document.getElementById("pluginZipName");
-  var urlInput = document.getElementById("pluginUrlInput");
-  var urlBtn = document.getElementById("pluginUrlBtn");
 
   zipBtn.addEventListener("click", function () { zipInput.click(); });
   zipInput.addEventListener("change", function () {
@@ -242,13 +224,16 @@ $pluginActive = count(array_filter($plugins, static fn (array $plugin): bool => 
       uploadBtn.disabled = true;
     }
   });
-  function install(fd, okText) {
+  function install(fd, okText, button, label) {
     post("/admin/plugins/install", fd)
       .then(function (j) {
-        persistMsg(okText + " ✓ 已安装 " + j.title + " v" + j.version + "，可在上方启用。", false);
-        location.reload();
+        var message = okText + " 已安装 " + j.title + " v" + j.version + "，可在上方启用。";
+        if (typeof window.pafishToastReload === "function") window.pafishToastReload(message, "success"); else location.reload();
       })
-      .catch(function (err) { showMsg(err.message, true); });
+      .catch(function (err) {
+        if (button) { button.disabled = false; button.textContent = label; }
+        showMsg(err.message, true);
+      });
   }
   uploadBtn.addEventListener("click", function () {
     if (!zipInput.files || !zipInput.files[0]) { return; }
@@ -257,21 +242,7 @@ $pluginActive = count(array_filter($plugins, static fn (array $plugin): bool => 
     var fd = new FormData();
     fd.append("zip", zipInput.files[0]);
     fd.append("_csrf", CSRF);
-    install(fd, "插件包已上传");
-    uploadBtn.disabled = false;
-    uploadBtn.textContent = "上传安装";
-  });
-  urlBtn.addEventListener("click", function () {
-    var url = urlInput.value.trim();
-    if (!url) { showMsg("请填写 zip 下载地址", true); return; }
-    urlBtn.disabled = true;
-    urlBtn.textContent = "下载中…";
-    var fd = new FormData();
-    fd.append("url", url);
-    fd.append("_csrf", CSRF);
-    install(fd, "插件包已下载");
-    urlBtn.disabled = false;
-    urlBtn.textContent = "下载安装";
+    install(fd, "插件包已上传", uploadBtn, "上传安装");
   });
 })();
 </script>

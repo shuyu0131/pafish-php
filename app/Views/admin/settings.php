@@ -250,7 +250,7 @@ curl -H "X-API-Key: &lt;你的Key&gt;" "https://你的域名/api/v1/comments?pos
   function showError(msg) {
     errBox.textContent = msg;
     errBox.hidden = false;
-    if (typeof window.pafishNotify === "function") window.pafishNotify(msg);
+    if (typeof window.pafishNotify === "function") window.pafishNotify(msg, true);
   }
   function clearError() {
     errBox.textContent = "";
@@ -291,7 +291,7 @@ curl -H "X-API-Key: &lt;你的Key&gt;" "https://你的域名/api/v1/comments?pos
     fd.set("blocked_ips", JSON.stringify([...new Set(ips)]));
     post(form.action, fd, function () {
       // 先让成功提示可见，再刷新页面反映新状态
-      if (typeof window.pafishNotify === "function") window.pafishNotify("设置已保存");
+      if (typeof window.pafishNotify === "function") window.pafishNotify("设置已保存", false);
       setTimeout(function () { location.reload(); }, 600);
     }).catch(function () { saveBtn.disabled = false; });
   });
@@ -315,6 +315,7 @@ curl -H "X-API-Key: &lt;你的Key&gt;" "https://你的域名/api/v1/comments?pos
     post(base + "/test-smtp", fd, function (j) {
       testMsg.textContent = "✓ 测试邮件已发送至 " + j.to + "，请查收（含垃圾箱）";
       testMsg.hidden = false;
+      if (typeof window.pafishToast === "function") window.pafishToast("测试邮件已发送", "success");
     }).finally(function () {
       testBtn.disabled = false;
       testBtn.textContent = "发送测试邮件";
@@ -331,6 +332,7 @@ curl -H "X-API-Key: &lt;你的Key&gt;" "https://你的域名/api/v1/comments?pos
     post(base + "/regenerate-key", fd, function (j) {
       form.elements.api_key.value = j.key;
       showSaved();
+      if (typeof window.pafishToast === "function") window.pafishToast("API Key 已重新生成", "success");
     }).finally(function () { regenBtn.disabled = false; });
   });
 })();

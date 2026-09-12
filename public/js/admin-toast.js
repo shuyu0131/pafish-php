@@ -11,9 +11,23 @@
     warning: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>',
     info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>'
   };
+  var TITLES = { success: "成功", error: "错误", warning: "警告", info: "提示" };
 
   function normalizeType(type) {
     return ICONS[type] ? type : "info";
+  }
+
+  function normalizePayload(message, type) {
+    if (message && typeof message === "object") {
+      var objectType = normalizeType(message.type || type);
+      return {
+        title: String(message.title || TITLES[objectType]),
+        content: String(message.content || message.message || ""),
+        type: objectType
+      };
+    }
+    type = normalizeType(type);
+    return { title: TITLES[type], content: String(message || ""), type: type };
   }
 
   function bind(toast) {
@@ -55,17 +69,29 @@
     start();
   }
 
+  function getStack() {
+    var stack = document.querySelector("[data-toast-stack]");
+    if (!stack) {
+      stack = document.createElement("div");
+      stack.className = "admin-toast-stack";
+      stack.setAttribute("data-toast-stack", "");
+      document.body.appendChild(stack);
+    }
+    return stack;
+  }
+
   window.pafishToast = function (message, type) {
     if (!document.body) return;
-    type = normalizeType(type);
+    var payload = normalizePayload(message, type);
     var toast = document.createElement("div");
-    toast.className = "admin-toast admin-toast-" + type;
+    toast.className = "admin-toast admin-toast-" + payload.type;
     toast.setAttribute("data-toast", "");
-    toast.setAttribute("role", type === "error" ? "alert" : "status");
+    toast.setAttribute("role", payload.type === "error" ? "alert" : "status");
     toast.setAttribute("aria-live", "polite");
-    toast.innerHTML = '<span class="admin-toast-icon">' + ICONS[type] + '</span><span class="admin-toast-msg"></span><button type="button" class="admin-toast-close" aria-label="关闭提示" title="关闭">&times;</button>';
-    toast.querySelector(".admin-toast-msg").textContent = String(message || "");
-    document.body.appendChild(toast);
+    toast.innerHTML = '<span class="admin-toast-icon">' + ICONS[payload.type] + '</span><span class="admin-toast-content"><strong class="admin-toast-title"></strong><span class="admin-toast-msg"></span></span><button type="button" class="admin-toast-close" aria-label="关闭提示" title="关闭">&times;</button>';
+    toast.querySelector(".admin-toast-title").textContent = payload.title;
+    toast.querySelector(".admin-toast-msg").textContent = payload.content;
+    getStack().appendChild(toast);
     bind(toast);
   };
 
@@ -74,8 +100,36 @@
     window.pafishToast(String(message || ""), isError ? "error" : "success");
   };
 
+  window.pafishToastReload = function (message, type, delay) {
+    try {
+      sessionStorage.setItem("pafishToastPending", JSON.stringify({
+        message: String(message || ""),
+        type: normalizeType(type || "success")
+      }));
+    } catch (e) {}
+    window.setTimeout(function () { window.location.reload(); }, Number(delay) || 520);
+  };
+
+  window.pafishToastNavigate = function (url, message, type, delay) {
+    try {
+      sessionStorage.setItem("pafishToastPending", JSON.stringify({
+        message: String(message || ""),
+        type: normalizeType(type || "success")
+      }));
+    } catch (e) {}
+    window.setTimeout(function () { window.location.href = url; }, Number(delay) || 520);
+  };
+
   function init() {
     document.querySelectorAll("[data-toast]").forEach(bind);
+    try {
+      var pending = sessionStorage.getItem("pafishToastPending");
+      if (pending) {
+        sessionStorage.removeItem("pafishToastPending");
+        var parsed = JSON.parse(pending);
+        window.pafishToast(parsed, parsed.type);
+      }
+    } catch (e) {}
   }
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", init);

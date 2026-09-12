@@ -117,7 +117,7 @@ $canEdit = in_array($role ?? '', ['ADMIN', 'EDITOR'], true);
 <?php $catJs = [
     'csrf' => csrf_token(),
     'saveUrl' => url_to('/admin/categories/save'),
-    'moveUrl' => url_to('/admin/categories'),
+    'moveUrl' => url_to('/admin/categories/0/move'),
     'deleteUrl' => url_to('/admin/categories'),
     'disabledMap' => $disabledMap,
 ]; ?>
@@ -139,7 +139,6 @@ window.PAFISH_CAT_DATA = <?= json_encode($catJs) ?>;
   function showError(message) {
     errorBox.textContent = message;
     errorBox.hidden = false;
-    if (typeof window.pafishToast === "function") window.pafishToast(message, "error");
   }
 
   function post(url, body) {
@@ -202,7 +201,8 @@ window.PAFISH_CAT_DATA = <?= json_encode($catJs) ?>;
   // 上移/下移（同级交换 sortOrder）
   document.querySelectorAll("[data-move-cat]").forEach(function (btn) {
     btn.addEventListener("click", function () {
-      post(D.moveUrl + "/" + btn.getAttribute("data-move-cat") + "/move", { dir: btn.getAttribute("data-dir") })
+      var moveUrl = D.moveUrl.replace("/0/move", "/" + btn.getAttribute("data-move-cat") + "/move");
+      post(moveUrl, { dir: btn.getAttribute("data-dir") })
         .then(function (r) { return r.json(); })
         .then(function (j) { if (j && j.ok) pafishToastReload("分类顺序已更新", "success"); else pafishNotify((j && j.error) || "操作失败", true); })
         .catch(function () { pafishNotify("网络错误", true); });

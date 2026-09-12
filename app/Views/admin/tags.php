@@ -100,7 +100,6 @@
   function showError(message) {
     errorBox.textContent = message;
     errorBox.hidden = false;
-    if (typeof window.pafishToast === "function") window.pafishToast(message, "error");
   }
 
   function post(url, body) {

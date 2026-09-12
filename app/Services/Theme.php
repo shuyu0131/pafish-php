@@ -384,7 +384,7 @@ final class Theme
         self::reset();
     }
 
-    /** 从 zip 缓冲安装主题；返回 ['name', 'title', 'version']。校验失败抛 \RuntimeException（已回滚） */
+    /** 从 zip 缓冲安装主题；返回 name/title/version/updated。校验失败抛 RuntimeException（已回滚） */
     public static function installFromBuffer(string $buffer): array
     {
         $len = strlen($buffer);
@@ -431,33 +431,55 @@ final class Theme
             if (!self::isValidName((string) $top)) {
                 throw new \RuntimeException('主题名不合法（仅限小写字母/数字/下划线/连字符）');
             }
-            if (is_dir(self::root() . '/' . $top)) {
-                throw new \RuntimeException('主题"' . $top . '"已存在，请先在主题列表卸载后再安装');
-            }
-            // 直接解压到主题目录，失败或校验不通过时清理残留。
             $target = self::root() . '/' . $top;
-            $extracted = @$zip->extractTo(self::root());
+            $stage = self::root() . '/.' . $top . '.install-' . bin2hex(random_bytes(4));
+            $backup = null;
+            if (@mkdir($stage, 0755, true) === false) {
+                throw new \RuntimeException('无法创建主题临时目录');
+            }
+            $extracted = @$zip->extractTo($stage);
             if (!$extracted) {
                 $zip->close();
-                self::rmDir($target);
+                self::rmDir($stage);
                 throw new \RuntimeException('解压失败（已回滚）');
             }
             $zip->close();
-            if (!is_file($target . '/theme.json')) {
-                self::rmDir($target);
+            $stagedTarget = $stage . '/' . $top;
+            if (!is_file($stagedTarget . '/theme.json')) {
+                self::rmDir($stage);
                 throw new \RuntimeException('安装失败：缺少 theme.json（已回滚）');
             }
-            $json = json_decode((string) file_get_contents($target . '/theme.json'), true);
+            $json = json_decode((string) file_get_contents($stagedTarget . '/theme.json'), true);
             $error = is_array($json) ? self::validateManifest($json, (string) $top) : 'theme.json 不是合法 JSON';
             if ($error !== null) {
-                self::rmDir($target);
+                self::rmDir($stage);
                 throw new \RuntimeException('安装失败：' . $error . '（已回滚）');
+            }
+            $updated = is_dir($target);
+            if ($updated) {
+                $backup = self::root() . '/.' . $top . '.backup-' . bin2hex(random_bytes(4));
+                if (!@rename($target, $backup)) {
+                    self::rmDir($stage);
+                    throw new \RuntimeException('无法替换已安装主题，请检查目录权限');
+                }
+            }
+            if (!@rename($stagedTarget, $target)) {
+                if ($backup !== null) {
+                    @rename($backup, $target);
+                }
+                self::rmDir($stage);
+                throw new \RuntimeException('主题更新失败（已回滚）');
+            }
+            self::rmDir($stage);
+            if ($backup !== null) {
+                self::rmDir($backup);
             }
             self::reset();
             return [
                 'name' => (string) $top,
                 'title' => (string) $json['title'],
                 'version' => (string) $json['version'],
+                'updated' => $updated,
             ];
         } finally {
             if ($zip->status !== \ZipArchive::ER_OK) {

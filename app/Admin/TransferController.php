@@ -7,6 +7,7 @@ namespace Pafish\Admin;
 use Pafish\Services\ContentTransfer;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
+use Psr\Http\Message\UploadedFileInterface;
 
 final class TransferController extends AdminController
 {
@@ -31,7 +32,13 @@ final class TransferController extends AdminController
         $body = $request->getParsedBody() ?? [];
         $raw = trim((string) ($body['json'] ?? ''));
         $files = $request->getUploadedFiles();
-        if ($raw === '' && isset($files['file'])) $raw = (string) $files['file']->getStream();
+        $upload = $files['file'] ?? null;
+        if ($raw === '' && $upload instanceof UploadedFileInterface) {
+            if ($upload->getError() !== UPLOAD_ERR_OK) {
+                return $this->json($response, ['error' => 'JSON 文件上传失败'], 400);
+            }
+            $raw = trim($upload->getStream()->getContents());
+        }
         $payload = json_decode($raw, true);
         if (!is_array($payload)) return $this->json($response, ['error' => 'JSON 内容无效'], 400);
         try { return $this->json($response, ['ok' => true, 'counts' => ContentTransfer::import($payload, (string) ($body['mode'] ?? 'skip'))]); }

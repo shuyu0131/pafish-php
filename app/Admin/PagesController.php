@@ -22,9 +22,9 @@ final class PagesController extends AdminController
     /** 页面模板选项：default + 激活主题 + 激活插件 */
     public static function templateOptions(): array
     {
-        $options = ['default' => '默认模板'];
+        $options = ['default' => '系统默认模板'];
         foreach (Theme::pageTemplates(Theme::active()) as $tpl) {
-            $options[$tpl['name']] = $tpl['title'];
+            $options[$tpl['name']] = '主题 · ' . $tpl['title'];
         }
         foreach (Plugin::activeNames() as $name) {
             $desc = Plugin::describe($name);
@@ -32,7 +32,7 @@ final class PagesController extends AdminController
                 continue;
             }
             foreach (($desc['manifest']['pageTemplates'] ?? []) as $tpl) {
-                $options[$tpl['name']] = $tpl['title'];
+                $options[$tpl['name']] = '插件 · ' . $tpl['title'];
             }
         }
         return $options;

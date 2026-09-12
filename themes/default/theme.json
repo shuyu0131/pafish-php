@@ -4,6 +4,8 @@
   "version": "1.0.0",
   "description": "pafish 默认主题：Anatole 风格，白 / 极简 / 蓝链接。",
   "author": "pafish",
+  "authorUrl": "https://www.pafish.cn",
+  "homepage": "https://www.pafish.cn",
   "settings": [
     {
       "key": "footer_text",

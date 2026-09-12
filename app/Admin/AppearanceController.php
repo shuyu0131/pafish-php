@@ -32,6 +32,8 @@ final class AppearanceController extends AdminController
                 'version' => $manifest['version'] ?? '',
                 'description' => $manifest['description'] ?? '',
                 'author' => $manifest['author'] ?? '',
+                'authorUrl' => self::manifestUrl($manifest, 'authorUrl'),
+                'homepage' => self::manifestUrl($manifest, 'homepage'),
                 'error' => $desc['error'],
                 'settingsCount' => count(Theme::schemaKeys($name)),
                 'active' => $name === $active,
@@ -42,6 +44,14 @@ final class AppearanceController extends AdminController
             'activeTheme' => $active,
         ], '主题与外观'));
         return $response;
+    }
+
+    /** 兼容新旧 manifest 的外链字段，只允许 http(s)。 */
+    private static function manifestUrl(?array $manifest, string $key): string
+    {
+        if (!is_array($manifest)) return '';
+        $value = $manifest[$key] ?? ($key === 'homepage' ? ($manifest['url'] ?? '') : ($manifest['author_url'] ?? ''));
+        return is_string($value) && preg_match('/^https?:\\/\\//i', $value) === 1 ? $value : '';
     }
 
     /** GET /admin/appearance/{name}：主题设置页 */

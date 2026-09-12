@@ -245,6 +245,8 @@ final class Plugin
             'apiVersion' => is_int($json['apiVersion'] ?? null) ? $json['apiVersion'] : 1,
             'description' => is_string($json['description'] ?? null) ? $json['description'] : '',
             'author' => is_string($json['author'] ?? null) ? $json['author'] : '',
+            'authorUrl' => self::manifestUrl($json, 'authorUrl'),
+            'homepage' => self::manifestUrl($json, 'homepage'),
             'requires' => is_array($json['requires'] ?? null) ? $json['requires'] : [],
             'settings' => $settings,
             'injects' => $injects,
@@ -252,6 +254,13 @@ final class Plugin
             'pages' => $pages,
             'storage' => $storage,
         ];
+    }
+
+    /** 兼容 author_url/url 旧字段，过滤非网页地址。 */
+    private static function manifestUrl(array $json, string $key): string
+    {
+        $value = $json[$key] ?? ($key === 'homepage' ? ($json['url'] ?? '') : ($json['author_url'] ?? ''));
+        return is_string($value) && preg_match('/^https?:\\/\\//i', $value) === 1 ? $value : '';
     }
 
     /** 加载插件模块；入口缺失或加载失败时返回空结果。 */

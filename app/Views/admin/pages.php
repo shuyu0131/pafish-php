@@ -9,7 +9,7 @@
   <div class="admin-page-head">
     <div>
       <h1 class="admin-h1">页面管理</h1>
-      <p class="admin-page-sub">共 <?= count($pages) ?> 个页面 · 设为首页的页面将直接作为站点首页展示</p>
+      <p class="admin-page-sub">共 <?= count($pages) ?> 个页面</p>
     </div>
     <div class="admin-head-actions">
       <a class="btn btn-primary" href="<?= e(url_to('/admin/pages/new')) ?>">
@@ -17,6 +17,8 @@
       </a>
     </div>
   </div>
+
+  <div class="admin-page-note">页面用于独立内容（关于、联系等）；模板仅决定页面的呈现方式，主题或插件停用后对应模板会自动隐藏。</div>
 
   <div class="admin-table-wrap">
     <table class="admin-table">
@@ -54,9 +56,9 @@
                   <span>/<?= e($p['slug']) ?></span>
                 </div>
               </td>
-              <td class="admin-muted"><?= e(($templateOptions[$p['template']] ?? $p['template'])) ?></td>
-              <td class="admin-muted"><?= e(format_date($p['updated_at'], 'yyyy-MM-dd HH:mm')) ?></td>
-              <td class="admin-col-ops">
+              <td class="admin-muted" data-label="模板"><?= e(($templateOptions[$p['template']] ?? $p['template'])) ?></td>
+              <td class="admin-muted" data-label="更新时间"><?= e(format_date($p['updated_at'], 'yyyy-MM-dd HH:mm')) ?></td>
+              <td class="admin-col-ops" data-label="操作">
                 <div class="admin-row-ops">
                   <?php if ($p['status'] === 'PUBLISHED'): ?>
                     <a class="admin-icon-btn" href="<?= e(url_to('/pages/' . rawurlencode($p['slug']))) ?>" target="_blank" rel="noopener" title="查看"><?= admin_icon('eye', 15) ?></a>

@@ -62,6 +62,7 @@
                       <span class="admin-muted">依赖：<?= e(implode('、', $p['requires'])) ?></span>
                     <?php endif; ?>
                     <?php if ($p['storage'] !== null): ?><span class="badge badge-primary">云存储</span><?php endif; ?>
+                    <?php if (($p['homepage'] ?? '') !== ''): ?><a class="admin-muted" href="<?= e($p['homepage']) ?>" target="_blank" rel="noopener noreferrer">插件主页</a><?php endif; ?>
               <?php if (($p['pagesCount'] ?? 0) > 0 || ($p['templatesCount'] ?? 0) > 0): ?><span class="badge">页面能力</span><?php endif; ?>
                   </div>
                 </td>
@@ -72,7 +73,9 @@
                     <span class="badge">未启用</span>
                   <?php endif; ?>
                 </td>
-                <td class="admin-col-md" data-label="作者"><?= e($p['author'] !== '' ? $p['author'] : '未知') ?></td>
+                <td class="admin-col-md" data-label="作者">
+                  <?php if (($p['authorUrl'] ?? '') !== ''): ?><a href="<?= e($p['authorUrl']) ?>" target="_blank" rel="noopener noreferrer"><?= e($p['author'] !== '' ? $p['author'] : '未知') ?></a><?php else: ?><?= e($p['author'] !== '' ? $p['author'] : '未知') ?><?php endif; ?>
+                </td>
                 <td class="admin-col-sm" data-label="版本">
                   <?php if ($p['version'] !== ''): ?>v<?= e($p['version']) ?><?php endif; ?>
                   <div class="admin-muted" style="font-size: 11px;">API v<?= (int) $p['apiVersion'] ?></div>

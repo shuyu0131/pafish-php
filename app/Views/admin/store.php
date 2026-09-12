@@ -32,7 +32,6 @@ sort($allCategories);
 
   <div class="admin-store-source">
     <span class="badge badge-primary">内置官方商店</span>
-    <span class="admin-muted"><?= e($storeUrl) ?></span>
     <?php if ($storeAccount): ?>
       <span class="badge badge-primary">已绑定 <?= e((string)($storeAccount['account']['email'] ?? $storeAccount['account']['name'] ?? '商城账号')) ?></span>
     <?php elseif (($storeAccountStatus ?? 'unbound') === 'invalid_token'): ?>
@@ -122,7 +121,7 @@ sort($allCategories);
   <?php endforeach; ?>
 </div>
 
-<!-- 应用商店优化：抽屉式详情面板 -->
+<!-- 应用详情对话框 -->
 
 <?php $storeCsrf = csrf_token(); ?>
 <script>
@@ -293,12 +292,15 @@ sort($allCategories);
     requestAnimationFrame(function() {
       drawer.hidden = false;
       document.body.classList.add("admin-modal-open");
+      var dialog = drawer.querySelector('[role="dialog"]');
+      if (dialog) dialog.focus();
     });
   }
 
   function createDrawer(item, kind, sourceCard) {
     var drawer = document.createElement("div");
-    drawer.className = "admin-drawer";
+    drawer.className = "admin-store-modal-backdrop";
+    drawer.setAttribute('role', 'presentation');
 
     var shots = Array.isArray(item.screenshots) ? item.screenshots : [];
     var gallery = shots.length ?
@@ -318,20 +320,20 @@ sort($allCategories);
     var purchase = item.paid ? (item.purchased ? '已购买' : '需要购买') : '免费';
 
     drawer.innerHTML =
-      '<div class="admin-drawer-overlay" data-drawer-close></div>' +
-      '<div class="admin-drawer-panel" role="dialog" aria-modal="true" aria-label="应用详情">' +
-        '<div class="admin-drawer-head">' +
+      '<div class="admin-store-modal-overlay" data-drawer-close></div>' +
+      '<div class="admin-store-modal" role="dialog" aria-modal="true" aria-label="应用详情" tabindex="-1">' +
+        '<div class="admin-store-modal-head">' +
           '<div>' +
             '<h2>' + esc(item.title || item.name || '应用详情') + '</h2>' +
             '<p>' + kind + ' · v' + esc(item.version || '未知') + (item.author ? ' · ' + esc(item.author) : '') + '</p>' +
           '</div>' +
           '<button class="admin-icon-btn" data-drawer-close aria-label="关闭">×</button>' +
         '</div>' +
-        '<div class="admin-drawer-body">' +
+        '<div class="admin-store-modal-body">' +
           gallery +
           '<p class="admin-store-detail-description">' + esc(item.description || '该条目未提供描述') + '</p>' +
           '<dl class="admin-store-detail-facts">' +
-            '<div><dt>作者</dt><dd>' + esc(item.author || '未知') + '</dd></div>' +
+            '<div><dt>作者</dt><dd>' + (safeUrl(item.authorUrl || item.author_url) ? '<a href="' + esc(safeUrl(item.authorUrl || item.author_url)) + '" target="_blank" rel="noopener noreferrer">' + esc(item.author || '未知') + '</a>' : esc(item.author || '未知')) + '</dd></div>' +
             '<div><dt>版本</dt><dd>v' + esc(item.version || '未知') + '</dd></div>' +
             '<div><dt>PHP 要求</dt><dd>' + esc(item.requiresPhp || '未提供') + '</dd></div>' +
             '<div><dt>应用依赖</dt><dd>' + esc(Array.isArray(item.requires) && item.requires.length ? item.requires.join('、') : '无') + '</dd></div>' +
@@ -342,7 +344,7 @@ sort($allCategories);
           '</dl>' +
           (item.changelog ? '<div class="admin-store-detail-log"><h3>更新日志</h3><p>' + esc(item.changelog) + '</p></div>' : '') +
         '</div>' +
-        '<div class="admin-drawer-actions">' +
+        '<div class="admin-store-modal-actions">' +
           (safeUrl(item.homepage) ? '<a class="btn btn-ghost" href="' + esc(safeUrl(item.homepage)) + '" target="_blank" rel="noopener">查看官网</a>' : '') +
           '<button class="btn btn-ghost" data-drawer-close>关闭</button>' +
         '</div>' +
@@ -352,13 +354,13 @@ sort($allCategories);
       el.addEventListener("click", function() {
         drawer.hidden = true;
         document.body.classList.remove("admin-modal-open");
-        setTimeout(function() { drawer.remove(); }, 300);
+        drawer.remove();
       });
     });
 
     var action = sourceCard.querySelector(".admin-store-install, .admin-store-update");
     if (action) {
-      var actions = drawer.querySelector(".admin-drawer-actions");
+      var actions = drawer.querySelector(".admin-store-modal-actions");
       var clonedBtn = action.cloneNode(true);
       actions.insertBefore(clonedBtn, actions.lastElementChild);
 
@@ -376,6 +378,15 @@ sort($allCategories);
     btn.addEventListener("click", function() {
       openDrawer(btn.closest(".admin-theme-card"));
     });
+  });
+
+  document.addEventListener("keydown", function(event) {
+    if (event.key !== "Escape") return;
+    var modal = document.querySelector(".admin-store-modal-backdrop:not([hidden])");
+    if (!modal) return;
+    modal.hidden = true;
+    modal.remove();
+    document.body.classList.remove("admin-modal-open");
   });
 
   // ========== 安装处理 ==========

@@ -56,6 +56,7 @@
                   <div class="admin-plugin-info">
                     <span class="admin-muted">目录：themes/<?= e($t['name']) ?>/</span>
                     <span class="admin-muted">设置项：<?= (int) $t['settingsCount'] ?></span>
+                    <?php if (($t['homepage'] ?? '') !== ''): ?><a class="admin-muted" href="<?= e($t['homepage']) ?>" target="_blank" rel="noopener noreferrer">主题主页</a><?php endif; ?>
                   </div>
                 </td>
                 <td class="admin-col-md" data-label="状态">
@@ -65,7 +66,9 @@
                     <span class="badge">未启用</span>
                   <?php endif; ?>
                 </td>
-                <td class="admin-col-md" data-label="作者"><?= e($t['author'] !== '' ? $t['author'] : '未知') ?></td>
+                <td class="admin-col-md" data-label="作者">
+                  <?php if (($t['authorUrl'] ?? '') !== ''): ?><a href="<?= e($t['authorUrl']) ?>" target="_blank" rel="noopener noreferrer"><?= e($t['author'] !== '' ? $t['author'] : '未知') ?></a><?php else: ?><?= e($t['author'] !== '' ? $t['author'] : '未知') ?><?php endif; ?>
+                </td>
                 <td class="admin-col-sm" data-label="版本"><?php if ($t['version'] !== ''): ?>v<?= e($t['version']) ?><?php endif; ?></td>
                 <td class="admin-col-ops" data-label="操作">
                   <div class="admin-row-ops">

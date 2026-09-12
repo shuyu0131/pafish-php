@@ -31,6 +31,8 @@ final class PluginsController extends AdminController
                 'apiVersion' => $m['apiVersion'] ?? 1,
                 'description' => $m['description'] ?? '',
                 'author' => $m['author'] ?? '',
+                'authorUrl' => self::manifestUrl($m, 'authorUrl'),
+                'homepage' => self::manifestUrl($m, 'homepage'),
                 'error' => $desc['error'],
                 'injects' => $m['injects'] ?? [],
                 'settingsCount' => count($m['settings'] ?? []),
@@ -47,6 +49,14 @@ final class PluginsController extends AdminController
             'activeCount' => count(Plugin::activeNames()),
         ], '插件管理'));
         return $response;
+    }
+
+    /** 兼容新旧 manifest 的外链字段，只允许 http(s)。 */
+    private static function manifestUrl(?array $manifest, string $key): string
+    {
+        if (!is_array($manifest)) return '';
+        $value = $manifest[$key] ?? ($key === 'homepage' ? ($manifest['url'] ?? '') : ($manifest['author_url'] ?? ''));
+        return is_string($value) && preg_match('/^https?:\\/\\//i', $value) === 1 ? $value : '';
     }
 
     /** GET /admin/plugins/{name}：插件设置页 */

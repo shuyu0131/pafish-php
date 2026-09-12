@@ -26,6 +26,21 @@ $roleLabel = static function (string $role): string {
     </div>
   </div>
 
+  <div class="admin-user-toolbar" role="search">
+    <input type="search" class="input" id="adminUserSearch" placeholder="搜索昵称、用户名或邮箱…" autocomplete="off">
+    <select class="input" id="adminUserRole" aria-label="筛选角色">
+      <option value="">全部角色</option>
+      <option value="ADMIN">管理员</option>
+      <option value="EDITOR">编辑</option>
+      <option value="USER">用户</option>
+    </select>
+    <select class="input" id="adminUserState" aria-label="筛选状态">
+      <option value="">全部状态</option>
+      <option value="active">正常</option>
+      <option value="disabled">已禁用</option>
+    </select>
+  </div>
+
   <?php if ($users === []): ?>
     <div class="admin-empty-list card">暂无用户</div>
   <?php else: ?>
@@ -49,7 +64,7 @@ $roleLabel = static function (string $role): string {
             $avatar = !empty($u['avatar_url']) ? $u['avatar_url'] : admin_gravatar((string) $u['email']);
             $disabled = ((int) $u['disabled']) === 1;
             ?>
-            <tr class="admin-user-row" data-id="<?= $uid ?>">
+            <tr class="admin-user-row" data-id="<?= $uid ?>" data-search="<?= e(mb_strtolower(implode(' ', [(string) ($u['nickname'] ?? ''), (string) ($u['username'] ?? ''), (string) ($u['email'] ?? '')]))) ?>" data-role="<?= e((string) $u['role']) ?>" data-state="<?= $disabled ? 'disabled' : 'active' ?>">
               <td data-label="用户">
                 <div class="admin-user-main">
                   <div class="admin-user-name-row">
@@ -234,5 +249,18 @@ $roleLabel = static function (string $role): string {
       post("/admin/users/" + row.dataset.id + "/points", fd, function () { location.reload(); });
     });
   });
+
+  var userSearch = document.getElementById("adminUserSearch");
+  var userRole = document.getElementById("adminUserRole");
+  var userState = document.getElementById("adminUserState");
+  function filterUsers() {
+    var q = (userSearch.value || "").trim().toLowerCase();
+    var role = userRole.value;
+    var state = userState.value;
+    document.querySelectorAll(".admin-user-row").forEach(function (row) {
+      row.hidden = !!((q && (row.dataset.search || "").indexOf(q) < 0) || (role && row.dataset.role !== role) || (state && row.dataset.state !== state));
+    });
+  }
+  [userSearch, userRole, userState].forEach(function (el) { if (el) el.addEventListener("input", filterUsers); });
 })();
 </script>

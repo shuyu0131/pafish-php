@@ -55,8 +55,6 @@
 
   function showError(msg) {
     if (errorBox) { errorBox.textContent = msg; errorBox.hidden = false; }
-    // 全局 toast 同步提示（admin-toast.js 已随后台布局加载）
-    if (typeof window.pafishNotify === "function") window.pafishNotify(msg, true);
   }
   function clearError() { if (errorBox) errorBox.hidden = true; }
 

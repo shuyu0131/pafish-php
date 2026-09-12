@@ -56,7 +56,7 @@
   function showError(msg) {
     if (errorBox) { errorBox.textContent = msg; errorBox.hidden = false; }
     // 全局 toast 同步提示（admin-toast.js 已随后台布局加载）
-    if (typeof window.pafishNotify === "function") window.pafishNotify(msg);
+    if (typeof window.pafishNotify === "function") window.pafishNotify(msg, true);
   }
   function clearError() { if (errorBox) errorBox.hidden = true; }
 
@@ -257,7 +257,7 @@
         pending = null;
         btns.forEach(function (b) { b.disabled = false; });
         if (res.ok && res.j && res.j.ok) {
-          location.href = DATA.listUrl; // 保存成功回列表
+          pafishToastNavigate(DATA.listUrl, "页面已保存", "success");
         } else {
           showError((res.j && res.j.error) || "保存失败，请重试");
         }

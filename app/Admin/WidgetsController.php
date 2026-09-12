@@ -6,6 +6,7 @@ namespace Pafish\Admin;
 
 use Pafish\Core\DB;
 use Pafish\Core\Cache;
+use Pafish\Services\Theme;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -14,7 +15,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  * - 6 种内置类型：categories / tags / recent_posts / hot_posts / recent_comments / custom
  * - 列表 sort_order ASC, id ASC；行内编辑可改 type；新建 max(sort_order)+1
  * - title 留空用类型默认标题；content 仅 custom 类型保存，其余强制 NULL
- * - 显隐切换；上下移动=相邻交换；删除两步确认物理删
+ * - 显隐切换；上下移动=相邻交换；删除确认后物理删
  * 权限：仅 ADMIN；CSRF 由 AdminAuthMiddleware 统一校验
  */
 final class WidgetsController extends AdminController
@@ -52,6 +53,7 @@ final class WidgetsController extends AdminController
             'types' => self::TYPES,
             'typeLabels' => self::TYPE_LABELS,
             'defaultTitles' => self::DEFAULT_TITLES,
+            'areas' => Theme::widgetAreas(Theme::active()),
         ], '侧边栏组件'));
         return $response;
     }
@@ -66,7 +68,13 @@ final class WidgetsController extends AdminController
             if (!in_array($type, self::TYPES, true)) {
                 throw new \RuntimeException('无效的组件类型');
             }
-            $title = trim((string) ($request->getParsedBody()['title'] ?? ''));
+            $body = $request->getParsedBody() ?? [];
+            $area = (string) ($body['area'] ?? 'sidebar');
+            $areas = Theme::widgetAreas(Theme::active());
+            if (!array_key_exists($area, $areas)) {
+                throw new \RuntimeException('无效的组件区域');
+            }
+            $title = trim((string) ($body['title'] ?? ''));
             $title = $title === '' ? null : mb_substr($title, 0, 100);
             // content 仅 custom 类型保存，其余强制 NULL
             $content = null;
@@ -79,10 +87,10 @@ final class WidgetsController extends AdminController
 
             if ($id > 0) {
                 // 编辑：不动 visible / sort_order；可改 type
-                DB::execute('UPDATE widgets SET type = ?, title = ?, content = ? WHERE id = ?', [$type, $title, $content, $id]);
+                DB::execute('UPDATE widgets SET type = ?, title = ?, content = ?, area = ? WHERE id = ?', [$type, $title, $content, $area, $id]);
             } else {
-                $sort = (int) DB::value('SELECT COALESCE(MAX(sort_order), 0) + 1 FROM widgets');
-                DB::execute('INSERT INTO widgets (type, title, content, sort_order) VALUES (?, ?, ?, ?)', [$type, $title, $content, $sort]);
+                $sort = (int) DB::value('SELECT COALESCE(MAX(sort_order), 0) + 1 FROM widgets WHERE area = ?', [$area]);
+                DB::execute('INSERT INTO widgets (type, title, content, area, sort_order) VALUES (?, ?, ?, ?, ?)', [$type, $title, $content, $area, $sort]);
             }
         } catch (\RuntimeException $e) {
             if ($this->isAjax($request)) {
@@ -126,19 +134,19 @@ final class WidgetsController extends AdminController
         $id = (int) ($args['id'] ?? 0);
         $dir = ($request->getParsedBody()['dir'] ?? '') === 'up' ? 'up' : 'down';
         DB::transaction(function () use ($id, $dir): void {
-            $cur = DB::fetchOne('SELECT sort_order FROM widgets WHERE id = ?', [$id]);
+            $cur = DB::fetchOne('SELECT area, sort_order FROM widgets WHERE id = ?', [$id]);
             if ($cur === null) {
                 return;
             }
             if ($dir === 'up') {
                 $other = DB::fetchOne(
-                    'SELECT id, sort_order FROM widgets WHERE sort_order < ? ORDER BY sort_order DESC, id DESC LIMIT 1',
-                    [$cur['sort_order']]
+                    'SELECT id, sort_order FROM widgets WHERE area = ? AND sort_order < ? ORDER BY sort_order DESC, id DESC LIMIT 1',
+                    [$cur['area'], $cur['sort_order']]
                 );
             } else {
                 $other = DB::fetchOne(
-                    'SELECT id, sort_order FROM widgets WHERE sort_order > ? ORDER BY sort_order ASC, id ASC LIMIT 1',
-                    [$cur['sort_order']]
+                    'SELECT id, sort_order FROM widgets WHERE area = ? AND sort_order > ? ORDER BY sort_order ASC, id ASC LIMIT 1',
+                    [$cur['area'], $cur['sort_order']]
                 );
             }
             if ($other === null) {

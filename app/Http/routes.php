@@ -39,7 +39,6 @@ use Pafish\Admin\PluginsController;
 use Pafish\Admin\StoreController;
 use Pafish\Admin\UpgradeController;
 use Pafish\Admin\ApiController;
-use Pafish\Admin\HealthController;
 use Pafish\Admin\TransferController;
 use Pafish\Api\V1Controller;
 use Pafish\Http\StaticFileController;
@@ -200,7 +199,6 @@ $app->group('/admin', function ($group) {
     $group->post('/backup/upload', [BackupController::class, 'upload']);
     $group->post('/backup/restore', [BackupController::class, 'restore']);
     $group->post('/backup/delete', [BackupController::class, 'delete']);
-    $group->get('/health', [HealthController::class, 'index']);
     $group->get('/tools/transfer', [TransferController::class, 'index']);
     $group->get('/tools/transfer/export', [TransferController::class, 'export']);
     $group->post('/tools/transfer/import', [TransferController::class, 'import']);

@@ -110,9 +110,9 @@ $listUrl = url_to('/admin/comments') . '?status=' . $status;
   function jsonOrAlert(r, failMsg) {
     return r.json().then(function (j) {
       if (j && j.ok) return j;
-     pafishNotify((j && j.error) || failMsg);
+     pafishNotify((j && j.error) || failMsg, true);
       return null;
-    }).catch(function () { pafishNotify("网络错误"); return null; });
+    }).catch(function () { pafishNotify("网络错误", true); return null; });
   }
 
   // ---- 状态流转：通过 / 垃圾 ----
@@ -124,7 +124,7 @@ $listUrl = url_to('/admin/comments') . '?status=' . $status;
         if (!ok) return;
         return post(listUrl + "/" + btn.getAttribute("data-status") + "/status", { status: next })
         .then(function (r) { return jsonOrAlert(r, "操作失败"); })
-        .then(function (j) { if (j) location.reload(); });
+        .then(function (j) { if (j) pafishToastReload("评论状态已更新", "success"); });
       });
     });
   });
@@ -134,7 +134,7 @@ $listUrl = url_to('/admin/comments') . '?status=' . $status;
     btn.addEventListener("click", function () {
       post(listUrl + "/" + btn.getAttribute("data-pin") + "/pin")
         .then(function (r) { return jsonOrAlert(r, "操作失败"); })
-        .then(function (j) { if (j) location.reload(); });
+        .then(function (j) { if (j) pafishToastReload("评论置顶状态已更新", "success"); });
     });
   });
 
@@ -153,7 +153,7 @@ $listUrl = url_to('/admin/comments') . '?status=' . $status;
       var id = card.getAttribute("data-comment");
       post(listUrl + "/" + id + "/delete")
         .then(function (r) { return jsonOrAlert(r, "删除失败"); })
-        .then(function (j) { if (j) location.reload(); });
+        .then(function (j) { if (j) pafishToastReload("评论已删除", "success"); });
     });
   });
 
@@ -166,8 +166,7 @@ $listUrl = url_to('/admin/comments') . '?status=' . $status;
         return post(listUrl + "/delete-by-ip", { ip: ip })
         .then(function (r) { return jsonOrAlert(r, "操作失败"); })
         .then(function (j) {
-          if (j) pafishNotify("已删除 " + (j.deleted || 0) + " 条评论", false);
-          if (j) location.reload();
+          if (j) pafishToastReload("已删除 " + (j.deleted || 0) + " 条评论", "success");
         });
       });
     });
@@ -210,15 +209,14 @@ $listUrl = url_to('/admin/comments') . '?status=' . $status;
       var box = card.querySelector(".admin-comment-replybox");
       var input = box.querySelector("textarea");
       var content = input.value.trim();
-      if (!content) { pafishNotify("回复内容不能为空"); return; }
+      if (!content) { pafishNotify("回复内容不能为空", true); return; }
       post(listUrl + "/" + btn.getAttribute("data-reply-submit") + "/reply", { content: content })
         .then(function (r) { return jsonOrAlert(r, "回复失败"); })
         .then(function (j) {
           if (j) {
             input.value = "";
             box.hidden = true;
-           pafishNotify("已回复，评论将直接显示在前台", false);
-            location.reload();
+            pafishToastReload("已回复，评论将直接显示在前台", "success");
           }
         });
     });

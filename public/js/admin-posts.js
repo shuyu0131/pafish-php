@@ -119,7 +119,8 @@
         if (!ok) return;
         submitter.disabled = true;
         var fd = new FormData(batchBar);
-        fd.set("ids", JSON.stringify(ids));
+        fd.delete("ids");
+        ids.forEach(function (id) { fd.append("ids[]", id); });
         fd.set("op", op);
         fetch(batchBar.action, { method: "POST", body: fd, headers: { "X-Requested-With": "XMLHttpRequest" } })
           .then(function (r) { return r.json().catch(function () { return {}; }); })

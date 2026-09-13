@@ -67,6 +67,39 @@ $canEdit = in_array($role ?? '', ['ADMIN', 'EDITOR'], true);
     <?php endforeach; ?>
   </div>
 
+  <!-- 列表筛选工具区 -->
+  <div class="admin-filter-bar admin-posts-filter-bar">
+    <div class="admin-filter-group">
+      <select class="input admin-filter-select" data-filter-url="category"
+              data-base="<?= e(url_to('/admin/posts')) ?>">
+        <option value="">全部分类</option>
+        <option value="none" <?= $params['category'] === 'none' ? 'selected' : '' ?>>未分类</option>
+        <?php foreach ($catTree as $c): ?>
+          <option value="<?= (int) $c['id'] ?>" <?= $params['category'] === (string) $c['id'] ? 'selected' : '' ?>>
+            <?= str_repeat('　', (int) $c['depth']) . e($c['name']) ?>
+          </option>
+        <?php endforeach; ?>
+      </select>
+      <select class="input admin-filter-select" data-filter-url="sort">
+        <?php foreach ($sortItems as $s): ?>
+          <option value="<?= e($s['key']) ?>" <?= $params['sort'] === $s['key'] ? 'selected' : '' ?>><?= e($s['label']) ?></option>
+        <?php endforeach; ?>
+      </select>
+      <form class="admin-search" method="get" action="<?= e(url_to('/admin/posts')) ?>">
+        <?php foreach (['status' => $params['status'], 'category' => $params['category'], 'sort' => $params['sort']] as $k => $v): ?>
+          <?php if ($v !== '' && $v !== 'latest'): ?><input type="hidden" name="<?= e($k) ?>" value="<?= e($v) ?>"><?php endif; ?>
+        <?php endforeach; ?>
+        <input class="input" type="search" name="q" value="<?= e($params['q']) ?>" placeholder="搜索标题或内容…">
+        <button type="submit" class="btn btn-outline"><?= admin_icon('search', 15) ?></button>
+      </form>
+    </div>
+    <select class="input admin-filter-select" id="adminPerPage">
+      <?php foreach ($perOptions as $opt): ?>
+        <option value="<?= $opt ?>" <?= $per === $opt ? 'selected' : '' ?>><?= $opt ?> 条/页</option>
+      <?php endforeach; ?>
+    </select>
+  </div>
+
   <!-- 表格 -->
   <div class="admin-table-wrap">
     <table class="admin-table">
@@ -150,39 +183,6 @@ $canEdit = in_array($role ?? '', ['ADMIN', 'EDITOR'], true);
         <?php endforeach; ?>
       </tbody>
     </table>
-  </div>
-
-  <!-- 列表筛选工具区 -->
-  <div class="admin-filter-bar admin-posts-filter-bar">
-    <div class="admin-filter-group">
-      <select class="input admin-filter-select" data-filter-url="category"
-              data-base="<?= e(url_to('/admin/posts')) ?>">
-        <option value="">全部分类</option>
-        <option value="none" <?= $params['category'] === 'none' ? 'selected' : '' ?>>未分类</option>
-        <?php foreach ($catTree as $c): ?>
-          <option value="<?= (int) $c['id'] ?>" <?= $params['category'] === (string) $c['id'] ? 'selected' : '' ?>>
-            <?= str_repeat('　', (int) $c['depth']) . e($c['name']) ?>
-          </option>
-        <?php endforeach; ?>
-      </select>
-      <select class="input admin-filter-select" data-filter-url="sort">
-        <?php foreach ($sortItems as $s): ?>
-          <option value="<?= e($s['key']) ?>" <?= $params['sort'] === $s['key'] ? 'selected' : '' ?>><?= e($s['label']) ?></option>
-        <?php endforeach; ?>
-      </select>
-      <form class="admin-search" method="get" action="<?= e(url_to('/admin/posts')) ?>">
-        <?php foreach (['status' => $params['status'], 'category' => $params['category'], 'sort' => $params['sort']] as $k => $v): ?>
-          <?php if ($v !== '' && $v !== 'latest'): ?><input type="hidden" name="<?= e($k) ?>" value="<?= e($v) ?>"><?php endif; ?>
-        <?php endforeach; ?>
-        <input class="input" type="search" name="q" value="<?= e($params['q']) ?>" placeholder="搜索标题或内容…">
-        <button type="submit" class="btn btn-outline"><?= admin_icon('search', 15) ?></button>
-      </form>
-    </div>
-    <select class="input admin-filter-select" id="adminPerPage">
-      <?php foreach ($perOptions as $opt): ?>
-        <option value="<?= $opt ?>" <?= $per === $opt ? 'selected' : '' ?>><?= $opt ?> 条/页</option>
-      <?php endforeach; ?>
-    </select>
   </div>
 
   <!-- 批量操作栏 -->

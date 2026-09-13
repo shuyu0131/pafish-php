@@ -89,7 +89,7 @@ $roleLabel = static function (string $role): string {
                     <span class="admin-user-name"><?= e((string) ($u['nickname'] ?: $u['username'])) ?></span>
                     <?php if ($disabled): ?><span class="badge badge-danger">已禁用</span><?php endif; ?>
                   </div>
-                  <div class="admin-muted admin-user-subline">@<?= e($u['username']) ?> · <?= e($u['email']) ?></div>
+                  <div class="admin-muted admin-user-subline"><?= e($u['email']) ?></div>
                 </div>
               </td>
               <td data-label="角色">

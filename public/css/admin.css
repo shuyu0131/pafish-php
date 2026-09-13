@@ -4870,16 +4870,21 @@ input[type="radio"] {
  .admin-extension-page .admin-table tbody td::before { display: none !important; }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 767px) {
   .admin-resource-toolbar {
     align-items: center;
-    flex-direction: row;
+    flex-direction: column;
     gap: 8px;
     padding-bottom: 10px;
   }
+  .admin-resource-tabs {
+    width: 100%;
+    flex: 0 0 auto;
+  }
   .admin-resource-search {
-    flex: 0 0 160px;
-    width: 160px;
+    flex: 0 0 auto;
+    width: 100%;
+    min-width: 0;
   }
 }
 

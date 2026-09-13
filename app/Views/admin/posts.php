@@ -93,11 +93,6 @@ $canEdit = in_array($role ?? '', ['ADMIN', 'EDITOR'], true);
         <button type="submit" class="btn btn-outline"><?= admin_icon('search', 15) ?></button>
       </form>
     </div>
-    <select class="input admin-filter-select" id="adminPerPage">
-      <?php foreach ($perOptions as $opt): ?>
-        <option value="<?= $opt ?>" <?= $per === $opt ? 'selected' : '' ?>><?= $opt ?> 条/页</option>
-      <?php endforeach; ?>
-    </select>
   </div>
 
   <!-- 表格 -->
@@ -189,7 +184,7 @@ $canEdit = in_array($role ?? '', ['ADMIN', 'EDITOR'], true);
   <form method="post" action="<?= e(url_to('/admin/posts/batch')) ?>" class="admin-batch-bar">
     <?= csrf_field() ?>
     <input type="hidden" name="ids" value="">
-    <span class="admin-batch-count">已选 <b>0</b> 篇</span>
+    <span class="admin-batch-count">已选 <span class="admin-batch-count-number">0</span> 篇</span>
     <?php if ($isTrash): ?>
       <select class="input admin-batch-op" name="op" aria-label="批量操作">
         <option value="restore">恢复</option>

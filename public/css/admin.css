@@ -1760,12 +1760,12 @@ input[type="radio"]:focus-visible {
 }
 
 @media (max-width: 640px) {
-  .admin-modal-backdrop { align-items: flex-end; padding: 8px; }
+  .admin-modal-backdrop { align-items: center; padding: 16px; }
   .admin-modal {
     max-width: none;
     width: 100%;
     max-height: min(88dvh, 720px);
-    border-radius: var(--radius-lg) var(--radius-lg) 10px 10px;
+    border-radius: 14px;
   }
   .admin-modal-head { padding: 12px 14px; }
   .admin-modal-body { padding: 14px; }

@@ -103,22 +103,17 @@ final class Comments
         ];
     }
 
-    /** 评论者头像：用户设置了头像用之，否则返回本地稳定的默认头像 */
+    /** 评论者头像：用户设置了头像用之，否则返回本地默认头像 */
     public static function avatarUrl(?string $avatarUrl, string $email): string
     {
         $avatarUrl = trim((string) $avatarUrl);
         if ($avatarUrl !== '') {
             return $avatarUrl;
         }
-        $hash = md5(strtolower(trim($email)));
-        $palette = ['#2563eb', '#0f766e', '#7c3aed', '#c2410c', '#be123c', '#0369a1', '#4d7c0f', '#9333ea'];
-        $color = $palette[hexdec(substr($hash, 0, 2)) % count($palette)];
-        $mark = substr($hash, 2, 2);
         $svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80">'
-            . '<rect width="80" height="80" rx="40" fill="#f1f5f9"/>'
-            . '<circle cx="40" cy="31" r="14" fill="' . $color . '"/>'
-            . '<path d="M16 72c2-15 11-23 24-23s22 8 24 23" fill="' . $color . '"/>'
-            . '<text x="40" y="76" text-anchor="middle" font-family="Arial,sans-serif" font-size="8" fill="#fff">' . $mark . '</text>'
+            . '<circle cx="40" cy="40" r="38" fill="#f3f6f9" stroke="#d8e0e8" stroke-width="2"/>'
+            . '<circle cx="40" cy="30" r="13" fill="#94a3b8"/>'
+            . '<path d="M17 70c2-14 10-22 23-22s21 8 23 22" fill="#64748b"/>'
             . '</svg>';
         return 'data:image/svg+xml;charset=UTF-8,' . rawurlencode($svg);
     }

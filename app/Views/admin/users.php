@@ -1,15 +1,19 @@
 <?php
-/**
- * 用户管理：
- * 全量用户按注册时间正序；每行：头像/昵称/@用户名/角色徽章/已禁用徽章/
- * 邮箱·注册日期·文章数·评论数；操作：角色下拉（含自己）、他人可禁用（确认弹窗）/
- * 解禁/重置密码/积分调整（统一操作弹窗）
- * 变量：$users $me
- */
 $users = $users ?? [];
 $me = $me ?? [];
 $meId = (int) ($me['id'] ?? 0);
 $pointsEnabled = !empty($pointsEnabled);
+$total = (int) ($total ?? count($users));
+$page = max(1, (int) ($page ?? 1));
+$pages = max(1, (int) ($pages ?? 1));
+$per = (int) ($per ?? 20);
+$perOptions = $perOptions ?? [10, 20, 50, 100];
+$filters = $filters ?? ['q' => '', 'role' => '', 'state' => '', 'sort' => 'latest'];
+$userQuery = static function (array $changes = []) use ($filters): string {
+    $params = array_merge($filters, $changes);
+    $params = array_filter($params, static fn ($value): bool => $value !== '' && $value !== null);
+    return url_to('/admin/users') . ($params ? '?' . http_build_query($params) : '');
+};
 $roleLabel = static function (string $role): string {
     return match ($role) {
         'ADMIN' => '管理员',
@@ -22,32 +26,44 @@ $roleLabel = static function (string $role): string {
   <div class="admin-page-head">
     <div>
       <h1 class="admin-h1">用户管理</h1>
-      <p class="admin-page-sub">共 <?= count($users) ?> 个用户</p>
+      <p class="admin-page-sub">共 <?= $total ?> 个用户</p>
     </div>
   </div>
 
-  <div class="admin-user-toolbar" role="search">
-    <input type="search" class="input" id="adminUserSearch" placeholder="搜索昵称、用户名或邮箱…" autocomplete="off">
-    <select class="input" id="adminUserRole" aria-label="筛选角色">
+  <form class="admin-user-toolbar" action="<?= e(url_to('/admin/users')) ?>" method="get" role="search">
+    <input type="search" class="input" name="q" value="<?= e((string) ($filters['q'] ?? '')) ?>" placeholder="搜索昵称、用户名或邮箱" autocomplete="off">
+    <select class="input" name="role" aria-label="筛选角色" onchange="this.form.submit()">
       <option value="">全部角色</option>
-      <option value="ADMIN">管理员</option>
-      <option value="EDITOR">编辑</option>
-      <option value="USER">用户</option>
+      <option value="ADMIN"<?= ($filters['role'] ?? '') === 'ADMIN' ? ' selected' : '' ?>>管理员</option>
+      <option value="EDITOR"<?= ($filters['role'] ?? '') === 'EDITOR' ? ' selected' : '' ?>>编辑</option>
+      <option value="USER"<?= ($filters['role'] ?? '') === 'USER' ? ' selected' : '' ?>>用户</option>
     </select>
-    <select class="input" id="adminUserState" aria-label="筛选状态">
+    <select class="input" name="state" aria-label="筛选状态" onchange="this.form.submit()">
       <option value="">全部状态</option>
-      <option value="active">正常</option>
-      <option value="disabled">已禁用</option>
+      <option value="active"<?= ($filters['state'] ?? '') === 'active' ? ' selected' : '' ?>>正常</option>
+      <option value="disabled"<?= ($filters['state'] ?? '') === 'disabled' ? ' selected' : '' ?>>已禁用</option>
     </select>
-  </div>
+    <select class="input" name="sort" aria-label="排序" onchange="this.form.submit()">
+      <option value="latest"<?= ($filters['sort'] ?? '') === 'latest' ? ' selected' : '' ?>>最近注册</option>
+      <option value="oldest"<?= ($filters['sort'] ?? '') === 'oldest' ? ' selected' : '' ?>>最早注册</option>
+      <option value="name"<?= ($filters['sort'] ?? '') === 'name' ? ' selected' : '' ?>>昵称</option>
+      <option value="content"<?= ($filters['sort'] ?? '') === 'content' ? ' selected' : '' ?>>内容数量</option>
+    </select>
+    <button class="btn btn-primary" type="submit">筛选</button>
+    <?php if (($filters['q'] ?? '') !== '' || ($filters['role'] ?? '') !== '' || ($filters['state'] ?? '') !== '' || ($filters['sort'] ?? 'latest') !== 'latest'): ?><a class="btn btn-ghost" href="<?= e(url_to('/admin/users')) ?>">清除</a><?php endif; ?>
+  </form>
 
   <?php if ($users === []): ?>
-    <div class="admin-empty-list card">暂无用户</div>
+    <div class="admin-empty-list card">
+      <p><?= $total === 0 && (($filters['q'] ?? '') !== '' || ($filters['role'] ?? '') !== '' || ($filters['state'] ?? '') !== '') ? '没有找到匹配的用户' : '暂无用户' ?></p>
+      <?php if (($filters['q'] ?? '') !== '' || ($filters['role'] ?? '') !== '' || ($filters['state'] ?? '') !== ''): ?><a class="btn btn-sm btn-ghost" href="<?= e(url_to('/admin/users')) ?>">清除筛选</a><?php endif; ?>
+    </div>
   <?php else: ?>
     <div class="admin-table-wrap admin-user-table-wrap">
       <table class="admin-table admin-user-table">
         <thead>
           <tr>
+            <th class="admin-user-check-col"><input type="checkbox" id="adminUsersCheckAll" aria-label="全选用户"></th>
             <th>用户</th>
             <th>角色</th>
             <th>注册时间</th>
@@ -64,7 +80,8 @@ $roleLabel = static function (string $role): string {
             $avatar = !empty($u['avatar_url']) ? $u['avatar_url'] : admin_gravatar((string) $u['email']);
             $disabled = ((int) $u['disabled']) === 1;
             ?>
-            <tr class="admin-user-row" data-id="<?= $uid ?>" data-search="<?= e(mb_strtolower(implode(' ', [(string) ($u['nickname'] ?? ''), (string) ($u['username'] ?? ''), (string) ($u['email'] ?? '')]))) ?>" data-role="<?= e((string) $u['role']) ?>" data-state="<?= $disabled ? 'disabled' : 'active' ?>">
+            <tr class="admin-user-row" data-id="<?= $uid ?>">
+              <td class="admin-user-check-col"><input type="checkbox" class="admin-user-check" value="<?= $uid ?>" aria-label="选择<?= e((string) ($u['nickname'] ?: $u['username'])) ?>"<?= $isMe ? ' disabled' : '' ?>></td>
               <td data-label="用户">
                 <div class="admin-user-main">
                   <div class="admin-user-name-row">
@@ -91,11 +108,11 @@ $roleLabel = static function (string $role): string {
                     <span class="admin-muted admin-current-account">当前账号</span>
                   <?php else: ?>
                     <?php if ($disabled): ?>
-                      <button type="button" class="btn btn-outline admin-user-unban">解禁</button>
+                      <button type="button" class="btn btn-sm btn-ghost admin-user-unban">解禁</button>
                     <?php else: ?>
-                      <button type="button" class="btn btn-outline admin-user-ban">禁用</button>
+                      <button type="button" class="btn btn-sm btn-ghost admin-user-ban">禁用</button>
                     <?php endif; ?>
-                    <button type="button" class="btn btn-outline admin-user-more" data-user-action="more">更多操作</button>
+                    <button type="button" class="btn btn-sm btn-ghost admin-user-more" data-user-action="more">更多</button>
                   <?php endif; ?>
                 </div>
               </td>
@@ -104,6 +121,24 @@ $roleLabel = static function (string $role): string {
         </tbody>
       </table>
     </div>
+    <div class="admin-batch-bar admin-user-batch-bar" id="adminUserBatchBar">
+      <span class="admin-batch-count" id="adminUserBatchCount">已选择 0 个用户</span>
+      <button type="button" class="btn btn-sm btn-ghost" data-user-bulk="disable" disabled>批量禁用</button>
+      <button type="button" class="btn btn-sm btn-ghost" data-user-bulk="enable" disabled>批量解禁</button>
+      <form class="admin-user-per-page" action="<?= e(url_to('/admin/users')) ?>" method="get">
+        <?php if (($filters['q'] ?? '') !== ''): ?><input type="hidden" name="q" value="<?= e((string) $filters['q']) ?>"><?php endif; ?>
+        <?php if (($filters['role'] ?? '') !== ''): ?><input type="hidden" name="role" value="<?= e((string) $filters['role']) ?>"><?php endif; ?>
+        <?php if (($filters['state'] ?? '') !== ''): ?><input type="hidden" name="state" value="<?= e((string) $filters['state']) ?>"><?php endif; ?>
+        <?php if (($filters['sort'] ?? 'latest') !== 'latest'): ?><input type="hidden" name="sort" value="<?= e((string) $filters['sort']) ?>"><?php endif; ?>
+        <label for="adminUserPer">每页</label>
+        <select class="input" id="adminUserPer" name="per" aria-label="每页用户数" onchange="this.form.submit()">
+          <?php foreach ($perOptions as $option): ?><option value="<?= (int) $option ?>"<?= $per === (int) $option ? ' selected' : '' ?>><?= (int) $option ?></option><?php endforeach; ?>
+        </select>
+      </form>
+    </div>
+    <?= admin_pagination($page, $pages, $total, static function (int $p, int $size = 20) use ($userQuery): string {
+      return $userQuery(['page' => $p, 'per' => $size]);
+    }, $per, $perOptions) ?>
   <?php endif; ?>
 </div>
 
@@ -257,17 +292,48 @@ $roleLabel = static function (string $role): string {
     });
   });
 
-  var userSearch = document.getElementById("adminUserSearch");
-  var userRole = document.getElementById("adminUserRole");
-  var userState = document.getElementById("adminUserState");
-  function filterUsers() {
-    var q = (userSearch.value || "").trim().toLowerCase();
-    var role = userRole.value;
-    var state = userState.value;
-    document.querySelectorAll(".admin-user-row").forEach(function (row) {
-      row.hidden = !!((q && (row.dataset.search || "").indexOf(q) < 0) || (role && row.dataset.role !== role) || (state && row.dataset.state !== state));
-    });
+  var checks = Array.prototype.slice.call(document.querySelectorAll(".admin-user-check"));
+  var checkAll = document.getElementById("adminUsersCheckAll");
+  var batchCount = document.getElementById("adminUserBatchCount");
+  var bulkButtons = document.querySelectorAll("[data-user-bulk]");
+  function selectedIds() {
+    return checks.filter(function (box) { return box.checked && !box.disabled; }).map(function (box) { return box.value; });
   }
-  [userSearch, userRole, userState].forEach(function (el) { if (el) el.addEventListener("input", filterUsers); });
+  function syncBatch() {
+    var ids = selectedIds();
+    if (batchCount) batchCount.textContent = "已选择 " + ids.length + " 个用户";
+    bulkButtons.forEach(function (button) { button.disabled = ids.length === 0; });
+    if (checkAll) {
+      checkAll.checked = ids.length > 0 && ids.length === checks.filter(function (box) { return !box.disabled; }).length;
+      checkAll.indeterminate = ids.length > 0 && !checkAll.checked;
+    }
+  }
+  if (checkAll) checkAll.addEventListener("change", function () {
+    checks.forEach(function (box) { if (!box.disabled) box.checked = checkAll.checked; });
+    syncBatch();
+  });
+  checks.forEach(function (box) { box.addEventListener("change", syncBatch); });
+  bulkButtons.forEach(function (button) {
+    button.addEventListener("click", function () {
+      var ids = selectedIds();
+      if (!ids.length) return;
+      var action = button.dataset.userBulk;
+      var label = action === "disable" ? "禁用" : "解禁";
+      var confirmTask = window.pafishConfirm
+        ? window.pafishConfirm("确定" + label + "选中的 " + ids.length + " 个用户吗？", { title: "批量" + label })
+        : Promise.resolve(window.confirm("确定" + label + "选中的用户吗？"));
+      confirmTask.then(function (ok) {
+        if (!ok) return;
+        var fd = new FormData();
+        fd.append("_csrf", CSRF);
+        fd.append("action", action);
+        ids.forEach(function (id) { fd.append("ids[]", id); });
+        post("/admin/users/bulk", fd, function () {
+          pafishToastReload("已" + label + "选中用户", "success");
+        });
+      });
+    });
+  });
+  syncBatch();
 })();
 </script>

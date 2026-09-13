@@ -184,6 +184,7 @@ $app->group('/admin', function ($group) {
 
     // 用户管理（仅 ADMIN：角色/禁用/重置密码）
     $group->get('/users', [UsersController::class, 'index']);
+    $group->post('/users/bulk', [UsersController::class, 'bulk']);
     $group->post('/users/{id}/role', [UsersController::class, 'updateRole']);
     $group->post('/users/{id}/toggle', [UsersController::class, 'toggleDisabled']);
     $group->post('/users/{id}/reset-password', [UsersController::class, 'resetPassword']);
@@ -238,6 +239,7 @@ $app->group('/admin', function ($group) {
 
 // 编辑器配套 API
 $app->post('/api/upload', [ApiController::class, 'upload']);
+$app->post('/api/upload/chunk', [ApiController::class, 'uploadChunk']);
 $app->get('/api/uploads', [ApiController::class, 'uploads']);
 $app->post('/api/md-preview', [ApiController::class, 'mdPreview']);
 $app->post('/api/import-markdown', [ApiController::class, 'importMarkdown']);

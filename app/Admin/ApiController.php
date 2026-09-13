@@ -26,6 +26,7 @@ final class ApiController extends AdminController
     private const LIB_PAGE_SIZE = 24;
     private const IMPORT_MAX_FILES = 50;
     private const IMPORT_MAX_SIZE = 1048576; // 1MB
+    private const UPLOAD_CHUNK_BYTES = 1024 * 1024;
 
     /** POST /api/upload：multipart 上传（兼容 Vditor 编辑器 file[] 多文件与旧单文件两种调用） */
     public function upload(Request $request, Response $response): Response
@@ -95,6 +96,84 @@ final class ApiController extends AdminController
         ]);
     }
 
+    public function uploadChunk(Request $request, Response $response): Response
+    {
+        $guard = $this->guardJson($request, $response);
+        if ($guard !== null) return $guard;
+        $body = $request->getParsedBody() ?? [];
+        $csrf = (string)($body['_csrf'] ?? $request->getHeaderLine('X-CSRF-Token'));
+        if (!Session::verifyCsrf($csrf)) return $this->json($response, ['error' => '会话已过期，请刷新页面重试'], 419);
+        $uploadId = strtolower(trim((string)($body['upload_id'] ?? '')));
+        $index = filter_var($body['chunk_index'] ?? null, FILTER_VALIDATE_INT);
+        $total = filter_var($body['chunk_total'] ?? null, FILTER_VALIDATE_INT);
+        $filename = trim((string)($body['filename'] ?? ''));
+        $file = $request->getUploadedFiles()['file'] ?? null;
+        if (!preg_match('/^[a-f0-9]{24,64}$/', $uploadId) || $index === false || $total === false || $index < 0 || $total < 1 || $total > 256 || $index >= $total || $filename === '' || !$file instanceof \Psr\Http\Message\UploadedFileInterface) {
+            return $this->json($response, ['error' => '分片参数无效'], 400);
+        }
+        $size = (int)($file->getSize() ?? 0);
+        if ($size <= 0 || $size > self::UPLOAD_CHUNK_BYTES) return $this->json($response, ['error' => '分片大小无效'], 400);
+        $root = dirname(__DIR__, 2) . '/storage/chunks/' . $uploadId;
+        $this->cleanupExpiredChunks(dirname($root));
+        if (!is_dir($root) && !@mkdir($root, 0700, true)) return $this->json($response, ['error' => '无法创建上传临时目录'], 500);
+        $metaPath = $root . '/meta.json';
+        $meta = is_file($metaPath) ? json_decode((string)@file_get_contents($metaPath), true) : null;
+        $userId = (int)(Auth::id() ?? 0);
+        if (!is_array($meta)) {
+            $meta = ['user' => $userId, 'filename' => $filename, 'total' => $total, 'size' => 0, 'created' => time()];
+            @file_put_contents($metaPath, json_encode($meta, JSON_UNESCAPED_UNICODE), LOCK_EX);
+        }
+        if ((int)($meta['user'] ?? -1) !== $userId || (int)($meta['total'] ?? 0) !== $total || (string)($meta['filename'] ?? '') !== $filename) {
+            return $this->json($response, ['error' => '上传会话无效'], 403);
+        }
+        $partPath = $root . '/' . $index . '.part';
+        try {
+            $file->moveTo($partPath);
+        } catch (\Throwable) {
+            return $this->json($response, ['error' => '保存分片失败'], 500);
+        }
+        $meta['size'] = array_sum(array_map(static fn(string $p): int => (int)@filesize($p), glob($root . '/*.part') ?: []));
+        @file_put_contents($metaPath, json_encode($meta, JSON_UNESCAPED_UNICODE), LOCK_EX);
+        $parts = glob($root . '/*.part') ?: [];
+        if (count($parts) < $total) return $this->json($response, ['ok' => true, 'complete' => false, 'uploaded' => $meta['size']]);
+        $assembled = $root . '/assembled.bin';
+        $out = @fopen($assembled, 'wb');
+        if (!$out) return $this->json($response, ['error' => '无法合并分片'], 500);
+        for ($i = 0; $i < $total; $i++) {
+            $part = $root . '/' . $i . '.part';
+            if (!is_file($part)) { fclose($out); return $this->json($response, ['error' => '分片缺失，请重试'], 409); }
+            $in = @fopen($part, 'rb');
+            if (!$in) { fclose($out); return $this->json($response, ['error' => '读取分片失败'], 500); }
+            stream_copy_to_stream($in, $out);
+            fclose($in);
+        }
+        fclose($out);
+        try {
+            $result = Upload::handlePath($assembled, $filename);
+        } catch (\Throwable $e) {
+            $this->removeChunkDirectory($root);
+            return $this->json($response, ['error' => $e->getMessage()], 400);
+        }
+        $this->removeChunkDirectory($root);
+        return $this->json($response, ['ok' => true, 'complete' => true, 'url' => $result['url'], 'mime' => $result['mime'], 'originalName' => $filename, 'size' => $result['size']]);
+    }
+
+    private function removeChunkDirectory(string $root): void
+    {
+        foreach (glob($root . '/*') ?: [] as $file) if (is_file($file)) @unlink($file);
+        @rmdir($root);
+    }
+
+    private function cleanupExpiredChunks(string $base): void
+    {
+        if (!is_dir($base)) return;
+        foreach (glob($base . '/*/meta.json') ?: [] as $metaPath) {
+            if ((int) @filemtime($metaPath) < time() - 86400) {
+                $this->removeChunkDirectory(dirname($metaPath));
+            }
+        }
+    }
+
     /** GET /api/uploads：媒体库（page / q / type 5 类筛选） */
     public function uploads(Request $request, Response $response): Response
     {
@@ -120,6 +199,8 @@ final class ApiController extends AdminController
             $where .= ' AND ' . $tw;
         }
         $total = (int) DB::value("SELECT COUNT(*) FROM uploads WHERE {$where}", $params);
+        $pages = max(1, (int) ceil($total / self::LIB_PAGE_SIZE));
+        $page = min($page, $pages);
         $items = DB::fetchAll(
             "SELECT id, original_name, url, mime, size, width, height
              FROM uploads WHERE {$where}
@@ -136,7 +217,7 @@ final class ApiController extends AdminController
             'width' => $row['width'] !== null ? (int) $row['width'] : null,
             'height' => $row['height'] !== null ? (int) $row['height'] : null,
         ], $items);
-        return $this->json($response, ['items' => $items, 'total' => $total, 'page' => $page, 'pageSize' => self::LIB_PAGE_SIZE]);
+        return $this->json($response, ['items' => $items, 'total' => $total, 'page' => $page, 'pages' => $pages, 'pageSize' => self::LIB_PAGE_SIZE]);
     }
 
     /** POST /api/md-preview：服务端渲染 Markdown（编辑器分栏/预览模式） */

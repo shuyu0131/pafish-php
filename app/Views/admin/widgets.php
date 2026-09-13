@@ -15,6 +15,18 @@ foreach ($items as $w) {
 }
 $typeJson = json_encode($defaultTitles, JSON_UNESCAPED_UNICODE);
 $areaJson = json_encode($areas ?? ['sidebar' => '侧边栏'], JSON_UNESCAPED_UNICODE);
+$existingTypes = [];
+foreach ($items as $item) {
+    $existingTypes[(string) ($item['type'] ?? '')] = true;
+}
+$typeHints = [
+    'categories' => '按分类浏览文章',
+    'tags' => '展示站点标签',
+    'recent_posts' => '显示最新发布文章',
+    'hot_posts' => '显示热门文章排行',
+    'recent_comments' => '显示最新评论',
+    'custom' => '添加一段自定义内容',
+];
 ?>
 <div class="admin-stack">
   <div class="admin-page-head">
@@ -24,8 +36,31 @@ $areaJson = json_encode($areas ?? ['sidebar' => '侧边栏'], JSON_UNESCAPED_UNI
     </div>
   </div>
 
-  <!-- 新建表单 -->
-  <div class="card admin-form-card">
+  <div class="admin-widget-layout">
+    <section class="admin-widget-side">
+      <div class="admin-widget-available">
+        <div class="admin-widget-panel-head">
+          <div>
+            <h2 class="admin-card-title">可用组件</h2>
+            <p class="admin-widget-panel-meta">选择组件后添加到右侧区域</p>
+          </div>
+        </div>
+        <div class="admin-widget-available-list">
+          <?php foreach ($types as $t): ?>
+            <div class="admin-widget-available-row">
+              <div>
+                <strong><?= e($typeLabels[$t] ?? $t) ?></strong>
+                <span><?= e($typeHints[$t] ?? '') ?></span>
+              </div>
+              <button type="button" class="btn btn-outline btn-sm admin-widget-add" data-widget-add="<?= e($t) ?>"<?= isset($existingTypes[$t]) && $t !== 'custom' ? ' disabled' : '' ?>>
+                <?= isset($existingTypes[$t]) && $t !== 'custom' ? '已添加' : '添加' ?>
+              </button>
+            </div>
+          <?php endforeach; ?>
+        </div>
+      </div>
+
+      <div class="card admin-form-card">
     <h2 class="admin-card-title">添加组件</h2>
     <form id="createForm" method="post" action="<?= e(url_to('/admin/widgets/save')) ?>" novalidate>
       <?= csrf_field() ?>
@@ -61,17 +96,28 @@ $areaJson = json_encode($areas ?? ['sidebar' => '侧边栏'], JSON_UNESCAPED_UNI
         <button type="submit" class="btn btn-primary">添加组件</button>
       </div>
       <div class="admin-editor-error" hidden></div>
-    </form>
-  </div>
+      </form>
+      </div>
+    </section>
 
-  <!-- 列表 -->
-  <?php if ($count === 0): ?>
-    <div class="admin-empty-list card">
+    <section class="admin-widget-active">
+      <div class="admin-widget-panel-head">
+        <div>
+          <h2 class="admin-card-title">已添加组件</h2>
+          <p class="admin-widget-panel-meta">拖动或使用箭头调整显示顺序</p>
+        </div>
+      </div>
+      <?php if ($count === 0): ?>
+        <div class="admin-empty-list card">
       <?= admin_icon('layout', 32) ?>
       <p>还没有组件，在上方添加第一个</p>
-    </div>
-  <?php else: ?>
-    <div class="admin-list">
+        </div>
+      <?php else: ?>
+        <div class="admin-list admin-widget-list">
+      <div class="admin-list-head" aria-hidden="true">
+        <span>组件</span>
+        <span>操作</span>
+      </div>
       <?php foreach ($items as $i => $w): ?>
         <?php
         $rowArea = (string) ($w['area'] ?? 'sidebar');
@@ -86,7 +132,7 @@ $areaJson = json_encode($areas ?? ['sidebar' => '侧边栏'], JSON_UNESCAPED_UNI
         $wTitle = trim((string) ($w['title'] ?? ''));
         $showTitle = $wTitle !== '' ? $wTitle : $defaultTitles[$w['type']] ?? $w['type'];
         ?>
-        <div class="admin-list-row card" data-id="<?= (int) $w['id'] ?>"
+        <div class="admin-list-row" data-id="<?= (int) $w['id'] ?>"
              data-type="<?= e($w['type']) ?>" data-area="<?= e((string) ($w['area'] ?? 'sidebar')) ?>" data-title="<?= e($wTitle) ?>"
              data-content="<?= e((string) ($w['content'] ?? '')) ?>">
           <div class="admin-list-main">
@@ -152,8 +198,10 @@ $areaJson = json_encode($areas ?? ['sidebar' => '侧边栏'], JSON_UNESCAPED_UNI
           </div>
         </div>
       <?php endforeach; ?>
-    </div>
-  <?php endif; ?>
+        </div>
+      <?php endif; ?>
+    </section>
+  </div>
 </div>
 
 <?php $widgetsCsrf = csrf_token(); ?>
@@ -209,6 +257,26 @@ $areaJson = json_encode($areas ?? ['sidebar' => '侧边栏'], JSON_UNESCAPED_UNI
     syncType(select, title, contentField, isEdit, false);
   }
   wireForm(document.getElementById("createForm"), false);
+
+  document.querySelectorAll("[data-widget-add]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      if (btn.disabled) return;
+      var form = document.getElementById("createForm");
+      var type = btn.getAttribute("data-widget-add");
+      var select = form && form.querySelector('[name="type"]');
+      if (!form || !select) return;
+      select.value = type;
+      var title = form.querySelector('[name="title"]');
+      if (title) title.value = defaults[type] || "";
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+      if (type === "custom") {
+        form.scrollIntoView({ behavior: "smooth", block: "center" });
+        form.querySelector('[name="content"]').focus();
+        return;
+      }
+      submitForm(form);
+    });
+  });
 
   document.getElementById("createForm").addEventListener("submit", function (e) {
     e.preventDefault();

@@ -80,16 +80,9 @@ $listUrl = url_to('/admin/comments') . '?status=' . $status;
       </table>
     </div>
 
-    <?php if ($pages > 1): ?>
-      <div class="admin-pagination">
-        <?php if ($page > 1): ?><a class="admin-pg-btn" href="<?= e($listUrl . '&page=' . ($page - 1)) ?>">上一页</a><?php endif; ?>
-        <?php foreach (range(max(1, $page - 2), min($pages, $page + 2)) as $n): ?>
-          <?php if ($n === $page): ?><span class="admin-pg-btn active"><?= $n ?></span>
-          <?php else: ?><a class="admin-pg-btn" href="<?= e($listUrl . '&page=' . $n) ?>"><?= $n ?></a><?php endif; ?>
-        <?php endforeach; ?>
-        <?php if ($page < $pages): ?><a class="admin-pg-btn" href="<?= e($listUrl . '&page=' . ($page + 1)) ?>">下一页</a><?php endif; ?>
-      </div>
-    <?php endif; ?>
+    <?= admin_pagination($page, $pages, $total, static function (int $p, int $per = 20) use ($status): string {
+      return url_to('/admin/comments') . '?status=' . rawurlencode($status) . ($p > 1 ? '&page=' . $p : '');
+    }, 20) ?>
   <?php endif; ?>
 </div>
 

@@ -82,6 +82,10 @@ $accept = 'image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip,.rar
       <button type="button" class="btn btn-outline" id="btnAddExternal"><?= admin_icon('link', 15) ?>添加外部资源</button>
     </div>
   </div>
+  <div class="admin-upload-progress" id="mediaUploadProgress" hidden aria-live="polite">
+    <div class="admin-upload-progress-head"><span id="mediaUploadProgressLabel">准备上传</span><strong id="mediaUploadProgressValue">0%</strong></div>
+    <div class="admin-upload-progress-track"><span id="mediaUploadProgressBar"></span></div>
+  </div>
 
   <?php if ($items === []): ?>
     <div class="admin-empty-list">
@@ -143,16 +147,9 @@ $accept = 'image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip,.rar
     </div>
     <?php endif; ?>
 
-    <?php if ($pages > 1): ?>
-      <div class="admin-pagination">
-        <?php if ($page > 1): ?><a class="admin-pg-btn" href="<?= e($pageUrl($page - 1, $type)) ?>">上一页</a><?php endif; ?>
-        <?php foreach (range(max(1, $page - 2), min($pages, $page + 2)) as $n): ?>
-          <?php if ($n === $page): ?><span class="admin-pg-btn active"><?= $n ?></span>
-          <?php else: ?><a class="admin-pg-btn" href="<?= e($pageUrl($n, $type)) ?>"><?= $n ?></a><?php endif; ?>
-        <?php endforeach; ?>
-        <?php if ($page < $pages): ?><a class="admin-pg-btn" href="<?= e($pageUrl($page + 1, $type)) ?>">下一页</a><?php endif; ?>
-      </div>
-    <?php endif; ?>
+    <?= admin_pagination($page, $pages, $total, static function (int $p, int $size = 48) use ($pageUrl, $type): string {
+      return $pageUrl($p, $type);
+    }, 48) ?>
   <?php endif; ?>
 </div>
 
@@ -215,6 +212,11 @@ $accept = 'image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip,.rar
   var uploadBtn = document.getElementById("btnUploadMedia");
   var uploadLabel = document.getElementById("btnUploadLabel");
   var fileInput = document.getElementById("mediaFiles");
+  var progress = document.getElementById("mediaUploadProgress");
+  var progressLabel = document.getElementById("mediaUploadProgressLabel");
+  var progressValue = document.getElementById("mediaUploadProgressValue");
+  var progressBar = document.getElementById("mediaUploadProgressBar");
+  var chunkUrl = <?= json_encode(url_to('/api/upload/chunk')) ?>;
   uploadBtn.addEventListener("click", function () { fileInput.click(); });
   fileInput.addEventListener("change", function () {
     var files = Array.prototype.slice.call(fileInput.files || []);
@@ -222,21 +224,56 @@ $accept = 'image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip,.rar
     var failed = 0;
     var i = 0;
     uploadBtn.disabled = true;
+    if (progress) progress.hidden = false;
     function next() {
       if (i >= files.length) {
+        if (progressBar) progressBar.style.width = "100%";
+        if (progressValue) progressValue.textContent = "100%";
         if (failed) pafishToastReload("上传完成，失败 " + failed + " 个文件", "error");
         else pafishToastReload("文件上传成功", "success");
         return;
       }
       var f = files[i++];
       uploadLabel.textContent = "上传中：" + f.name.slice(0, 12) + "…";
-      var fd = new FormData();
-      fd.append("file", f);
-      fd.append("_csrf", token);
-      fetch(<?= json_encode(url_to('/api/upload')) ?>, { method: "POST", body: fd, headers: { "X-Requested-With": "XMLHttpRequest" } })
-        .then(function (r) { return r.json(); })
-        .then(function (j) { if (!j || !j.ok) failed++; next(); })
-        .catch(function () { failed++; next(); });
+      var chunkSize = 1024 * 1024;
+      var uploadId = Array.from(crypto.getRandomValues(new Uint8Array(16))).map(function (n) { return n.toString(16).padStart(2, "0"); }).join("");
+      var totalChunks = Math.max(1, Math.ceil(f.size / chunkSize));
+      var sent = 0;
+      var fileIndex = i - 1;
+      function sendChunk(index) {
+        var start = index * chunkSize;
+        var xhr = new XMLHttpRequest();
+        xhr.open("POST", chunkUrl, true);
+        xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
+        xhr.upload.onprogress = function (event) {
+          if (!event.lengthComputable) return;
+          var current = Math.min(f.size, sent + event.loaded);
+          var overall = ((fileIndex + current / f.size) / files.length) * 100;
+          var percent = Math.round(overall);
+          uploadLabel.textContent = "上传中 " + percent + "%：" + f.name.slice(0, 12);
+          if (progressLabel) progressLabel.textContent = f.name;
+          if (progressValue) progressValue.textContent = percent + "%";
+          if (progressBar) progressBar.style.width = percent + "%";
+        };
+        xhr.onload = function () {
+          var j = null;
+          try { j = JSON.parse(xhr.responseText); } catch (e) {}
+          if (xhr.status < 200 || xhr.status >= 300 || !j || !j.ok) { failed++; next(); return; }
+          sent += Math.min(chunkSize, f.size - start);
+          if (index + 1 < totalChunks) sendChunk(index + 1);
+          else next();
+        };
+        xhr.onerror = function () { failed++; next(); };
+        var fd = new FormData();
+        fd.append("file", f.slice(start, Math.min(start + chunkSize, f.size)), f.name);
+        fd.append("upload_id", uploadId);
+        fd.append("chunk_index", String(index));
+        fd.append("chunk_total", String(totalChunks));
+        fd.append("filename", f.name);
+        fd.append("_csrf", token);
+        xhr.send(fd);
+      }
+      sendChunk(0);
     }
     next();
   });

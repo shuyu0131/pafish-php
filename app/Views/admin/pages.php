@@ -1,7 +1,7 @@
 <?php
 /**
  * 页面管理列表
- * 变量：$pages $homePageId $templateOptions $role
+ * 变量：$items $total $page $totalPages $per $perOptions $filters $homePageId $templateOptions $role
  * 操作：设为首页/取消（fetch POST /admin/pages/set-home）、编辑、删除（硬删除，无回收站）
  */
 ?>
@@ -9,7 +9,7 @@
   <div class="admin-page-head">
     <div>
       <h1 class="admin-h1">页面管理</h1>
-      <p class="admin-page-sub">共 <?= count($pages) ?> 个页面</p>
+      <p class="admin-page-sub">共 <?= (int) $total ?> 个页面</p>
     </div>
     <div class="admin-head-actions">
       <a class="btn btn-primary" href="<?= e(url_to('/admin/pages/new')) ?>">
@@ -17,6 +17,17 @@
       </a>
     </div>
   </div>
+
+  <form class="admin-user-toolbar" action="<?= e(url_to('/admin/pages')) ?>" method="get" role="search">
+    <input type="search" class="input" name="q" value="<?= e((string) ($filters['q'] ?? '')) ?>" placeholder="搜索标题或地址" autocomplete="off">
+    <select class="input" name="status" aria-label="筛选状态" onchange="this.form.submit()">
+      <option value="">全部状态</option>
+      <option value="PUBLISHED"<?= ($filters['status'] ?? '') === 'PUBLISHED' ? ' selected' : '' ?>>已发布</option>
+      <option value="DRAFT"<?= ($filters['status'] ?? '') === 'DRAFT' ? ' selected' : '' ?>>草稿</option>
+    </select>
+    <button class="btn btn-primary" type="submit">筛选</button>
+    <?php if (($filters['q'] ?? '') !== '' || ($filters['status'] ?? '') !== ''): ?><a class="btn btn-ghost" href="<?= e(url_to('/admin/pages')) ?>">清除</a><?php endif; ?>
+  </form>
 
   <div class="admin-table-wrap">
     <table class="admin-table">
@@ -30,7 +41,7 @@
         </tr>
       </thead>
       <tbody>
-        <?php if ($pages === []): ?>
+        <?php if ($items === []): ?>
           <tr><td colspan="5">
             <div class="admin-empty-list">
               <?= admin_icon('file-plus', 32) ?>
@@ -39,7 +50,7 @@
             </div>
           </td></tr>
         <?php else: ?>
-          <?php foreach ($pages as $p): ?>
+          <?php foreach ($items as $p): ?>
             <?php $isHome = (string) $p['id'] === $homePageId; ?>
             <tr data-page-row="<?= (int) $p['id'] ?>">
               <td>
@@ -79,6 +90,11 @@
       </tbody>
     </table>
   </div>
+  <?= admin_pagination($page, $totalPages, $total, static function (int $p, int $size = 20) use ($filters): string {
+    $params = ['q' => $filters['q'] ?? '', 'status' => $filters['status'] ?? '', 'per' => $size, 'page' => $p];
+    $params = array_filter($params, static fn ($value, $key): bool => $value !== '' && !($key === 'page' && $value === 1), ARRAY_FILTER_USE_BOTH);
+    return url_to('/admin/pages') . ($params ? '?' . http_build_query($params) : '');
+  }, $per, $perOptions) ?>
 </div>
 
 <?php $pageCsrf = csrf_token(); ?>

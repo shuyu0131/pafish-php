@@ -303,6 +303,13 @@ select.input:hover:not(:disabled) {
   visibility: visible;
   transform: translateY(0);
 }
+.admin-control-menu.is-portal-open,
+.admin-date-panel.is-portal-open {
+  z-index: 2000;
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+}
 .admin-control-option {
   display: block;
   width: 100%;
@@ -321,6 +328,9 @@ select.input:hover:not(:disabled) {
 .admin-control-option:disabled { color: var(--muted); cursor: not-allowed; opacity: .6; }
 .admin-date-panel { width: 272px; min-width: 272px; padding: 10px; }
 .admin-date-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; color: var(--title); }
+.admin-date-view { display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
+.admin-date-select { width: auto; min-width: 0; height: 28px; padding: 0 22px 0 6px; border: 1px solid transparent; border-radius: 6px; background-color: transparent; color: var(--title); font: inherit; font-size: 13px; cursor: pointer; }
+.admin-date-select:hover, .admin-date-select:focus { border-color: var(--border); background-color: var(--bg-soft); outline: none; }
 .admin-date-nav { width: 28px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font-size: 22px; line-height: 1; cursor: pointer; }
 .admin-date-nav:hover { background: var(--accent-soft); color: var(--accent); }
 .admin-date-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
@@ -412,27 +422,12 @@ input[type="radio"]:focus-visible {
   border-right: 1px solid var(--border);
 }
 
-.admin-brand {
-  display: block;
-  padding: 18px 20px 14px;
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--title);
-  letter-spacing: -0.01em;
-  text-decoration: none;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.admin-brand:hover {
-  color: var(--accent);
-}
-
 .admin-nav {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  padding: 4px 12px 12px;
+  padding: 12px 12px 12px;
+  overscroll-behavior: contain;
 }
 
 .admin-nav-group-toggle {
@@ -1053,21 +1048,12 @@ input[type="radio"]:focus-visible {
     border-bottom: 1px solid var(--border);
   }
 
-  .admin-topbar-brand {
-    flex: 1;
-    font-size: 15px;
-    font-weight: 600;
-    color: var(--title);
-    text-decoration: none;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
   .admin-sidebar {
     position: fixed;
     top: 0;
     left: 0;
+    height: 100dvh;
+    min-height: 0;
     z-index: 50;
     transform: translateX(-100%);
     transition: transform 0.25s ease;
@@ -2434,6 +2420,32 @@ input[type="radio"]:focus-visible {
   min-width: 190px;
   justify-content: flex-start;
 }
+.admin-user-check-col {
+  width: 38px;
+  text-align: center !important;
+}
+.admin-user-check-col input {
+  width: 15px;
+  height: 15px;
+}
+.admin-user-batch-bar {
+  margin-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.admin-user-batch-bar .admin-user-per-page {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 12px;
+}
+.admin-user-per-page select {
+  width: auto;
+  min-width: 68px;
+  height: 30px;
+  padding: 0 24px 0 8px;
+}
 .admin-user-action-modal { width: min(440px, 100%); }
 .admin-user-action-tabs {
   display: flex;
@@ -2462,22 +2474,41 @@ input[type="radio"]:focus-visible {
 .admin-pagination {
   display: flex;
   align-items: center;
-  gap: 6px;
-  justify-content: center;
+  gap: 10px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
   margin-top: 20px;
+  color: var(--muted);
+  font-size: 12px;
 }
 
+.admin-pagination-total { margin-right: auto; font-variant-numeric: tabular-nums; }
+.admin-pagination-pages { display: inline-flex; align-items: center; gap: 4px; }
+.admin-pagination-size, .admin-pagination-jump { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.admin-pagination-size .input { min-height: 30px; padding: 3px 24px 3px 8px; width: auto; font-size: 12px; }
+.admin-pagination-jump .input { width: 52px; min-height: 30px; padding: 3px 6px; font-size: 12px; text-align: center; }
+.admin-pg-ellipsis { min-width: 20px; text-align: center; color: var(--muted); }
+
 .admin-pg-btn {
-  min-width: 32px;
-  padding: 6px 10px;
+  min-width: 30px;
+  min-height: 30px;
+  padding: 5px 8px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 6px;
   font-size: 13px;
   text-align: center;
   color: var(--fg);
   text-decoration: none;
   transition: background 0.15s ease, border-color 0.15s ease;
 }
+
+.admin-pg-prev, .admin-pg-next { font-size: 18px; line-height: 18px; padding-left: 7px; padding-right: 7px; }
+
+.admin-upload-progress { margin: -4px 0 16px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--card); }
+.admin-upload-progress-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 7px; color: var(--muted); font-size: 12px; }
+.admin-upload-progress-head strong { color: var(--fg); font-variant-numeric: tabular-nums; }
+.admin-upload-progress-track { height: 4px; overflow: hidden; border-radius: 4px; background: var(--bg-soft); }
+.admin-upload-progress-track span { display: block; width: 0; height: 100%; border-radius: inherit; background: var(--accent); transition: width .12s linear; }
 
 a.admin-pg-btn:hover {
   border-color: var(--accent);
@@ -2491,6 +2522,10 @@ a.admin-pg-btn:hover {
 }
 
 @media (max-width: 899px) {
+  .admin-pagination { justify-content: flex-start; overflow-x: auto; flex-wrap: nowrap; padding-bottom: 3px; scrollbar-width: none; }
+  .admin-pagination::-webkit-scrollbar { display: none; }
+  .admin-pagination-total { margin-right: 4px; flex: 0 0 auto; }
+  .admin-pagination-pages, .admin-pagination-size, .admin-pagination-jump { flex: 0 0 auto; }
   .admin-media-search {
     width: 100%;
   }
@@ -2710,6 +2745,58 @@ a.admin-pg-btn:hover {
 }
 
 /* ---------- 友链 / 导航 / 组件列表 ---------- */
+.admin-widget-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, .9fr) minmax(0, 1.4fr);
+  gap: 20px;
+  align-items: start;
+}
+.admin-widget-side,
+.admin-widget-active { min-width: 0; }
+.admin-widget-available {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+}
+.admin-widget-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 58px;
+  padding: 12px 16px;
+}
+.admin-widget-panel-head .admin-card-title { margin: 0; }
+.admin-widget-panel-meta {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.admin-widget-available-list { border-top: 1px solid var(--border); }
+.admin-widget-available-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 56px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.admin-widget-available-row:last-child { border-bottom: 0; }
+.admin-widget-available-row strong,
+.admin-widget-available-row span { display: block; }
+.admin-widget-available-row strong { color: var(--title); font-size: 14px; font-weight: 500; }
+.admin-widget-available-row span { margin-top: 3px; color: var(--muted); font-size: 12px; }
+.admin-widget-add { flex: 0 0 auto; min-width: 54px; }
+.admin-widget-add:disabled { color: var(--muted); background: var(--bg-soft); border-color: var(--border); }
+.admin-widget-side .admin-form-card { margin-top: 16px; }
+.admin-widget-active > .admin-widget-panel-head {
+  min-height: 0;
+  padding: 4px 0 12px;
+}
+@media (max-width: 900px) {
+  .admin-widget-layout { grid-template-columns: 1fr; }
+}
 .admin-check-row {
   display: flex;
   align-items: center;
@@ -2758,6 +2845,70 @@ a.admin-pg-btn:hover {
 .admin-list-ops .admin-icon-btn:disabled {
   opacity: 0.35;
   cursor: not-allowed;
+}
+.admin-widget-list {
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+}
+.admin-widget-list .admin-list-head,
+.admin-widget-list .admin-list-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+}
+.admin-widget-list .admin-list-head {
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-soft);
+  color: var(--muted);
+  font-size: 12px;
+}
+.admin-widget-list .admin-list-head span:last-child {
+  min-width: 172px;
+  text-align: left;
+}
+.admin-widget-list .admin-list-row {
+  padding: 14px 16px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: var(--card);
+  box-shadow: none;
+}
+.admin-widget-list .admin-list-row:last-child { border-bottom: 0; }
+.admin-widget-list .admin-list-row:hover { background: var(--bg-soft); }
+.admin-widget-list .admin-list-main .admin-muted {
+  flex-basis: auto;
+  min-width: 0;
+  max-width: 42ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admin-widget-list .admin-list-ops {
+  min-width: 172px;
+  margin-top: 0;
+  flex-wrap: nowrap;
+}
+.admin-widget-list .admin-list-edit {
+  grid-column: 1 / -1;
+  width: 100%;
+  margin-top: 0;
+  padding: 14px 0 0;
+}
+@media (max-width: 767px) {
+  .admin-widget-list .admin-list-head,
+  .admin-widget-list .admin-list-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+  }
+  .admin-widget-list .admin-list-head span:last-child,
+  .admin-widget-list .admin-list-ops { min-width: 156px; }
+  .admin-widget-list .admin-list-ops { gap: 1px; }
 }
 .admin-list-edit {
   margin-top: 12px;
@@ -3871,6 +4022,17 @@ input[type="radio"] {
   padding: 0.4rem 0.75rem;
   font-size: 0.875rem;
 }
+.admin-posts-filter-bar {
+  margin-top: 18px;
+  margin-bottom: 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.admin-posts-filter-bar + .admin-batch-bar {
+  margin-top: 0;
+  border-top: 0;
+  padding-top: 8px;
+}
 
 /* 移动端优化 */
 @media (max-width: 768px) {
@@ -3921,9 +4083,32 @@ input[type="radio"] {
     gap: 8px;
   }
   .admin-filter-select, .admin-search { flex: 0 0 auto; width: auto; }
-  .admin-filter-select { min-width: 164px; }
-  .admin-search { width: 286px; }
-  .admin-search .input { width: 240px; }
+  .admin-filter-select { min-width: 132px; max-width: 180px; }
+  .admin-filter-bar .admin-control { width: auto; flex: 0 0 auto; }
+  .admin-filter-bar .admin-control-trigger { min-width: 132px; width: auto; }
+  .admin-search { width: 250px; }
+  .admin-search .input { width: 204px; }
+
+  .admin-posts-filter-bar {
+    align-items: center;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
+  .admin-posts-filter-bar::-webkit-scrollbar { display: none; }
+  .admin-posts-filter-bar .admin-filter-group {
+    width: max-content;
+    align-items: center;
+    flex-direction: row;
+    flex-wrap: nowrap;
+  }
+  .admin-posts-filter-bar .admin-filter-select,
+  .admin-posts-filter-bar > #adminPerPage,
+  .admin-posts-filter-bar .admin-control { width: 140px; min-width: 140px; }
+  .admin-posts-filter-bar .admin-search { width: 250px; }
+  .admin-posts-filter-bar .admin-search .input { width: 204px; }
 
   /* 批量操作栏 */
   .admin-batch-bar {
@@ -5118,8 +5303,22 @@ input[type="radio"] {
   .admin-batch-bar .btn { flex: 0 0 auto; min-width: 0; }
   .admin-batch-bar .admin-batch-op,
   .admin-batch-bar .admin-batch-move { flex: 0 1 180px; min-width: 140px; max-width: 100%; }
-  .admin-user-toolbar { flex-wrap: wrap; }
-  .admin-user-toolbar input, .admin-user-toolbar select { width: 100%; }
+  .admin-user-toolbar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 3px;
+    scrollbar-width: none;
+  }
+  .admin-user-toolbar::-webkit-scrollbar { display: none; }
+  .admin-user-toolbar input,
+  .admin-user-toolbar select,
+  .admin-user-toolbar .btn { flex: 0 0 auto; width: auto; }
+  .admin-user-toolbar input { width: 220px; }
+  .admin-user-toolbar select { min-width: 124px; }
+  .admin-user-batch-bar { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .admin-user-batch-bar::-webkit-scrollbar { display: none; }
+  .admin-user-batch-bar .admin-batch-count { width: auto; flex: 0 0 auto; }
+  .admin-user-batch-bar .admin-user-per-page { margin-left: 0; flex: 0 0 auto; }
   .admin-transfer-grid { grid-template-columns: 1fr; }
   .admin-transfer-section { padding: 18px 16px; }
 }

@@ -60,12 +60,11 @@
   function updateBatchBar() {
     if (!batchBar) return;
     var n = selectedIds().length;
-    if (n > 0) {
-      batchBar.hidden = false;
-      if (countEl) countEl.textContent = n;
-    } else {
-      batchBar.hidden = true;
-    }
+    batchBar.hidden = false;
+    if (countEl) countEl.textContent = n;
+    [opSelect, moveSelect, applyBtn, batchBar.querySelector("[data-batch-clear]")].forEach(function (control) {
+      if (control) control.disabled = n === 0;
+    });
     if (allCheck) {
       var some = rowChecks.some(function (c) { return c.checked; });
       var all = some && rowChecks.every(function (c) { return c.checked; });
@@ -87,6 +86,7 @@
       updateBatchBar();
     });
   }
+  updateBatchBar();
 
   if (batchBar) {
     batchBar.addEventListener("submit", function (e) {

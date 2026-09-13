@@ -239,9 +239,17 @@ select.input:hover:not(:disabled) {
 .admin-control {
   position: relative;
   display: inline-flex;
-  width: 100%;
+  width: auto;
   min-width: 0;
   vertical-align: middle;
+}
+.admin-control:not(.is-open) {
+  overflow: clip;
+}
+.admin-field > .admin-control,
+.admin-form-grid .admin-control,
+.admin-settings-page .admin-control {
+  width: 100%;
 }
 .admin-control.is-enhanced > .admin-native-control {
   position: absolute;
@@ -2169,9 +2177,22 @@ input[type="radio"]:focus-visible {
   flex-wrap: wrap;
   margin-bottom: 16px;
 }
+.admin-media-query {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.admin-media-query > .admin-date-control {
+  flex: 0 0 170px;
+  width: 170px;
+}
 
 .admin-media-search {
   width: 220px;
+}
+.admin-media-date {
+  width: 170px;
 }
 
 .admin-media-filters {
@@ -2526,9 +2547,10 @@ a.admin-pg-btn:hover {
   .admin-pagination::-webkit-scrollbar { display: none; }
   .admin-pagination-total { margin-right: 4px; flex: 0 0 auto; }
   .admin-pagination-pages, .admin-pagination-size, .admin-pagination-jump { flex: 0 0 auto; }
-  .admin-media-search {
-    width: 100%;
-  }
+  .admin-media-query { width: 100%; }
+  .admin-media-search { flex: 1 1 auto; width: auto; min-width: 0; }
+  .admin-media-query > .admin-date-control,
+  .admin-media-date { flex: 0 0 150px; width: 150px; min-width: 0; }
 
   .admin-media-filters {
     flex-basis: 100%;
@@ -3561,13 +3583,11 @@ a.admin-pg-btn:hover {
 }
 @media (max-width: 767px) {
   .admin-store-toolbar {
-    flex-direction: column;
+    flex-direction: row;
     gap: 10px;
   }
-  .admin-store-search,
-  .admin-store-cat {
-    width: 100%;
-  }
+  .admin-store-search { flex: 1 1 auto; width: auto; min-width: 0; }
+  .admin-store-cat { width: 150px; }
 }
 
 /* 商店源信息优化 */
@@ -4226,6 +4246,21 @@ input[type="radio"] {
     flex: 1 1 calc(50% - 4px);
     min-width: auto;
   }
+  .admin-batch-bar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .admin-batch-bar::-webkit-scrollbar { display: none; }
+  .admin-batch-bar .admin-batch-count {
+    width: auto;
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+  .admin-batch-bar .admin-control,
+  .admin-batch-bar .btn {
+    flex: 0 0 auto;
+  }
 }
 /* ==========================================================================
    应用商店详情抽屉与附加样式
@@ -4837,14 +4872,14 @@ input[type="radio"] {
 
 @media (max-width: 640px) {
   .admin-resource-toolbar {
-    align-items: stretch;
-    flex-direction: column;
-    gap: 10px;
+    align-items: center;
+    flex-direction: row;
+    gap: 8px;
     padding-bottom: 10px;
   }
   .admin-resource-search {
-    flex: 0 0 auto;
-    width: 100%;
+    flex: 0 0 160px;
+    width: 160px;
   }
 }
 
@@ -4981,7 +5016,7 @@ input[type="radio"] {
 }
 @media (max-width: 767px) {
   .admin-install-panel .admin-theme-install-row,
-  .admin-store-page .admin-store-toolbar { grid-template-columns: 1fr; }
+  .admin-store-page .admin-store-toolbar { grid-template-columns: minmax(0, 1fr) minmax(120px, 150px); }
   .admin-store-page .admin-theme-grid { grid-template-columns: 1fr; }
   .admin-settings-page { max-width: none; }
   .admin-settings-page .admin-schema-form,
@@ -5298,11 +5333,15 @@ input[type="radio"] {
 @media (max-width: 767px) {
   .admin-user-ops { min-width: 320px; }
   .admin-table-wrap { margin-left: 0; margin-right: 0; padding-left: 0; padding-right: 0; }
-  .admin-batch-bar { align-items: center; flex-wrap: wrap; }
-  .admin-batch-bar .admin-batch-count { width: 100%; margin-right: 0; }
+  .admin-batch-bar { align-items: center; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .admin-batch-bar::-webkit-scrollbar { display: none; }
+  .admin-batch-bar .admin-batch-count { width: auto; margin-right: 0; flex: 0 0 auto; }
   .admin-batch-bar .btn { flex: 0 0 auto; min-width: 0; }
+  .admin-batch-bar .admin-control { flex: 0 0 auto; }
   .admin-batch-bar .admin-batch-op,
   .admin-batch-bar .admin-batch-move { flex: 0 1 180px; min-width: 140px; max-width: 100%; }
+  .admin-batch-bar .admin-batch-op { flex-basis: 156px; width: 156px; }
+  .admin-batch-bar .admin-batch-move { flex-basis: 150px; width: 150px; }
   .admin-user-toolbar {
     flex-wrap: nowrap;
     overflow-x: auto;
@@ -5313,6 +5352,8 @@ input[type="radio"] {
   .admin-user-toolbar input,
   .admin-user-toolbar select,
   .admin-user-toolbar .btn { flex: 0 0 auto; width: auto; }
+  .admin-user-toolbar .admin-control { flex: 0 0 124px; width: 124px; }
+  .admin-user-toolbar .admin-control-trigger { width: 100%; min-width: 0; }
   .admin-user-toolbar input { width: 220px; }
   .admin-user-toolbar select { min-width: 124px; }
   .admin-user-batch-bar { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }

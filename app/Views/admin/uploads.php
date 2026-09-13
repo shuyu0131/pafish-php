@@ -55,8 +55,10 @@ $accept = 'image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip,.rar
   </div>
 
   <div class="admin-media-toolbar">
-    <input type="search" class="input admin-media-search" id="mediaQ" placeholder="搜索文件名…" value="<?= e($q) ?>" autocomplete="off">
-    <input type="date" class="input" id="mediaDate" value="<?= e($date) ?>" title="按日期筛选">
+    <div class="admin-media-query">
+      <input type="search" class="input admin-media-search" id="mediaQ" placeholder="搜索文件名…" value="<?= e($q) ?>" autocomplete="off">
+      <input type="date" class="input admin-media-date" id="mediaDate" value="<?= e($date) ?>" title="按日期筛选">
+    </div>
     <div class="admin-media-filters">
       <?php foreach ($filters as $val => $label): ?>
         <a class="admin-media-filter <?= $type === $val ? 'active' : '' ?>" href="<?= e($pageUrl(1, $val)) ?>"><?= e($label) ?></a>

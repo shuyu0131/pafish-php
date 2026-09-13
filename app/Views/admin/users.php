@@ -122,19 +122,11 @@ $roleLabel = static function (string $role): string {
       </table>
     </div>
     <div class="admin-batch-bar admin-user-batch-bar" id="adminUserBatchBar">
-      <span class="admin-batch-count" id="adminUserBatchCount">已选择 0 个用户</span>
-      <button type="button" class="btn btn-sm btn-ghost" data-user-bulk="disable" disabled>批量禁用</button>
-      <button type="button" class="btn btn-sm btn-ghost" data-user-bulk="enable" disabled>批量解禁</button>
-      <form class="admin-user-per-page" action="<?= e(url_to('/admin/users')) ?>" method="get">
-        <?php if (($filters['q'] ?? '') !== ''): ?><input type="hidden" name="q" value="<?= e((string) $filters['q']) ?>"><?php endif; ?>
-        <?php if (($filters['role'] ?? '') !== ''): ?><input type="hidden" name="role" value="<?= e((string) $filters['role']) ?>"><?php endif; ?>
-        <?php if (($filters['state'] ?? '') !== ''): ?><input type="hidden" name="state" value="<?= e((string) $filters['state']) ?>"><?php endif; ?>
-        <?php if (($filters['sort'] ?? 'latest') !== 'latest'): ?><input type="hidden" name="sort" value="<?= e((string) $filters['sort']) ?>"><?php endif; ?>
-        <label for="adminUserPer">每页</label>
-        <select class="input" id="adminUserPer" name="per" aria-label="每页用户数" onchange="this.form.submit()">
-          <?php foreach ($perOptions as $option): ?><option value="<?= (int) $option ?>"<?= $per === (int) $option ? ' selected' : '' ?>><?= (int) $option ?></option><?php endforeach; ?>
-        </select>
-      </form>
+      <select class="input admin-user-bulk-select" id="adminUserBulkAction" aria-label="批量操作" disabled>
+        <option value="">批量操作</option>
+        <option value="disable">批量禁用</option>
+        <option value="enable">批量解禁</option>
+      </select>
     </div>
     <?= admin_pagination($page, $pages, $total, static function (int $p, int $size = 20) use ($userQuery): string {
       return $userQuery(['page' => $p, 'per' => $size]);
@@ -294,15 +286,13 @@ $roleLabel = static function (string $role): string {
 
   var checks = Array.prototype.slice.call(document.querySelectorAll(".admin-user-check"));
   var checkAll = document.getElementById("adminUsersCheckAll");
-  var batchCount = document.getElementById("adminUserBatchCount");
-  var bulkButtons = document.querySelectorAll("[data-user-bulk]");
+  var bulkSelect = document.getElementById("adminUserBulkAction");
   function selectedIds() {
     return checks.filter(function (box) { return box.checked && !box.disabled; }).map(function (box) { return box.value; });
   }
   function syncBatch() {
     var ids = selectedIds();
-    if (batchCount) batchCount.textContent = "已选择 " + ids.length + " 个用户";
-    bulkButtons.forEach(function (button) { button.disabled = ids.length === 0; });
+    if (bulkSelect) bulkSelect.disabled = ids.length === 0;
     if (checkAll) {
       checkAll.checked = ids.length > 0 && ids.length === checks.filter(function (box) { return !box.disabled; }).length;
       checkAll.indeterminate = ids.length > 0 && !checkAll.checked;
@@ -313,11 +303,10 @@ $roleLabel = static function (string $role): string {
     syncBatch();
   });
   checks.forEach(function (box) { box.addEventListener("change", syncBatch); });
-  bulkButtons.forEach(function (button) {
-    button.addEventListener("click", function () {
+  if (bulkSelect) bulkSelect.addEventListener("change", function () {
       var ids = selectedIds();
-      if (!ids.length) return;
-      var action = button.dataset.userBulk;
+      var action = bulkSelect.value;
+      if (!ids.length || !action) return;
       var label = action === "disable" ? "禁用" : "解禁";
       var confirmTask = window.pafishConfirm
         ? window.pafishConfirm("确定" + label + "选中的 " + ids.length + " 个用户吗？", { title: "批量" + label })
@@ -332,8 +321,8 @@ $roleLabel = static function (string $role): string {
           pafishToastReload("已" + label + "选中用户", "success");
         });
       });
+      bulkSelect.value = "";
     });
-  });
   syncBatch();
 })();
 </script>

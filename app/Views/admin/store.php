@@ -47,22 +47,23 @@ sort($allCategories);
     <button type="button" class="admin-tab" data-kind="plugin" role="tab">插件（<?= count($pluginCat['items']) ?>）</button>
   </div>
 
-  <div class="admin-store-view-tabs" role="tablist" aria-label="应用状态">
-    <button type="button" class="admin-store-view-tab is-active" data-store-state="all" role="tab" aria-selected="true">全部</button>
-    <button type="button" class="admin-store-view-tab" data-store-state="installed" role="tab" aria-selected="false">已安装</button>
-    <button type="button" class="admin-store-view-tab" data-store-state="upgradeable" role="tab" aria-selected="false">可更新</button>
-  </div>
-
-  <div class="admin-store-toolbar">
-    <input type="search" id="storeSearch" class="input admin-store-search" placeholder="搜索已上架的主题与插件…" autocomplete="off">
-    <?php if ($allCategories): ?>
-      <select id="storeCategory" class="input admin-store-cat" title="按分类筛选">
-        <option value="">全部分类</option>
-        <?php foreach ($allCategories as $storeCat): ?>
-          <option value="<?= e($storeCat) ?>"><?= e($storeCat) ?></option>
-        <?php endforeach; ?>
-      </select>
-    <?php endif; ?>
+  <div class="admin-store-filter-row">
+    <div class="admin-store-view-tabs" role="tablist" aria-label="应用状态">
+      <button type="button" class="admin-store-view-tab is-active" data-store-state="all" role="tab" aria-selected="true">全部</button>
+      <button type="button" class="admin-store-view-tab" data-store-state="installed" role="tab" aria-selected="false">已安装</button>
+      <button type="button" class="admin-store-view-tab" data-store-state="upgradeable" role="tab" aria-selected="false">可更新</button>
+    </div>
+    <div class="admin-store-toolbar<?= $allCategories ? '' : ' is-single' ?>">
+      <input type="search" id="storeSearch" class="input admin-store-search" placeholder="搜索已上架的主题与插件…" autocomplete="off">
+      <?php if ($allCategories): ?>
+        <select id="storeCategory" class="input admin-store-cat" title="按分类筛选">
+          <option value="">全部分类</option>
+          <?php foreach ($allCategories as $storeCat): ?>
+            <option value="<?= e($storeCat) ?>"><?= e($storeCat) ?></option>
+          <?php endforeach; ?>
+        </select>
+      <?php endif; ?>
+    </div>
   </div>
 
   <?php foreach (['theme' => $themeCat, 'plugin' => $pluginCat] as $kind => $cat): ?>

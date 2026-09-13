@@ -28,22 +28,10 @@
     });
   });
 
-  // ---------- 每页条数（cookie 记忆一年） ----------
-  var perSel = document.getElementById("adminPerPage");
-  if (perSel) {
-    perSel.addEventListener("change", function () {
-      var v = perSel.value;
-      document.cookie = "admin_posts_per_page=" + v + "; path=/; max-age=31536000";
-      var patch = { per: v === "20" ? undefined : v };
-      patch.page = undefined;
-      location.href = buildUrl(patch);
-    });
-  }
-
   var batchBar = document.querySelector(".admin-batch-bar");
   var allCheck = document.getElementById("adminCheckAll");
   var rowChecks = Array.prototype.slice.call(document.querySelectorAll(".admin-row-check"));
-  var countEl = batchBar ? batchBar.querySelector(".admin-batch-count b") : null;
+  var countEl = batchBar ? batchBar.querySelector(".admin-batch-count-number") : null;
   var opSelect = batchBar ? batchBar.querySelector(".admin-batch-op") : null;
   var moveSelect = batchBar ? batchBar.querySelector(".admin-batch-move") : null;
   var applyBtn = batchBar ? batchBar.querySelector(".admin-batch-apply") : null;

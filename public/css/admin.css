@@ -2453,19 +2453,11 @@ input[type="radio"]:focus-visible {
   margin-top: 10px;
   border-top: 1px solid var(--border);
 }
-.admin-user-batch-bar .admin-user-per-page {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-left: auto;
-  color: var(--muted);
-  font-size: 12px;
-}
-.admin-user-per-page select {
-  width: auto;
-  min-width: 68px;
-  height: 30px;
-  padding: 0 24px 0 8px;
+.admin-user-bulk-select {
+  width: 156px;
+  min-width: 156px;
+  min-height: 30px;
+  padding: 4px 28px 4px 10px;
 }
 .admin-user-action-modal { width: min(440px, 100%); }
 .admin-user-action-tabs {
@@ -4125,7 +4117,6 @@ input[type="radio"] {
     flex-wrap: nowrap;
   }
   .admin-posts-filter-bar .admin-filter-select,
-  .admin-posts-filter-bar > #adminPerPage,
   .admin-posts-filter-bar .admin-control { width: 140px; min-width: 140px; }
   .admin-posts-filter-bar .admin-search { width: 250px; }
   .admin-posts-filter-bar .admin-search .input { width: 204px; }
@@ -5317,6 +5308,7 @@ input[type="radio"] {
   background: transparent;
 }
 .admin-batch-bar .admin-batch-count { margin-right: 4px; white-space: nowrap; }
+.admin-batch-count-number { font-weight: 400; }
 .admin-batch-bar .btn { flex: 0 0 auto; white-space: nowrap; }
 .admin-batch-bar .btn { min-height: 30px; padding: 4px 11px; }
 .admin-batch-bar .admin-batch-op { width: 156px; min-width: 0; }
@@ -5363,8 +5355,7 @@ input[type="radio"] {
   .admin-user-toolbar select { min-width: 124px; }
   .admin-user-batch-bar { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
   .admin-user-batch-bar::-webkit-scrollbar { display: none; }
-  .admin-user-batch-bar .admin-batch-count { width: auto; flex: 0 0 auto; }
-  .admin-user-batch-bar .admin-user-per-page { margin-left: 0; flex: 0 0 auto; }
+  .admin-user-batch-bar .admin-user-bulk-select { flex: 0 0 156px; }
   .admin-transfer-grid { grid-template-columns: 1fr; }
   .admin-transfer-section { padding: 18px 16px; }
 }

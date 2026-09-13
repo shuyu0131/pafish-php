@@ -50,7 +50,10 @@
 
   function syncBatchControls() {
     if (!opSelect || !moveSelect) return;
-    moveSelect.hidden = opSelect.value !== "move";
+    var moveHidden = opSelect.value !== "move";
+    moveSelect.hidden = moveHidden;
+    var moveControl = moveSelect.closest ? moveSelect.closest(".admin-control") : null;
+    if (moveControl) moveControl.hidden = moveHidden;
   }
   if (opSelect) { opSelect.addEventListener("change", syncBatchControls); syncBatchControls(); }
 
@@ -63,7 +66,11 @@
     batchBar.hidden = false;
     if (countEl) countEl.textContent = n;
     [opSelect, moveSelect, applyBtn, batchBar.querySelector("[data-batch-clear]")].forEach(function (control) {
-      if (control) control.disabled = n === 0;
+      if (!control) return;
+      control.disabled = n === 0;
+      var wrapper = control.closest ? control.closest(".admin-control") : null;
+      var trigger = wrapper && wrapper.querySelector(".admin-control-trigger");
+      if (trigger) trigger.disabled = n === 0;
     });
     if (allCheck) {
       var some = rowChecks.some(function (c) { return c.checked; });
@@ -112,7 +119,8 @@
         if (!ok) return;
         submitter.disabled = true;
         var fd = new FormData(batchBar);
-        fd.set("ids", JSON.stringify(ids));
+        fd.delete("ids");
+        ids.forEach(function (id) { fd.append("ids[]", id); });
         fd.set("op", op);
         fetch(batchBar.action, { method: "POST", body: fd, headers: { "X-Requested-With": "XMLHttpRequest" } })
           .then(function (r) { return r.json().catch(function () { return {}; }); })

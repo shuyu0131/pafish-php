@@ -266,7 +266,7 @@ function apply_filters(string $name, mixed $value, mixed ...$args): mixed
     return Hooks::applyFilters($name, $value, ...$args);
 }
 
-/** 默认头像（无 avatarUrl 时使用 cravatar） */
+/** 默认头像（未设置头像时使用本地占位图） */
 function admin_gravatar(string $email): string
 {
     return \Pafish\Http\Comments::avatarUrl(null, $email);

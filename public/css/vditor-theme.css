@@ -152,7 +152,7 @@
 @media (max-width: 767px) {
   /* 移动端保留足够写作空间，同时避免工具栏挤压按钮 */
   .admin-md-editor .vditor {
-    height: 400px !important;
+    height: 520px !important;
   }
   .admin-md-editor .vditor-toolbar {
     padding-right: 6px;

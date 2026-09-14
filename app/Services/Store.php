@@ -16,7 +16,7 @@ final class Store
     private const MAX_ZIP_BYTES = 10 * 1024 * 1024;
     private const KIND_FILE = ['theme' => 'themes.json', 'plugin' => 'plugins.json'];
     private const CATALOG_CACHE_TTL = 300;
-    private const CATALOG_CACHE_VERSION = 3;
+    private const CATALOG_CACHE_VERSION = 4;
 
     /** 返回商店地址。 */
     public static function baseUrl(): string
@@ -388,7 +388,7 @@ final class Store
                 'version' => $version,
                 'description' => self::plainText($entry['summary'] ?? ($entry['description'] ?? '')),
                 'summary' => self::plainText($entry['summary'] ?? ''),
-                'author' => isset($entry['author']) ? (string) $entry['author'] : '',
+                'author' => self::catalogAuthor($entry),
                 'authorUrl' => isset($entry['authorUrl']) ? (string) $entry['authorUrl'] : (isset($entry['author_url']) ? (string) $entry['author_url'] : ''),
                 'category' => isset($entry['category']) ? (string) $entry['category'] : '',
                 'zip' => $zip,
@@ -519,7 +519,7 @@ final class Store
                 'version' => $version,
                 'description' => self::plainText($entry['summary'] ?? ($entry['description'] ?? '')),
                 'summary' => self::plainText($entry['summary'] ?? ''),
-                'author' => isset($entry['author']) ? (string) $entry['author'] : '',
+                'author' => self::catalogAuthor($entry),
                 'authorUrl' => isset($entry['authorUrl']) ? (string) $entry['authorUrl'] : (isset($entry['author_url']) ? (string) $entry['author_url'] : ''),
                 'category' => isset($entry['category']) ? (string) $entry['category'] : '',
                 'zip' => $zip,
@@ -542,6 +542,18 @@ final class Store
             $value = trim((string)($entry[$key] ?? ''));
             if ($value !== '') {
                 return $value;
+            }
+        }
+        return '';
+    }
+
+    /** 官网目录优先使用开发者昵称，同时兼容旧目录的 author 字段。 */
+    private static function catalogAuthor(array $entry): string
+    {
+        foreach (['developerName', 'developer_name', 'nickname', 'author'] as $key) {
+            $value = $entry[$key] ?? null;
+            if (is_scalar($value) && trim((string) $value) !== '') {
+                return trim((string) $value);
             }
         }
         return '';

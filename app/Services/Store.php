@@ -11,11 +11,12 @@ final class Store
     /** 官方商店地址。 */
     private const OFFICIAL_STORE_URL = 'https://www.pafish.cn';
 
-    private const NAME_PATTERN = '/^[a-z0-9][a-z0-9-]{1,48}[a-z0-9]$/';
+    // 与 Theme / Plugin 的清单规则一致，商店条目允许下划线命名。
+    private const NAME_PATTERN = '/^[a-z0-9_-]{1,50}$/';
     private const MAX_ZIP_BYTES = 10 * 1024 * 1024;
     private const KIND_FILE = ['theme' => 'themes.json', 'plugin' => 'plugins.json'];
     private const CATALOG_CACHE_TTL = 300;
-    private const CATALOG_CACHE_VERSION = 2;
+    private const CATALOG_CACHE_VERSION = 3;
 
     /** 返回商店地址。 */
     public static function baseUrl(): string

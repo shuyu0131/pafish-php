@@ -1,12 +1,50 @@
 [
     {
-        "name": "hello-pafish",
+        "name": "hello_pafish",
         "title": "Hello, pafish",
         "version": "1.0.2",
-        "description": "应用商店安装演示插件：启用时记录打招呼日志、监听登录事件；提供页面模板 card 与前台页面 \/plugin\/hello-pafish\/hello。",
+        "description": "应用商店安装演示插件：启用时记录登录日志，并提供页面模板和前台示例页面。",
         "author": "pafish",
-        "zip": "\/store\/hello-pafish.zip",
-        "sha256": "9ca5c3d10fb62ee2500074da1c8637457d17d877e6b00d5f250fa36892d30bcb",
-        "packageSize": 2024
+        "zip": "\/store\/hello_pafish.zip",
+        "sha256": "71edf2b05ee58962507e30e70bea810a9139e652836e5bc92787393b40491b35",
+        "packageSize": 2132,
+        "category": "开发工具",
+        "homepage": "https:\/\/www.pafish.cn",
+        "authorUrl": "https:\/\/www.pafish.cn",
+        "requiresPhp": "8.1",
+        "changelog": "规范化应用别名与商店清单信息。",
+        "keywords": "demo, hooks, page, template"
+    },
+    {
+        "name": "notify_hub",
+        "title": "通知中心",
+        "version": "1.0.0",
+        "description": "把评论、文章发布、登录和注册事件推送到 Bark、Telegram、钉钉、飞书、企业微信或通用 Webhook。",
+        "author": "pafish",
+        "zip": "\/store\/notify_hub.zip",
+        "sha256": "6210ab2ace3882a4ea01ba2a10e6d3c368361d7d3f349c016678cf7ea6c90940",
+        "packageSize": 3953,
+        "category": "通知",
+        "homepage": "https:\/\/www.pafish.cn",
+        "authorUrl": "https:\/\/www.pafish.cn",
+        "requiresPhp": "8.1",
+        "changelog": "规范化应用别名与商店清单信息。",
+        "keywords": "notification, webhook, bark, telegram, dingtalk, feishu"
+    },
+    {
+        "name": "seo_push",
+        "title": "SEO 主动推送",
+        "version": "1.0.0",
+        "description": "文章发布后自动提交 IndexNow 与百度搜索资源平台，记录推送结果并避免自动保存重复提交。",
+        "author": "pafish",
+        "zip": "\/store\/seo_push.zip",
+        "sha256": "1a9f8dc08cfa19e7f87320853f2f8a2f188e94ab92d4ebe2890be1050828c74a",
+        "packageSize": 3610,
+        "category": "SEO",
+        "homepage": "https:\/\/www.pafish.cn",
+        "authorUrl": "https:\/\/www.pafish.cn",
+        "requiresPhp": "8.1",
+        "changelog": "规范化应用别名与商店清单信息。",
+        "keywords": "seo, indexnow, baidu, sitemap"
     }
 ]

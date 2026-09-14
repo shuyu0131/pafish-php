@@ -21,6 +21,11 @@ final class Plugin
     private const SETTING_TYPES = ['text', 'textarea', 'checkbox', 'select', 'color', 'switcher', 'radio', 'image', 'password'];
     private const MAX_ZIP_BYTES = 10 * 1024 * 1024;
     private const MAX_LOGS = 50;
+    private const LEGACY_NAMES = [
+        'hello-pafish' => 'hello_pafish',
+        'notify-hub' => 'notify_hub',
+        'seo-push' => 'seo_push',
+    ];
 
     private static ?array $manifests = [];
     private static ?array $modules = [];
@@ -30,6 +35,17 @@ final class Plugin
     public static function root(): string
     {
         return dirname(__DIR__, 2) . '/plugins';
+    }
+
+    private static function canonicalName(string $name): string
+    {
+        return self::LEGACY_NAMES[$name] ?? $name;
+    }
+
+    private static function legacyName(string $name): ?string
+    {
+        $legacy = array_search($name, self::LEGACY_NAMES, true);
+        return is_string($legacy) ? $legacy : null;
     }
 
     /** 扫描 plugins/ 目录下的全部插件名（同 Theme::list：点前缀目录忽略） */
@@ -64,16 +80,20 @@ final class Plugin
         if (is_array($list)) {
             foreach ($list as $n) {
                 if (is_string($n) && preg_match(self::NAME_PATTERN, $n) === 1) {
-                    $names[] = $n;
+                    $names[] = self::canonicalName($n);
                 }
             }
         }
-        return self::$activeCache = array_values(array_unique($names));
+        $names = array_values(array_unique($names));
+        if ($names !== (is_array($list) ? array_values(array_filter($list, static fn ($n): bool => is_string($n))) : [])) {
+            Settings::set('active_plugins', json_encode($names, JSON_UNESCAPED_UNICODE));
+        }
+        return self::$activeCache = $names;
     }
 
     public static function isActive(string $name): bool
     {
-        return in_array($name, self::activeNames(), true);
+        return in_array(self::canonicalName($name), self::activeNames(), true);
     }
 
     /** 读取插件 manifest。 */
@@ -89,6 +109,7 @@ final class Plugin
      */
     public static function describe(string $name): array
     {
+        $name = self::canonicalName($name);
         if (preg_match(self::NAME_PATTERN, $name) !== 1) {
             return ['manifest' => null, 'error' => '插件名不合法'];
         }
@@ -266,6 +287,7 @@ final class Plugin
     /** 加载插件模块；入口缺失或加载失败时返回空结果。 */
     public static function module(string $name): ?array
     {
+        $name = self::canonicalName($name);
         if (preg_match(self::NAME_PATTERN, $name) !== 1) {
             return null;
         }
@@ -288,6 +310,7 @@ final class Plugin
     /** 当前插件上下文。 */
     public static function context(string $name): object
     {
+        $name = self::canonicalName($name);
         if (isset(self::$contexts[$name])) {
             return self::$contexts[$name];
         }
@@ -352,25 +375,47 @@ final class Plugin
     /** 插件数据（plugin_data:{name} JSON 对象；损坏/缺失返回空数组） */
     public static function data(string $name): array
     {
+        $name = self::canonicalName($name);
         $v = json_decode((string) Settings::get('plugin_data:' . $name, ''), true);
+        if (!is_array($v)) {
+            $legacy = self::legacyName($name);
+            if ($legacy !== null) {
+                $v = json_decode((string) Settings::get('plugin_data:' . $legacy, ''), true);
+                if (is_array($v)) {
+                    Settings::set('plugin_data:' . $name, json_encode($v, JSON_UNESCAPED_UNICODE));
+                }
+            }
+        }
         return is_array($v) ? $v : [];
     }
 
     public static function setData(string $name, array $data): void
     {
+        $name = self::canonicalName($name);
         Settings::set('plugin_data:' . $name, json_encode($data, JSON_UNESCAPED_UNICODE));
     }
 
     /** 插件设置（plugin_settings:{name}） */
     public static function settings(string $name): array
     {
+        $name = self::canonicalName($name);
         $v = json_decode((string) Settings::get('plugin_settings:' . $name, ''), true);
+        if (!is_array($v)) {
+            $legacy = self::legacyName($name);
+            if ($legacy !== null) {
+                $v = json_decode((string) Settings::get('plugin_settings:' . $legacy, ''), true);
+                if (is_array($v)) {
+                    Settings::set('plugin_settings:' . $name, json_encode($v, JSON_UNESCAPED_UNICODE));
+                }
+            }
+        }
         return is_array($v) ? $v : [];
     }
 
     /** partial 合并写回 */
     public static function setSettings(string $name, array $partial): void
     {
+        $name = self::canonicalName($name);
         Settings::set('plugin_settings:' . $name, json_encode(array_merge(self::settings($name), $partial), JSON_UNESCAPED_UNICODE));
     }
 
@@ -389,6 +434,7 @@ final class Plugin
     /** 注册插件钩子（约定函数 registerHooks(ctx)） */
     public static function registerHooks(string $name): void
     {
+        $name = self::canonicalName($name);
         $mod = self::module($name);
         if ($mod === null || !is_callable($mod['registerHooks'] ?? null)) {
             return;
@@ -403,12 +449,14 @@ final class Plugin
     /** 注销插件全部钩子（tag=plugin:{name}，含 ctx.on 注册的） */
     public static function unregisterHooks(string $name): void
     {
+        $name = self::canonicalName($name);
         Hooks::removeByTag('plugin:' . $name);
     }
 
     /** 生命周期回调（onActivate/onDeactivate/onUninstall），异常隔离 */
     public static function runLifecycle(string $name, string $phase): void
     {
+        $name = self::canonicalName($name);
         $mod = self::module($name);
         if ($mod === null || !is_callable($mod[$phase] ?? null)) {
             return;
@@ -423,6 +471,7 @@ final class Plugin
     /** 启用插件。 */
     public static function activate(string $name): void
     {
+        $name = self::canonicalName($name);
         $desc = self::describe($name);
         if ($desc['error'] !== null) {
             throw new \RuntimeException('插件"' . $name . '"不可用：' . $desc['error']);
@@ -439,6 +488,7 @@ final class Plugin
     /** 停用插件。 */
     public static function deactivate(string $name): void
     {
+        $name = self::canonicalName($name);
         $list = array_values(array_filter(self::activeNames(), static fn (string $n): bool => $n !== $name));
         self::setActivePlugins($list);
         self::unregisterHooks($name);
@@ -448,6 +498,7 @@ final class Plugin
     /** 卸载插件：先执行 onUninstall，使清理逻辑仍能读取插件设置/数据，再删除持久化数据和目录。 */
     public static function uninstall(string $name): void
     {
+        $name = self::canonicalName($name);
         if (self::isActive($name)) {
             self::deactivate($name);
         }
@@ -463,6 +514,7 @@ final class Plugin
     /** 按 manifest schema 保存插件设置。 */
     public static function saveSettings(string $name, array $body): array
     {
+        $name = self::canonicalName($name);
         $desc = self::describe($name);
         if ($desc['error'] !== null) {
             throw new \RuntimeException($desc['error']);
@@ -569,6 +621,7 @@ final class Plugin
      */
     public static function renderPluginPage(string $name, string $pagePath): ?array
     {
+        $name = self::canonicalName($name);
         if (!self::isActive($name)) {
             return null;
         }

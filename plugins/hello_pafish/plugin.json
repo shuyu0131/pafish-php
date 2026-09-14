@@ -1,11 +1,15 @@
 {
-  "name": "hello-pafish",
+  "name": "hello_pafish",
   "title": "Hello, pafish",
   "version": "1.0.2",
-  "description": "应用商店安装演示插件：启用时记录打招呼日志、监听登录事件；提供页面模板 card 与前台页面 /plugin/hello-pafish/hello。",
+  "description": "应用商店安装演示插件：启用时记录登录日志，并提供页面模板和前台示例页面。",
   "author": "pafish",
   "authorUrl": "https://www.pafish.cn",
   "homepage": "https://www.pafish.cn",
+  "category": "开发工具",
+  "keywords": "demo, hooks, page, template",
+  "requiresPhp": "8.1",
+  "changelog": "规范化应用别名与商店清单信息。",
   "pageTemplates": [
     {
       "name": "card",

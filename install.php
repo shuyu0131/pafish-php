@@ -389,6 +389,15 @@ function inst_seed(PDO $pdo, string $siteName, string $adminUser, string $adminE
 // ---------- 视图 ----------
 function inst_layout(string $title, string $inner, string $extra = ''): string
 {
+    $phase = match ($title) {
+        '环境检查' => 1,
+        '配置' => 2,
+        '安装完成', '已安装' => 3,
+        default => 1,
+    };
+    $stepClass = static function (int $step) use ($phase): string {
+        return $step < $phase ? 'is-done' : ($step === $phase ? 'is-active' : '');
+    };
     return <<<HTML
 <!doctype html>
 <html lang="zh-CN">
@@ -397,44 +406,75 @@ function inst_layout(string $title, string $inner, string $extra = ''): string
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{$title} · pafish 安装向导</title>
 <style>
-  :root { --paper:#f4f1eb; --surface:#fffdfa; --ink:#252522; --muted:#7d7a72; --line:#ded9cf; --accent:#b64b36; --ok:#2f7657; }
+  :root { --paper:#eef2f5; --surface:#ffffff; --surface-soft:#f7f9fa; --ink:#17212b; --muted:#65717c; --line:#d9e1e7; --accent:#176b78; --accent-soft:#e6f2f3; --ok:#207a59; --bad:#b5473c; --warn:#916b21; }
   * { margin:0; padding:0; box-sizing:border-box; }
-  body { font-family: "Segoe UI", "Microsoft YaHei", sans-serif; background:var(--paper); color:var(--ink); min-height:100vh; padding:48px 18px; }
-  .wrap { width:100%; max-width:720px; margin:0 auto; }
-  h1 { font-family: Georgia, "Times New Roman", serif; font-size:2rem; font-weight:500; letter-spacing:-.04em; }
-  .sub { color:var(--muted); font-size:.82rem; letter-spacing:.08em; margin:6px 0 30px; }
-  .card { background:var(--surface); border:1px solid var(--line); border-radius:4px; padding:28px 32px; box-shadow:0 3px 12px rgba(55,45,34,.035); }
+  body { font-family:"Segoe UI", "Microsoft YaHei", sans-serif; background:var(--paper); color:var(--ink); min-height:100vh; padding:40px 20px 52px; }
+  .wrap { width:100%; max-width:1080px; margin:0 auto; }
+  .install-head { display:flex; align-items:flex-end; justify-content:space-between; gap:24px; margin-bottom:24px; }
+  .brandline { display:flex; align-items:center; gap:12px; }
+  .brandmark { width:42px; height:42px; display:grid; place-items:center; border-radius:12px; background:var(--ink); color:#fff; font:700 1.1rem Georgia,serif; letter-spacing:-.08em; }
+  h1 { font:600 2rem/1.1 Georgia, "Times New Roman", serif; letter-spacing:-.035em; }
+  .sub { color:var(--muted); font-size:.82rem; letter-spacing:.08em; margin-top:6px; }
+  .head-meta { color:var(--muted); font-size:.78rem; text-align:right; }
+  .install-shell { display:grid; grid-template-columns:238px minmax(0,1fr); gap:18px; align-items:start; }
+  .rail, .card { background:var(--surface); border:1px solid var(--line); border-radius:12px; box-shadow:0 12px 30px rgba(38,56,72,.06); }
+  .rail { padding:22px 18px; position:sticky; top:20px; }
+  .rail-kicker { color:var(--muted); font-size:.7rem; letter-spacing:.14em; text-transform:uppercase; margin-bottom:18px; }
+  .steps { list-style:none; display:grid; gap:4px; }
+  .step { display:grid; grid-template-columns:30px 1fr; gap:10px; align-items:center; min-height:58px; color:#93a0aa; position:relative; }
+  .step:not(:last-child)::after { content:""; position:absolute; left:14px; top:38px; bottom:-4px; width:1px; background:var(--line); }
+  .step.is-active, .step.is-done { color:var(--ink); }
+  .step.is-done::after { background:#9cc8c4; }
+  .step-no { width:29px; height:29px; display:grid; place-items:center; border:1px solid #c8d1d8; border-radius:50%; background:var(--surface-soft); font-size:.76rem; font-weight:700; z-index:1; }
+  .step.is-active .step-no { border-color:var(--accent); background:var(--accent); color:#fff; box-shadow:0 0 0 4px var(--accent-soft); }
+  .step.is-done .step-no { border-color:#9cc8c4; background:#e7f4ef; color:var(--ok); }
+  .step strong { display:block; font-size:.86rem; font-weight:600; }
+  .step small { display:block; color:var(--muted); font-size:.72rem; margin-top:3px; }
+  .content-area { min-width:0; }
+  .card { padding:28px 32px; }
   .card + .card { margin-top:14px !important; }
-  .card h2 { font-family:Georgia, "Times New Roman", serif; font-size:1.15rem; font-weight:500; margin-bottom:20px; padding-bottom:12px; border-bottom:1px solid #eeeae3; }
-  .row { display:flex; justify-content:space-between; align-items:center; padding:11px 0; border-bottom:1px solid #eeeae3; font-size:.9rem; }
+  .card h2 { font:600 1.2rem/1.25 Georgia, "Times New Roman", serif; margin-bottom:20px; padding-bottom:14px; border-bottom:1px solid #edf1f3; }
+  .row { display:flex; justify-content:space-between; align-items:center; gap:18px; padding:13px 0; border-bottom:1px solid #edf1f3; font-size:.9rem; }
   .row:last-child { border-bottom:0; }
-  .ok { color:var(--ok); font-weight:600; }
-  .bad { color:var(--accent); font-weight:600; }
-  .detail { color:#aaa59b; font-size:.78rem; }
-  label { display:block; color:var(--muted); font-size:.78rem; letter-spacing:.02em; margin:16px 0 7px; }
-  input[type=text], input[type=password], input[type=email], input[type=number] { width:100%; padding:11px 12px; color:var(--ink); background:#fff; border:1px solid #d8d3ca; border-radius:3px; font-size:.92rem; outline:0; transition:border-color .15s, box-shadow .15s; }
-  input:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(182,75,54,.12); }
+  .row .warn { margin-top:0; }
+  .ok { color:var(--ok); font-weight:650; }
+  .bad { color:var(--bad); font-weight:650; }
+  .detail { color:#88949e; font-size:.78rem; }
+  label { display:block; color:var(--muted); font-size:.78rem; letter-spacing:.02em; margin:17px 0 7px; }
+  input[type=text], input[type=password], input[type=email], input[type=number] { width:100%; padding:12px 13px; color:var(--ink); background:var(--surface-soft); border:1px solid #ccd6dd; border-radius:8px; font-size:.92rem; outline:0; transition:border-color .18s, box-shadow .18s, background .18s; }
+  input:hover { border-color:#aebdc7; }
+  input:focus { background:#fff; border-color:var(--accent); box-shadow:0 0 0 4px rgba(23,107,120,.12); }
   .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:0 18px; }
-  .btn { display:inline-block; margin-top:22px; padding:11px 24px; border:1px solid var(--ink); border-radius:3px; cursor:pointer; background:var(--ink); color:#fff; font-size:.88rem; text-decoration:none; transition:background .15s; }
-  .btn:hover { background:#44443e; }
+  .btn { display:inline-flex; align-items:center; justify-content:center; min-height:43px; margin-top:22px; padding:0 22px; border:1px solid var(--ink); border-radius:8px; cursor:pointer; background:var(--ink); color:#fff; font-size:.88rem; font-weight:600; text-decoration:none; transition:transform .18s, background .18s, border-color .18s, opacity .18s; }
+  .btn:hover { background:#2d3a45; transform:translateY(-1px); }
+  .btn:active { transform:translateY(0); }
   .btn:disabled { opacity:.45; cursor:not-allowed; transform:none; }
-  .err { background:#fff4f0; border:1px solid #e7b9aa; color:#9c3e2d; border-radius:3px; padding:12px 14px; font-size:.86rem; margin-bottom:14px; }
-  .warn { background:#fbf7ed; border:1px solid #e5d9b9; color:#866b32; border-radius:3px; padding:12px 14px; font-size:.84rem; margin-top:14px; white-space:pre-line; }
-  .done { text-align:center; padding:14px 0 6px; }
-  .done .big { font-size:2rem; }
-  .info { font-size:.88rem; line-height:1.9; color:#5f5c55; }
+  .err { background:#fff4f2; border:1px solid #edc2bb; color:#963b32; border-radius:8px; padding:13px 15px; font-size:.86rem; margin-bottom:14px; line-height:1.65; }
+  .warn { background:#fff9ed; border:1px solid #ead9aa; color:var(--warn); border-radius:8px; padding:13px 15px; font-size:.84rem; margin-top:14px; line-height:1.65; white-space:pre-line; }
+  .done { text-align:center; padding:26px 12px 10px; }
+  .done .big { width:58px; height:58px; display:grid; place-items:center; margin:0 auto 12px; border-radius:50%; background:#e7f4ef; color:var(--ok); font-size:1.8rem; }
+  .done h2 { border:0; padding:0; margin-bottom:16px; }
+  .info { font-size:.9rem; line-height:1.9; color:#5f6b75; }
   .info b { color:var(--ink); }
-  .checkbox { display:flex; align-items:center; gap:8px; margin-top:17px; font-size:.84rem; color:#5f5c55; }
+  .checkbox { display:flex; align-items:flex-start; gap:8px; margin-top:17px; font-size:.84rem; color:#5f6b75; line-height:1.5; }
   .checkbox label { margin:0; }
-  .footer { text-align:center; color:#aaa59b; font-size:.74rem; margin-top:22px; }
-  @media (max-width:600px) { body { padding:28px 12px; } .card { padding:22px 18px; } .grid2 { grid-template-columns:1fr; } }
+  .checkbox input { margin-top:3px; accent-color:var(--accent); }
+  .footer { color:#8a969f; font-size:.74rem; margin-top:18px; padding-left:256px; }
+  @media (max-width:760px) { body { padding:24px 12px 36px; } .install-head { align-items:flex-start; margin-bottom:18px; } .head-meta { display:none; } .install-shell { grid-template-columns:1fr; } .rail { position:static; padding:16px; } .rail-kicker { margin-bottom:12px; } .steps { grid-template-columns:repeat(3,1fr); gap:8px; } .step { display:block; min-height:0; text-align:center; } .step:not(:last-child)::after { left:calc(50% + 18px); right:calc(-50% + 18px); top:14px; bottom:auto; width:auto; height:1px; } .step-no { margin:0 auto 7px; } .step strong { font-size:.75rem; } .step small { display:none; } .card { padding:22px 18px; } .grid2 { grid-template-columns:1fr; } .footer { padding-left:0; text-align:center; } }
+  @media (max-width:420px) { h1 { font-size:1.65rem; } .sub { font-size:.74rem; } .card { padding:19px 15px; } .row { align-items:flex-start; flex-direction:column; gap:4px; } .btn { width:100%; } }
 </style>
 </head>
 <body><div class="wrap">
-<h1>pafish</h1>
-<div class="sub">博客 CMS 安装向导</div>
-{$inner}
-<div class="footer">pafish · 轻量博客系统 · 安装完成请删除 install.php</div>
+<header class="install-head"><div class="brandline"><span class="brandmark">pf</span><div><h1>pafish</h1><div class="sub">博客 CMS 安装向导</div></div></div><div class="head-meta">轻量、可扩展的内容发布系统<br>安装过程约需 2 分钟</div></header>
+<div class="install-shell">
+  <aside class="rail" aria-label="安装进度"><div class="rail-kicker">Setup progress</div><ol class="steps">
+    <li class="step {$stepClass(1)}"><span class="step-no">1</span><div><strong>环境检查</strong><small>确认服务器条件</small></div></li>
+    <li class="step {$stepClass(2)}"><span class="step-no">2</span><div><strong>填写配置</strong><small>连接数据库与账号</small></div></li>
+    <li class="step {$stepClass(3)}"><span class="step-no">3</span><div><strong>完成安装</strong><small>开始使用 pafish</small></div></li>
+  </ol></aside>
+  <main class="content-area">{$extra}{$inner}</main>
+</div>
+<div class="footer">pafish · 轻量博客系统 · 安装完成后请删除 install.php</div>
 </div></body></html>
 HTML;
 }

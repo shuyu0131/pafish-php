@@ -320,7 +320,7 @@ final class Store
         }
     }
 
-    /** 从 public/store 读取本地安装包（zip 路径如 /store/hello-pafish.zip 或 hello-pafish.zip） */
+    /** 从 public/store 读取本地安装包（zip 路径如 /store/{name}.zip） */
     private static function readLocalZip(string $zip): ?string
     {
         $name = ltrim($zip, '/');

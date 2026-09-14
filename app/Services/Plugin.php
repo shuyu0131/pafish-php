@@ -22,7 +22,6 @@ final class Plugin
     private const MAX_ZIP_BYTES = 10 * 1024 * 1024;
     private const MAX_LOGS = 50;
     private const LEGACY_NAMES = [
-        'hello-pafish' => 'hello_pafish',
         'notify-hub' => 'notify_hub',
         'seo-push' => 'seo_push',
     ];
@@ -80,6 +79,10 @@ final class Plugin
         if (is_array($list)) {
             foreach ($list as $n) {
                 if (is_string($n) && preg_match(self::NAME_PATTERN, $n) === 1) {
+                    // v0.1.47 移除了仅作演示用途的内置插件，升级后清理遗留启用状态。
+                    if ($n === 'hello_pafish' || $n === 'hello-pafish') {
+                        continue;
+                    }
                     $names[] = self::canonicalName($n);
                 }
             }
@@ -613,6 +616,29 @@ final class Plugin
             }
         }
         return '';
+    }
+
+    /**
+     * 站点地图输出扩展点：首个返回有效 XML 的已启用插件接管 /sitemap.xml。
+     * 插件不可用或发生异常时返回 null，由核心控制器使用兼容输出。
+     */
+    public static function renderSitemap(): ?string
+    {
+        foreach (self::activeNames() as $name) {
+            $mod = self::module($name);
+            if ($mod === null || !is_callable($mod['renderSitemap'] ?? null)) {
+                continue;
+            }
+            try {
+                $xml = $mod['renderSitemap'](self::context($name));
+                if (is_string($xml) && trim($xml) !== '') {
+                    return trim($xml);
+                }
+            } catch (\Throwable $e) {
+                error_log("[pafish-plugin] {$name} renderSitemap 失败：" . $e->getMessage());
+            }
+        }
+        return null;
     }
 
     /**

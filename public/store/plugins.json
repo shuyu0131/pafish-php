@@ -1,21 +1,5 @@
 [
     {
-        "name": "hello_pafish",
-        "title": "Hello, pafish",
-        "version": "1.0.2",
-        "description": "应用商店安装演示插件：启用时记录登录日志，并提供页面模板和前台示例页面。",
-        "author": "pafish",
-        "zip": "\/store\/hello_pafish.zip",
-        "sha256": "71edf2b05ee58962507e30e70bea810a9139e652836e5bc92787393b40491b35",
-        "packageSize": 2132,
-        "category": "开发工具",
-        "homepage": "https:\/\/www.pafish.cn",
-        "authorUrl": "https:\/\/www.pafish.cn",
-        "requiresPhp": "8.1",
-        "changelog": "规范化应用别名与商店清单信息。",
-        "keywords": "demo, hooks, page, template"
-    },
-    {
         "name": "notify_hub",
         "title": "通知中心",
         "version": "1.0.0",

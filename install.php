@@ -345,6 +345,7 @@ function inst_seed(PDO $pdo, string $siteName, string $adminUser, string $adminE
         'posts_per_page' => '10',
         'allow_registration' => 'true',
         'active_theme' => 'default',
+        'active_plugins' => '["sitemap"]',
     ];
     foreach ($defaults as $k => $v) {
         $selSetting->execute([$k]);

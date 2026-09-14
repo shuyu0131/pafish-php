@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pafish\Http;
 
 use Pafish\Core\DB;
+use Pafish\Services\Plugin;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -16,6 +17,13 @@ final class SitemapController
 {
     public function index(Request $request, Response $response): Response
     {
+        // 默认 Sitemap 插件启用时由它处理可配置的内容范围；旧站点未启用时保留原有输出。
+        $pluginXml = Plugin::renderSitemap();
+        if ($pluginXml !== null) {
+            $response->getBody()->write($pluginXml);
+            return $response->withHeader('Content-Type', 'application/xml; charset=utf-8');
+        }
+
         $posts = DB::fetchAll(
             "SELECT slug, published_at FROM posts
              WHERE status = 'PUBLISHED' AND deleted_at IS NULL

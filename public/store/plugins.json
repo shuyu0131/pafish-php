@@ -2,17 +2,17 @@
     {
         "name": "notify_hub",
         "title": "通知中心",
-        "version": "1.0.0",
+        "version": "1.0.2",
         "description": "把评论、文章发布、登录和注册事件推送到 Bark、Telegram、钉钉、飞书、企业微信或通用 Webhook。",
         "author": "pafish",
         "zip": "\/store\/notify_hub.zip",
-        "sha256": "6210ab2ace3882a4ea01ba2a10e6d3c368361d7d3f349c016678cf7ea6c90940",
-        "packageSize": 3953,
+        "sha256": "114d43519e81ae68f4428ad13a731c2b9b744fdfb8df3d565724d832aea61124",
+        "packageSize": 4431,
         "category": "通知",
         "homepage": "https:\/\/www.pafish.cn",
         "authorUrl": "https:\/\/www.pafish.cn",
         "requiresPhp": "8.1",
-        "changelog": "规范化应用别名与商店清单信息。",
+        "changelog": "新增后台测试通知、通道请求结果和未配置通道提示，便于排查推送失败。",
         "keywords": "notification, webhook, bark, telegram, dingtalk, feishu"
     },
     {

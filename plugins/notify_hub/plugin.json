@@ -1,7 +1,7 @@
 {
   "name": "notify_hub",
   "title": "通知中心",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "apiVersion": 2,
   "description": "把评论、文章发布、登录和注册事件推送到 Bark、Telegram、钉钉、飞书、企业微信或通用 Webhook。",
   "author": "pafish",
@@ -10,7 +10,7 @@
   "category": "通知",
   "keywords": "notification, webhook, bark, telegram, dingtalk, feishu",
   "requiresPhp": "8.1",
-  "changelog": "规范化应用别名与商店清单信息。",
+  "changelog": "新增后台测试通知、通道请求结果和未配置通道提示，便于排查推送失败。",
   "settings": [
     { "key": "notify_comments", "label": "新评论通知", "type": "switcher", "default": "1", "group": "事件" },
     { "key": "notify_posts", "label": "文章发布通知", "type": "switcher", "default": "0", "group": "事件" },

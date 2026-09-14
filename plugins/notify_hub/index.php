@@ -47,10 +47,34 @@ function pafish_notify_hub_post(string $url, string $body, array $headers): arra
         throw new RuntimeException($error !== '' ? $error : '连接失败');
     }
 
-    return ['status' => $status];
+    $response = trim((string) $response);
+    return [
+        'status' => $status,
+        // 第三方机器人返回的错误通常在响应体中；限制长度，避免插件数据无限增长。
+        'response' => $response === '' ? '' : (function_exists('mb_substr') ? mb_substr($response, 0, 500) : substr($response, 0, 500)),
+    ];
 }
 
-function pafish_notify_hub_send(object $ctx, string $event, string $title, string $message, string $url = ''): void
+function pafish_notify_hub_save_result(object $ctx, string $event, string $title, array $results): array
+{
+    $data = $ctx->getData();
+    $history = is_array($data['history'] ?? null) ? $data['history'] : [];
+    $succeeded = count(array_filter($results, static fn(array $result): bool => (bool) ($result['ok'] ?? false)));
+    array_unshift($history, [
+        'time' => date('Y-m-d H:i:s'),
+        'event' => $event,
+        'title' => $title,
+        'success' => $succeeded,
+        'total' => count($results),
+        'results' => $results,
+    ]);
+    $data['history'] = array_slice($history, 0, 50);
+    $ctx->setData($data);
+    $ctx->log($title . '：' . $succeeded . '/' . count($results) . ' 个通知通道成功');
+    return ['success' => $succeeded, 'total' => count($results), 'results' => $results];
+}
+
+function pafish_notify_hub_send(object $ctx, string $event, string $title, string $message, string $url = ''): array
 {
     $settings = pafish_notify_hub_settings($ctx);
     $results = [];
@@ -58,7 +82,12 @@ function pafish_notify_hub_send(object $ctx, string $event, string $title, strin
         try {
             $result = $callback();
             $status = (int) ($result['status'] ?? 0);
-            $results[] = ['channel' => $channel, 'ok' => $status >= 200 && $status < 300, 'status' => $status];
+            $entry = ['channel' => $channel, 'ok' => $status >= 200 && $status < 300, 'status' => $status];
+            $response = trim((string) ($result['response'] ?? ''));
+            if ($response !== '') {
+                $entry['response'] = $response;
+            }
+            $results[] = $entry;
         } catch (Throwable $e) {
             $results[] = ['channel' => $channel, 'ok' => false, 'error' => $e->getMessage()];
         }
@@ -108,15 +137,13 @@ function pafish_notify_hub_send(object $ctx, string $event, string $title, strin
     }
 
     if ($results === []) {
-        return;
+        return pafish_notify_hub_save_result($ctx, $event, $title, [[
+            'channel' => '配置检查',
+            'ok' => false,
+            'error' => '未配置可用的通知通道。请填写 Bark Key、Telegram Bot Token 和 Chat ID、机器人 Webhook 或通用 Webhook。',
+        ]]);
     }
-    $data = $ctx->getData();
-    $history = is_array($data['history'] ?? null) ? $data['history'] : [];
-    $succeeded = count(array_filter($results, static fn(array $result): bool => (bool) $result['ok']));
-    array_unshift($history, ['time' => date('Y-m-d H:i:s'), 'event' => $event, 'title' => $title, 'success' => $succeeded, 'total' => count($results), 'results' => $results]);
-    $data['history'] = array_slice($history, 0, 50);
-    $ctx->setData($data);
-    $ctx->log($title . '：' . $succeeded . '/' . count($results) . ' 个通知通道成功');
+    return pafish_notify_hub_save_result($ctx, $event, $title, $results);
 }
 
 return [
@@ -151,5 +178,14 @@ return [
     },
     'onActivate' => static function (object $ctx): void {
         $ctx->log('通知中心已启用，请至少配置一个通知通道。');
+    },
+    'testNotification' => static function (object $ctx): array {
+        return pafish_notify_hub_send(
+            $ctx,
+            'notification.test',
+            'pafish 测试通知',
+            '通知中心已成功发起测试推送。',
+            Url::absolute('/admin/plugins/notify_hub')
+        );
     },
 ];

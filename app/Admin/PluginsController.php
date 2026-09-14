@@ -59,6 +59,7 @@ final class PluginsController extends AdminController
             'manifest' => $desc['manifest'],
             'error' => $desc['error'],
             'values' => $desc['manifest'] !== null ? Plugin::settings($name) : [],
+            'supportsNotificationTest' => Plugin::supportsNotificationTest($name),
         ], '插件设置'));
         return $response;
     }
@@ -107,6 +108,19 @@ final class PluginsController extends AdminController
         try {
             $saved = Plugin::saveSettings($name, $body);
             return $this->json($response, ['ok' => true, 'saved' => $saved]);
+        } catch (\Throwable $e) {
+            return $this->json($response, ['error' => $e->getMessage()], 400);
+        }
+    }
+
+    /** 发送插件测试通知；插件自行返回各通道的结果。 */
+    public function testNotification(Request $request, Response $response): Response
+    {
+        $this->guardAdmin();
+        $body = $request->getParsedBody() ?? [];
+        $name = trim((string) ($body['name'] ?? ''));
+        try {
+            return $this->json($response, ['ok' => true, 'result' => Plugin::testNotification($name)]);
         } catch (\Throwable $e) {
             return $this->json($response, ['error' => $e->getMessage()], 400);
         }

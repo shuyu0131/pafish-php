@@ -11,6 +11,7 @@ $values = $values ?? [];
 $title = $manifest['title'] ?? $pluginName;
 $version = $manifest['version'] ?? '';
 $description = is_string($manifest['description'] ?? null) ? $manifest['description'] : '';
+$supportsNotificationTest = (bool) ($supportsNotificationTest ?? false);
 ?>
 <div class="admin-stack admin-settings-page admin-plugin-settings">
   <p><a class="admin-back-link" href="<?= e(url_to('/admin/plugins')) ?>">← 返回插件列表</a></p>
@@ -128,6 +129,9 @@ $description = is_string($manifest['description'] ?? null) ? $manifest['descript
         <p class="admin-field-hint">保存后自动刷新前台注入内容。</p>
         <div class="admin-sf-actions">
           <button type="submit" class="btn btn-primary" id="pluginSaveBtn">保存</button>
+          <?php if ($supportsNotificationTest): ?>
+            <button type="button" class="btn btn-outline" id="pluginTestNotificationBtn">发送测试通知</button>
+          <?php endif; ?>
         </div>
       </form>
     <?php endif; ?>
@@ -289,6 +293,39 @@ $description = is_string($manifest['description'] ?? null) ? $manifest['descript
         showMsg(err.message, true);
         saveBtn.disabled = false;
         saveBtn.textContent = "保存";
+      });
+    });
+  }
+
+  // ---- 测试通知 ----
+  var testNotificationBtn = document.getElementById("pluginTestNotificationBtn");
+  if (testNotificationBtn) {
+    testNotificationBtn.addEventListener("click", function () {
+      testNotificationBtn.disabled = true;
+      testNotificationBtn.textContent = "发送中…";
+      var fd = new FormData();
+      fd.append("name", NAME);
+      fd.append("_csrf", CSRF);
+      post("/admin/plugins/test-notification", fd).then(function (payload) {
+        var result = payload.result || {};
+        var total = Number(result.total || 0);
+        var succeeded = Number(result.success || 0);
+        if (total === 0) {
+          throw new Error("未配置可用的通知通道");
+        }
+        var failed = Array.isArray(result.results) ? result.results.filter(function (item) { return !item.ok; }) : [];
+        if (failed.length) {
+          var first = failed[0] || {};
+          var detail = first.error || first.response || (first.status ? "HTTP " + first.status : "请求失败");
+          showMsg("测试完成：" + succeeded + "/" + total + " 个通道成功。" + (first.channel || "通知通道") + "：" + detail, true);
+          return;
+        }
+        showMsg("测试完成：" + succeeded + "/" + total + " 个通道成功", false);
+      }).catch(function (err) {
+        showMsg(err.message, true);
+      }).finally(function () {
+        testNotificationBtn.disabled = false;
+        testNotificationBtn.textContent = "发送测试通知";
       });
     });
   }

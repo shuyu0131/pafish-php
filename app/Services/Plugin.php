@@ -471,6 +471,35 @@ final class Plugin
         }
     }
 
+    /**
+     * 执行插件声明的后台测试操作。仅核心后台控制器调用，避免把模块任意方法暴露为路由。
+     * 测试操作不要求重新加载插件，也不会注册额外钩子。
+     */
+    public static function testNotification(string $name): array
+    {
+        $name = self::canonicalName($name);
+        if (!self::isActive($name)) {
+            throw new \RuntimeException('请先启用插件');
+        }
+        $mod = self::module($name);
+        if ($mod === null || !is_callable($mod['testNotification'] ?? null)) {
+            throw new \RuntimeException('该插件不支持发送测试通知');
+        }
+        $result = $mod['testNotification'](self::context($name));
+        if (!is_array($result)) {
+            throw new \RuntimeException('插件返回的测试结果无效');
+        }
+        return $result;
+    }
+
+    /** 是否支持核心提供的通知测试入口。 */
+    public static function supportsNotificationTest(string $name): bool
+    {
+        $name = self::canonicalName($name);
+        $mod = self::module($name);
+        return $mod !== null && is_callable($mod['testNotification'] ?? null);
+    }
+
     /** 启用插件。 */
     public static function activate(string $name): void
     {

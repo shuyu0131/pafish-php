@@ -6,7 +6,7 @@
         "description": "把评论、文章发布、登录和注册事件推送到 Bark、Telegram、钉钉、飞书、企业微信或通用 Webhook。",
         "author": "pafish",
         "zip": "\/store\/notify_hub.zip",
-        "sha256": "114d43519e81ae68f4428ad13a731c2b9b744fdfb8df3d565724d832aea61124",
+        "sha256": "1104868d14c6e8498675c4daabba23fa2ad2b3f38518ad0d053410343c609445",
         "packageSize": 4431,
         "category": "通知",
         "homepage": "https:\/\/www.pafish.cn",
@@ -30,5 +30,37 @@
         "requiresPhp": "8.1",
         "changelog": "规范化应用别名与商店清单信息。",
         "keywords": "seo, indexnow, baidu, sitemap"
+    },
+    {
+        "name": "sitemap",
+        "title": "Sitemap",
+        "version": "1.0.1",
+        "description": "生成可配置的 XML 站点地图，帮助搜索引擎发现公开内容。",
+        "author": "pafish",
+        "zip": "\/store\/sitemap.zip",
+        "sha256": "f72a37cdfdfd4b98cd228f7c7474d7a0e4f9b49208b2aca482d6920a4290b0ca",
+        "packageSize": 2667,
+        "category": "SEO",
+        "homepage": "https:\/\/www.pafish.cn",
+        "authorUrl": "https:\/\/www.pafish.cn",
+        "requiresPhp": "8.1",
+        "changelog": "补充前台地址 \/sitemap.xml，便于在后台快速打开站点地图。",
+        "keywords": "seo, sitemap, xml, search"
+    },
+    {
+        "name": "bitiful_oss",
+        "title": "缤纷云对象存储",
+        "version": "1.0.0",
+        "description": "将媒体文件上传到缤纷云 S4 对象存储，支持自定义 CDN 地址和自动删除云端文件。",
+        "author": "pafish",
+        "zip": "\/store\/bitiful_oss.zip",
+        "sha256": "874bc3d4591304db9b979f0c1fbd13e0b5f1752a0094939e397502d951a905df",
+        "packageSize": 3315,
+        "category": "存储",
+        "homepage": "https:\/\/www.bitiful.com",
+        "authorUrl": "https:\/\/www.pafish.cn",
+        "requiresPhp": "8.1",
+        "changelog": "首个版本，接入 pafish 云存储上传与删除管线。",
+        "keywords": "bitiful, oss, s3, storage, cdn"
     }
 ]

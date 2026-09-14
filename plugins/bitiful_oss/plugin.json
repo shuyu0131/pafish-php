@@ -1,0 +1,25 @@
+{
+  "name": "bitiful_oss",
+  "title": "缤纷云对象存储",
+  "version": "1.0.0",
+  "apiVersion": 2,
+  "description": "将媒体文件上传到缤纷云 S4 对象存储，支持自定义 CDN 地址和自动删除云端文件。",
+  "author": "pafish",
+  "authorUrl": "https://www.pafish.cn",
+  "homepage": "https://www.bitiful.com",
+  "category": "存储",
+  "keywords": "bitiful, oss, s3, storage, cdn",
+  "requiresPhp": "8.1",
+  "changelog": "首个版本，接入 pafish 云存储上传与删除管线。",
+  "storage": { "title": "缤纷云对象存储" },
+  "settings": [
+    { "key": "access_key", "label": "AccessKey", "type": "text", "placeholder": "缤纷云子账户 AccessKey", "group": "连接" },
+    { "key": "secret_key", "label": "SecretKey", "type": "password", "placeholder": "缤纷云子账户 SecretKey", "group": "连接" },
+    { "key": "bucket", "label": "存储桶 Bucket", "type": "text", "placeholder": "例如 pafish-media", "group": "连接" },
+    { "key": "endpoint", "label": "S3 Endpoint", "type": "text", "default": "https://s3.bitiful.net", "group": "连接" },
+    { "key": "region", "label": "区域 Region", "type": "text", "default": "cn-east-1", "group": "连接" },
+    { "key": "cdn_domain", "label": "自定义 CDN 域名", "type": "text", "placeholder": "可选，例如 https://cdn.example.com", "group": "访问" },
+    { "key": "path_style", "label": "使用 Path-Style 地址", "type": "switcher", "default": "1", "group": "访问" },
+    { "key": "prefix", "label": "对象路径前缀", "type": "text", "default": "pafish", "placeholder": "例如 media，留空表示根目录", "group": "访问" }
+  ]
+}

@@ -224,6 +224,7 @@ $app->group('/admin', function ($group) {
     $group->post('/plugins/uninstall', [PluginsController::class, 'uninstall']);
     $group->post('/plugins/save-settings', [PluginsController::class, 'saveSettings']);
     $group->post('/plugins/test-notification', [PluginsController::class, 'testNotification']);
+    $group->post('/plugins/test-storage', [PluginsController::class, 'testStorage']);
     $group->post('/plugins/install', [PluginsController::class, 'install']);
 
     // 应用商店（仅 ADMIN：目录双 Tab / 安装 / 更新·回滚）

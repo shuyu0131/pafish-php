@@ -262,6 +262,11 @@ final class Plugin
             $storage = ['title' => $json['storage']['title']];
         }
 
+        $frontendUrl = '';
+        if (is_string($json['frontendUrl'] ?? null) && preg_match('#^/[A-Za-z0-9_./?=&-]{1,200}$#', trim($json['frontendUrl'])) === 1) {
+            $frontendUrl = trim($json['frontendUrl']);
+        }
+
         return [
             'name' => $json['name'],
             'title' => $json['title'],
@@ -277,6 +282,7 @@ final class Plugin
             'pageTemplates' => $pageTemplates,
             'pages' => $pages,
             'storage' => $storage,
+            'frontendUrl' => $frontendUrl,
         ];
     }
 
@@ -498,6 +504,23 @@ final class Plugin
         $name = self::canonicalName($name);
         $mod = self::module($name);
         return $mod !== null && is_callable($mod['testNotification'] ?? null);
+    }
+
+    public static function testStorage(string $name): array
+    {
+        $name = self::canonicalName($name);
+        if (!self::isActive($name)) throw new \RuntimeException('请先启用插件');
+        $mod = self::module($name);
+        if ($mod === null || !is_callable($mod['testStorage'] ?? null)) throw new \RuntimeException('该插件不支持存储连接测试');
+        $result = $mod['testStorage'](self::context($name));
+        if (!is_array($result)) throw new \RuntimeException('插件返回的测试结果无效');
+        return $result;
+    }
+
+    public static function supportsStorageTest(string $name): bool
+    {
+        $mod = self::module(self::canonicalName($name));
+        return $mod !== null && is_callable($mod['testStorage'] ?? null);
     }
 
     /** 启用插件。 */

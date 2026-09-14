@@ -27,6 +27,7 @@ final class PluginsController extends AdminController
                 'author' => $m['author'] ?? '',
                 'authorUrl' => self::manifestUrl($m, 'authorUrl'),
                 'homepage' => self::manifestUrl($m, 'homepage'),
+                'frontendUrl' => (string) ($m['frontendUrl'] ?? ''),
                 'error' => $desc['error'],
                 'settingsCount' => count($m['settings'] ?? []),
                 'active' => Plugin::isActive($name),
@@ -60,6 +61,7 @@ final class PluginsController extends AdminController
             'error' => $desc['error'],
             'values' => $desc['manifest'] !== null ? Plugin::settings($name) : [],
             'supportsNotificationTest' => Plugin::supportsNotificationTest($name),
+            'supportsStorageTest' => Plugin::supportsStorageTest($name),
         ], '插件设置'));
         return $response;
     }
@@ -124,6 +126,14 @@ final class PluginsController extends AdminController
         } catch (\Throwable $e) {
             return $this->json($response, ['error' => $e->getMessage()], 400);
         }
+    }
+
+    public function testStorage(Request $request, Response $response): Response
+    {
+        $this->guardAdmin();
+        $name = trim((string) (($request->getParsedBody() ?? [])['name'] ?? ''));
+        try { return $this->json($response, ['ok' => true, 'result' => Plugin::testStorage($name)]); }
+        catch (\Throwable $e) { return $this->json($response, ['error' => $e->getMessage()], 400); }
     }
 
     public function install(Request $request, Response $response): Response

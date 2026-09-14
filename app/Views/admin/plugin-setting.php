@@ -12,6 +12,7 @@ $title = $manifest['title'] ?? $pluginName;
 $version = $manifest['version'] ?? '';
 $description = is_string($manifest['description'] ?? null) ? $manifest['description'] : '';
 $supportsNotificationTest = (bool) ($supportsNotificationTest ?? false);
+$supportsStorageTest = (bool) ($supportsStorageTest ?? false);
 ?>
 <div class="admin-stack admin-settings-page admin-plugin-settings">
   <p><a class="admin-back-link" href="<?= e(url_to('/admin/plugins')) ?>">← 返回插件列表</a></p>
@@ -23,6 +24,9 @@ $supportsNotificationTest = (bool) ($supportsNotificationTest ?? false);
       <p class="admin-page-sub"><?= e($description !== '' ? $description : '插件设置') ?></p>
     </div>
   </div>
+  <?php if (is_string($manifest['frontendUrl'] ?? null) && trim((string) $manifest['frontendUrl']) !== ''): ?>
+    <p class="admin-page-sub">前台地址：<a href="<?= e(url_to((string) $manifest['frontendUrl'])) ?>" target="_blank" rel="noopener noreferrer"><?= e(url_to((string) $manifest['frontendUrl'])) ?></a></p>
+  <?php endif; ?>
   <p class="admin-backup-msg" id="pluginSettingMsg" hidden></p>
 
   <?php if ($error !== null): ?>
@@ -131,6 +135,9 @@ $supportsNotificationTest = (bool) ($supportsNotificationTest ?? false);
           <button type="submit" class="btn btn-primary" id="pluginSaveBtn">保存</button>
           <?php if ($supportsNotificationTest): ?>
             <button type="button" class="btn btn-outline" id="pluginTestNotificationBtn">发送测试通知</button>
+          <?php endif; ?>
+          <?php if ($supportsStorageTest): ?>
+            <button type="button" class="btn btn-outline" id="pluginTestStorageBtn">测试存储连接</button>
           <?php endif; ?>
         </div>
       </form>
@@ -326,6 +333,22 @@ $supportsNotificationTest = (bool) ($supportsNotificationTest ?? false);
       }).finally(function () {
         testNotificationBtn.disabled = false;
         testNotificationBtn.textContent = "发送测试通知";
+      });
+    });
+  }
+
+  var testStorageBtn = document.getElementById("pluginTestStorageBtn");
+  if (testStorageBtn) {
+    testStorageBtn.addEventListener("click", function () {
+      testStorageBtn.disabled = true;
+      testStorageBtn.textContent = "测试中…";
+      var fd = new FormData(); fd.append("name", NAME); fd.append("_csrf", CSRF);
+      post("/admin/plugins/test-storage", fd).then(function (payload) {
+        var r = payload.result || {};
+        if (!r.ok) throw new Error(r.error || "存储连接测试失败");
+        showMsg(r.message || "存储连接测试成功", false);
+      }).catch(function (err) { showMsg(err.message, true); }).finally(function () {
+        testStorageBtn.disabled = false; testStorageBtn.textContent = "测试存储连接";
       });
     });
   }

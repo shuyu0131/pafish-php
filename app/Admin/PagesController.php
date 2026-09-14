@@ -19,6 +19,8 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  */
 final class PagesController extends AdminController
 {
+    private const PER_PAGE_OPTIONS = [10, 20, 50, 100];
+
     /** 页面模板选项：default + 激活主题 + 激活插件 */
     public static function templateOptions(): array
     {
@@ -42,9 +44,44 @@ final class PagesController extends AdminController
     public function index(Request $request, Response $response): Response
     {
         $this->guardCanManage();
-        $pages = DB::fetchAll('SELECT * FROM pages ORDER BY updated_at DESC, id DESC');
+        $perRaw = (int) ($_GET['per'] ?? 0);
+        $perPref = (int) ($_COOKIE['admin_pages_per_page'] ?? 0);
+        $per = in_array($perRaw, self::PER_PAGE_OPTIONS, true) ? $perRaw
+            : (in_array($perPref, self::PER_PAGE_OPTIONS, true) ? $perPref : 20);
+        if ($perRaw > 0 && $perRaw !== $perPref) {
+            setcookie('admin_pages_per_page', (string) $per, ['expires' => time() + 31536000, 'path' => '/', 'samesite' => 'Lax']);
+        }
+        $page = max(1, (int) ($_GET['page'] ?? 1));
+        $q = trim((string) ($_GET['q'] ?? ''));
+        $status = in_array((string) ($_GET['status'] ?? ''), ['PUBLISHED', 'DRAFT'], true)
+            ? (string) $_GET['status'] : '';
+        $where = ['1=1'];
+        $params = [];
+        if ($q !== '') {
+            $where[] = '(title LIKE ? OR slug LIKE ?)';
+            $params[] = "%{$q}%";
+            $params[] = "%{$q}%";
+        }
+        if ($status !== '') {
+            $where[] = 'status = ?';
+            $params[] = $status;
+        }
+        $condition = implode(' AND ', $where);
+        $total = (int) DB::value("SELECT COUNT(*) FROM pages WHERE {$condition}", $params);
+        $totalPages = max(1, (int) ceil($total / $per));
+        $page = min($page, $totalPages);
+        $items = DB::fetchAll(
+            "SELECT * FROM pages WHERE {$condition} ORDER BY updated_at DESC, id DESC LIMIT {$per} OFFSET " . (($page - 1) * $per),
+            $params
+        );
         $response->getBody()->write($this->render('pages', [
-            'pages' => $pages,
+            'items' => $items,
+            'total' => $total,
+            'page' => $page,
+            'totalPages' => $totalPages,
+            'per' => $per,
+            'perOptions' => self::PER_PAGE_OPTIONS,
+            'filters' => ['q' => $q, 'status' => $status],
             'homePageId' => (string) Settings::get('home_page_id', ''),
             'templateOptions' => self::templateOptions(),
         ], '页面管理'));

@@ -47,22 +47,23 @@ sort($allCategories);
     <button type="button" class="admin-tab" data-kind="plugin" role="tab">插件（<?= count($pluginCat['items']) ?>）</button>
   </div>
 
-  <div class="admin-store-view-tabs" role="tablist" aria-label="应用状态">
-    <button type="button" class="admin-store-view-tab is-active" data-store-state="all" role="tab" aria-selected="true">全部</button>
-    <button type="button" class="admin-store-view-tab" data-store-state="installed" role="tab" aria-selected="false">已安装</button>
-    <button type="button" class="admin-store-view-tab" data-store-state="upgradeable" role="tab" aria-selected="false">可更新</button>
-  </div>
-
-  <div class="admin-store-toolbar">
-    <input type="search" id="storeSearch" class="input admin-store-search" placeholder="搜索已上架的主题与插件…" autocomplete="off">
-    <?php if ($allCategories): ?>
-      <select id="storeCategory" class="input admin-store-cat" title="按分类筛选">
-        <option value="">全部分类</option>
-        <?php foreach ($allCategories as $storeCat): ?>
-          <option value="<?= e($storeCat) ?>"><?= e($storeCat) ?></option>
-        <?php endforeach; ?>
-      </select>
-    <?php endif; ?>
+  <div class="admin-store-filter-row">
+    <div class="admin-store-view-tabs" role="tablist" aria-label="应用状态">
+      <button type="button" class="admin-store-view-tab is-active" data-store-state="all" role="tab" aria-selected="true">全部</button>
+      <button type="button" class="admin-store-view-tab" data-store-state="installed" role="tab" aria-selected="false">已安装</button>
+      <button type="button" class="admin-store-view-tab" data-store-state="upgradeable" role="tab" aria-selected="false">可更新</button>
+    </div>
+    <div class="admin-store-toolbar<?= $allCategories ? '' : ' is-single' ?>">
+      <input type="search" id="storeSearch" class="input admin-store-search" placeholder="搜索已上架的主题与插件…" autocomplete="off">
+      <?php if ($allCategories): ?>
+        <select id="storeCategory" class="input admin-store-cat" title="按分类筛选">
+          <option value="">全部分类</option>
+          <?php foreach ($allCategories as $storeCat): ?>
+            <option value="<?= e($storeCat) ?>"><?= e($storeCat) ?></option>
+          <?php endforeach; ?>
+        </select>
+      <?php endif; ?>
+    </div>
   </div>
 
   <?php foreach (['theme' => $themeCat, 'plugin' => $pluginCat] as $kind => $cat): ?>
@@ -72,18 +73,19 @@ sort($allCategories);
       <?php else: ?>
         <div class="admin-theme-grid">
           <?php foreach ($cat['items'] as $item): ?>
-            <div class="card admin-theme-card" data-search="<?= e(mb_strtolower(($item['title'] ?? '') . ' ' . ($item['description'] ?? ''))) ?>" data-category="<?= e($item['category'] ?? '') ?>" data-installed="<?= $item['installed'] ? '1' : '0' ?>" data-upgradeable="<?= $item['updateAvailable'] ? '1' : '0' ?>" data-store-item="<?= e(json_encode($item, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>" data-store-kind="<?= e($kind) ?>">
+            <?php $detailUrl = rtrim($storeUrl, '/') . '/store/' . ($kind === 'theme' ? 'themes' : 'extensions') . '/' . rawurlencode((string)$item['name']); ?>
+            <div class="card admin-theme-card" data-search="<?= e(mb_strtolower(($item['title'] ?? '') . ' ' . ($item['description'] ?? ''))) ?>" data-category="<?= e($item['category'] ?? '') ?>" data-installed="<?= $item['installed'] ? '1' : '0' ?>" data-upgradeable="<?= $item['updateAvailable'] ? '1' : '0' ?>">
               <div class="admin-store-card-main">
                 <?php if (($item['preview'] ?? '') !== ''): ?>
-                  <div class="admin-store-thumb">
+                  <a class="admin-store-detail-link" href="<?= e($detailUrl) ?>" target="_blank" rel="noopener" title="查看应用详情"><div class="admin-store-thumb">
                     <img src="<?= e($item['preview']) ?>" alt="<?= e($item['title']) ?>" loading="lazy" onerror="this.closest('.admin-store-thumb').classList.add('is-empty'); this.remove()">
-                  </div>
+                  </div></a>
                 <?php else: ?>
-                  <div class="admin-store-thumb is-empty" aria-hidden="true"></div>
+                  <a class="admin-store-detail-link" href="<?= e($detailUrl) ?>" target="_blank" rel="noopener" title="查看应用详情"><div class="admin-store-thumb is-empty" aria-hidden="true"></div></a>
                 <?php endif; ?>
                 <div class="admin-theme-head">
                   <p class="admin-theme-name">
-                    <span class="admin-theme-title-text"><?= e($item['title']) ?></span>
+                    <a class="admin-store-detail-link" href="<?= e($detailUrl) ?>" target="_blank" rel="noopener"><span class="admin-theme-title-text"><?= e($item['title']) ?></span></a>
                     <?php if (!empty($item['paid'])): ?><span class="badge badge-accent">付费</span><?php else: ?><span class="badge badge-primary">免费</span><?php endif; ?>
                     <?php if (!empty($item['paid']) && !empty($item['purchased'])): ?><span class="badge badge-primary">已购买</span><?php endif; ?>
                     <?php if ($item['installed']): ?>
@@ -104,7 +106,6 @@ sort($allCategories);
                 <?php if ($item['installed']): ?><span>本地 v<?= e($item['localVersion']) ?></span><?php endif; ?>
               </div>
               <div class="admin-theme-ops">
-                <button type="button" class="btn btn-ghost btn-sm admin-store-detail">查看详情</button>
                 <?php if ($item['installed']): ?>
                   <?php if ($item['updateAvailable']): ?>
                     <button type="button" class="btn btn-primary btn-sm admin-store-update" data-kind="<?= e($kind) ?>" data-name="<?= e($item['name']) ?>" data-title="<?= e($item['title']) ?>" data-version="<?= e($item['version']) ?>" data-local-version="<?= e($item['localVersion']) ?>" data-changelog="<?= e($item['changelog'] ?? '') ?>">更新到 v<?= e($item['version']) ?></button>
@@ -125,8 +126,6 @@ sort($allCategories);
     </div>
   <?php endforeach; ?>
 </div>
-
-<!-- 应用详情对话框 -->
 
 <?php $storeCsrf = csrf_token(); ?>
 <script>
@@ -297,119 +296,6 @@ sort($allCategories);
     });
   });
 
-  // ========== 详情抽屉 ==========
-  function openDrawer(card) {
-    var item;
-    try {
-      item = JSON.parse(card.dataset.storeItem || "{}");
-    } catch (e) {
-      item = {};
-    }
-
-    var kind = card.dataset.storeKind === "plugin" ? "插件" : "主题";
-    var drawer = createDrawer(item, kind, card);
-    document.body.appendChild(drawer);
-
-    requestAnimationFrame(function() {
-      drawer.hidden = false;
-      document.body.classList.add("admin-modal-open");
-      var dialog = drawer.querySelector('[role="dialog"]');
-      if (dialog) dialog.focus();
-    });
-  }
-
-  function createDrawer(item, kind, sourceCard) {
-    var drawer = document.createElement("div");
-    drawer.className = "admin-store-modal-backdrop";
-    drawer.setAttribute('role', 'presentation');
-
-    var shots = Array.isArray(item.screenshots) ? item.screenshots : [];
-    var gallery = shots.length ?
-      '<div class="admin-store-detail-gallery">' +
-      shots.map(function(src) {
-        var imageUrl = safeUrl(src);
-        return imageUrl ? '<img src="' + esc(imageUrl) + '" alt="" loading="lazy">' : '';
-      }).join('') +
-      '</div>' : '';
-
-    var status = item.installed ?
-      (item.updateAvailable ?
-        '已安装 v' + item.localVersion + '，有新版本可用' :
-        '已安装 v' + item.localVersion + '，当前为最新') :
-      '尚未安装';
-
-    var purchase = item.paid ? (item.purchased ? '已购买' : '需要购买') : '免费';
-
-    drawer.innerHTML =
-      '<div class="admin-store-modal-overlay" data-drawer-close></div>' +
-      '<div class="admin-store-modal" role="dialog" aria-modal="true" aria-label="应用详情" tabindex="-1">' +
-        '<div class="admin-store-modal-head">' +
-          '<div>' +
-            '<h2>' + esc(item.title || item.name || '应用详情') + '</h2>' +
-            '<p>' + kind + ' · v' + esc(item.version || '未知') + (item.author ? ' · ' + esc(item.author) : '') + '</p>' +
-          '</div>' +
-          '<button class="admin-icon-btn" data-drawer-close aria-label="关闭">×</button>' +
-        '</div>' +
-        '<div class="admin-store-modal-body">' +
-          gallery +
-          '<p class="admin-store-detail-description">' + esc(item.description || '该条目未提供描述') + '</p>' +
-          '<dl class="admin-store-detail-facts">' +
-            '<div><dt>作者</dt><dd>' + (safeUrl(item.authorUrl || item.author_url) ? '<a href="' + esc(safeUrl(item.authorUrl || item.author_url)) + '" target="_blank" rel="noopener noreferrer">' + esc(item.author || '未知') + '</a>' : esc(item.author || '未知')) + '</dd></div>' +
-            '<div><dt>版本</dt><dd>v' + esc(item.version || '未知') + '</dd></div>' +
-            '<div><dt>PHP 要求</dt><dd>' + esc(item.requiresPhp || '未提供') + '</dd></div>' +
-            '<div><dt>应用依赖</dt><dd>' + esc(Array.isArray(item.requires) && item.requires.length ? item.requires.join('、') : '无') + '</dd></div>' +
-            '<div><dt>安装包</dt><dd>' + formatSize(item.packageSize) + '</dd></div>' +
-            '<div><dt>发布时间</dt><dd>' + esc(item.publishedAt || '未提供') + '</dd></div>' +
-            '<div><dt>权益</dt><dd>' + esc(purchase) + '</dd></div>' +
-            '<div><dt>状态</dt><dd>' + esc(status) + '</dd></div>' +
-          '</dl>' +
-          (item.changelog ? '<div class="admin-store-detail-log"><h3>更新日志</h3><p>' + esc(item.changelog) + '</p></div>' : '') +
-        '</div>' +
-        '<div class="admin-store-modal-actions">' +
-          (safeUrl(item.homepage) ? '<a class="btn btn-ghost" href="' + esc(safeUrl(item.homepage)) + '" target="_blank" rel="noopener">查看官网</a>' : '') +
-          '<button class="btn btn-ghost" data-drawer-close>关闭</button>' +
-        '</div>' +
-      '</div>';
-
-    drawer.querySelectorAll("[data-drawer-close]").forEach(function(el) {
-      el.addEventListener("click", function() {
-        drawer.hidden = true;
-        document.body.classList.remove("admin-modal-open");
-        drawer.remove();
-      });
-    });
-
-    var action = sourceCard.querySelector(".admin-store-install, .admin-store-update");
-    if (action) {
-      var actions = drawer.querySelector(".admin-store-modal-actions");
-      var clonedBtn = action.cloneNode(true);
-      actions.insertBefore(clonedBtn, actions.lastElementChild);
-
-      if (clonedBtn.classList.contains("admin-store-install")) {
-        bindInstallHandler(clonedBtn);
-      } else if (clonedBtn.classList.contains("admin-store-update")) {
-        bindUpdateHandler(clonedBtn);
-      }
-    }
-
-    return drawer;
-  }
-
-  document.querySelectorAll(".admin-store-detail").forEach(function(btn) {
-    btn.addEventListener("click", function() {
-      openDrawer(btn.closest(".admin-theme-card"));
-    });
-  });
-
-  document.addEventListener("keydown", function(event) {
-    if (event.key !== "Escape") return;
-    var modal = document.querySelector(".admin-store-modal-backdrop:not([hidden])");
-    if (!modal) return;
-    modal.hidden = true;
-    modal.remove();
-    document.body.classList.remove("admin-modal-open");
-  });
-
   // ========== 安装处理 ==========
   function bindInstallHandler(btn) {
     btn.addEventListener("click", function() {
@@ -497,30 +383,5 @@ sort($allCategories);
 
   document.querySelectorAll(".admin-store-update").forEach(bindUpdateHandler);
 
-  // ========== 工具函数 ==========
-  function formatSize(bytes) {
-    bytes = Number(bytes || 0);
-    if (!bytes) return "未提供";
-    if (bytes < 1024) return bytes + " B";
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
-    return (bytes / 1024 / 1024).toFixed(2) + " MB";
-  }
-
-  function esc(value) {
-    return String(value == null ? "" : value).replace(/[&<>"']/g, function(ch) {
-      return {
-        "&": "&amp;",
-        "<": "&lt;",
-        ">": "&gt;",
-        '"': "&quot;",
-        "'": "&#39;"
-      }[ch];
-    });
-  }
-
-  function safeUrl(value) {
-    var url = String(value || "");
-    return /^https?:\/\//i.test(url) ? url : "";
-  }
 })();
 </script>

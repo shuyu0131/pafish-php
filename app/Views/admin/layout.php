@@ -46,7 +46,6 @@ window.pafishApi = function (p) {
   <!-- 移动端顶栏 -->
   <header class="admin-topbar">
     <button type="button" class="admin-drawer-toggle admin-icon-btn" aria-label="打开菜单"><?= admin_icon('menu', 20) ?></button>
-    <a class="admin-topbar-brand" href="<?= e(url_to('/admin')) ?>"><?= e($siteName) ?></a>
     <a class="admin-topbar-account" href="<?= e(url_to('/admin/profile')) ?>">
       <img class="admin-avatar-sm" src="<?= e($user['avatar_url'] ?: admin_gravatar((string) $user['email'])) ?>" alt="" width="28" height="28">
       <span><?= e($user['nickname'] ?: $user['username']) ?></span>
@@ -56,8 +55,6 @@ window.pafishApi = function (p) {
 
   <!-- 侧边栏 -->
   <aside class="admin-sidebar" id="adminSidebar">
-    <a class="admin-brand" href="<?= e(url_to('/admin')) ?>"><?= e($siteName) ?></a>
-
     <nav class="admin-nav">
       <?php foreach ($nav['top'] as $item): ?>
         <a class="admin-nav-item<?= admin_nav_active($item, $currentPath) ? ' active' : '' ?>"

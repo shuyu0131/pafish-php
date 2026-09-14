@@ -11,14 +11,7 @@ use Pafish\Services\Points;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
-/**
- * 用户管理：仅 ADMIN（guardAdmin）
- * - 列表：全量用户 + 文章/评论计数，按注册时间正序
- * - 角色下拉即时更新（含自己）
- * - 禁用/解禁（不能禁自己；禁用时清空重置令牌）、重置密码（内联新密码表单）
- * - 无创建/删除用户功能，用户通过前台注册产生
- * 统一错误文案和密码长度校验
- */
+/** 用户管理：分页检索、角色/状态筛选、批量禁用/解禁及账号操作。 */
 final class UsersController extends AdminController
 {
     private const ROLES = ['ADMIN', 'EDITOR', 'USER'];
@@ -27,11 +20,59 @@ final class UsersController extends AdminController
     public function index(Request $request, Response $response): Response
     {
         $this->guardAdmin();
+        $allowedPer = [10, 20, 50, 100];
+        $page = max(1, (int) ($_GET['page'] ?? 1));
+        $per = (int) ($_GET['per'] ?? ($_COOKIE['admin_users_per_page'] ?? 20));
+        if (!in_array($per, $allowedPer, true)) {
+            $per = 20;
+        }
+        setcookie('admin_users_per_page', (string) $per, ['expires' => time() + 31536000, 'path' => '/', 'samesite' => 'Lax']);
+        $q = trim((string) ($_GET['q'] ?? ''));
+        $role = strtoupper(trim((string) ($_GET['role'] ?? '')));
+        $state = trim((string) ($_GET['state'] ?? ''));
+        $sort = (string) ($_GET['sort'] ?? 'latest');
+        if (!in_array($role, self::ROLES, true)) {
+            $role = '';
+        }
+        if (!in_array($state, ['', 'active', 'disabled'], true)) {
+            $state = '';
+        }
+        if (!in_array($sort, ['latest', 'oldest', 'name', 'content'], true)) {
+            $sort = 'latest';
+        }
+
+        $where = ['1=1'];
+        $params = [];
+        if ($q !== '') {
+            $where[] = '(u.username LIKE ? OR u.nickname LIKE ? OR u.email LIKE ?)';
+            $term = '%' . $q . '%';
+            array_push($params, $term, $term, $term);
+        }
+        if ($role !== '') {
+            $where[] = 'u.role = ?';
+            $params[] = $role;
+        }
+        if ($state === 'active') {
+            $where[] = 'u.disabled = 0';
+        } elseif ($state === 'disabled') {
+            $where[] = 'u.disabled = 1';
+        }
+        $whereSql = implode(' AND ', $where);
+        $total = (int) DB::value("SELECT COUNT(*) FROM users u WHERE {$whereSql}", $params);
+        $pages = max(1, (int) ceil($total / $per));
+        $page = min($page, $pages);
+        $orderBy = match ($sort) {
+            'oldest' => 'u.created_at ASC, u.id ASC',
+            'name' => 'COALESCE(NULLIF(u.nickname, \'\'), u.username) ASC, u.id DESC',
+            'content' => 'post_count DESC, comment_count DESC, u.id DESC',
+            default => 'u.created_at DESC, u.id DESC',
+        };
         $rows = DB::fetchAll(
-            'SELECT u.*, '
-            . '(SELECT COUNT(*) FROM posts p WHERE p.author_id = u.id) AS post_count, '
+            "SELECT u.*, "
+            . '(SELECT COUNT(*) FROM posts p WHERE p.author_id = u.id AND p.deleted_at IS NULL) AS post_count, '
             . '(SELECT COUNT(*) FROM comments c WHERE c.user_id = u.id) AS comment_count '
-            . 'FROM users u ORDER BY u.created_at ASC'
+            . "FROM users u WHERE {$whereSql} ORDER BY {$orderBy} LIMIT {$per} OFFSET " . (($page - 1) * $per),
+            $params
         );
         $pointsEnabled = Points::available();
         if ($pointsEnabled) {
@@ -44,8 +85,49 @@ final class UsersController extends AdminController
             'users' => $rows,
             'me' => Auth::user(),
             'pointsEnabled' => $pointsEnabled,
+            'total' => $total,
+            'page' => $page,
+            'pages' => $pages,
+            'per' => $per,
+            'perOptions' => $allowedPer,
+            'filters' => ['q' => $q, 'role' => $role, 'state' => $state, 'sort' => $sort],
         ], '用户管理'));
         return $response;
+    }
+
+    /** POST /admin/users/bulk：批量禁用或解禁用户 */
+    public function bulk(Request $request, Response $response): Response
+    {
+        $this->guardAdmin();
+        $body = $request->getParsedBody() ?? [];
+        if (!Session::verifyCsrf((string) ($body['_csrf'] ?? ''))) {
+            return $this->json($response, ['error' => '会话已过期，请刷新页面重试'], 419);
+        }
+        $action = (string) ($body['action'] ?? '');
+        if (!in_array($action, ['disable', 'enable'], true)) {
+            return $this->json($response, ['error' => '无效操作'], 400);
+        }
+        $ids = $body['ids'] ?? [];
+        if (!is_array($ids)) {
+            $ids = [$ids];
+        }
+        $ids = array_values(array_unique(array_filter(array_map('intval', $ids), static fn (int $id): bool => $id > 0)));
+        if ($ids === []) {
+            return $this->json($response, ['error' => '请先选择用户'], 400);
+        }
+        $meId = (int) (Auth::id() ?? 0);
+        $changed = 0;
+        foreach ($ids as $id) {
+            if ($id === $meId) {
+                continue;
+            }
+            $newState = $action === 'disable' ? 1 : 0;
+            $changed += DB::execute(
+                'UPDATE users SET disabled = ?, reset_token = NULL, reset_token_expires = NULL WHERE id = ?',
+                [$newState, $id]
+            );
+        }
+        return $this->json($response, ['ok' => true, 'changed' => $changed]);
     }
 
     /** POST /admin/users/{id}/role：变更角色（含自己） */

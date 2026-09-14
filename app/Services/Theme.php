@@ -280,6 +280,25 @@ final class Theme
         return $desc['manifest']['pageTemplates'] ?? [];
     }
 
+    /** 当前主题可用的组件区域；主题未声明时保留通用区域。 */
+    public static function widgetAreas(string $name): array
+    {
+        $manifest = self::manifest($name);
+        $areas = ['sidebar' => '侧边栏'];
+        $declared = is_array($manifest['widgetAreas'] ?? null) ? $manifest['widgetAreas'] : [];
+        foreach ($declared as $area) {
+            if (!is_array($area)) {
+                continue;
+            }
+            $key = (string) ($area['key'] ?? '');
+            $label = trim((string) ($area['label'] ?? ''));
+            if ($key !== '' && preg_match('/^[a-z0-9_-]{1,50}$/', $key) === 1 && $label !== '') {
+                $areas[$key] = mb_substr($label, 0, 50);
+            }
+        }
+        return $areas;
+    }
+
     /** 主题 CSS（theme.css 内容，前台 <style> 注入）；无文件返回 null */
     public static function css(string $name): ?string
     {

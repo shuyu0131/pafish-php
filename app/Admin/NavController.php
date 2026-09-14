@@ -13,7 +13,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  * 导航菜单管理：
  * - 列表 sort_order ASC, id ASC；标题「配置顶部导航与移动端菜单（共 N 项）」
  * - 新建 max(sort_order)+1；编辑不动 visible/sort_order；is_external 新窗口
- * - 显隐切换；上下移动=相邻交换；删除两步确认物理删
+ * - 显隐切换；上下移动=相邻交换；删除确认后物理删
  * - 字段：label(1-100) / url(1-500) / is_external(bool)
  * 权限：仅 ADMIN；CSRF 由 AdminAuthMiddleware 统一校验
  */

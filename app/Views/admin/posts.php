@@ -67,10 +67,9 @@ $canEdit = in_array($role ?? '', ['ADMIN', 'EDITOR'], true);
     <?php endforeach; ?>
   </div>
 
-  <!-- 筛选行 -->
-  <div class="admin-filter-bar">
+  <!-- 列表筛选工具区 -->
+  <div class="admin-filter-bar admin-posts-filter-bar">
     <div class="admin-filter-group">
-      <!-- 分类下拉（原生 select，链接跳转） -->
       <select class="input admin-filter-select" data-filter-url="category"
               data-base="<?= e(url_to('/admin/posts')) ?>">
         <option value="">全部分类</option>
@@ -81,15 +80,11 @@ $canEdit = in_array($role ?? '', ['ADMIN', 'EDITOR'], true);
           </option>
         <?php endforeach; ?>
       </select>
-
-      <!-- 排序 -->
       <select class="input admin-filter-select" data-filter-url="sort">
         <?php foreach ($sortItems as $s): ?>
           <option value="<?= e($s['key']) ?>" <?= $params['sort'] === $s['key'] ? 'selected' : '' ?>><?= e($s['label']) ?></option>
         <?php endforeach; ?>
       </select>
-
-      <!-- 搜索 -->
       <form class="admin-search" method="get" action="<?= e(url_to('/admin/posts')) ?>">
         <?php foreach (['status' => $params['status'], 'category' => $params['category'], 'sort' => $params['sort']] as $k => $v): ?>
           <?php if ($v !== '' && $v !== 'latest'): ?><input type="hidden" name="<?= e($k) ?>" value="<?= e($v) ?>"><?php endif; ?>
@@ -98,13 +93,6 @@ $canEdit = in_array($role ?? '', ['ADMIN', 'EDITOR'], true);
         <button type="submit" class="btn btn-outline"><?= admin_icon('search', 15) ?></button>
       </form>
     </div>
-
-    <!-- 每页条数（cookie 记忆） -->
-    <select class="input admin-filter-select" id="adminPerPage">
-      <?php foreach ($perOptions as $opt): ?>
-        <option value="<?= $opt ?>" <?= $per === $opt ? 'selected' : '' ?>><?= $opt ?> 条/页</option>
-      <?php endforeach; ?>
-    </select>
   </div>
 
   <!-- 表格 -->
@@ -193,10 +181,10 @@ $canEdit = in_array($role ?? '', ['ADMIN', 'EDITOR'], true);
   </div>
 
   <!-- 批量操作栏 -->
-  <form method="post" action="<?= e(url_to('/admin/posts/batch')) ?>" class="admin-batch-bar" hidden>
+  <form method="post" action="<?= e(url_to('/admin/posts/batch')) ?>" class="admin-batch-bar">
     <?= csrf_field() ?>
     <input type="hidden" name="ids" value="">
-    <span class="admin-batch-count">已选 <b>0</b> 篇</span>
+    <span class="admin-batch-count">已选 <span class="admin-batch-count-number">0</span> 篇</span>
     <?php if ($isTrash): ?>
       <select class="input admin-batch-op" name="op" aria-label="批量操作">
         <option value="restore">恢复</option>
@@ -223,17 +211,9 @@ $canEdit = in_array($role ?? '', ['ADMIN', 'EDITOR'], true);
     <button type="button" class="btn btn-ghost" data-batch-clear>取消选择</button>
   </form>
 
-  <?php if ($totalPages > 1): ?>
-    <div class="admin-pager">
-      <?php for ($n = 1; $n <= $totalPages; $n++): ?>
-        <a class="btn btn-outline <?= $n === $page ? 'current' : '' ?>"
-           href="<?= e(url_to(admin_posts_url($params, ['page' => $n], $per, true))) ?>"
-           <?= $n === $page ? 'aria-current="page"' : '' ?>>
-          <?= $n ?>
-        </a>
-      <?php endfor; ?>
-    </div>
-  <?php endif; ?>
+  <?= admin_pagination($page, $totalPages, $total, static function (int $p, int $size = 20) use ($params): string {
+    return url_to(admin_posts_url($params, ['page' => $p], $size, true));
+  }, $per, $perOptions) ?>
 </div>
 
 <script src="<?= e(asset_url('/js/admin-posts.js')) ?>"></script>

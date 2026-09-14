@@ -35,8 +35,8 @@ final class StoreController extends AdminController
                 $item['updateAvailable'] = $local !== null && Store::compareVersions($local, $item['version']) < 0;
                 $item['purchased'] = false;
                 if ($account) {
-                    foreach (($account['licenses'] ?? []) as $license) {
-                        if (($license['type'] ?? '') === $kind && ($license['slug'] ?? '') === $item['name'] && ($license['status'] ?? '') === 'active') {
+                    foreach (($account['purchases'] ?? $account['licenses'] ?? []) as $license) {
+                        if (($license['type'] ?? '') === $kind && ($license['slug'] ?? '') === $item['name'] && ($license['status'] ?? 'active') === 'active') {
                             $item['purchased'] = true;
                             break;
                         }
@@ -148,10 +148,10 @@ final class StoreController extends AdminController
         if (($state['status'] ?? '') !== 'bound') {
             throw new \RuntimeException('该付费应用需要已绑定的官网账号，请先在「站点设置 → 应用商店」中绑定账号');
         }
-        foreach ((array)($state['data']['licenses'] ?? []) as $license) {
+        foreach ((array)($state['data']['purchases'] ?? $state['data']['licenses'] ?? []) as $license) {
             if (($license['type'] ?? '') === $kind
                 && ($license['slug'] ?? '') === ($item['name'] ?? '')
-                && ($license['status'] ?? '') === 'active') {
+                && ($license['status'] ?? 'active') === 'active') {
                 return;
             }
         }

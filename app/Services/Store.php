@@ -15,6 +15,7 @@ final class Store
     private const MAX_ZIP_BYTES = 10 * 1024 * 1024;
     private const KIND_FILE = ['theme' => 'themes.json', 'plugin' => 'plugins.json'];
     private const CATALOG_CACHE_TTL = 300;
+    private const CATALOG_CACHE_VERSION = 2;
 
     /** 返回商店地址。 */
     public static function baseUrl(): string
@@ -228,7 +229,7 @@ final class Store
             return null;
         }
         $data = json_decode($raw, true);
-        if (!is_array($data) || !isset($data['at']) || !is_array($data['items'] ?? null)) {
+        if (!is_array($data) || (int)($data['v'] ?? 0) !== self::CATALOG_CACHE_VERSION || !isset($data['at']) || !is_array($data['items'] ?? null)) {
             return null;
         }
         if (time() - (int) $data['at'] > self::CATALOG_CACHE_TTL) {
@@ -251,7 +252,7 @@ final class Store
     private static function writeCatalogCache(string $kind, array $items): void
     {
         $path = PAFISH_ROOT . '/runtime/store_catalog_' . $kind . '.json';
-        @file_put_contents($path, json_encode(['at' => time(), 'items' => $items], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), LOCK_EX);
+        @file_put_contents($path, json_encode(['v' => self::CATALOG_CACHE_VERSION, 'at' => time(), 'items' => $items], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), LOCK_EX);
     }
 
     /**
@@ -319,7 +320,7 @@ final class Store
         }
     }
 
-    /** 从 public/store 读取本地安装包（zip 路径如 /store/hello-pafish.zip 或 hello-pafish.zip） */
+    /** 从 public/store 读取本地安装包（zip 路径如 /store/{name}.zip） */
     private static function readLocalZip(string $zip): ?string
     {
         $name = ltrim($zip, '/');
@@ -384,12 +385,13 @@ final class Store
                 'name' => $name,
                 'title' => $title,
                 'version' => $version,
-                'description' => self::plainText($entry['description'] ?? ''),
+                'description' => self::plainText($entry['summary'] ?? ($entry['description'] ?? '')),
+                'summary' => self::plainText($entry['summary'] ?? ''),
                 'author' => isset($entry['author']) ? (string) $entry['author'] : '',
                 'authorUrl' => isset($entry['authorUrl']) ? (string) $entry['authorUrl'] : (isset($entry['author_url']) ? (string) $entry['author_url'] : ''),
                 'category' => isset($entry['category']) ? (string) $entry['category'] : '',
                 'zip' => $zip,
-                'preview' => is_array($shots) && isset($shots[0]) ? (string) $shots[0] : '',
+                'preview' => self::catalogCover($entry),
                 'screenshots' => is_array($shots) ? array_values(array_filter($shots, static fn ($shot): bool => is_string($shot) && trim($shot) !== '')) : [],
                 'sha256' => isset($entry['packageSha256']) ? (string) $entry['packageSha256'] : '',
                 'packageSize' => isset($entry['packageSize']) ? max(0, (int) $entry['packageSize']) : 0,
@@ -514,12 +516,13 @@ final class Store
                 'name' => $name,
                 'title' => $title,
                 'version' => $version,
-                'description' => self::plainText($entry['description'] ?? ''),
+                'description' => self::plainText($entry['summary'] ?? ($entry['description'] ?? '')),
+                'summary' => self::plainText($entry['summary'] ?? ''),
                 'author' => isset($entry['author']) ? (string) $entry['author'] : '',
                 'authorUrl' => isset($entry['authorUrl']) ? (string) $entry['authorUrl'] : (isset($entry['author_url']) ? (string) $entry['author_url'] : ''),
                 'category' => isset($entry['category']) ? (string) $entry['category'] : '',
                 'zip' => $zip,
-                'preview' => isset($entry['preview']) ? (string) $entry['preview'] : '',
+                'preview' => self::catalogCover($entry),
                 'screenshots' => isset($entry['screenshots']) && is_array($entry['screenshots']) ? array_values(array_filter($entry['screenshots'], static fn ($shot): bool => is_string($shot) && trim($shot) !== '')) : [],
                 'paid' => !empty($entry['paid']) || !empty($entry['licenseRequired']),
                 'changelog' => self::plainText($entry['changelog'] ?? ''),
@@ -530,6 +533,17 @@ final class Store
             ];
         }
         return $items;
+    }
+
+    private static function catalogCover(array $entry): string
+    {
+        foreach (['coverUrl', 'cover_url', 'cover', 'preview'] as $key) {
+            $value = trim((string)($entry[$key] ?? ''));
+            if ($value !== '') {
+                return $value;
+            }
+        }
+        return '';
     }
 
     /** 兼容目录中的 requires/dependencies 字段，仅保留可读字符串项。 */

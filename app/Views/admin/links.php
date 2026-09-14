@@ -2,7 +2,7 @@
 /**
  * 友情链接管理：
  * - 顶部新建表单；列表行：名称 + 「已隐藏」badge + url · description
- * - 操作：↑/↓ 上下移动（边界禁用）、显隐、编辑（行内展开）、删除（两步确认）
+ * - 操作：↑/↓ 上下移动（边界禁用）、显隐、编辑（行内展开）、删除（确认弹窗）
  * 变量：$items $role
  */
 $count = count($items);
@@ -199,17 +199,9 @@ foreach ($items as $l) {
     });
   });
 
-  // 删除（两步确认）
+  // 删除确认
   document.querySelectorAll("[data-delete]").forEach(function (btn) {
-    var armed = false;
-    var original = btn.innerHTML;
     btn.addEventListener("click", function () {
-      if (!armed) {
-        armed = true;
-        btn.textContent = "确认？";
-        setTimeout(function () { armed = false; btn.innerHTML = original; }, 2500);
-        return;
-      }
       var row = btn.closest(".admin-list-row");
       var name = row.getAttribute("data-name");
       (window.pafishConfirm ? window.pafishConfirm("确定删除链接「" + name + "」？", { title: "删除链接" }) : Promise.resolve(window.confirm("确定删除链接「" + name + "」？"))).then(function (ok) {

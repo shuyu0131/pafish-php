@@ -128,6 +128,35 @@ final class Upload
         return self::process($buffer, $origName, strlen($buffer));
     }
 
+    public static function handlePath(string $path, string $origName): array
+    {
+        if (!is_file($path)) {
+            throw new \RuntimeException('读取文件失败');
+        }
+        $size = (int) filesize($path);
+        $maxMb = max(1, min(200, (int) Settings::get('upload_max_mb', '20')));
+        if ($size <= 0) {
+            throw new \RuntimeException('读取文件失败');
+        }
+        if ($size > $maxMb * 1024 * 1024) {
+            throw new \RuntimeException("文件不能超过 {$maxMb}MB");
+        }
+        $ext = strtolower(pathinfo(trim($origName), PATHINFO_EXTENSION));
+        if (!in_array($ext, self::ALLOWED_EXT, true)) {
+            throw new \RuntimeException('不支持的文件类型：' . ($ext !== '' ? $ext : '无扩展名'));
+        }
+        if (in_array($ext, ['png', 'jpg', 'jpeg', 'webp'], true)) {
+            return self::process((string) file_get_contents($path), $origName, $size);
+        }
+        $mime = self::MIME_MAP[$ext] ?? 'application/octet-stream';
+        $url = self::storeLocalFromPath($path, $ext);
+        DB::execute(
+            'INSERT INTO uploads (original_name, url, mime, size, width, height, uploader_id) VALUES (?, ?, ?, ?, NULL, NULL, ?)',
+            [trim($origName), $url, $mime, $size, \Pafish\Core\Auth::id()]
+        );
+        return ['url' => $url, 'mime' => $mime, 'size' => $size, 'width' => null, 'height' => null];
+    }
+
     /** 核心处理：大小 → 扩展名 → 压缩 → 云存储/本地 → 入库 */
     private static function process(string $buffer, string $origName, int $size): array
     {
@@ -209,6 +238,26 @@ final class Upload
         if (@file_put_contents($dir . '/' . $name, $buffer) === false) {
             throw new \RuntimeException('保存文件失败，请检查 uploads 目录权限');
         }
+        return \Pafish\Core\Url::to('/uploads/' . $name);
+    }
+
+    private static function storeLocalFromPath(string $path, string $ext): string
+    {
+        $dir = dirname(__DIR__, 2) . '/public/uploads';
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0755, true);
+        }
+        $name = bin2hex(random_bytes(8)) . '.' . $ext;
+        $source = @fopen($path, 'rb');
+        $target = @fopen($dir . '/' . $name, 'wb');
+        if (!$source || !$target) {
+            if (is_resource($source)) fclose($source);
+            if (is_resource($target)) fclose($target);
+            throw new \RuntimeException('保存文件失败，请检查 uploads 目录权限');
+        }
+        stream_copy_to_stream($source, $target);
+        fclose($source);
+        fclose($target);
         return \Pafish\Core\Url::to('/uploads/' . $name);
     }
 

@@ -106,13 +106,14 @@ $canEdit = in_array($role ?? '', ['ADMIN', 'EDITOR'], true);
           <th class="admin-col-lg">作者</th>
           <th class="admin-col-lg">评论</th>
           <th class="admin-col-sm">浏览</th>
+          <th class="admin-col-sm">互动</th>
           <th>更新时间</th>
           <th class="admin-col-ops">操作</th>
         </tr>
       </thead>
       <tbody>
         <?php if ($posts === []): ?>
-          <tr><td colspan="8">
+          <tr><td colspan="9">
             <div class="admin-empty-list">
               <?= admin_icon('file-text', 32) ?>
               <p>暂无文章</p>
@@ -148,6 +149,7 @@ $canEdit = in_array($role ?? '', ['ADMIN', 'EDITOR'], true);
             <td class="admin-col-lg" data-label="作者"><?= e($p['author_username']) ?></td>
             <td class="admin-col-lg" data-label="评论"><?= (int) $p['comment_count'] ?></td>
             <td class="admin-col-sm" data-label="浏览"><?= number_format((int) $p['view_count']) ?></td>
+            <td class="admin-col-sm" data-label="互动"><?= admin_icon('heart', 13) ?> <?= number_format((int) $p['like_count']) ?>&nbsp; <?= admin_icon('star', 13) ?> <?= number_format((int) $p['favorite_count']) ?></td>
             <td data-label="更新时间"><time class="admin-post-time" datetime="<?= e((string) $p['updated_at']) ?>"><?= e(format_date($p['updated_at'], 'yyyy-MM-dd HH:mm')) ?></time></td>
             <td class="admin-col-ops" data-label="操作">
               <div class="admin-row-ops">

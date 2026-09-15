@@ -15,7 +15,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  * - 列表 48/页（q 搜索、type 5 类筛选：图片/文档/压缩包/音频/视频、分页窗口 ±2）
  * - 删除：先删数据库行再删文件（本地路径穿越防护 / 云存储插件 deleteFile 静默失败）
  * - 外部资源：仅存链接不下载（mime 按扩展名推断、size=0）
- * 权限：ADMIN+EDITOR（guardCanManage）；CSRF 由 AdminAuthMiddleware 统一校验
+ * 权限：ADMIN+EDITOR（media.manage）；编辑仅管理自己上传的资源，CSRF 由 AdminAuthMiddleware 统一校验
  */
 final class MediaController extends AdminController
 {
@@ -24,7 +24,7 @@ final class MediaController extends AdminController
     /** GET /admin/uploads：媒体库列表 */
     public function index(Request $request, Response $response): Response
     {
-        $this->guardCanManage();
+        $this->guardCapability('media.manage');
         $page = max(1, (int) ($_GET['page'] ?? 1));
         $q = trim((string) ($_GET['q'] ?? ''));
         $type = (string) ($_GET['type'] ?? '');
@@ -35,6 +35,10 @@ final class MediaController extends AdminController
 
         $where = '1=1';
         $params = [];
+        if (!Auth::isAdmin()) {
+            $where .= ' AND uploader_id = ?';
+            $params[] = (int) Auth::id();
+        }
         if ($q !== '') {
             $where .= ' AND original_name LIKE ?';
             $params[] = "%{$q}%";
@@ -74,14 +78,17 @@ final class MediaController extends AdminController
     /** POST /admin/uploads/{id}/delete：先删库再删文件 */
     public function delete(Request $request, Response $response): Response
     {
-        $this->guardCanManage();
+        $this->guardCapability('media.manage');
         $id = (int) ($request->getAttribute('id') ?? 0);
-        $row = DB::fetchOne('SELECT * FROM uploads WHERE id = ?', [$id]);
+        $row = DB::fetchOne('SELECT * FROM uploads WHERE id = ?' . (Auth::isAdmin() ? '' : ' AND uploader_id = ?'), Auth::isAdmin() ? [$id] : [$id, (int) Auth::id()]);
         if ($row === null) {
             return $this->json($response, ['error' => '媒体不存在或已删除'], 400);
         }
         Upload::refreshUsage();
-        $row = DB::fetchOne('SELECT * FROM uploads WHERE id = ?', [$id]) ?: $row;
+        $row = DB::fetchOne(
+            'SELECT * FROM uploads WHERE id = ?' . (Auth::isAdmin() ? '' : ' AND uploader_id = ?'),
+            Auth::isAdmin() ? [$id] : [$id, (int) Auth::id()]
+        ) ?: $row;
         if ((int) ($row['usage_count'] ?? 0) > 0 && (string) (($request->getParsedBody()['force'] ?? '')) !== '1') {
             return $this->json($response, ['error' => '媒体仍被内容引用，请确认后强制删除', 'usageCount' => (int) $row['usage_count']], 409);
         }
@@ -108,7 +115,7 @@ final class MediaController extends AdminController
     /** POST /admin/uploads/external：添加外部资源（仅存链接） */
     public function external(Request $request, Response $response): Response
     {
-        $this->guardCanManage();
+        $this->guardCapability('media.manage');
         $body = $request->getParsedBody() ?? [];
         $url = trim((string) ($body['url'] ?? ''));
         if (!preg_match('#^https?://#i', $url)) {

@@ -45,6 +45,7 @@
             <a class="btn btn-sm btn-ghost" href="<?= e(url_to('/admin/comments?status=PENDING')) ?>">
               去审核 <?= admin_icon('arrow-right', 12) ?>
             </a>
+            <button type="button" class="btn btn-sm btn-ghost admin-notify-delete" data-notification-id="<?= (int) $n['id'] ?>">删除</button>
           </div>
         </div>
       <?php endforeach; ?>
@@ -77,5 +78,16 @@
         .catch(function () { pafishNotify("网络错误", true); });
     });
   }
+  document.querySelectorAll(".admin-notify-delete").forEach(function (button) {
+    button.addEventListener("click", function () {
+      var fd = new FormData(); fd.append("_csrf", CSRF);
+      fetch(<?= json_encode(url_to('/admin/notifications')) ?> + "/" + button.dataset.notificationId + "/delete", {
+        method: "POST", body: fd, headers: { "X-Requested-With": "XMLHttpRequest" }
+      }).then(function (r) { return r.json(); }).then(function (j) {
+        if (j && j.ok) pafishToastReload("通知已删除", "success");
+        else pafishNotify((j && j.error) || "删除失败", true);
+      }).catch(function () { pafishNotify("网络错误", true); });
+    });
+  });
 })();
 </script>

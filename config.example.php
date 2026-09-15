@@ -1,6 +1,6 @@
 <?php
 /**
- * pafish 博客 CMS（PHP 版）配置文件模板
+ * pafish 博客 CMS配置文件模板
  * 使用方式：复制为 config.php 并填写（或直接运行 install.php 安装向导自动生成）
  */
 return [

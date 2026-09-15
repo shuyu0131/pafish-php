@@ -43,7 +43,7 @@ final class PagesController extends AdminController
     /** 列表 */
     public function index(Request $request, Response $response): Response
     {
-        $this->guardCanManage();
+        $this->guardAdmin();
         $perRaw = (int) ($_GET['per'] ?? 0);
         $perPref = (int) ($_COOKIE['admin_pages_per_page'] ?? 0);
         $per = in_array($perRaw, self::PER_PAGE_OPTIONS, true) ? $perRaw
@@ -91,7 +91,7 @@ final class PagesController extends AdminController
     /** 新建编辑器 */
     public function createEditor(Request $request, Response $response): Response
     {
-        $this->guardCanManage();
+        $this->guardAdmin();
         $response->getBody()->write($this->render('page-editor', [
             'isEdit' => false,
             'page' => null,
@@ -104,7 +104,7 @@ final class PagesController extends AdminController
     /** 编辑编辑器 */
     public function editEditor(Request $request, Response $response, array $args): Response
     {
-        $this->guardCanManage();
+        $this->guardAdmin();
         $page = DB::fetchOne('SELECT * FROM pages WHERE id = ?', [(int) ($args['id'] ?? 0)]);
         if (!$page) {
             $this->flash('error', '页面不存在');
@@ -122,7 +122,7 @@ final class PagesController extends AdminController
     /** 保存页面。 */
     public function save(Request $request, Response $response, array $args): Response
     {
-        $this->guardCanManage();
+        $this->guardAdmin();
         $body = $request->getParsedBody() ?? [];
         $id = isset($args['id']) ? (int) $args['id'] : 0;
 
@@ -146,7 +146,7 @@ final class PagesController extends AdminController
     /** 删除（硬删除，无回收站；删除首页页面时同步清空 home_page_id） */
     public function delete(Request $request, Response $response, array $args): Response
     {
-        $this->guardCanManage();
+        $this->guardAdmin();
         $id = (int) ($args['id'] ?? 0);
         if ((string) Settings::get('home_page_id', '') === (string) $id) {
             DB::execute("DELETE FROM settings WHERE `key` = 'home_page_id'");
@@ -162,7 +162,7 @@ final class PagesController extends AdminController
     /** 设为首页 / 取消（写入 settings.home_page_id） */
     public function setHome(Request $request, Response $response): Response
     {
-        $this->guardCanManage();
+        $this->guardAdmin();
         $body = $request->getParsedBody() ?? [];
         $id = (int) ($body['id'] ?? 0);
         $set = (bool) ($body['set'] ?? false);

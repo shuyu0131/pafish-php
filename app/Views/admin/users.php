@@ -28,6 +28,7 @@ $roleLabel = static function (string $role): string {
       <h1 class="admin-h1">用户管理</h1>
       <p class="admin-page-sub">共 <?= $total ?> 个用户</p>
     </div>
+    <div class="admin-head-actions"><button type="button" class="btn btn-primary" id="adminUserCreateOpen"><?= admin_icon('plus', 15) ?>新建用户</button></div>
   </div>
 
   <form class="admin-user-toolbar" action="<?= e(url_to('/admin/users')) ?>" method="get" role="search">
@@ -134,6 +135,21 @@ $roleLabel = static function (string $role): string {
   <?php endif; ?>
 </div>
 
+<div class="admin-modal-backdrop" id="adminUserCreateModal" hidden>
+  <div class="admin-modal" role="dialog" aria-modal="true" aria-label="新建用户">
+    <div class="admin-modal-head"><h2 class="admin-modal-title">新建用户</h2><button type="button" class="admin-icon-btn" data-create-close aria-label="关闭">×</button></div>
+    <div class="admin-modal-body">
+      <label class="admin-field"><span class="label">用户名 *</span><input class="input" id="createUsername" maxlength="50" placeholder="3-50 位字母、数字、_ 或 -"></label>
+      <label class="admin-field"><span class="label">显示昵称</span><input class="input" id="createNickname" maxlength="50"></label>
+      <label class="admin-field"><span class="label">邮箱 *</span><input class="input" id="createEmail" type="email" maxlength="255"></label>
+      <label class="admin-field"><span class="label">初始密码 *</span><input class="input" id="createPassword" type="password" minlength="6" maxlength="72"></label>
+      <label class="admin-field"><span class="label">角色</span><select class="input" id="createRole"><option value="USER">用户</option><option value="EDITOR">编辑</option><option value="ADMIN">管理员</option></select></label>
+      <p class="admin-modal-error" id="createUserError" hidden></p>
+    </div>
+    <div class="admin-modal-actions"><button type="button" class="btn btn-ghost" data-create-close>取消</button><button type="button" class="btn btn-primary" id="adminUserCreateSave">创建用户</button></div>
+  </div>
+</div>
+
 <div class="admin-modal-backdrop" id="adminUserActionModal" hidden>
   <div class="admin-modal admin-user-action-modal" role="dialog" aria-modal="true" aria-labelledby="adminUserActionTitle">
     <div class="admin-modal-head">
@@ -170,6 +186,15 @@ $roleLabel = static function (string $role): string {
 (function () {
   "use strict";
   var CSRF = <?= json_encode($usersCsrf) ?>;
+  var createModal = document.getElementById("adminUserCreateModal");
+  function closeCreate() { createModal.hidden = true; if (window.pafishModalSync) window.pafishModalSync(); }
+  document.getElementById("adminUserCreateOpen").addEventListener("click", function () { createModal.hidden = false; document.getElementById("createUserError").hidden = true; document.getElementById("createUsername").focus(); if (window.pafishModalSync) window.pafishModalSync(); });
+  document.querySelectorAll("[data-create-close]").forEach(function (button) { button.addEventListener("click", closeCreate); });
+  document.getElementById("adminUserCreateSave").addEventListener("click", function () {
+    var fd = new FormData(); fd.append("_csrf", CSRF);
+    [["username", "createUsername"], ["nickname", "createNickname"], ["email", "createEmail"], ["password", "createPassword"], ["role", "createRole"]].forEach(function (pair) { fd.append(pair[0], document.getElementById(pair[1]).value.trim()); });
+    post(<?= json_encode(url_to('/admin/users/create')) ?>, fd, function () { closeCreate(); pafishToastReload("用户已创建", "success"); });
+  });
 
   function post(url, fd, onOk) {
     fetch(url, {

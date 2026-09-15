@@ -22,6 +22,7 @@ final class PluginsController extends AdminController
                 'name' => $name,
                 'title' => $m['title'] ?? $name,
                 'version' => $m['version'] ?? '',
+                'builtin' => !empty($m['builtin']),
                 'apiVersion' => $m['apiVersion'] ?? 1,
                 'description' => $m['description'] ?? '',
                 'author' => $m['author'] ?? '',

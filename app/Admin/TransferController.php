@@ -13,14 +13,14 @@ final class TransferController extends AdminController
 {
     public function index(Request $request, Response $response): Response
     {
-        $this->guardCapability('transfer.manage');
+        $this->guardAdmin();
         $response->getBody()->write($this->render('transfer', [], '内容迁移'));
         return $response;
     }
 
     public function export(Request $request, Response $response): Response
     {
-        $this->guardCapability('transfer.manage');
+        $this->guardAdmin();
         $json = json_encode(ContentTransfer::export(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
         $response->getBody()->write((string) $json);
         return $response->withHeader('Content-Type', 'application/json; charset=utf-8')->withHeader('Content-Disposition', 'attachment; filename="pafish-content-' . date('Ymd-His') . '.json"');
@@ -28,7 +28,7 @@ final class TransferController extends AdminController
 
     public function import(Request $request, Response $response): Response
     {
-        $this->guardCapability('transfer.manage');
+        $this->guardAdmin();
         $body = $request->getParsedBody() ?? [];
         $raw = trim((string) ($body['json'] ?? ''));
         $files = $request->getUploadedFiles();

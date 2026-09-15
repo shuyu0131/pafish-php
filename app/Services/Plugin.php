@@ -271,6 +271,8 @@ final class Plugin
             'name' => $json['name'],
             'title' => $json['title'],
             'version' => $json['version'],
+            // 仅核心 Sitemap 可声明内置，其他插件始终按可安装扩展处理。
+            'builtin' => $json['name'] === 'sitemap' && ($json['builtin'] ?? false) === true,
             'apiVersion' => is_int($json['apiVersion'] ?? null) ? $json['apiVersion'] : 1,
             'description' => is_string($json['description'] ?? null) ? $json['description'] : '',
             'author' => is_string($json['author'] ?? null) ? $json['author'] : '',

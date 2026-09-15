@@ -17,7 +17,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  * - 操作：回复（以管理员身份建 APPROVED 子评论）、通过/垃圾（状态流转，驳回即 SPAM）、
  *   置顶/取消、按 IP 删除（物理删，级联子评论）、拉黑 IP（settings blocked_ips JSON）、
  *   删除（物理删，级联子评论）
- * 权限：ADMIN+EDITOR（guardCanManage）；CSRF 由 AdminAuthMiddleware 统一校验
+ * 权限：ADMIN+EDITOR；编辑仅处理自己文章下的评论，CSRF 由 AdminAuthMiddleware 统一校验
  */
 final class CommentsController extends AdminController
 {
@@ -29,27 +29,32 @@ final class CommentsController extends AdminController
     /** GET /admin/comments：评论列表（status + page） */
     public function index(Request $request, Response $response): Response
     {
-        $this->guardCanManage();
+        $this->guardCapability('comments.manage');
         $status = strtoupper((string) ($_GET['status'] ?? 'PENDING'));
         if (!in_array($status, self::STATUSES, true)) {
             $status = 'PENDING';
         }
         $page = max(1, (int) ($_GET['page'] ?? 1));
 
-        $total = (int) DB::value('SELECT COUNT(*) FROM comments WHERE status = ?', [$status]);
+        $scope = $this->editorScope();
+        $total = (int) DB::value(
+            'SELECT COUNT(*) FROM comments c JOIN posts scope_post ON scope_post.id = c.post_id WHERE c.status = ?' . $scope['sql'],
+            array_merge([$status], $scope['params'])
+        );
         $pages = max(1, (int) ceil($total / self::PAGE_SIZE));
         $page = min($page, $pages);
 
         // 每条评论带文章标题 + 父评论作者（楼中楼「回复 @xx」徽标）
         $items = DB::fetchAll(
-            "SELECT c.*, p.title AS post_title, p.slug AS post_slug, parent.author_name AS parent_name
+            'SELECT c.*, p.title AS post_title, p.slug AS post_slug, parent.author_name AS parent_name
              FROM comments c
              LEFT JOIN posts p ON p.id = c.post_id
              LEFT JOIN comments parent ON parent.id = c.parent_id
-             WHERE c.status = ?
+             JOIN posts scope_post ON scope_post.id = c.post_id
+             WHERE c.status = ?' . $scope['sql'] . '
              ORDER BY c.created_at DESC
-             LIMIT " . self::PAGE_SIZE . ' OFFSET ' . (($page - 1) * self::PAGE_SIZE),
-            [$status]
+             LIMIT ' . self::PAGE_SIZE . ' OFFSET ' . (($page - 1) * self::PAGE_SIZE),
+            array_merge([$status], $scope['params'])
         );
 
         $response->getBody()->write($this->render('comments', [
@@ -66,14 +71,14 @@ final class CommentsController extends AdminController
     /** POST /admin/comments/{id}/status。 */
     public function status(Request $request, Response $response, array $args): Response
     {
-        $this->guardCanManage();
+        $this->guardCapability('comments.manage');
         $id = (int) ($args['id'] ?? 0);
         $body = $request->getParsedBody() ?? [];
         $next = strtoupper((string) ($body['status'] ?? ''));
         if (!in_array($next, self::STATUSES, true)) {
             return $this->json($response, ['error' => '无效的状态'], 400);
         }
-        $row = DB::fetchOne('SELECT id, post_id, status FROM comments WHERE id = ?', [$id]);
+        $row = $this->findVisibleComment($id, 'c.id, c.post_id, c.status');
         if ($row === null) {
             return $this->json($response, ['error' => '评论不存在'], 400);
         }
@@ -97,9 +102,9 @@ final class CommentsController extends AdminController
     /** POST /admin/comments/{id}/reply：以管理员身份回复（创建 APPROVED 子评论，前台直接显示） */
     public function reply(Request $request, Response $response, array $args): Response
     {
-        $this->guardCanManage();
+        $this->guardCapability('comments.manage');
         $id = (int) ($args['id'] ?? 0);
-        $parent = DB::fetchOne('SELECT * FROM comments WHERE id = ?', [$id]);
+        $parent = $this->findVisibleComment($id, 'c.*');
         if ($parent === null) {
             return $this->json($response, ['error' => '评论不存在'], 400);
         }
@@ -140,9 +145,9 @@ final class CommentsController extends AdminController
     /** POST /admin/comments/{id}/pin：置顶 / 取消置顶 */
     public function pin(Request $request, Response $response, array $args): Response
     {
-        $this->guardCanManage();
+        $this->guardCapability('comments.manage');
         $id = (int) ($args['id'] ?? 0);
-        $row = DB::fetchOne('SELECT id, is_pinned FROM comments WHERE id = ?', [$id]);
+        $row = $this->findVisibleComment($id, 'c.id, c.is_pinned');
         if ($row === null) {
             return $this->json($response, ['error' => '评论不存在'], 400);
         }
@@ -154,9 +159,9 @@ final class CommentsController extends AdminController
     /** POST /admin/comments/{id}/delete。 */
     public function delete(Request $request, Response $response, array $args): Response
     {
-        $this->guardCanManage();
+        $this->guardCapability('comments.manage');
         $id = (int) ($args['id'] ?? 0);
-        $row = DB::fetchOne('SELECT id, author_name FROM comments WHERE id = ?', [$id]);
+        $row = $this->findVisibleComment($id, 'c.id, c.author_name');
         if ($row === null) {
             return $this->json($response, ['error' => '评论不存在'], 400);
         }
@@ -174,19 +179,29 @@ final class CommentsController extends AdminController
     /** POST /admin/comments/delete-by-ip：按 IP 删除全部评论，返回删除条数 */
     public function deleteByIp(Request $request, Response $response): Response
     {
-        $this->guardCanManage();
+        $this->guardCapability('comments.manage');
         $ip = trim((string) ($request->getParsedBody()['ip'] ?? ''));
         if ($ip === '') {
             return $this->json($response, ['error' => '参数错误'], 400);
         }
-        $deleted = DB::execute('DELETE FROM comments WHERE ip = ?', [$ip]);
+        $scope = $this->editorScope();
+        if ($scope['sql'] === '') {
+            $deleted = DB::execute('DELETE FROM comments WHERE ip = ?', [$ip]);
+        } else {
+            $ids = DB::fetchAll('SELECT comments.id FROM comments JOIN posts scope_post ON scope_post.id = comments.post_id WHERE comments.ip = ?' . $scope['sql'], array_merge([$ip], $scope['params']));
+            $deleted = 0;
+            foreach ($ids as $item) {
+                $deleted += DB::execute('DELETE FROM comments WHERE id = ?', [(int) $item['id']]);
+            }
+        }
         return $this->json($response, ['ok' => true, 'deleted' => $deleted]);
     }
 
     /** POST /admin/comments/block-ip：拉黑 IP（settings blocked_ips JSON 数组，去重追加；不删已有评论） */
     public function blockIp(Request $request, Response $response): Response
     {
-        $this->guardCanManage();
+        // IP 黑名单影响全站，不应由仅管理自己内容的编辑设置。
+        $this->guardAdmin();
         $ip = trim((string) ($request->getParsedBody()['ip'] ?? ''));
         if ($ip === '') {
             return $this->json($response, ['error' => '参数错误'], 400);
@@ -208,7 +223,8 @@ final class CommentsController extends AdminController
     private function statusCounts(): array
     {
         $out = [];
-        $rows = DB::fetchAll('SELECT status, COUNT(*) AS n FROM comments GROUP BY status');
+        $scope = $this->editorScope();
+        $rows = DB::fetchAll('SELECT c.status, COUNT(*) AS n FROM comments c JOIN posts scope_post ON scope_post.id = c.post_id WHERE 1=1' . $scope['sql'] . ' GROUP BY c.status', $scope['params']);
         foreach (self::STATUSES as $s) {
             $out[$s] = 0;
         }
@@ -218,5 +234,18 @@ final class CommentsController extends AdminController
             }
         }
         return $out;
+    }
+
+    /** 编辑只能管理自己文章下的评论；管理员管理全站。 */
+    private function editorScope(): array
+    {
+        if (Auth::isAdmin()) return ['sql' => '', 'params' => []];
+        return ['sql' => ' AND scope_post.author_id = ?', 'params' => [(int) Auth::id()]];
+    }
+
+    private function findVisibleComment(int $id, string $columns): ?array
+    {
+        $scope = $this->editorScope();
+        return DB::fetchOne('SELECT ' . $columns . ' FROM comments c JOIN posts scope_post ON scope_post.id = c.post_id WHERE c.id = ?' . $scope['sql'], array_merge([$id], $scope['params']));
     }
 }

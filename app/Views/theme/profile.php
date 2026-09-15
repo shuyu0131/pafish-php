@@ -5,6 +5,7 @@ declare(strict_types=1);
 $user = $user ?? current_user() ?? [];
 $posts = $posts ?? [];
 $stats = $stats ?? ['posts' => 0, 'views' => 0, 'comments' => 0];
+$reactions = $reactions ?? [];
 $pointsEnabled = !empty($pointsEnabled);
 $pointsBalance = (int) ($pointsBalance ?? 0);
 $pointTransactions = $pointTransactions ?? [];
@@ -54,6 +55,16 @@ get_header();
       <?php if ($redpacketClaims === []): ?><p class="profile-posts-empty">还没有领取记录。</p><?php else: ?><div class="profile-ledger-list"><?php foreach ($redpacketClaims as $claim): ?><a href="<?= e(url_to('/post/' . rawurlencode((string) $claim['post_id']))) ?>"><span><strong>+<?= (int) $claim['amount'] ?> 积分</strong><small><?= e((string) $claim['title']) ?></small></span><time><?= e(format_date($claim['claimed_at'] ?? null, 'Y-m-d H:i')) ?></time></a><?php endforeach; ?></div><?php endif; ?>
     </section>
   <?php endif; ?>
+  <section class="profile-posts">
+    <header><h2>我的点赞与收藏</h2><span>最近 <?= count($reactions) ?> 条</span></header>
+    <?php if ($reactions === []): ?><p class="profile-posts-empty">还没有点赞或收藏的文章。</p><?php else: ?>
+      <div class="profile-post-list">
+        <?php foreach ($reactions as $reaction): ?>
+          <a href="<?= e(url_to('/post/' . rawurlencode((string) $reaction['slug']))) ?>"><span><strong><?= $reaction['kind'] === 'favorite' ? '收藏 · ' : '点赞 · ' ?><?= e((string) $reaction['title']) ?></strong><small><?= e(format_date($reaction['published_at'] ?? null, 'Y-m-d')) ?> · <?= (int) $reaction['like_count'] ?> 赞 · <?= (int) $reaction['favorite_count'] ?> 收藏</small></span><?= admin_icon('arrow-right', 15) ?></a>
+        <?php endforeach; ?>
+      </div>
+    <?php endif; ?>
+  </section>
   <section class="profile-posts">
     <header><h2>我的动态</h2><span>最近 30 条公开动态</span></header>
     <?php if ($posts === []): ?><p class="profile-posts-empty">还没有公开动态。</p><?php else: ?>

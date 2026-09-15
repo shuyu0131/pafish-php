@@ -164,6 +164,9 @@ final class CommentApiController
             return $this->json($response, ['error' => (string) ($commentDecision['error'] ?? '评论提交被安全策略拒绝')], $httpStatus);
         }
         $commentStatus = is_array($commentDecision) ? (string) ($commentDecision['status'] ?? '') : '';
+        if ($sessionUser !== null && (string) ($sessionUser['role'] ?? '') === 'ADMIN') {
+            $commentStatus = 'APPROVED';
+        }
         if (!in_array($commentStatus, ['PENDING', 'APPROVED', 'REJECTED'], true)) {
             $commentStatus = $needReview ? 'PENDING' : 'APPROVED';
         }

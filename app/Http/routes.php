@@ -151,6 +151,7 @@ $app->group('/admin', function ($group) {
     // 通知（20/页 / 全部已读）
     $group->get('/notifications', [NotificationsController::class, 'index']);
     $group->post('/notifications/read-all', [NotificationsController::class, 'readAll']);
+    $group->post('/notifications/{id}/delete', [NotificationsController::class, 'delete']);
 
     // 友情链接（列表 / 保存 / 删除 / 显隐 / 上下移动）
     $group->get('/links', [LinksController::class, 'index']);
@@ -184,6 +185,7 @@ $app->group('/admin', function ($group) {
 
     // 用户管理（仅 ADMIN：角色/禁用/重置密码）
     $group->get('/users', [UsersController::class, 'index']);
+    $group->post('/users/create', [UsersController::class, 'create']);
     $group->post('/users/bulk', [UsersController::class, 'bulk']);
     $group->post('/users/{id}/role', [UsersController::class, 'updateRole']);
     $group->post('/users/{id}/toggle', [UsersController::class, 'toggleDisabled']);

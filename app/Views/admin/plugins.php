@@ -55,6 +55,7 @@ $pluginActive = count(array_filter($plugins, static fn (array $plugin): bool => 
                     <?php else: ?>
                       <span class="admin-plugin-name"><?= e($p['title']) ?></span>
                     <?php endif; ?>
+                    <?php if (!empty($p['builtin'])): ?><span class="badge badge-primary admin-plugin-builtin">内置</span><?php endif; ?>
                     <?php if (($p['frontendUrl'] ?? '') !== ''): ?>
                       <a class="admin-resource-link admin-plugin-front-link" href="<?= e(url_to((string) $p['frontendUrl'])) ?>" target="_blank" rel="noopener noreferrer" aria-label="打开<?= e($p['title']) ?>前台页面" title="打开前台页面"><?= admin_icon('external-link', 13) ?></a>
                     <?php endif; ?>
@@ -66,7 +67,6 @@ $pluginActive = count(array_filter($plugins, static fn (array $plugin): bool => 
                     <?php else: ?>
                       <span><?= e($p['description'] !== '' ? $p['description'] : '该插件未提供描述') ?></span>
                       <?php if (($p['homepage'] ?? '') !== ''): ?><a class="admin-resource-link" href="<?= e($p['homepage']) ?>" target="_blank" rel="noopener noreferrer">项目主页</a><?php endif; ?>
-                      <?php if (($p['frontendUrl'] ?? '') !== ''): ?><a class="admin-resource-link" href="<?= e(url_to((string) $p['frontendUrl'])) ?>" target="_blank" rel="noopener noreferrer">前台地址</a><?php endif; ?>
                     <?php endif; ?>
                   </div>
                     </div>

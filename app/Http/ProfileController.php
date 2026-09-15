@@ -44,6 +44,13 @@ final class ProfileController
             'views' => (int) DB::value("SELECT COALESCE(SUM(view_count), 0) FROM posts WHERE author_id = ? AND status = 'PUBLISHED' AND deleted_at IS NULL", [$userId]),
             'comments' => (int) DB::value("SELECT COUNT(*) FROM comments WHERE user_id = ? AND status <> 'SPAM'", [$userId]),
         ];
+        $reactions = DB::fetchAll(
+            "SELECT r.kind, p.title, p.slug, p.published_at, p.like_count, p.favorite_count
+             FROM post_reactions r JOIN posts p ON p.id = r.post_id
+             WHERE r.user_id = ? AND p.deleted_at IS NULL
+             ORDER BY r.created_at DESC LIMIT 60",
+            [$userId]
+        );
         $pointsEnabled = Points::available();
         $response->getBody()->write(\render('profile', [
             'title' => '个人中心',
@@ -51,6 +58,7 @@ final class ProfileController
             'user' => $user,
             'posts' => $posts,
             'stats' => $stats,
+            'reactions' => $reactions,
             'pointsEnabled' => $pointsEnabled,
             'pointsBalance' => $pointsEnabled ? Points::balance($userId) : 0,
             'pointTransactions' => $pointsEnabled ? Points::transactions($userId) : [],

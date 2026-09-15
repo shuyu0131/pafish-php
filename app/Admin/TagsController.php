@@ -19,7 +19,7 @@ final class TagsController extends AdminController
     /** 列表（按名称排序并附带文章数量） */
     public function index(Request $request, Response $response): Response
     {
-        $this->guardCanManage();
+        $this->guardAdmin();
         $tags = DB::fetchAll(
             'SELECT t.*, COUNT(pt.post_id) AS post_count
              FROM tags t LEFT JOIN post_tags pt ON pt.tag_id = t.id
@@ -35,7 +35,7 @@ final class TagsController extends AdminController
     /** 保存标签。 */
     public function save(Request $request, Response $response, array $args): Response
     {
-        $this->guardCanManage();
+        $this->guardAdmin();
         $body = $request->getParsedBody() ?? [];
         $id = isset($args['id']) ? (int) $args['id'] : 0;
 
@@ -59,7 +59,7 @@ final class TagsController extends AdminController
     /** 删除（硬删；post_tags 级联清理） */
     public function delete(Request $request, Response $response, array $args): Response
     {
-        $this->guardCanManage();
+        $this->guardAdmin();
         $id = (int) ($args['id'] ?? 0);
         DB::execute('DELETE FROM tags WHERE id = ?', [$id]);
         if ($this->isAjax($request)) {

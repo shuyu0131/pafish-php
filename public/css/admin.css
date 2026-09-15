@@ -995,6 +995,17 @@ input[type="radio"]:focus-visible {
   color: var(--accent);
   text-decoration: underline;
 }
+.admin-plugin-builtin {
+  font-size: 11px;
+  padding: 2px 7px;
+  vertical-align: middle;
+}
+.admin-plugin-front-link {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 5px;
+  white-space: nowrap;
+}
 .admin-plugin-meta {
   font-size: 14px;
   color: var(--body);

@@ -22,7 +22,7 @@ final class CategoriesController extends AdminController
     /** 列表：树 + 每分类文章数 + 防自引用 disabledMap（id → 自身及后代 id 集合） */
     public function index(Request $request, Response $response): Response
     {
-        $this->guardCanManage();
+        $this->guardAdmin();
         $tree = Categories::tree();
         $counts = [];
         foreach (DB::fetchAll('SELECT category_id, COUNT(*) AS c FROM posts WHERE category_id IS NOT NULL GROUP BY category_id') as $row) {
@@ -46,7 +46,7 @@ final class CategoriesController extends AdminController
     /** 保存分类。 */
     public function save(Request $request, Response $response, array $args): Response
     {
-        $this->guardCanManage();
+        $this->guardAdmin();
         $body = $request->getParsedBody() ?? [];
         $id = isset($args['id']) ? (int) $args['id'] : 0;
 
@@ -71,7 +71,7 @@ final class CategoriesController extends AdminController
     /** 同级上移/下移（交换 sortOrder） */
     public function move(Request $request, Response $response, array $args): Response
     {
-        $this->guardCanManage();
+        $this->guardAdmin();
         $id = (int) ($args['id'] ?? 0);
         $dir = ($request->getParsedBody()['dir'] ?? '') === 'up' ? 'up' : 'down';
 
@@ -109,7 +109,7 @@ final class CategoriesController extends AdminController
     /** 删除：子分类与文章 category_id 置 NULL（双保险，不依赖外键）后硬删除 */
     public function delete(Request $request, Response $response, array $args): Response
     {
-        $this->guardCanManage();
+        $this->guardAdmin();
         $id = (int) ($args['id'] ?? 0);
         $db = DB::pdo();
         $db->beginTransaction();

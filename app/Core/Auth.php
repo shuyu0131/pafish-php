@@ -25,7 +25,7 @@ final class Auth
 
     private const DEFAULT_ROLE_CAPABILITIES = [
         'ADMIN' => self::CAPABILITIES,
-        'EDITOR' => ['dashboard.view', 'posts.manage', 'pages.manage', 'taxonomy.manage', 'media.manage', 'comments.manage', 'links.manage', 'transfer.manage'],
+        'EDITOR' => ['dashboard.view', 'posts.manage', 'media.manage', 'comments.manage'],
         'USER' => ['dashboard.view'],
     ];
 
@@ -94,7 +94,12 @@ final class Auth
         $raw = Settings::get('role_capabilities', '');
         $configured = is_string($raw) ? json_decode($raw, true) : $raw;
         if (is_array($configured) && isset($configured[$role]) && is_array($configured[$role])) {
-            $allowed = array_values(array_intersect(array_map('strval', $configured[$role]), self::CAPABILITIES));
+            // 非管理员的设置仅能收缩其角色上限，不能重新授予系统管理能力。
+            $allowed = array_values(array_intersect(
+                array_map('strval', $configured[$role]),
+                self::CAPABILITIES,
+                $defaults
+            ));
             return array_values(array_unique($allowed));
         }
         return $defaults;

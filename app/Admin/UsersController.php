@@ -16,6 +16,28 @@ final class UsersController extends AdminController
 {
     private const ROLES = ['ADMIN', 'EDITOR', 'USER'];
 
+    /** 管理员直接创建账号，不依赖前台注册/邮箱验证码。 */
+    public function create(Request $request, Response $response): Response
+    {
+        $this->guardAdmin();
+        $body = $request->getParsedBody() ?? [];
+        $username = trim((string) ($body['username'] ?? ''));
+        $nickname = trim((string) ($body['nickname'] ?? ''));
+        $email = trim((string) ($body['email'] ?? ''));
+        $password = (string) ($body['password'] ?? '');
+        $role = strtoupper((string) ($body['role'] ?? 'USER'));
+        if (!preg_match('/^[a-zA-Z0-9_-]{3,50}$/', $username)) return $this->json($response, ['error' => '用户名需为 3-50 位字母、数字、下划线或连字符'], 400);
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL) || mb_strlen($email) > 255) return $this->json($response, ['error' => '邮箱格式不正确'], 400);
+        if (mb_strlen($password) < 6 || mb_strlen($password) > 72) return $this->json($response, ['error' => '密码长度需 6-72 位'], 400);
+        if (!in_array($role, self::ROLES, true)) return $this->json($response, ['error' => '无效角色'], 400);
+        if (DB::fetchOne('SELECT id FROM users WHERE username = ? OR email = ? LIMIT 1', [$username, $email])) return $this->json($response, ['error' => '用户名或邮箱已存在'], 409);
+        DB::execute('INSERT INTO users (username, nickname, email, password_hash, role) VALUES (?, ?, ?, ?, ?)', [
+            $username, $nickname !== '' ? mb_substr($nickname, 0, 50) : null, $email,
+            password_hash($password, PASSWORD_BCRYPT, ['cost' => 10]), $role,
+        ]);
+        return $this->json($response, ['ok' => true, 'id' => (int) DB::lastInsertId()]);
+    }
+
     /** GET /admin/users */
     public function index(Request $request, Response $response): Response
     {

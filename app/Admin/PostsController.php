@@ -46,6 +46,10 @@ final class PostsController extends AdminController
         // 构建筛选条件
         $where = $isTrash ? 'p.deleted_at IS NOT NULL' : 'p.deleted_at IS NULL';
         $params = [];
+        if (!\Pafish\Core\Auth::isAdmin()) {
+            $where .= ' AND p.author_id = ?';
+            $params[] = (int) \Pafish\Core\Auth::id();
+        }
         if ($status !== null) {
             $where .= ' AND p.status = ?';
             $params[] = $status;
@@ -74,7 +78,8 @@ final class PostsController extends AdminController
         $totalPages = max(1, (int) ceil($total / $per));
         $posts = DB::fetchAll(
             "SELECT p.*, c.name AS category_name, u.username AS author_username,
-                    (SELECT COUNT(*) FROM comments c2 WHERE c2.post_id = p.id) AS comment_count
+                    (SELECT COUNT(*) FROM comments c2 WHERE c2.post_id = p.id) AS comment_count,
+                    p.like_count, p.favorite_count
              FROM posts p
              LEFT JOIN categories c ON c.id = p.category_id
              LEFT JOIN users u ON u.id = p.author_id
@@ -86,10 +91,16 @@ final class PostsController extends AdminController
 
         // tabs 计数（按状态分组 + 回收站）
         $counts = ['PUBLISHED' => 0, 'DRAFT' => 0, 'SCHEDULED' => 0, 'TRASH' => 0];
-        foreach (DB::fetchAll("SELECT status, COUNT(*) AS c FROM posts WHERE deleted_at IS NULL GROUP BY status") as $row) {
+        $countWhere = 'deleted_at IS NULL';
+        $countParams = [];
+        if (!\Pafish\Core\Auth::isAdmin()) {
+            $countWhere .= ' AND author_id = ?';
+            $countParams[] = (int) \Pafish\Core\Auth::id();
+        }
+        foreach (DB::fetchAll("SELECT status, COUNT(*) AS c FROM posts WHERE {$countWhere} GROUP BY status", $countParams) as $row) {
             $counts[$row['status']] = (int) $row['c'];
         }
-        $counts['TRASH'] = (int) DB::value('SELECT COUNT(*) FROM posts WHERE deleted_at IS NOT NULL');
+        $counts['TRASH'] = (int) DB::value("SELECT COUNT(*) FROM posts WHERE deleted_at IS NOT NULL" . (!\Pafish\Core\Auth::isAdmin() ? ' AND author_id = ?' : ''), $countParams);
 
         // 分类树下拉
         $catTree = Categories::tree();
@@ -136,7 +147,10 @@ final class PostsController extends AdminController
     {
         $this->guardCanManage();
         $id = (int) ($args['id'] ?? 0);
-        $post = DB::fetchOne('SELECT * FROM posts WHERE id = ?', [$id]);
+        $post = DB::fetchOne(
+            'SELECT * FROM posts WHERE id = ?' . (!\Pafish\Core\Auth::isAdmin() ? ' AND author_id = ?' : ''),
+            \Pafish\Core\Auth::isAdmin() ? [$id] : [$id, (int) \Pafish\Core\Auth::id()]
+        );
         if (!$post) {
             return $this->notFound($response);
         }
@@ -194,6 +208,17 @@ final class PostsController extends AdminController
         $ids = array_slice($ids, 0, 100);
         if ($ids === []) {
             return $this->json($response, ['error' => '未选择文章'], 400);
+        }
+        if (!\Pafish\Core\Auth::isAdmin()) {
+            $rawIn = implode(',', array_fill(0, count($ids), '?'));
+            $visible = DB::fetchAll(
+                "SELECT id FROM posts WHERE id IN ({$rawIn}) AND author_id = ?",
+                array_merge($ids, [(int) \Pafish\Core\Auth::id()])
+            );
+            $ids = array_map(static fn (array $row): int => (int) $row['id'], $visible);
+            if ($ids === []) {
+                return $this->json($response, ['error' => '没有可操作的文章'], 403);
+            }
         }
         $op = (string) ($body['op'] ?? '');
         $in = implode(',', array_fill(0, count($ids), '?'));
@@ -271,6 +296,12 @@ final class PostsController extends AdminController
     public function savePost(array $body, ?int $id = null): array
     {
         $action = (string) ($body['action'] ?? 'draft');
+        if ($id !== null && !\Pafish\Core\Auth::isAdmin()) {
+            $owned = DB::fetchOne('SELECT id FROM posts WHERE id = ? AND author_id = ?', [$id, (int) \Pafish\Core\Auth::id()]);
+            if ($owned === null) {
+                throw new \RuntimeException('无权编辑这篇文章');
+            }
+        }
 
         $title = trim((string) ($body['title'] ?? ''));
         if ($title === '') {
@@ -318,6 +349,9 @@ final class PostsController extends AdminController
         // 分类：newCategory 优先于 categoryId
         $categoryId = null;
         $newCategory = trim((string) ($body['new_category'] ?? ''));
+        if ($newCategory !== '' && !\Pafish\Core\Auth::isAdmin()) {
+            throw new \RuntimeException('编辑不能新建分类，请选择已有分类');
+        }
         if ($newCategory !== '') {
             $categoryId = self::resolveNewCategory($newCategory);
         } else {
@@ -328,6 +362,9 @@ final class PostsController extends AdminController
         // 标签：tagIds 已存在 + newTags 按名称匹配/新建
         $tagIds = self::parseIntList($body['tag_ids'] ?? []);
         $newTags = self::parseStringList($body['new_tags'] ?? []);
+        if ($newTags !== [] && !\Pafish\Core\Auth::isAdmin()) {
+            throw new \RuntimeException('编辑不能新建标签，请选择已有标签');
+        }
         $tagIds = array_values(array_unique(array_merge($tagIds, self::resolveNewTags($newTags))));
 
         $isPinned = !empty($body['is_pinned']);
@@ -397,7 +434,10 @@ final class PostsController extends AdminController
             \do_action('after_create_post', $payload);
         } else {
             $created = false;
-            $existing = DB::fetchOne('SELECT * FROM posts WHERE id = ?', [$id]);
+            $existing = DB::fetchOne(
+                'SELECT * FROM posts WHERE id = ?' . (!\Pafish\Core\Auth::isAdmin() ? ' AND author_id = ?' : ''),
+                \Pafish\Core\Auth::isAdmin() ? [$id] : [$id, (int) \Pafish\Core\Auth::id()]
+            );
             if (!$existing) {
                 throw new \RuntimeException('文章不存在');
             }
@@ -491,7 +531,10 @@ final class PostsController extends AdminController
     {
         $this->guardCanManage();
         try {
-            $post = DB::fetchOne('SELECT * FROM posts WHERE id = ?', [$id]);
+            $post = DB::fetchOne(
+                'SELECT * FROM posts WHERE id = ?' . (!\Pafish\Core\Auth::isAdmin() ? ' AND author_id = ?' : ''),
+                \Pafish\Core\Auth::isAdmin() ? [$id] : [$id, (int) \Pafish\Core\Auth::id()]
+            );
             if (!$post) {
                 throw new \RuntimeException('文章不存在');
             }

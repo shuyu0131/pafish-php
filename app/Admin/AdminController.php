@@ -80,7 +80,9 @@ abstract class AdminController
             'role' => $role,
             'siteName' => (string) (Settings::get('site_name', '') ?: '纸鱼博客'),
             'nav' => $this->navForRole($role),
-            'unreadNotifications' => (int) DB::value('SELECT COUNT(*) FROM notifications WHERE `read` = 0'),
+            'unreadNotifications' => Auth::isAdmin()
+                ? (int) DB::value('SELECT COUNT(*) FROM notifications WHERE `read` = 0')
+                : (int) DB::value('SELECT COUNT(*) FROM notifications n JOIN posts p ON p.id = n.post_id WHERE n.`read` = 0 AND p.author_id = ?', [(int) ($user['id'] ?? 0)]),
             'currentPath' => $this->currentPath(),
             'title' => $title,
             'flash' => $this->takeFlash(),

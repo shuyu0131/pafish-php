@@ -15,14 +15,14 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  * - 新建 max(sort_order)+1 追加末尾；编辑不动 visible/sort_order
  * - 显隐切换；上下移动=与相邻项交换 sort_order（事务）；删除确认后物理删
  * - 字段：name(1-100) / url(1-500) / description(≤255 可空，空串存 NULL)
- * 权限：ADMIN+EDITOR（guardCanManage）；CSRF 由 AdminAuthMiddleware 统一校验
+ * 权限：仅 ADMIN；CSRF 由 AdminAuthMiddleware 统一校验
  */
 final class LinksController extends AdminController
 {
     /** GET /admin/links */
     public function index(Request $request, Response $response): Response
     {
-        $this->guardCanManage();
+        $this->guardAdmin();
         $items = DB::fetchAll('SELECT * FROM links ORDER BY sort_order ASC, id ASC');
         $response->getBody()->write($this->render('links', [
             'items' => $items,
@@ -33,7 +33,7 @@ final class LinksController extends AdminController
     /** POST /admin/links/save 或 /admin/links/{id}/save（新建/编辑共用） */
     public function save(Request $request, Response $response, array $args): Response
     {
-        $this->guardCanManage();
+        $this->guardAdmin();
         $id = isset($args['id']) ? (int) $args['id'] : 0;
         try {
             $name = trim((string) ($request->getParsedBody()['name'] ?? ''));
@@ -75,7 +75,7 @@ final class LinksController extends AdminController
     /** POST /admin/links/{id}/delete：物理删除 */
     public function delete(Request $request, Response $response, array $args): Response
     {
-        $this->guardCanManage();
+        $this->guardAdmin();
         DB::execute('DELETE FROM links WHERE id = ?', [(int) ($args['id'] ?? 0)]);
         Cache::clearPrefix('links.');
         return $this->json($response, ['ok' => true]);
@@ -84,7 +84,7 @@ final class LinksController extends AdminController
     /** POST /admin/links/{id}/toggle：显隐切换 */
     public function toggle(Request $request, Response $response, array $args): Response
     {
-        $this->guardCanManage();
+        $this->guardAdmin();
         $id = (int) ($args['id'] ?? 0);
         DB::execute('UPDATE links SET visible = 1 - visible WHERE id = ?', [$id]);
         Cache::clearPrefix('links.');
@@ -94,7 +94,7 @@ final class LinksController extends AdminController
     /** POST /admin/links/{id}/move：与相邻项交换 sort_order（dir: up|down，边界直接返回） */
     public function move(Request $request, Response $response, array $args): Response
     {
-        $this->guardCanManage();
+        $this->guardAdmin();
         $id = (int) ($args['id'] ?? 0);
         $dir = ($request->getParsedBody()['dir'] ?? '') === 'up' ? 'up' : 'down';
         DB::transaction(function () use ($id, $dir): void {

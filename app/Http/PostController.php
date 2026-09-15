@@ -78,10 +78,15 @@ final class PostController
             setcookie($viewCookie, '1', time() + self::VIEW_TTL, '/', '', false, false);
         }
 
-        // ---- 点赞/收藏初始状态（cookie 列表） ----
+        // ---- 点赞/收藏初始状态（登录用户使用持久记录，匿名沿用 cookie） ----
         $postKey = (string) $post['id'];
-        $liked = in_array($postKey, $this->cookieIds('liked_posts'), true);
-        $favorited = in_array($postKey, $this->cookieIds('favorited_posts'), true);
+        $userId = Auth::id();
+        $liked = $userId !== null
+            ? DB::fetchOne('SELECT 1 FROM post_reactions WHERE user_id = ? AND post_id = ? AND kind = ?', [$userId, (int) $post['id'], 'like']) !== null
+            : in_array($postKey, $this->cookieIds('liked_posts'), true);
+        $favorited = $userId !== null
+            ? DB::fetchOne('SELECT 1 FROM post_reactions WHERE user_id = ? AND post_id = ? AND kind = ?', [$userId, (int) $post['id'], 'favorite']) !== null
+            : in_array($postKey, $this->cookieIds('favorited_posts'), true);
 
         // ---- 自定义字段解析（坏数据容错为空） ----
         $customFields = $this->parseCustomFields($post['custom_fields'] ?? null);
@@ -129,9 +134,26 @@ final class PostController
         if ($kind === 'favorite' && !\is_logged_in()) {
             return $this->json($response, ['error' => '请先登录后再收藏', 'login_url' => \url_to('/login')], 401);
         }
-        $post = DB::fetchOne('SELECT id FROM posts WHERE id = ?', [$id]);
+        $post = DB::fetchOne("SELECT id FROM posts WHERE id = ? AND status = 'PUBLISHED' AND deleted_at IS NULL", [$id]);
         if (!$post) {
             return $this->json($response, ['error' => 'Not Found'], 404);
+        }
+
+        $userId = Auth::id();
+        if ($userId !== null) {
+            $existing = DB::fetchOne('SELECT 1 FROM post_reactions WHERE user_id = ? AND post_id = ? AND kind = ?', [$userId, $id, $kind]);
+            $active = $existing === null;
+            DB::transaction(function () use ($existing, $userId, $id, $kind): void {
+                if ($existing !== null) {
+                    DB::execute('DELETE FROM post_reactions WHERE user_id = ? AND post_id = ? AND kind = ?', [$userId, $id, $kind]);
+                    DB::execute("UPDATE posts SET {$kind}_count = GREATEST({$kind}_count - 1, 0) WHERE id = ?", [$id]);
+                } else {
+                    DB::execute('INSERT INTO post_reactions (user_id, post_id, kind) VALUES (?, ?, ?)', [$userId, $id, $kind]);
+                    DB::execute("UPDATE posts SET {$kind}_count = {$kind}_count + 1 WHERE id = ?", [$id]);
+                }
+            });
+            $count = (int) DB::value("SELECT {$kind}_count FROM posts WHERE id = ?", [$id]);
+            return $this->json($response, ['ok' => true, 'active' => $active, 'count' => $count]);
         }
 
         $cookieName = $kind === 'like' ? 'liked_posts' : 'favorited_posts';

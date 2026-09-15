@@ -1,0 +1,17 @@
+<?php
+/**
+ * 插件前台页面（系统默认模板；主题可覆盖 themes/{active}/plugin-page.php）
+ * 可用数据：$title、$pluginName、$pluginPageHtml
+ * 公共页面壳：侧边栏/导航/主题 CSS/注入全部走系统布局，
+ * 正文区输出插件 renderPluginPage 渲染的 HTML（.plugin-page 容器）
+ */
+get_header();
+?>
+<div class="container container-narrow">
+  <header class="page-header">
+    <h1 class="page-title"><?= e((string) ($title ?? $pluginName ?? '')) ?></h1>
+  </header>
+  <div class="plugin-page"><?= $pluginPageHtml ?></div>
+</div>
+<?php
+get_footer();

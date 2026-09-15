@@ -1,0 +1,24 @@
+{
+  "name": "sitemap",
+  "title": "Sitemap",
+  "version": "1.0.1",
+  "apiVersion": 2,
+  "description": "生成可配置的 XML 站点地图，帮助搜索引擎发现公开内容。",
+  "author": "pafish",
+  "authorUrl": "https://www.pafish.cn",
+  "homepage": "https://www.pafish.cn",
+  "builtin": true,
+  "frontendUrl": "/sitemap.xml",
+  "category": "SEO",
+  "keywords": "seo, sitemap, xml, search",
+  "requiresPhp": "8.1",
+  "changelog": "补充前台地址 /sitemap.xml，便于在后台快速打开站点地图。",
+  "settings": [
+    { "key": "include_posts", "label": "收录文章", "type": "switcher", "default": "1", "group": "收录内容" },
+    { "key": "include_pages", "label": "收录独立页面", "type": "switcher", "default": "1", "group": "收录内容" },
+    { "key": "include_categories", "label": "收录分类", "type": "switcher", "default": "1", "group": "收录内容" },
+    { "key": "include_tags", "label": "收录标签", "type": "switcher", "default": "1", "group": "收录内容" },
+    { "key": "update_frequency", "label": "更新频率", "type": "select", "default": "weekly", "options": { "daily": "每天", "weekly": "每周", "monthly": "每月" }, "group": "生成规则" },
+    { "key": "tag_min_posts", "label": "标签最低文章数", "type": "select", "default": "2", "options": { "1": "至少 1 篇", "2": "至少 2 篇", "3": "至少 3 篇", "5": "至少 5 篇", "10": "至少 10 篇" }, "group": "生成规则", "show_if": { "key": "include_tags", "value": "1" } }
+  ]
+}

@@ -1,0 +1,40 @@
+# pafish 伪静态规则（Apache mod_rewrite）
+# 不支持伪静态的主机：删除本文件，并把 runtime/config.php 中 pretty_urls 改为 false
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # 子目录部署时取消注释并改为实际目录（如 /blog）
+    # RewriteBase /blog/
+
+    # 根路径静态资源映射到 public/。
+    RewriteRule ^(css|js|uploads|vendor)(/.*)?$ public/$1$2 [L,NC]
+    RewriteRule ^favicon\.svg$ public/favicon.svg [L,NC]
+
+    # 兼容旧主题资源地址。
+    RewriteRule ^theme-assets/ index.php [QSA,L,NC]
+
+    # 禁止直接执行主题模板。
+    RewriteRule ^themes/.*\.php$ - [F,L,NC]
+
+    # 非真实文件/目录请求一律交给 index.php
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^ index.php [QSA,L]
+</IfModule>
+
+# 保护敏感文件
+<FilesMatch "^(config\.php|composer\.(json|lock)|\.env)">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# 禁止访问运行时目录
+<IfModule mod_rewrite.c>
+    RewriteRule ^runtime/ - [F,L]
+</IfModule>

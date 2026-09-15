@@ -1,0 +1,1 @@
+ALTER TABLE widgets ADD COLUMN area VARCHAR(50) NOT NULL DEFAULT 'sidebar' AFTER content;

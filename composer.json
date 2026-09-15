@@ -1,0 +1,34 @@
+{
+    "name": "pafish/pafish-php",
+    "description": "pafish 博客 CMS PHP 版 —— 轻量零构建，支持共享虚拟主机，一键 Web 安装",
+    "type": "project",
+    "license": "MIT",
+    "version": "1.0.0",
+    "require": {
+        "php": ">=8.1",
+        "slim/slim": "^4.14",
+        "slim/psr7": "^1.7",
+        "php-di/php-di": "^7.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Pafish\\": "app/"
+        },
+        "files": [
+            "app/Lib/Parsedown.php",
+            "app/Lib/ParsedownExtra.php"
+        ]
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "sort-packages": true,
+        "preferred-install": "dist",
+        "policy": {
+            "advisories": {
+                "ignore-id": [
+                    "GHSA-53h4-8rc4-f539"
+                ]
+            }
+        }
+    }
+}

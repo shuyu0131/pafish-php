@@ -1,0 +1,148 @@
+<?php
+/**
+ * 页面管理列表
+ * 变量：$items $total $page $totalPages $per $perOptions $filters $homePageId $templateOptions $role
+ * 操作：设为首页/取消（fetch POST /admin/pages/set-home）、编辑、删除（硬删除，无回收站）
+ */
+?>
+<div class="admin-stack">
+  <div class="admin-page-head">
+    <div>
+      <h1 class="admin-h1">页面管理</h1>
+      <p class="admin-page-sub">共 <?= (int) $total ?> 个页面</p>
+    </div>
+    <div class="admin-head-actions">
+      <a class="btn btn-primary" href="<?= e(url_to('/admin/pages/new')) ?>">
+        <?= admin_icon('file-plus', 15) ?>新建页面
+      </a>
+    </div>
+  </div>
+
+  <form class="admin-user-toolbar" action="<?= e(url_to('/admin/pages')) ?>" method="get" role="search">
+    <input type="search" class="input" name="q" value="<?= e((string) ($filters['q'] ?? '')) ?>" placeholder="搜索标题或地址" autocomplete="off">
+    <select class="input" name="status" aria-label="筛选状态" onchange="this.form.submit()">
+      <option value="">全部状态</option>
+      <option value="PUBLISHED"<?= ($filters['status'] ?? '') === 'PUBLISHED' ? ' selected' : '' ?>>已发布</option>
+      <option value="DRAFT"<?= ($filters['status'] ?? '') === 'DRAFT' ? ' selected' : '' ?>>草稿</option>
+    </select>
+    <button class="btn btn-primary" type="submit">筛选</button>
+    <?php if (($filters['q'] ?? '') !== '' || ($filters['status'] ?? '') !== ''): ?><a class="btn btn-ghost" href="<?= e(url_to('/admin/pages')) ?>">清除</a><?php endif; ?>
+  </form>
+
+  <div class="admin-table-wrap">
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>标题</th>
+          <th>状态</th>
+          <th>模板</th>
+          <th>更新时间</th>
+          <th class="admin-col-ops">操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php if ($items === []): ?>
+          <tr><td colspan="5">
+            <div class="admin-empty-list">
+              <?= admin_icon('file-plus', 32) ?>
+              <p>还没有页面</p>
+              <a class="btn btn-outline" href="<?= e(url_to('/admin/pages/new')) ?>">新建第一个页面</a>
+            </div>
+          </td></tr>
+        <?php else: ?>
+          <?php foreach ($items as $p): ?>
+            <?php $isHome = (string) $p['id'] === $homePageId; ?>
+            <tr data-page-row="<?= (int) $p['id'] ?>">
+              <td>
+                <a class="admin-post-title" href="<?= e(url_to('/admin/pages/' . $p['id'] . '/edit')) ?>">
+                  <?php if ($isHome): ?><span class="badge badge-accent">首页</span><?php endif; ?>
+                  <span class="admin-post-title-text"><?= e($p['title']) ?></span>
+                </a>
+                <div class="admin-post-meta">
+                  <span>/<?= e($p['slug']) ?></span>
+                </div>
+              </td>
+              <td data-label="状态">
+                <span class="badge <?= $p['status'] === 'PUBLISHED' ? 'badge-success' : '' ?>">
+                  <?= $p['status'] === 'PUBLISHED' ? '已发布' : '草稿' ?>
+                </span>
+              </td>
+              <td class="admin-muted" data-label="模板"><?= e(($templateOptions[$p['template']] ?? $p['template'])) ?></td>
+              <td class="admin-muted" data-label="更新时间"><?= e(format_date($p['updated_at'], 'yyyy-MM-dd HH:mm')) ?></td>
+              <td class="admin-col-ops" data-label="操作">
+                <div class="admin-row-ops">
+                  <?php if ($p['status'] === 'PUBLISHED'): ?>
+                    <a class="admin-icon-btn" href="<?= e(url_to('/pages/' . rawurlencode($p['slug']))) ?>" target="_blank" rel="noopener" title="查看"><?= admin_icon('eye', 15) ?></a>
+                  <?php endif; ?>
+                  <?php if ($isHome): ?>
+                    <button type="button" class="admin-icon-btn admin-icon-danger" data-set-home="<?= (int) $p['id'] ?>" data-set="0" title="取消首页"><?= admin_icon('home', 15) ?></button>
+                  <?php else: ?>
+                    <button type="button" class="admin-icon-btn" data-set-home="<?= (int) $p['id'] ?>" data-set="1" title="设为首页"><?= admin_icon('home', 15) ?></button>
+                  <?php endif; ?>
+                  <a class="admin-icon-btn" href="<?= e(url_to('/admin/pages/' . $p['id'] . '/edit')) ?>" title="编辑"><?= admin_icon('edit', 15) ?></a>
+                  <button type="button" class="admin-icon-btn admin-icon-danger" data-delete-page="<?= (int) $p['id'] ?>"
+                          data-name="<?= e($p['title']) ?>" title="删除"><?= admin_icon('trash', 15) ?></button>
+                </div>
+              </td>
+            </tr>
+          <?php endforeach; ?>
+        <?php endif; ?>
+      </tbody>
+    </table>
+  </div>
+  <?= admin_pagination($page, $totalPages, $total, static function (int $p, int $size = 20) use ($filters): string {
+    $params = ['q' => $filters['q'] ?? '', 'status' => $filters['status'] ?? '', 'per' => $size, 'page' => $p];
+    $params = array_filter($params, static fn ($value, $key): bool => $value !== '' && !($key === 'page' && $value === 1), ARRAY_FILTER_USE_BOTH);
+    return url_to('/admin/pages') . ($params ? '?' . http_build_query($params) : '');
+  }, $per, $perOptions) ?>
+</div>
+
+<?php $pageCsrf = csrf_token(); ?>
+<script>
+(function () {
+  var token = <?= json_encode($pageCsrf) ?>;
+  function post(url, body) {
+    var fd = new FormData();
+    Object.keys(body || {}).forEach(function (k) { fd.append(k, body[k]); });
+    fd.append("_csrf", token);
+    return fetch(url, { method: "POST", body: fd, headers: { "X-Requested-With": "XMLHttpRequest" } });
+  }
+
+  // 设为首页 / 取消
+  document.querySelectorAll("[data-set-home]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      post(<?= json_encode(url_to('/admin/pages/set-home')) ?>, {
+        id: btn.getAttribute("data-set-home"),
+        set: btn.getAttribute("data-set")
+      }).then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (j && j.ok) pafishToastReload("页面状态已更新", "success");
+          else pafishNotify((j && j.error) || "操作失败", true);
+        })
+        .catch(function () { pafishNotify("网络错误", true); });
+    });
+  });
+
+  // 删除（硬删除，无回收站 → 二次确认）
+  document.querySelectorAll("[data-delete-page]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var id = btn.getAttribute("data-delete-page");
+      var name = btn.getAttribute("data-name") || "";
+      (window.pafishConfirm ? window.pafishConfirm("确定删除页面「" + name + "」？此操作不可恢复！", { title: "删除页面" }) : Promise.resolve(window.confirm("确定删除页面「" + name + "」？"))).then(function (ok) {
+        if (!ok) return;
+        return post(<?= json_encode(url_to('/admin/pages')) ?> + "/" + id + "/delete")
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (j && j.ok) {
+            var row = btn.closest("[data-page-row]");
+            if (row) row.remove();
+            if (document.querySelector("[data-page-row]")) pafishToast("页面已删除", "success");
+            else pafishToastReload("页面已删除", "success");
+          } else pafishNotify((j && j.error) || "删除失败", true);
+        })
+        .catch(function () { pafishNotify("网络错误", true); });
+      });
+    });
+  });
+})();
+</script>

@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Pafish\Http;
 
+use Pafish\Core\Auth;
 use Pafish\Core\DB;
+use Pafish\Core\Session;
 
 /**
  * 评论区数据：
@@ -61,8 +63,27 @@ final class Comments
             $batch = array_map(static fn (array $k): int => (int) $k['id'], $kids);
         }
 
-        // 当前浏览器已点赞的评论（cookie 回显）
-        $likedSet = array_values(array_filter(array_map('trim', explode(',', (string) ($_COOKIE['liked_comments'] ?? '')))));
+        // 待审评论不进入公开统计或分页，只向评论者本人和管理员回显。
+        $pending = self::visiblePending($postId, $columns);
+        if ($pending !== []) {
+            $all = array_merge($all, $pending);
+        }
+
+        // 登录用户使用持久记录；游客沿用浏览器 Cookie。
+        $viewerId = Auth::id();
+        if ($viewerId !== null && $all !== []) {
+            $commentIds = array_map(static fn (array $comment): int => (int) $comment['id'], $all);
+            $placeholders = implode(',', array_fill(0, count($commentIds), '?'));
+            $likedSet = array_map(
+                static fn (array $row): string => (string) $row['comment_id'],
+                DB::fetchAll(
+                    'SELECT comment_id FROM comment_reactions WHERE user_id = ? AND comment_id IN (' . $placeholders . ')',
+                    array_merge([$viewerId], $commentIds)
+                )
+            );
+        } else {
+            $likedSet = array_values(array_filter(array_map('trim', explode(',', (string) ($_COOKIE['liked_comments'] ?? '')))));
+        }
 
         // 构建节点 + 回复树（引用索引；父节点缺失的按顶层展示）
         $nodes = [];
@@ -74,6 +95,7 @@ final class Comments
                 'content' => (string) $c['content'],
                 'createdAtLabel' => \format_date($c['created_at'], 'yyyy-MM-dd HH:mm'),
                 'isPinned' => (int) $c['is_pinned'] === 1,
+                'isPending' => $c['status'] === 'PENDING',
                 'likeCount' => (int) $c['like_count'],
                 'liked' => in_array((string) $c['id'], $likedSet, true),
                 'replies' => [],
@@ -120,6 +142,47 @@ final class Comments
 
     private static function columns(): string
     {
-        return 'c.id, c.author_name, c.author_email, c.content, c.created_at, c.parent_id, c.is_pinned, c.like_count, u.nickname, u.avatar_url';
+        return 'c.id, c.author_name, c.author_email, c.user_id, c.content, c.status, c.created_at, c.parent_id, c.is_pinned, c.like_count, u.nickname, u.avatar_url';
+    }
+
+    /** 仅管理员、登录评论者本人或当前访客会话可见的待审评论。 */
+    private static function visiblePending(int $postId, string $columns): array
+    {
+        if (Auth::isAdmin()) {
+            return DB::fetchAll(
+                "SELECT {$columns} FROM comments c
+                 LEFT JOIN users u ON u.id = c.user_id
+                 WHERE c.post_id = ? AND c.status = 'PENDING'
+                 ORDER BY c.created_at ASC",
+                [$postId]
+            );
+        }
+
+        $viewerId = Auth::id();
+        if ($viewerId !== null) {
+            return DB::fetchAll(
+                "SELECT {$columns} FROM comments c
+                 LEFT JOIN users u ON u.id = c.user_id
+                 WHERE c.post_id = ? AND c.status = 'PENDING' AND c.user_id = ?
+                 ORDER BY c.created_at ASC",
+                [$postId, $viewerId]
+            );
+        }
+
+        $ids = array_values(array_unique(array_filter(
+            array_map('intval', (array) Session::get('pending_comment_ids', [])),
+            static fn (int $id): bool => $id > 0
+        )));
+        if ($ids === []) {
+            return [];
+        }
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        return DB::fetchAll(
+            "SELECT {$columns} FROM comments c
+             LEFT JOIN users u ON u.id = c.user_id
+             WHERE c.post_id = ? AND c.status = 'PENDING' AND c.id IN ({$placeholders})
+             ORDER BY c.created_at ASC",
+            array_merge([$postId], $ids)
+        );
     }
 }

@@ -134,8 +134,7 @@ final class Auth
     {
         self::requireLogin();
         if (!self::isAdmin()) {
-            // 非 ADMIN 重定向回工作台
-            header('Location: ' . Url::to('/admin'));
+            header('Location: ' . Url::to(self::isEditor() ? '/admin' : '/profile'));
             exit;
         }
     }
@@ -144,7 +143,7 @@ final class Auth
     {
         self::requireLogin();
         if (!self::can($capability)) {
-            header('Location: ' . Url::to('/admin'));
+            header('Location: ' . Url::to(self::isEditor() ? '/admin' : '/profile'));
             exit;
         }
     }

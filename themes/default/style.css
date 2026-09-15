@@ -78,7 +78,7 @@ img {
   outline: none;
 }
 
-/* 紧凑的站点标识 */
+/* 标题：全大写 + 字距 */
 .editorial {
   font-family: var(--font-sans);
   text-transform: uppercase;
@@ -284,14 +284,35 @@ img {
   }
 }
 
-/* 页脚：移动端与桌面均显示（备案号/默认文案移动端也要可见） */
+/* 页脚：桌面固定在左侧栏底部，移动端回到正文末尾 */
 .app-footer {
   display: block;
   border-top: 1px solid var(--border);
-  padding: 1.5rem 0;
+  padding: 0;
   text-align: center;
-  font-size: 0.625rem;
-  color: var(--meta);
+  font-size: 0.6875rem;
+  color: var(--muted);
+  line-height: 1.8;
+}
+.app-footer-inner {
+  width: 100%;
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: 1.25rem 1.5rem 1.75rem;
+}
+@media (min-width: 1024px) {
+  .app-footer[data-theme-footer="default"] {
+    display: block;
+    position: fixed;
+    z-index: 41;
+    left: 0;
+    bottom: 3rem;
+    width: 40%;
+    border-top: 0;
+  }
+  .app-footer[data-theme-footer="default"] .app-footer-inner {
+    padding: 0 2rem;
+  }
 }
 .app-footer p {
   margin: 0;
@@ -1965,6 +1986,16 @@ input[type="radio"]:focus-visible {
   font-weight: 500;
   flex-shrink: 0;
 }
+.comment-pending {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  padding: 0.0625rem 0.3125rem;
+  color: var(--muted);
+  font-size: 0.625rem;
+  line-height: 1.35;
+  flex-shrink: 0;
+}
 .comment-date {
   font-size: 0.75rem;
   color: var(--muted);
@@ -2032,92 +2063,4 @@ input[type="radio"]:focus-visible {
   padding: 0 0.5rem;
   font-size: 0.875rem;
   color: var(--muted);
-}
-
-/* ============ 首页：固定信息栏与文字列表 ============ */
-.default-home { min-width: 0; background: var(--bg); color: var(--fg); }
-.default-home-shell { min-height: 100dvh; }
-.default-home-sidebar { position: fixed; z-index: 10; inset: 0 auto 0 0; width: clamp(18.75rem, 31vw, 26.75rem); border-right: 1px solid var(--border); background: var(--card); }
-.default-home-sidebar-inner { display: flex; flex-direction: column; justify-content: space-between; min-height: 100%; padding: clamp(2.75rem, 7vh, 5.25rem) clamp(2.125rem, 5vw, 4.25rem) 2.125rem; }
-.default-home-brand { display: grid; gap: 0.4rem; color: var(--title); text-decoration: none; }
-.default-home-brand span { color: var(--meta); font-size: 0.625rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; }
-.default-home-brand strong { font-size: clamp(1.55rem, 2.2vw, 2rem); font-weight: 600; letter-spacing: 0; line-height: 1.3; }
-.default-home-description { max-width: 30ch; margin: 1.4rem 0 0; color: var(--muted); font-size: 0.84rem; line-height: 1.85; }
-.default-home-rule { display: block; width: 2.1rem; height: 1px; margin: 2rem 0 1.45rem; background: var(--title); }
-.default-home-nav { display: grid; gap: 0.125rem; }
-.default-home-nav a { display: flex; align-items: baseline; justify-content: space-between; padding: 0.52rem 0; color: var(--muted); font-size: 0.875rem; text-decoration: none; transition: color .18s ease, transform .18s ease; }
-.default-home-nav a::after { color: var(--meta); content: attr(data-index); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.625rem; font-variant-numeric: tabular-nums; }
-.default-home-nav a:hover, .default-home-nav a[aria-current="page"] { color: var(--title); transform: translateX(0.2rem); }
-.default-home-nav a[aria-current="page"]::before { width: 0.85rem; height: 1px; margin-right: 0.625rem; background: var(--accent); content: ""; }
-.default-home-actions { display: flex; align-items: center; gap: 0.5rem; margin-top: 1.45rem; }
-.default-home-actions > a { padding: 0.35rem 0; color: var(--muted); font-size: 0.75rem; text-decoration: none; }
-.default-home-actions > a:hover { color: var(--title); }
-.default-home-actions .theme-toggle { display: inline-grid; width: 1.75rem; height: 1.75rem; padding: 0; place-items: center; border: 0; color: var(--muted); }
-.default-home-actions .theme-toggle:hover { color: var(--title); background: var(--accent-soft); }
-.default-home-sidebar-footer { color: var(--meta); font-size: 0.625rem; letter-spacing: 0.07em; line-height: 1.8; }
-.default-home-sidebar-footer p { margin: 0; }
-.default-home-sidebar-footer p + p { margin-top: 0.4rem; }
-.default-home-main { min-height: 100dvh; margin-left: clamp(18.75rem, 31vw, 26.75rem); padding: clamp(3rem, 8vh, 5.625rem) clamp(2rem, 8vw, 7.5rem) 4.875rem; }
-.default-home-content { max-width: 49.375rem; }
-.default-home-heading { display: flex; align-items: center; gap: 1.1rem; margin-bottom: clamp(3.4rem, 9vh, 6rem); }
-.default-home-heading h1 { margin: 0; color: var(--muted); font-size: 0.69rem; font-weight: 600; letter-spacing: 0.15em; white-space: nowrap; }
-.default-home-heading h1::after { content: " / RECENT"; color: var(--meta); }
-.default-home-heading span { width: 100%; height: 1px; background: var(--border); }
-.default-home-post-list { border-top: 1px solid var(--border); }
-.default-home-post { display: grid; grid-template-columns: 6.6rem minmax(0, 1fr); gap: clamp(1.4rem, 4vw, 2.85rem); padding: 1.85rem 0 2.05rem; border-bottom: 1px solid var(--border); }
-.default-home-post-meta { padding-top: 0.35rem; }
-.default-home-post-meta time, .default-home-post-meta a { display: block; font-size: 0.68rem; line-height: 1.55; }
-.default-home-post-meta time { color: var(--meta); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric: tabular-nums; }
-.default-home-post-meta a { margin-top: 0.5rem; color: var(--muted); text-decoration: none; }
-.default-home-post-meta a:hover { color: var(--title); }
-.default-home-post-body { display: block; min-width: 0; color: inherit; text-decoration: none; }
-.default-home-post-body h2 { margin: 0; color: var(--title); font-size: clamp(1.32rem, 2.1vw, 1.75rem); font-weight: 600; letter-spacing: 0; line-height: 1.5; text-wrap: balance; }
-.default-home-post-body p { max-width: 55ch; margin: 0.65rem 0 0; color: var(--muted); font-size: 0.875rem; line-height: 1.85; overflow-wrap: anywhere; }
-.default-home-post-body > span { display: inline-flex; gap: 0.4rem; margin-top: 1rem; color: var(--title); font-size: 0.65rem; font-weight: 600; letter-spacing: 0.12em; }
-.default-home-post-body b { font-size: 0.9rem; font-weight: 400; transition: transform .18s ease; }
-.default-home-post:hover .default-home-post-body h2 { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.25rem; }
-.default-home-post:hover .default-home-post-body b { transform: translateX(0.25rem); }
-.default-home-empty { padding: 2.25rem 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); color: var(--muted); font-size: 0.875rem; }
-.default-home-pagination { display: flex; align-items: center; gap: 1.25rem; margin-top: 3rem; color: var(--meta); font-size: 0.68rem; letter-spacing: 0.1em; }
-.default-home-pagination a { color: var(--title); text-decoration: none; border-bottom: 1px solid var(--title); padding-bottom: 0.2rem; }
-.default-home-pagination a:hover { color: var(--muted); border-color: var(--muted); }
-.default-home-pagination span:first-child, .default-home-pagination span:last-child { color: var(--border); }
-.default-home-mobile-header, .default-home-page-footer { display: none; }
-
-@media (max-width: 63.9375rem) {
-  .default-home-sidebar { display: none; }
-  .default-home-mobile-header { position: fixed; z-index: 30; inset: 0 0 auto; display: flex; align-items: center; justify-content: space-between; height: 3.5rem; padding: 0 clamp(1.5rem, 7vw, 4rem); border-bottom: 1px solid var(--border); background: var(--card); }
-  .default-home-mobile-brand { color: var(--title); font-size: 0.875rem; font-weight: 700; letter-spacing: 0.08em; text-decoration: none; }
-  .default-home-mobile-tools { display: flex; align-items: center; gap: 0.65rem; }
-  .default-home-mobile-tools .theme-toggle { display: grid; width: 1.75rem; height: 1.75rem; padding: 0; place-items: center; border: 0; color: var(--muted); }
-  .default-home-mobile-tools .theme-toggle:hover { color: var(--title); background: var(--accent-soft); }
-  .default-home-menu-check { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
-  .default-home-menu-button, .default-home-menu-close { display: grid; width: 1.75rem; height: 1.75rem; padding: 0; place-items: center; border: 0; color: var(--muted); cursor: pointer; font-size: 1.25rem; line-height: 1; }
-  .default-home-drawer { position: fixed; z-index: 32; inset: 0 0 0 auto; display: flex; width: min(18.125rem, 84vw); flex-direction: column; padding: 0.9rem 1.5rem 1.875rem; background: var(--card); box-shadow: -1rem 0 2.625rem rgba(0, 0, 0, 0.08); transform: translateX(105%); transition: transform .22s ease; }
-  .default-home-menu-close { align-self: flex-end; font-size: 1.55rem; }
-  .default-home-mobile-nav { display: grid; gap: 0.25rem; margin-top: 2rem; }
-  .default-home-mobile-nav a { padding: 0.75rem 0; border-bottom: 1px solid var(--border); color: var(--muted); font-size: 0.94rem; text-decoration: none; }
-  .default-home-mobile-nav a[aria-current="page"], .default-home-mobile-nav a:hover { color: var(--title); font-weight: 600; }
-  .default-home-mobile-nav hr { width: 100%; height: 1px; margin: 1rem 0 0; border: 0; background: var(--border); }
-  .default-home-menu-mask { position: fixed; z-index: 31; inset: 0; visibility: hidden; background: rgba(0, 0, 0, 0.16); opacity: 0; transition: opacity .22s ease, visibility .22s ease; }
-  .default-home-menu-check:checked ~ .default-home-drawer { transform: translateX(0); }
-  .default-home-menu-check:checked ~ .default-home-menu-mask { visibility: visible; opacity: 1; }
-  .default-home-main { margin-left: 0; padding: 5.75rem clamp(1.5rem, 7vw, 4rem) 4rem; }
-  .default-home-page-footer { display: block; border-top: 1px solid var(--border); padding: 1.45rem clamp(1.5rem, 7vw, 4rem); color: var(--meta); font-size: 0.625rem; letter-spacing: 0.07em; line-height: 1.8; }
-  .default-home-page-footer p { margin: 0; }
-  .default-home-page-footer p + p { margin-top: 0.3rem; }
-}
-
-@media (max-width: 38.75rem) {
-  .default-home-mobile-header { padding: 0 1.25rem; }
-  .default-home-main { padding: 5.75rem 1.25rem 3rem; }
-  .default-home-page-footer { padding: 1.35rem 1.25rem; }
-  .default-home-heading { gap: 0.75rem; margin-bottom: 2.35rem; }
-  .default-home-heading h1 { font-size: 0.625rem; letter-spacing: 0.1em; }
-  .default-home-post { display: block; padding: 1.55rem 0 1.75rem; }
-  .default-home-post-meta { display: flex; align-items: baseline; gap: 0.75rem; padding: 0; margin-bottom: 0.6rem; }
-  .default-home-post-meta a { margin: 0; }
-  .default-home-post-body h2 { font-size: 1.3rem; line-height: 1.55; }
-  .default-home-post-body p { margin-top: 0.45rem; font-size: 0.82rem; line-height: 1.78; }
-  .default-home-pagination { justify-content: space-between; gap: 0.75rem; margin-top: 2.25rem; }
 }

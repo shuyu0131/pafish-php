@@ -82,7 +82,7 @@ abstract class AdminController
             'nav' => $this->navForRole($role),
             'unreadNotifications' => Auth::isAdmin()
                 ? (int) DB::value('SELECT COUNT(*) FROM notifications WHERE `read` = 0')
-                : (int) DB::value('SELECT COUNT(*) FROM notifications n JOIN posts p ON p.id = n.post_id WHERE n.`read` = 0 AND p.author_id = ?', [(int) ($user['id'] ?? 0)]),
+                : (int) DB::value('SELECT COUNT(*) FROM notifications WHERE `read` = 0 AND recipient_id = ?', [(int) ($user['id'] ?? 0)]),
             'currentPath' => $this->currentPath(),
             'title' => $title,
             'flash' => $this->takeFlash(),
@@ -106,7 +106,7 @@ abstract class AdminController
     {
         Auth::requireLogin();
         if (!Auth::can('posts.manage')) {
-            header('Location: ' . Url::to('/admin'));
+            header('Location: ' . Url::to(Auth::isEditor() ? '/admin' : '/profile'));
             exit;
         }
     }
@@ -148,7 +148,7 @@ abstract class AdminController
     {
         Auth::requireLogin();
         if (!Auth::isAdmin()) {
-            header('Location: ' . Url::to('/admin'));
+            header('Location: ' . Url::to(Auth::isEditor() ? '/admin' : '/profile'));
             exit;
         }
     }

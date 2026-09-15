@@ -16,11 +16,17 @@ use Pafish\Core\DB;
 final class Notify
 {
     /** 站内通知：新评论/新回复 */
-    public static function createNotification(string $type, string $message, ?int $postId = null, ?int $commentId = null): void
+    public static function createNotification(
+        string $type,
+        string $message,
+        ?int $postId = null,
+        ?int $commentId = null,
+        ?int $recipientId = null
+    ): void
     {
         DB::execute(
-            'INSERT INTO notifications (type, message, post_id, comment_id) VALUES (?, ?, ?, ?)',
-            [$type, $message, $postId, $commentId]
+            'INSERT INTO notifications (type, message, post_id, comment_id, recipient_id) VALUES (?, ?, ?, ?, ?)',
+            [$type, $message, $postId, $commentId, $recipientId]
         );
     }
 

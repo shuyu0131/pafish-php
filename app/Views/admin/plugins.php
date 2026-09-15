@@ -110,22 +110,25 @@ $pluginActive = count(array_filter($plugins, static fn (array $plugin): bool => 
 
   <div class="admin-modal-backdrop admin-install-modal" id="plugin-install" hidden>
     <div class="admin-modal admin-install-dialog" role="dialog" aria-modal="true" aria-labelledby="plugin-install-title">
-    <div class="admin-modal-head admin-theme-install-head">
-      <h2 class="admin-modal-title" id="plugin-install-title">安装插件</h2>
-      <button type="button" class="admin-icon-btn" data-modal-close aria-label="关闭安装面板" title="关闭安装面板">×</button>
-    </div>
-    <div class="admin-modal-body"><div class="admin-theme-install-row">
-      <div class="admin-theme-install-block">
-        <p class="admin-muted">上传 zip 包</p>
+      <div class="admin-modal-head admin-install-head">
+        <h2 class="admin-modal-title" id="plugin-install-title">安装插件</h2>
+        <button type="button" class="admin-icon-btn" data-modal-close aria-label="关闭安装面板" title="关闭安装面板">×</button>
+      </div>
+      <div class="admin-modal-body admin-install-body">
         <input type="file" id="pluginZipInput" accept=".zip" hidden>
-        <div class="admin-theme-install-line">
-          <button type="button" id="pluginZipBtn" class="btn btn-outline">选择 zip 文件</button>
-          <button type="button" id="pluginUploadBtn" class="btn btn-primary" disabled>上传安装</button>
-        </div>
-        <p class="admin-field-hint" id="pluginZipName"></p>
+        <label class="admin-package-picker" for="pluginZipInput" id="pluginZipPicker">
+          <span class="admin-package-picker-icon" aria-hidden="true"><?= admin_icon('upload', 20) ?></span>
+          <span class="admin-package-picker-copy">
+            <strong>选择插件压缩包</strong>
+            <span id="pluginZipName" aria-live="polite">仅支持 .zip 格式</span>
+          </span>
+        </label>
+      </div>
+      <div class="admin-modal-actions admin-install-actions">
+        <button type="button" class="btn btn-ghost" data-modal-close>取消</button>
+        <button type="button" id="pluginUploadBtn" class="btn btn-primary" disabled>安装插件</button>
       </div>
     </div>
-    </div></div></div>
   </div>
 </div>
 
@@ -214,17 +217,18 @@ $pluginActive = count(array_filter($plugins, static fn (array $plugin): bool => 
 
   // ---- 安装：zip / URL ----
   var zipInput = document.getElementById("pluginZipInput");
-  var zipBtn = document.getElementById("pluginZipBtn");
   var uploadBtn = document.getElementById("pluginUploadBtn");
   var zipName = document.getElementById("pluginZipName");
+  var zipPicker = document.getElementById("pluginZipPicker");
 
-  zipBtn.addEventListener("click", function () { zipInput.click(); });
   zipInput.addEventListener("change", function () {
     if (zipInput.files && zipInput.files[0]) {
       zipName.textContent = zipInput.files[0].name;
+      zipPicker.classList.add("is-ready");
       uploadBtn.disabled = false;
     } else {
-      zipName.textContent = "";
+      zipName.textContent = "仅支持 .zip 格式";
+      zipPicker.classList.remove("is-ready");
       uploadBtn.disabled = true;
     }
   });
@@ -246,7 +250,7 @@ $pluginActive = count(array_filter($plugins, static fn (array $plugin): bool => 
     var fd = new FormData();
     fd.append("zip", zipInput.files[0]);
     fd.append("_csrf", CSRF);
-    install(fd, "插件包已上传", uploadBtn, "上传安装");
+    install(fd, "插件包已上传", uploadBtn, "安装插件");
   });
 })();
 </script>

@@ -14,7 +14,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  * - 20/页，未读在前（read asc）再按时间倒序；顶部未读数 + 「全部已读」
  * - 通知类型：NEW_COMMENT 新评论 / NEW_REPLY 新回复（仅评论提交产生，见 Notify::createNotification）
  * - 每条：类型图标、message、时间、「查看文章」+「去审核」（PENDING 列表）链接
- * 权限：ADMIN+EDITOR（comments.manage）；编辑仅查看自己文章的通知，CSRF 由 AdminAuthMiddleware 统一校验
+ * 权限：ADMIN+EDITOR（comments.manage）；非管理员仅查看发给自己账户的通知，CSRF 由 AdminAuthMiddleware 统一校验
  */
 final class NotificationsController extends AdminController
 {
@@ -52,11 +52,7 @@ final class NotificationsController extends AdminController
     {
         $this->guardCapability('comments.manage');
         $scope = $this->editorScope();
-        if ($scope['sql'] === '') {
-            DB::execute('UPDATE notifications SET `read` = 1 WHERE `read` = 0');
-        } else {
-            DB::execute('UPDATE notifications n JOIN posts p ON p.id = n.post_id SET n.`read` = 1 WHERE n.`read` = 0 AND p.author_id = ?', $scope['params']);
-        }
+        DB::execute('UPDATE notifications n SET n.`read` = 1 WHERE n.`read` = 0' . $scope['sql'], $scope['params']);
         if ($this->isAjax($request)) {
             return $this->json($response, ['ok' => true]);
         }
@@ -69,14 +65,15 @@ final class NotificationsController extends AdminController
         $this->guardCapability('comments.manage');
         $id = (int) ($args['id'] ?? 0);
         $scope = $this->editorScope();
-        $deleted = $scope['sql'] === ''
-            ? DB::execute('DELETE FROM notifications WHERE id = ?', [$id])
-            : DB::execute('DELETE n FROM notifications n JOIN posts p ON p.id = n.post_id WHERE n.id = ? AND p.author_id = ?', array_merge([$id], $scope['params']));
+        $deleted = DB::execute(
+            'DELETE n FROM notifications n WHERE n.id = ?' . $scope['sql'],
+            array_merge([$id], $scope['params'])
+        );
         return $deleted > 0 ? $this->json($response, ['ok' => true]) : $this->json($response, ['error' => '通知不存在'], 404);
     }
 
     private function editorScope(): array
     {
-        return Auth::isAdmin() ? ['sql' => '', 'params' => []] : ['sql' => ' AND p.author_id = ?', 'params' => [(int) Auth::id()]];
+        return Auth::isAdmin() ? ['sql' => '', 'params' => []] : ['sql' => ' AND n.recipient_id = ?', 'params' => [(int) Auth::id()]];
     }
 }

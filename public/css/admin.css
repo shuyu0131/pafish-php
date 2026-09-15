@@ -830,6 +830,30 @@ input[type="radio"]:focus-visible {
   color: var(--muted);
 }
 
+.editor-dashboard-grid {
+  display: grid;
+  gap: 16px;
+}
+
+@media (min-width: 1024px) {
+  .editor-dashboard-grid { grid-template-columns: 1fr 1fr; }
+}
+
+.editor-dashboard-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.editor-dashboard-section-head a {
+  color: var(--accent);
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.editor-dashboard-section-head a:hover { text-decoration: underline; }
+
 /* ---------- 后台表单（文章/设置等页面通用） ---------- */
 .admin-form-card {
   padding: 20px;
@@ -3514,17 +3538,100 @@ a.admin-pg-btn:hover {
   padding: 18px 0 0;
   box-shadow: none;
 }
-.admin-install-modal { padding: 16px; }
-.admin-install-dialog { width: min(620px, 100%); max-height: min(680px, calc(100dvh - 32px)); overflow: auto; }
-.admin-theme-install-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 16px;
-  padding-bottom: 0;
+.admin-install-modal {
+  padding: 16px;
+  background: rgba(22, 22, 22, 0.42);
+  backdrop-filter: blur(2px);
+}
+.admin-install-dialog {
+  width: min(440px, 100%);
+  max-height: min(680px, calc(100dvh - 32px));
+  border-radius: 8px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.22);
+}
+.admin-install-head {
+  padding: 18px 20px 12px;
   border-bottom: 0;
 }
-.admin-theme-install-head .admin-icon-btn { margin-left: auto; }
+.admin-install-head .admin-modal-title {
+  color: var(--title);
+  font-size: 16px;
+  font-weight: 600;
+}
+.admin-install-head .admin-icon-btn {
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  min-height: 30px;
+  margin-left: auto;
+  border-radius: 5px;
+}
+.admin-install-body {
+  padding: 4px 20px 20px;
+  overflow: visible;
+}
+.admin-package-picker {
+  display: flex;
+  align-items: center;
+  min-height: 94px;
+  gap: 13px;
+  width: 100%;
+  padding: 16px;
+  border: 1px dashed color-mix(in srgb, var(--muted) 42%, var(--border));
+  border-radius: 6px;
+  background: var(--bg-soft);
+  color: var(--fg);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.admin-package-picker:hover,
+.admin-package-picker:focus-within {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.admin-package-picker.is-ready {
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--success) 55%, var(--border));
+  background: color-mix(in srgb, var(--success) 6%, var(--card));
+}
+.admin-package-picker-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--card);
+  color: var(--accent);
+}
+.admin-package-picker-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+.admin-package-picker-copy strong {
+  color: var(--title);
+  font-size: 13px;
+  font-weight: 500;
+}
+.admin-package-picker-copy span {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admin-package-picker.is-ready .admin-package-picker-copy span {
+  color: var(--side);
+}
+.admin-install-actions {
+  padding: 0 20px 18px;
+  border-top: 0;
+}
 .admin-card-title {
   font-size: 16px;
   font-weight: 600;

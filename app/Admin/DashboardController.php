@@ -6,6 +6,7 @@ namespace Pafish\Admin;
 
 use Pafish\Core\Auth;
 use Pafish\Core\DB;
+use Pafish\Core\Url;
 use Pafish\Core\Version;
 use Pafish\Services\Upgrade;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -20,6 +21,13 @@ final class DashboardController extends AdminController
     public function dashboard(Request $request, Response $response): Response
     {
         $user = Auth::user();
+        if (!Auth::isAdmin() && !Auth::isEditor()) {
+            return $response->withStatus(302)->withHeader('Location', Url::to('/profile'));
+        }
+        if (Auth::isEditor()) {
+            return $this->editorDashboard($response, $user ?? []);
+        }
+
         // 统计卡片
         $stats = [
             ['label' => '全部文章', 'value' => (int) DB::value('SELECT COUNT(*) FROM posts WHERE deleted_at IS NULL'),
@@ -92,6 +100,44 @@ final class DashboardController extends AdminController
         ], '工作台');
 
         $response->getBody()->write($html);
+        return $response;
+    }
+
+    /** 编辑写作台：仅汇总本人内容、互动和待处理评论。 */
+    private function editorDashboard(Response $response, array $user): Response
+    {
+        $userId = (int) ($user['id'] ?? 0);
+        $stats = [
+            ['label' => '我的文章', 'value' => (int) DB::value('SELECT COUNT(*) FROM posts WHERE author_id = ? AND deleted_at IS NULL', [$userId]), 'icon' => 'file-text', 'color' => '#4786d6'],
+            ['label' => '已发布', 'value' => (int) DB::value("SELECT COUNT(*) FROM posts WHERE author_id = ? AND status = 'PUBLISHED' AND deleted_at IS NULL", [$userId]), 'icon' => 'eye', 'color' => '#2f9e63'],
+            ['label' => '草稿与定时', 'value' => (int) DB::value("SELECT COUNT(*) FROM posts WHERE author_id = ? AND status IN ('DRAFT', 'SCHEDULED') AND deleted_at IS NULL", [$userId]), 'icon' => 'pen', 'color' => '#d9822b'],
+            ['label' => '待审评论', 'value' => (int) DB::value("SELECT COUNT(*) FROM comments c JOIN posts p ON p.id = c.post_id WHERE p.author_id = ? AND c.status = 'PENDING'", [$userId]), 'icon' => 'message', 'color' => '#ca8a04'],
+            ['label' => '总浏览量', 'value' => (int) DB::value('SELECT COALESCE(SUM(view_count), 0) FROM posts WHERE author_id = ? AND deleted_at IS NULL', [$userId]), 'icon' => 'trend', 'color' => '#0891b2'],
+            ['label' => '收到互动', 'value' => (int) DB::value('SELECT COALESCE(SUM(like_count + favorite_count), 0) FROM posts WHERE author_id = ? AND deleted_at IS NULL', [$userId]), 'icon' => 'heart', 'color' => '#8b5cf6'],
+        ];
+        $latest = DB::fetchAll(
+            'SELECT id, title, status, published_at, updated_at FROM posts WHERE author_id = ? AND deleted_at IS NULL ORDER BY updated_at DESC LIMIT 8',
+            [$userId]
+        );
+        $pendingComments = DB::fetchAll(
+            "SELECT c.id, c.author_name, c.content, c.created_at, p.title AS post_title
+             FROM comments c JOIN posts p ON p.id = c.post_id
+             WHERE p.author_id = ? AND c.status = 'PENDING'
+             ORDER BY c.created_at DESC LIMIT 5",
+            [$userId]
+        );
+        $notifications = DB::fetchAll(
+            'SELECT n.message, n.`read`, n.created_at, p.slug AS post_slug FROM notifications n LEFT JOIN posts p ON p.id = n.post_id WHERE n.recipient_id = ? ORDER BY n.created_at DESC LIMIT 5',
+            [$userId]
+        );
+
+        $response->getBody()->write($this->render('editor-dashboard', [
+            'username' => (string) ($user['username'] ?? ''),
+            'stats' => $stats,
+            'latest' => $latest,
+            'pendingComments' => $pendingComments,
+            'notifications' => $notifications,
+        ], '写作台'));
         return $response;
     }
 }

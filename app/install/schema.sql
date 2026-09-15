@@ -220,12 +220,15 @@ CREATE TABLE IF NOT EXISTS notifications (
   message    VARCHAR(255)    NOT NULL,
   post_id    BIGINT UNSIGNED NULL,
   comment_id BIGINT UNSIGNED NULL,
+  recipient_id BIGINT UNSIGNED NULL,
   `read`     TINYINT(1)      NOT NULL DEFAULT 0,
   created_at DATETIME(3)     NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   PRIMARY KEY (id),
   KEY idx_notifications_read (`read`),
   KEY idx_notifications_created (created_at),
-  CONSTRAINT fk_notifications_post FOREIGN KEY (post_id) REFERENCES posts (id) ON DELETE SET NULL
+  KEY idx_notifications_recipient_read_created (recipient_id, `read`, created_at),
+  CONSTRAINT fk_notifications_post FOREIGN KEY (post_id) REFERENCES posts (id) ON DELETE SET NULL,
+  CONSTRAINT fk_notifications_recipient FOREIGN KEY (recipient_id) REFERENCES users (id) ON DELETE SET NULL
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 -- 登录用户的文章点赞与收藏（匿名点赞仍使用浏览器 Cookie）
@@ -239,6 +242,17 @@ CREATE TABLE IF NOT EXISTS post_reactions (
   KEY idx_post_reactions_post_kind (post_id, kind),
   CONSTRAINT fk_post_reactions_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
   CONSTRAINT fk_post_reactions_post FOREIGN KEY (post_id) REFERENCES posts (id) ON DELETE CASCADE
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- 登录用户的评论点赞（游客点赞仍使用浏览器 Cookie）
+CREATE TABLE IF NOT EXISTS comment_reactions (
+  user_id BIGINT UNSIGNED NOT NULL,
+  comment_id BIGINT UNSIGNED NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id, comment_id),
+  KEY idx_comment_reactions_comment (comment_id),
+  CONSTRAINT fk_comment_reactions_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+  CONSTRAINT fk_comment_reactions_comment FOREIGN KEY (comment_id) REFERENCES comments (id) ON DELETE CASCADE
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 -- 全文搜索索引（ngram 中文分词；MySQL 5.7.6+ / 8.0）

@@ -6,6 +6,7 @@ namespace Pafish\Http;
 
 use Pafish\Core\Auth;
 use Pafish\Core\DB;
+use Pafish\Core\Session;
 use Pafish\Services\Captcha;
 use Pafish\Services\Notify;
 use Pafish\Services\Settings;
@@ -107,7 +108,7 @@ final class CommentApiController
         }
 
         $post = DB::fetchOne(
-            "SELECT id, status, title, slug FROM posts WHERE id = ? AND deleted_at IS NULL",
+            "SELECT id, status, title, slug, author_id FROM posts WHERE id = ? AND deleted_at IS NULL",
             [(int) ($postId ?: 0)]
         );
         if (!$post || $post['status'] !== 'PUBLISHED') {
@@ -117,9 +118,10 @@ final class CommentApiController
         // 回复校验：父评论必须存在、属于同一篇文章且已通过审核
         $parentId = null;
         $parentEmail = null;
+        $parentUserId = null;
         if ($parentIdRaw !== '') {
             $parent = DB::fetchOne(
-                'SELECT id, post_id, status, author_email FROM comments WHERE id = ?',
+                'SELECT id, post_id, status, author_email, user_id FROM comments WHERE id = ?',
                 [(int) ($parentIdRaw ?: 0)]
             );
             if (!$parent || (int) $parent['post_id'] !== (int) $post['id']) {
@@ -130,6 +132,7 @@ final class CommentApiController
             }
             $parentId = (int) $parent['id'];
             $parentEmail = $parent['author_email'];
+            $parentUserId = $parent['user_id'] !== null ? (int) $parent['user_id'] : null;
         }
 
         // 重复检测：同一文章 + 昵称 + 内容在 1 小时内只允许提交一次
@@ -187,33 +190,53 @@ final class CommentApiController
         );
         $commentId = (int) DB::lastInsertId();
 
+        // 游客待审评论仅在其当前会话内回显，避免通过可伪造的 Cookie 暴露他人评论。
+        if ($userId === null && $commentStatus === 'PENDING') {
+            $pendingIds = array_values(array_unique(array_map('intval', (array) Session::get('pending_comment_ids', []))));
+            $pendingIds[] = $commentId;
+            Session::set('pending_comment_ids', array_slice(array_values(array_unique($pendingIds)), -50));
+        }
+
         // 站内通知（后台铃铛）+ 可选邮件通知
         $isReply = $parentId !== null;
-        Notify::createNotification(
-            $isReply ? 'NEW_REPLY' : 'NEW_COMMENT',
-            "{$name}" . ($isReply ? '回复了' : '评论了') . "《{$post['title']}》",
-            (int) $post['id'],
-            $commentId
-        );
-        Notify::sendCommentEmail([
-            'commenter' => $name,
-            'isReply' => $isReply,
-            'postTitle' => $post['title'],
-            'postSlug' => $post['slug'],
-            'commentId' => $commentId,
-            'content' => $content,
-        ]);
-
-        // 被回复者邮件通知：父评论者勾选了通知且不是自己回复自己时发送
-        if ($isReply && $parentEmail !== null && $parentEmail !== $email) {
-            Notify::sendReplyEmail([
-                'toEmail' => $parentEmail,
-                'replier' => $name,
-                'replyContent' => $content,
+        $isAdminComment = $sessionUser !== null && (string) ($sessionUser['role'] ?? '') === 'ADMIN';
+        if (!$isAdminComment) {
+            $recipients = [(int) $post['author_id']];
+            if ($isReply && $parentUserId !== null && $parentUserId !== $userId) {
+                $recipients[] = $parentUserId;
+            }
+            foreach (array_unique(array_filter($recipients)) as $recipientId) {
+                if ($recipientId === $userId) {
+                    continue;
+                }
+                Notify::createNotification(
+                    $isReply ? 'NEW_REPLY' : 'NEW_COMMENT',
+                    "{$name}" . ($isReply ? '回复了' : '评论了') . "《{$post['title']}》",
+                    (int) $post['id'],
+                    $commentId,
+                    $recipientId
+                );
+            }
+            Notify::sendCommentEmail([
+                'commenter' => $name,
+                'isReply' => $isReply,
                 'postTitle' => $post['title'],
                 'postSlug' => $post['slug'],
-                'commentId' => $parentId,
+                'commentId' => $commentId,
+                'content' => $content,
             ]);
+
+            // 被回复者邮件通知：父评论者勾选了通知且不是自己回复自己时发送
+            if ($isReply && $parentEmail !== null && $parentEmail !== $email) {
+                Notify::sendReplyEmail([
+                    'toEmail' => $parentEmail,
+                    'replier' => $name,
+                    'replyContent' => $content,
+                    'postTitle' => $post['title'],
+                    'postSlug' => $post['slug'],
+                    'commentId' => $parentId,
+                ]);
+            }
         }
 
         // 钩子：评论提交成功
@@ -242,33 +265,67 @@ final class CommentApiController
         }
         $id = (int) $raw;
 
-        $comment = DB::fetchOne('SELECT status, like_count FROM comments WHERE id = ?', [$id]);
+        $comment = DB::fetchOne(
+            'SELECT c.status, c.like_count, c.user_id, c.post_id, p.title AS post_title
+             FROM comments c JOIN posts p ON p.id = c.post_id WHERE c.id = ?',
+            [$id]
+        );
         if (!$comment || $comment['status'] !== 'APPROVED') {
             return $this->json($response, ['error' => '评论不存在'], 404);
         }
 
-        $cookieName = 'liked_comments';
-        $liked = array_values(array_filter(explode(',', (string) ($_COOKIE[$cookieName] ?? ''))));
-        $key = (string) $id;
-        $isLiked = in_array($key, $liked, true);
-
-        if ($isLiked) {
-            // 取消点赞（计数不小于 0）
-            if ((int) $comment['like_count'] > 0) {
-                DB::execute('UPDATE comments SET like_count = like_count - 1 WHERE id = ?', [$id]);
+        $viewer = Auth::user();
+        if ($viewer !== null) {
+            $viewerId = (int) $viewer['id'];
+            $isLiked = DB::transaction(function () use ($id, $viewerId): bool {
+                $locked = DB::fetchOne('SELECT id, status FROM comments WHERE id = ? FOR UPDATE', [$id]);
+                if (!$locked || $locked['status'] !== 'APPROVED') {
+                    throw new \RuntimeException('评论不存在');
+                }
+                $exists = DB::fetchOne(
+                    'SELECT 1 FROM comment_reactions WHERE user_id = ? AND comment_id = ?',
+                    [$viewerId, $id]
+                ) !== null;
+                if ($exists) {
+                    DB::execute('DELETE FROM comment_reactions WHERE user_id = ? AND comment_id = ?', [$viewerId, $id]);
+                    DB::execute('UPDATE comments SET like_count = GREATEST(like_count - 1, 0) WHERE id = ?', [$id]);
+                    return false;
+                }
+                DB::execute('INSERT INTO comment_reactions (user_id, comment_id) VALUES (?, ?)', [$viewerId, $id]);
+                DB::execute('UPDATE comments SET like_count = like_count + 1 WHERE id = ?', [$id]);
+                return true;
+            });
+            if ($isLiked && $comment['user_id'] !== null && (int) $comment['user_id'] !== $viewerId) {
+                $displayName = (string) ($viewer['nickname'] ?: $viewer['username']);
+                Notify::createNotification(
+                    'COMMENT_LIKE',
+                    $displayName . ' 赞了你的评论《' . (string) $comment['post_title'] . '》',
+                    (int) $comment['post_id'],
+                    $id,
+                    (int) $comment['user_id']
+                );
             }
-            $liked = array_values(array_filter($liked, static fn (string $x): bool => $x !== $key));
         } else {
-            DB::execute('UPDATE comments SET like_count = like_count + 1 WHERE id = ?', [$id]);
-            $liked[] = $key;
-            if (count($liked) > self::MAX_LIKED) {
-                $liked = array_slice($liked, count($liked) - self::MAX_LIKED);
+            $cookieName = 'liked_comments';
+            $liked = array_values(array_filter(explode(',', (string) ($_COOKIE[$cookieName] ?? ''))));
+            $key = (string) $id;
+            $wasLiked = in_array($key, $liked, true);
+            if ($wasLiked) {
+                DB::execute('UPDATE comments SET like_count = GREATEST(like_count - 1, 0) WHERE id = ?', [$id]);
+                $liked = array_values(array_filter($liked, static fn (string $item): bool => $item !== $key));
+            } else {
+                DB::execute('UPDATE comments SET like_count = like_count + 1 WHERE id = ?', [$id]);
+                $liked[] = $key;
+                if (count($liked) > self::MAX_LIKED) {
+                    $liked = array_slice($liked, count($liked) - self::MAX_LIKED);
+                }
             }
+            setcookie($cookieName, implode(',', $liked), time() + 31536000, '/', '', false, false);
+            $isLiked = !$wasLiked;
         }
-        setcookie($cookieName, implode(',', $liked), time() + 31536000, '/', '', false, false);
 
         $count = (int) DB::value('SELECT like_count FROM comments WHERE id = ?', [$id]);
-        return $this->json($response, ['liked' => !$isLiked, 'count' => $count]);
+        return $this->json($response, ['liked' => $isLiked, 'count' => $count]);
     }
 
     private function clientIp(Request $request): string

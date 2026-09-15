@@ -74,22 +74,25 @@ $themeActive = count(array_filter($themes, static fn (array $theme): bool => !em
 
   <div class="admin-modal-backdrop admin-install-modal" id="theme-install" hidden>
     <div class="admin-modal admin-install-dialog" role="dialog" aria-modal="true" aria-labelledby="theme-install-title">
-    <div class="admin-modal-head admin-theme-install-head">
-      <h2 class="admin-modal-title" id="theme-install-title">安装主题</h2>
-      <button type="button" class="admin-icon-btn" data-modal-close aria-label="关闭安装面板" title="关闭安装面板">×</button>
-    </div>
-    <div class="admin-modal-body"><div class="admin-theme-install-row">
-      <div class="admin-theme-install-block">
-        <p class="admin-muted">上传 zip 包</p>
+      <div class="admin-modal-head admin-install-head">
+        <h2 class="admin-modal-title" id="theme-install-title">安装主题</h2>
+        <button type="button" class="admin-icon-btn" data-modal-close aria-label="关闭安装面板" title="关闭安装面板">×</button>
+      </div>
+      <div class="admin-modal-body admin-install-body">
         <input type="file" id="themeZipInput" accept=".zip" hidden>
-        <div class="admin-theme-install-line">
-          <button type="button" id="themeZipBtn" class="btn btn-outline">选择 zip 文件</button>
-          <button type="button" id="themeUploadBtn" class="btn btn-primary" disabled>上传安装</button>
-        </div>
-        <p class="admin-field-hint" id="themeZipName"></p>
+        <label class="admin-package-picker" for="themeZipInput" id="themeZipPicker">
+          <span class="admin-package-picker-icon" aria-hidden="true"><?= admin_icon('upload', 20) ?></span>
+          <span class="admin-package-picker-copy">
+            <strong>选择主题压缩包</strong>
+            <span id="themeZipName" aria-live="polite">仅支持 .zip 格式</span>
+          </span>
+        </label>
+      </div>
+      <div class="admin-modal-actions admin-install-actions">
+        <button type="button" class="btn btn-ghost" data-modal-close>取消</button>
+        <button type="button" id="themeUploadBtn" class="btn btn-primary" disabled>安装主题</button>
       </div>
     </div>
-    </div></div></div>
   </div>
 </div>
 
@@ -176,16 +179,17 @@ $themeActive = count(array_filter($themes, static fn (array $theme): bool => !em
 
   // 上传 zip
   var zipInput = document.getElementById("themeZipInput");
-  var zipBtn = document.getElementById("themeZipBtn");
   var uploadBtn = document.getElementById("themeUploadBtn");
   var zipName = document.getElementById("themeZipName");
-  zipBtn.addEventListener("click", function () { zipInput.click(); });
+  var zipPicker = document.getElementById("themeZipPicker");
   zipInput.addEventListener("change", function () {
     if (zipInput.files && zipInput.files[0]) {
       zipName.textContent = zipInput.files[0].name;
+      zipPicker.classList.add("is-ready");
       uploadBtn.disabled = false;
     } else {
-      zipName.textContent = "";
+      zipName.textContent = "仅支持 .zip 格式";
+      zipPicker.classList.remove("is-ready");
       uploadBtn.disabled = true;
     }
   });
@@ -206,7 +210,7 @@ $themeActive = count(array_filter($themes, static fn (array $theme): bool => !em
     }).catch(function (err) {
       showMsg(err.message, true);
       uploadBtn.disabled = false;
-      uploadBtn.textContent = "上传安装";
+      uploadBtn.textContent = "安装主题";
     });
   });
 

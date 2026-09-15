@@ -6,6 +6,7 @@ namespace Pafish\Admin;
 
 use Pafish\Core\Auth;
 use Pafish\Core\DB;
+use Pafish\Services\Notify;
 use Pafish\Services\Settings;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -129,6 +130,17 @@ final class CommentsController extends AdminController
             ]
         );
         $commentId = (int) DB::lastInsertId();
+
+        $parentUserId = $parent['user_id'] !== null ? (int) $parent['user_id'] : null;
+        if ($parentUserId !== null && $parentUserId !== (int) $user['id']) {
+            Notify::createNotification(
+                'NEW_REPLY',
+                (string) $user['username'] . ' 回复了你的评论',
+                (int) $parent['post_id'],
+                $commentId,
+                $parentUserId
+            );
+        }
 
         // 钩子：管理员回复
         \do_action('after_comment_reply', [

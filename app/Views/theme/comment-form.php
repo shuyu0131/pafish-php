@@ -61,7 +61,7 @@ $needCaptcha = !$loggedIn && $captchaEnabled;
       <span>有人回复我时邮件通知</span>
     </label>
     <div class="comment-form-actions">
-      <p class="comment-review-tip"><?= $needReview ? '评论需审核后显示' : '评论将直接显示' ?></p>
+      <p class="comment-review-tip"><?= $needReview ? '待审核评论仅自己和管理员可见' : '评论将直接显示' ?></p>
       <button type="submit" class="btn btn-primary comment-submit">发表评论</button>
     </div>
   </div>

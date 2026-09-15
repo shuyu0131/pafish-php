@@ -1,20 +1,4 @@
 <?php
-if (!empty($GLOBALS['default_theme_home'])):
-    $siteName = site_name();
-    $icp = (string) settings('site_icp', '');
-?>
-  </main>
-  <footer class="default-home-page-footer">
-    <p>© <?= date('Y') ?> <?= e($siteName) ?> · ALL RIGHTS RESERVED</p>
-    <?php if ($icp !== ''): ?><p><?= e($icp) ?></p><?php endif; ?>
-    <?php do_action('footer_inject'); ?>
-  </footer>
-</div>
-<script src="<?= e(asset_url('/js/theme.js')) ?>" defer></script>
-</body>
-</html>
-<?php return; endif; ?>
-<?php
 /**
  * 前台页脚。
  * 主题目录的 footer.php 完整替换系统模板，get_footer() 渲染本文件
@@ -27,10 +11,12 @@ $icp = (string) settings('site_icp', '');
   </main>
 
   <footer class="app-footer" data-theme-footer="default">
-    <p><?= e($footerText !== '' ? $footerText : $footerDefault) ?></p>
-    <?php if ($icp !== ''): ?>
-      <p class="app-footer-icp"><?= e($icp) ?></p>
-    <?php endif; ?>
+    <div class="app-footer-inner">
+      <p><?= e($footerText !== '' ? $footerText : $footerDefault) ?></p>
+      <?php if ($icp !== ''): ?>
+        <p class="app-footer-icp"><?= e($icp) ?></p>
+      <?php endif; ?>
+    </div>
     <?php do_action('footer_inject'); ?>
   </footer>
 

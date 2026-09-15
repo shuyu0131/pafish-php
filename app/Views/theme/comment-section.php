@@ -128,8 +128,6 @@ $sep = str_contains($baseUrl, '?') ? '&' : '?';
     var errorEl = form.querySelector('.comment-error');
     var messageEl = form.querySelector('.comment-message');
     var submitBtn = form.querySelector('.comment-submit');
-    var section = document.querySelector('[data-comment-section]');
-    var needReview = section ? section.dataset.needReview === '1' : true;
 
     function showError(msg) {
       errorEl.textContent = msg;
@@ -167,15 +165,7 @@ $sep = str_contains($baseUrl, '?') ? '&' : '?';
         if ((res.error || '').indexOf('验证码') !== -1) refreshCaptcha(form);
         return;
       }
-      form.querySelector('[name="content"]').value = '';
-      if (needReview) {
-        // 需审核：评论不会立即显示，保留提示
-        messageEl.textContent = '✓ 评论已提交，审核通过后将显示。';
-        messageEl.hidden = false;
-      } else {
-        location.reload();
-        return;
-      }
+      location.reload();
     }).catch(function () {
       showError('网络错误，请重试');
     }).finally(function () {
@@ -231,23 +221,24 @@ $sep = str_contains($baseUrl, '?') ? '&' : '?';
     btn.classList.toggle('liked', !liked);
     var next = Math.max(0, count + (liked ? -1 : 1));
     if (countEl) {
-      countEl.textContent = next > 0 ? next : '';
+      countEl.textContent = next;
+      countEl.hidden = next === 0;
     }
     postJSON(pafishApi('/comments/like'), { commentId: id }).then(function (res) {
       if (!res || typeof res.liked === 'undefined') {
         btn.dataset.liked = prev.liked ? '1' : '0';
         btn.classList.toggle('liked', prev.liked);
-        if (countEl) countEl.textContent = prev.count > 0 ? prev.count : '';
+        if (countEl) { countEl.textContent = prev.count; countEl.hidden = prev.count === 0; }
         return;
       }
       btn.dataset.liked = res.liked ? '1' : '0';
       btn.classList.toggle('liked', !!res.liked);
-      if (countEl) countEl.textContent = res.count > 0 ? res.count : '';
+      if (countEl) { countEl.textContent = res.count; countEl.hidden = res.count === 0; }
       btn.title = res.liked ? '取消点赞' : '点赞';
     }).catch(function () {
       btn.dataset.liked = prev.liked ? '1' : '0';
       btn.classList.toggle('liked', prev.liked);
-      if (countEl) countEl.textContent = prev.count > 0 ? prev.count : '';
+      if (countEl) { countEl.textContent = prev.count; countEl.hidden = prev.count === 0; }
     }).finally(function () {
       btn.disabled = false;
     });

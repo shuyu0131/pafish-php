@@ -37,7 +37,8 @@
     if (dialog) {
       dialog.setAttribute('tabindex', '-1');
       dialog.setAttribute('aria-modal', 'true');
-      var target = focusables(dialog)[0] || dialog;
+      // 先聚焦对话框本身，避免打开时将关闭按钮渲染成突兀的焦点态。
+      var target = dialog;
       window.setTimeout(function () { if (visible(activeModal)) target.focus(); }, 0);
     }
   }
@@ -159,7 +160,11 @@
       if (!list.length) return;
       var first = list[0];
       var last = list[list.length - 1];
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      if (dialog && document.activeElement === dialog) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      }
+      else if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
     });
     sync();

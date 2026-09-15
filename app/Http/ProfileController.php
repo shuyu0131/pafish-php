@@ -51,6 +51,22 @@ final class ProfileController
              ORDER BY r.created_at DESC LIMIT 60",
             [$userId]
         );
+        $comments = DB::fetchAll(
+            "SELECT c.content, c.status, c.like_count, c.created_at, p.title AS post_title, p.slug AS post_slug
+             FROM comments c
+             JOIN posts p ON p.id = c.post_id
+             WHERE c.user_id = ? AND p.deleted_at IS NULL
+             ORDER BY c.created_at DESC LIMIT 30",
+            [$userId]
+        );
+        $notifications = DB::fetchAll(
+            "SELECT n.type, n.message, n.`read`, n.created_at, p.slug AS post_slug
+             FROM notifications n
+             LEFT JOIN posts p ON p.id = n.post_id
+             WHERE n.recipient_id = ?
+             ORDER BY n.created_at DESC LIMIT 30",
+            [$userId]
+        );
         $pointsEnabled = Points::available();
         $response->getBody()->write(\render('profile', [
             'title' => '个人中心',
@@ -59,6 +75,8 @@ final class ProfileController
             'posts' => $posts,
             'stats' => $stats,
             'reactions' => $reactions,
+            'comments' => $comments,
+            'notifications' => $notifications,
             'pointsEnabled' => $pointsEnabled,
             'pointsBalance' => $pointsEnabled ? Points::balance($userId) : 0,
             'pointTransactions' => $pointsEnabled ? Points::transactions($userId) : [],

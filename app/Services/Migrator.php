@@ -71,6 +71,16 @@ final class Migrator
                 $recorded[] = $version;
                 continue;
             }
+            if ($version === '0005_notification_recipients' && self::columnExists($pdo, 'notifications', 'recipient_id')) {
+                self::markApplied($pdo, $version);
+                $recorded[] = $version;
+                continue;
+            }
+            if ($version === '0006_comment_reactions' && self::tableExists($pdo, 'comment_reactions')) {
+                self::markApplied($pdo, $version);
+                $recorded[] = $version;
+                continue;
+            }
             $pdo->beginTransaction();
             try {
                 foreach (self::splitStatements((string) file_get_contents($file)) as $stmt) {

@@ -48,6 +48,82 @@ function inst_write_state(string $root, string $phase, string $message = ''): vo
     ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), LOCK_EX);
 }
 
+/**
+ * Verify the permissions available to the PHP process, rather than relying on
+ * is_writable(), which can be inaccurate with ACLs and some FPM deployments.
+ * The probe follows the same create/write/rename/delete pattern used for
+ * config.php and removes every temporary file before returning.
+ *
+ * @return array{0: bool, 1: string}
+ */
+function inst_probe_writable_dir(string $dir): array
+{
+    if (!is_dir($dir)) {
+        return [false, '目录不存在'];
+    }
+
+    try {
+        $token = bin2hex(random_bytes(8));
+    } catch (Throwable) {
+        $token = uniqid('', true);
+    }
+    $probe = rtrim($dir, '/\\') . '/.pafish-write-check-' . str_replace('.', '', $token);
+    $renamed = $probe . '.tmp';
+    $error = '';
+    set_error_handler(static function (int $severity, string $message) use (&$error): bool {
+        $error = $message;
+        return true;
+    });
+
+    try {
+        $bytes = file_put_contents($probe, 'pafish permission check', LOCK_EX);
+        if ($bytes === false) {
+            return [false, $error !== '' ? $error : '无法创建临时文件'];
+        }
+        if (!rename($probe, $renamed)) {
+            return [false, $error !== '' ? $error : '无法重命名临时文件'];
+        }
+        if (!unlink($renamed)) {
+            return [false, $error !== '' ? $error : '无法删除临时文件'];
+        }
+        return [true, '可写'];
+    } finally {
+        restore_error_handler();
+        if (is_file($probe)) {
+            @unlink($probe);
+        }
+        if (is_file($renamed)) {
+            @unlink($renamed);
+        }
+    }
+}
+
+/** @return array{0: bool, 1: string} */
+function inst_write_config(string $path, string $content): array
+{
+    $tmp = $path . '.tmp';
+    $error = '';
+    set_error_handler(static function (int $severity, string $message) use (&$error): bool {
+        $error = $message;
+        return true;
+    });
+
+    try {
+        if (file_put_contents($tmp, $content, LOCK_EX) === false) {
+            return [false, $error !== '' ? $error : '无法创建 config.php 临时文件'];
+        }
+        if (!rename($tmp, $path)) {
+            return [false, $error !== '' ? $error : '无法将临时文件改名为 config.php'];
+        }
+        return [true, ''];
+    } finally {
+        restore_error_handler();
+        if (is_file($tmp)) {
+            @unlink($tmp);
+        }
+    }
+}
+
 // ---------- 环境检查 ----------
 function inst_checks(string $root): array
 {
@@ -62,9 +138,15 @@ function inst_checks(string $root): array
         if (!is_dir($p)) {
             @mkdir($p, 0755, true);
         }
-        $checks[] = inst_check_result(is_dir($p) && is_writable($p), "目录可写 {$dir}/", is_writable($p) ? '可写' : '不可写（请检查权限）');
+        [$ok, $detail] = inst_probe_writable_dir($p);
+        $checks[] = inst_check_result($ok, "目录可写 {$dir}/", $ok ? '可写' : '不可写：' . $detail);
     }
-    $checks[] = inst_check_result(is_writable($root), '根目录可写（生成 config.php）', is_writable($root) ? '可写' : '不可写');
+    [$rootWritable, $rootDetail] = inst_probe_writable_dir($root);
+    $checks[] = inst_check_result(
+        $rootWritable,
+        '根目录可写（生成 config.php）',
+        $rootWritable ? '可写' : '不可写：' . $rootDetail
+    );
     // 上传限制（警告级，不阻塞安装）：主题/插件 zip 包上限 10MB，post_max_size 需 ≥ 16M 才能正常上传
     $postMax = (int) (ini_get('post_max_size') ?: 0);
     $uploadMax = (int) (ini_get('upload_max_filesize') ?: 0);
@@ -154,6 +236,10 @@ function inst_run(array $post, string $root): array
 
     $configPath = $root . '/config.php';
     $configTmp = $configPath . '.tmp';
+    [$rootWritable, $rootDetail] = inst_probe_writable_dir($root);
+    if (!$rootWritable) {
+        return ['errors' => ['根目录无法写入 config.php：' . $rootDetail]];
+    }
     inst_write_state($root, 'starting');
     try {
         // 1. 连接（先建库）
@@ -218,9 +304,9 @@ function inst_run(array $post, string $root): array
         $exported = var_export($config, true);
         $configContent = "<?php\n\n// 由安装向导生成（" . date('Y-m-d H:i:s') . "）。如需自定义请参考 config.example.php\nreturn {$exported};\n";
         inst_write_state($root, 'writing_config');
-        if (file_put_contents($configTmp, $configContent, LOCK_EX) === false || !@rename($configTmp, $configPath)) {
-            @unlink($configTmp);
-            throw new RuntimeException('无法写入 config.php（请检查根目录写权限）');
+        [$configWritten, $configError] = inst_write_config($configPath, $configContent);
+        if (!$configWritten) {
+            throw new RuntimeException('无法写入 config.php：' . $configError);
         }
 
         @unlink(inst_state_path($root));
@@ -251,14 +337,6 @@ function inst_seed(PDO $pdo, string $siteName, string $adminUser, string $adminE
             ->execute([$adminUser, $adminEmail, $hash($adminPass), 'ADMIN']);
         $adminId = (int) $pdo->lastInsertId();
     }
-    $selUser->execute(['editor']);
-    $editorId = (int) $selUser->fetchColumn();
-    if ($editorId === 0) {
-        $pdo->prepare('INSERT INTO users (username, email, password_hash, role) VALUES (?, ?, ?, ?)')
-            ->execute(['editor', 'editor@pafish.cn', $hash('Editor@12345'), 'EDITOR']);
-        $editorId = (int) $pdo->lastInsertId();
-    }
-
     // 分类（按 slug 判重）
     $selCat = $pdo->prepare('SELECT id FROM categories WHERE slug = ?');
     $selCat->execute(['tech']);
@@ -318,7 +396,7 @@ function inst_seed(PDO $pdo, string $siteName, string $adminUser, string $adminE
         $insPost->execute([
             '极简设计随笔', 'minimalist-design-notes',
             '关于极简主义设计的一些思考：留白、对比与克制。',
-            $designContent, 'PUBLISHED', date('Y-m-d H:i:s', time() - 86400), $editorId, $lifeId,
+            $designContent, 'PUBLISHED', date('Y-m-d H:i:s', time() - 86400), $adminId, $lifeId,
         ]);
         $designId = (int) $pdo->lastInsertId();
         $insPt->execute([$designId, $tagIds['design']]);
@@ -407,76 +485,75 @@ function inst_layout(string $title, string $inner, string $extra = ''): string
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{$title} · pafish 安装向导</title>
 <style>
-  :root { --paper:#eef2f5; --surface:#ffffff; --surface-soft:#f7f9fa; --ink:#17212b; --muted:#65717c; --line:#d9e1e7; --accent:#176b78; --accent-soft:#e6f2f3; --ok:#207a59; --bad:#b5473c; --warn:#916b21; }
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { font-family:"Segoe UI", "Microsoft YaHei", sans-serif; background:var(--paper); color:var(--ink); min-height:100vh; padding:40px 20px 52px; }
-  .wrap { width:100%; max-width:1080px; margin:0 auto; }
-  .install-head { display:flex; align-items:flex-end; justify-content:space-between; gap:24px; margin-bottom:24px; }
-  .brandline { display:flex; align-items:center; gap:12px; }
-  .brandmark { width:42px; height:42px; display:grid; place-items:center; border-radius:12px; background:var(--ink); color:#fff; font:700 1.1rem Georgia,serif; letter-spacing:-.08em; }
-  h1 { font:600 2rem/1.1 Georgia, "Times New Roman", serif; letter-spacing:-.035em; }
-  .sub { color:var(--muted); font-size:.82rem; letter-spacing:.08em; margin-top:6px; }
-  .head-meta { color:var(--muted); font-size:.78rem; text-align:right; }
-  .install-shell { display:grid; grid-template-columns:238px minmax(0,1fr); gap:18px; align-items:start; }
-  .rail, .card { background:var(--surface); border:1px solid var(--line); border-radius:12px; box-shadow:0 12px 30px rgba(38,56,72,.06); }
-  .rail { padding:22px 18px; position:sticky; top:20px; }
-  .rail-kicker { color:var(--muted); font-size:.7rem; letter-spacing:.14em; text-transform:uppercase; margin-bottom:18px; }
-  .steps { list-style:none; display:grid; gap:4px; }
-  .step { display:grid; grid-template-columns:30px 1fr; gap:10px; align-items:center; min-height:58px; color:#93a0aa; position:relative; }
-  .step:not(:last-child)::after { content:""; position:absolute; left:14px; top:38px; bottom:-4px; width:1px; background:var(--line); }
-  .step.is-active, .step.is-done { color:var(--ink); }
-  .step.is-done::after { background:#9cc8c4; }
-  .step-no { width:29px; height:29px; display:grid; place-items:center; border:1px solid #c8d1d8; border-radius:50%; background:var(--surface-soft); font-size:.76rem; font-weight:700; z-index:1; }
-  .step.is-active .step-no { border-color:var(--accent); background:var(--accent); color:#fff; box-shadow:0 0 0 4px var(--accent-soft); }
-  .step.is-done .step-no { border-color:#9cc8c4; background:#e7f4ef; color:var(--ok); }
-  .step strong { display:block; font-size:.86rem; font-weight:600; }
-  .step small { display:block; color:var(--muted); font-size:.72rem; margin-top:3px; }
-  .content-area { min-width:0; }
-  .card { padding:28px 32px; }
-  .card + .card { margin-top:14px !important; }
-  .card h2 { font:600 1.2rem/1.25 Georgia, "Times New Roman", serif; margin-bottom:20px; padding-bottom:14px; border-bottom:1px solid #edf1f3; }
-  .row { display:flex; justify-content:space-between; align-items:center; gap:18px; padding:13px 0; border-bottom:1px solid #edf1f3; font-size:.9rem; }
+  :root { --page:#f9fafb; --surface:#ffffff; --soft:#f9fafb; --ink:#111827; --muted:#6b7280; --line:#e5e7eb; --ok:#166534; --bad:#b42318; --warn:#8a5a12; }
+  * { box-sizing:border-box; }
+  body { margin:0; min-height:100vh; padding:32px 16px; background:var(--page); color:var(--ink); font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif; font-size:14px; line-height:1.55; }
+  .wrap { width:100%; max-width:672px; margin:0 auto; }
+  .install-shell { overflow:hidden; background:var(--surface); border:1px solid #e5e7eb; border-radius:12px; box-shadow:0 1px 2px rgba(17,24,39,.04); }
+  .install-head { padding:28px 32px 24px; background:#f9fafb; border-bottom:1px solid var(--line); }
+  .brandline { display:block; }
+  .brandmark, .head-meta, .rail-kicker { display:none; }
+  h1 { margin:0; color:#111827; font-size:20px; line-height:1.35; font-weight:600; letter-spacing:0; }
+  .sub { margin-top:4px; color:#6b7280; font-size:14px; }
+  .rail { margin-top:28px; }
+  .steps { display:flex; align-items:flex-start; justify-content:space-between; margin:0; padding:0; list-style:none; position:relative; }
+  .steps::before { content:""; position:absolute; top:20px; left:0; right:0; height:2px; background:#e5e7eb; }
+  .step { display:flex; flex:1 1 0; flex-direction:column; align-items:center; position:relative; color:#9ca3af; text-align:center; }
+  .step-no { display:grid; place-items:center; width:40px; height:40px; border:2px solid #e5e7eb; border-radius:50%; background:#fff; color:#9ca3af; font-size:14px; font-weight:500; z-index:1; }
+  .step.is-active, .step.is-done { color:#111827; }
+  .step.is-active .step-no, .step.is-done .step-no { border-color:#111827; background:#111827; color:#fff; box-shadow:0 0 0 4px #f3f4f6; }
+  .step strong { display:block; margin-top:8px; font-size:12px; font-weight:500; }
+  .step small { display:none; }
+  .content-area { min-width:0; padding:30px 32px 0; }
+  .card { padding:0 0 28px; }
+  .card + .card { margin-top:28px !important; padding-top:28px; border-top:1px solid #f0f1f3; }
+  .card h2 { display:flex; align-items:center; min-height:24px; margin:0 0 22px; color:#1f2937; font-size:16px; font-weight:500; line-height:1.5; }
+  .row { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:12px 0; border-bottom:1px solid #f3f4f6; color:#374151; }
   .row:last-child { border-bottom:0; }
-  .row .warn { margin-top:0; }
-  .ok { color:var(--ok); font-weight:650; }
-  .bad { color:var(--bad); font-weight:650; }
-  .detail { color:#88949e; font-size:.78rem; }
-  label { display:block; color:var(--muted); font-size:.78rem; letter-spacing:.02em; margin:17px 0 7px; }
-  input[type=text], input[type=password], input[type=email], input[type=number] { width:100%; padding:12px 13px; color:var(--ink); background:var(--surface-soft); border:1px solid #ccd6dd; border-radius:8px; font-size:.92rem; outline:0; transition:border-color .18s, box-shadow .18s, background .18s; }
-  input:hover { border-color:#aebdc7; }
-  input:focus { background:#fff; border-color:var(--accent); box-shadow:0 0 0 4px rgba(23,107,120,.12); }
+  .ok { color:var(--ok); font-weight:500; }
+  .bad { color:var(--bad); font-weight:500; }
+  .detail { color:#9ca3af; font-size:12px; }
+  label { display:block; margin:18px 0 6px; color:#374151; font-size:13px; font-weight:500; }
+  input[type=text], input[type=password], input[type=email], input[type=number] { width:100%; min-height:42px; padding:9px 12px; border:1px solid #d1d5db; border-radius:6px; outline:0; background:#fff; color:#111827; font:inherit; transition:border-color .2s ease, box-shadow .2s ease; }
+  input:hover { border-color:#9ca3af; }
+  input:focus { border-color:#374151; box-shadow:0 0 0 3px #f3f4f6; }
   .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:0 18px; }
-  .btn { display:inline-flex; align-items:center; justify-content:center; min-height:43px; margin-top:22px; padding:0 22px; border:1px solid var(--ink); border-radius:8px; cursor:pointer; background:var(--ink); color:#fff; font-size:.88rem; font-weight:600; text-decoration:none; transition:transform .18s, background .18s, border-color .18s, opacity .18s; }
-  .btn:hover { background:#2d3a45; transform:translateY(-1px); }
-  .btn:active { transform:translateY(0); }
-  .btn:disabled { opacity:.45; cursor:not-allowed; transform:none; }
-  .err { background:#fff4f2; border:1px solid #edc2bb; color:#963b32; border-radius:8px; padding:13px 15px; font-size:.86rem; margin-bottom:14px; line-height:1.65; }
-  .warn { background:#fff9ed; border:1px solid #ead9aa; color:var(--warn); border-radius:8px; padding:13px 15px; font-size:.84rem; margin-top:14px; line-height:1.65; white-space:pre-line; }
-  .done { text-align:center; padding:26px 12px 10px; }
-  .done .big { width:58px; height:58px; display:grid; place-items:center; margin:0 auto 12px; border-radius:50%; background:#e7f4ef; color:var(--ok); font-size:1.8rem; }
-  .done h2 { border:0; padding:0; margin-bottom:16px; }
-  .info { font-size:.9rem; line-height:1.9; color:#5f6b75; }
-  .info b { color:var(--ink); }
-  .checkbox { display:flex; align-items:flex-start; gap:8px; margin-top:17px; font-size:.84rem; color:#5f6b75; line-height:1.5; }
-  .checkbox label { margin:0; }
-  .checkbox input { margin-top:3px; accent-color:var(--accent); }
-  .footer { color:#8a969f; font-size:.74rem; margin-top:18px; padding-left:256px; }
-  @media (max-width:760px) { body { padding:24px 12px 36px; } .install-head { align-items:flex-start; margin-bottom:18px; } .head-meta { display:none; } .install-shell { grid-template-columns:1fr; } .rail { position:static; padding:16px; } .rail-kicker { margin-bottom:12px; } .steps { grid-template-columns:repeat(3,1fr); gap:8px; } .step { display:block; min-height:0; text-align:center; } .step:not(:last-child)::after { left:calc(50% + 18px); right:calc(-50% + 18px); top:14px; bottom:auto; width:auto; height:1px; } .step-no { margin:0 auto 7px; } .step strong { font-size:.75rem; } .step small { display:none; } .card { padding:22px 18px; } .grid2 { grid-template-columns:1fr; } .footer { padding-left:0; text-align:center; } }
-  @media (max-width:420px) { h1 { font-size:1.65rem; } .sub { font-size:.74rem; } .card { padding:19px 15px; } .row { align-items:flex-start; flex-direction:column; gap:4px; } .btn { width:100%; } }
+  .btn { display:inline-flex; align-items:center; justify-content:center; min-height:42px; margin-top:24px; padding:0 20px; border:1px solid #111827; border-radius:6px; background:#111827; color:#fff; cursor:pointer; font:500 14px inherit; text-decoration:none; transition:background .2s ease, transform .2s ease; }
+  form > .btn, .card > .btn { display:flex; width:max-content; margin-left:auto; }
+  .btn:hover { background:#374151; }
+  .btn:active { transform:translateY(1px); }
+  .btn:focus-visible { outline:3px solid #d1d5db; outline-offset:2px; }
+  .btn:disabled { opacity:.45; cursor:not-allowed; }
+  .err, .warn { margin:0 0 20px; padding:12px 14px; border:1px solid; border-radius:6px; font-size:13px; line-height:1.65; }
+  .err { border-color:#fecaca; background:#fef2f2; color:#991b1b; }
+  .warn { border-color:#fde68a; background:#fffbeb; color:var(--warn); white-space:pre-line; }
+  .row .warn { display:inline; margin:0; padding:0; border:0; background:none; font-size:13px; }
+  .done { padding-bottom:34px; text-align:center; }
+  .done .big { display:grid; place-items:center; width:52px; height:52px; margin:0 auto 12px; border-radius:50%; background:#f0fdf4; color:var(--ok); font-size:25px; }
+  .done h2 { justify-content:center; margin-bottom:14px; }
+  .done .btn { display:inline-flex; width:auto; margin-left:0; }
+  .info { color:#4b5563; font-size:14px; line-height:1.85; }
+  .info b { color:#111827; }
+  .checkbox { display:flex; align-items:flex-start; gap:8px; margin-top:18px; color:#4b5563; font-size:13px; line-height:1.55; }
+  .checkbox label { margin:0; font-weight:400; }
+  .checkbox input { margin-top:4px; accent-color:#111827; }
+  .footer { margin:0; padding:12px 20px; background:#f9fafb; border-top:1px solid var(--line); color:#6b7280; font-size:12px; text-align:center; }
+  a { color:#111827; text-underline-offset:2px; }
+  @media (max-width:620px) { body { padding:16px 12px; } .install-head { padding:24px 20px 20px; } .content-area { padding:24px 20px 0; } }
+  @media (max-width:430px) { .install-head { padding:20px 16px 18px; } .content-area { padding:22px 16px 0; } .step strong { max-width:78px; font-size:11px; } .grid2 { grid-template-columns:1fr; } .row { align-items:flex-start; flex-direction:column; gap:4px; } form > .btn, .card > .btn { width:100%; } .done .btn { width:100%; margin-left:0; } .done .btn + .btn { margin-top:10px; } }
 </style>
 </head>
-<body><div class="wrap">
-<header class="install-head"><div class="brandline"><span class="brandmark">pf</span><div><h1>pafish</h1><div class="sub">博客 CMS 安装向导</div></div></div><div class="head-meta">轻量、可扩展的内容发布系统<br>安装过程约需 2 分钟</div></header>
-<div class="install-shell">
-  <aside class="rail" aria-label="安装进度"><div class="rail-kicker">Setup progress</div><ol class="steps">
-    <li class="step {$stepClass(1)}"><span class="step-no">1</span><div><strong>环境检查</strong><small>确认服务器条件</small></div></li>
-    <li class="step {$stepClass(2)}"><span class="step-no">2</span><div><strong>填写配置</strong><small>连接数据库与账号</small></div></li>
-    <li class="step {$stepClass(3)}"><span class="step-no">3</span><div><strong>完成安装</strong><small>开始使用 pafish</small></div></li>
-  </ol></aside>
-  <main class="content-area">{$extra}{$inner}</main>
-</div>
-<div class="footer">pafish · 轻量博客系统 · 安装完成后请删除 install.php</div>
-</div></body></html>
+<body><div class="wrap"><div class="install-shell">
+<header class="install-head"><div class="brandline"><h1>纸鱼博客安装</h1><div class="sub">欢迎使用，请按照步骤完成初始配置。</div></div>
+  <nav class="rail" aria-label="安装进度"><ol class="steps">
+    <li class="step {$stepClass(1)}"><span class="step-no">1</span><strong>环境检查</strong></li>
+    <li class="step {$stepClass(2)}"><span class="step-no">2</span><strong>填写配置</strong></li>
+    <li class="step {$stepClass(3)}"><span class="step-no">3</span><strong>完成安装</strong></li>
+  </ol></nav>
+</header>
+<main class="content-area">{$extra}{$inner}</main>
+<footer class="footer">pafish 安装向导 · 安装完成后请删除 install.php</footer>
+</div></div></body></html>
 HTML;
 }
 
@@ -624,11 +701,10 @@ if ($action === 'install') {
   <h2 style="margin:0 0 18px">安装完成</h2>
   <p class="info">
     管理员账号：<b>{$result['admin']}</b><br>
-    管理员密码：安装时设置的密码<br>
-    编辑账号：<b>editor</b> / <b>Editor@12345</b>
+    管理员密码：安装时设置的密码
   </p>
   {$warnHtml}
-  <p class="warn"><strong>下一步</strong><br>请删除根目录的 <b>install.php</b>，再登录后台修改默认编辑账号密码。</p>
+  <p class="warn"><strong>下一步</strong><br>请删除根目录的 <b>install.php</b>，再登录后台完成站点配置。</p>
   <a class="btn" href="{$links['admin']}">进入后台</a>
   <a class="btn" href="{$links['home']}" style="margin-left:8px;background:#fff;color:var(--ink)">访问首页</a>
 </div>

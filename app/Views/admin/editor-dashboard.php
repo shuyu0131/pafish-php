@@ -1,5 +1,5 @@
 <?php
-/** @var array $stats $latest $pendingComments $notifications */
+/** @var array $stats $latest $pendingComments */
 ?>
 <div class="admin-stack editor-dashboard">
   <div class="admin-page-head">
@@ -28,17 +28,6 @@
           <a class="admin-latest-item" href="<?= e(url_to('/admin/comments?status=PENDING')) ?>">
             <div class="admin-latest-main"><p class="admin-latest-title"><?= e($comment['author_name']) ?> · <?= e($comment['post_title']) ?></p><p class="admin-latest-sub"><?= e(mb_strimwidth((string) $comment['content'], 0, 54, '…')) ?></p></div>
             <span class="admin-muted"><?= e(format_date($comment['created_at'], 'MM-dd')) ?></span>
-          </a>
-        <?php endforeach; ?>
-      </div>
-    </section>
-    <section>
-      <div class="editor-dashboard-section-head"><h2 class="admin-chart-title">我的通知</h2><a href="<?= e(url_to('/admin/notifications')) ?>">全部查看</a></div>
-      <div class="card admin-latest">
-        <?php if ($notifications === []): ?><p class="admin-empty">暂无通知。</p><?php endif; ?>
-        <?php foreach ($notifications as $notification): ?>
-          <a class="admin-latest-item" href="<?= e(url_to('/admin/notifications')) ?>">
-            <div class="admin-latest-main"><p class="admin-latest-title"><?= !empty($notification['read']) ? '' : '新 · ' ?><?= e($notification['message']) ?></p><p class="admin-latest-sub"><?= e(format_date($notification['created_at'], 'yyyy-MM-dd HH:mm')) ?></p></div>
           </a>
         <?php endforeach; ?>
       </div>

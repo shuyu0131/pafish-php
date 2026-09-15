@@ -3,7 +3,7 @@
  * 后台布局：
  * 桌面：固定左侧栏（品牌 → 分组导航 → 用户信息/退出/查看前台）+ 内容区
  * 移动端：顶栏 + 抽屉（遮罩点击/Esc 关闭）；分组折叠状态记忆于 localStorage admin_nav_collapsed
- * 变量：$title $siteName $user $nav $unreadNotifications $currentPath $content
+ * 变量：$title $siteName $user $nav $currentPath $content
  */
 
 function admin_nav_active(array $item, string $currentPath): bool
@@ -27,6 +27,7 @@ $roleLabel = match ((string) ($user['role'] ?? '')) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= e($title) ?> - <?= e($siteName) ?></title>
 <meta name="robots" content="noindex,nofollow">
+<link rel="icon" href="<?= e(asset_url('/favicon.svg')) ?>" type="image/svg+xml">
 <link rel="stylesheet" href="<?= e(asset_url('/css/admin.css')) ?>">
 <script src="<?= e(asset_url('/js/admin-toast.js')) ?>"></script>
 <script src="<?= e(asset_url('/js/admin-ui.js')) ?>"></script>
@@ -43,13 +44,24 @@ window.pafishApi = function (p) {
 </script>
 </head>
 <body class="admin-body">
-  <!-- 移动端顶栏 -->
+  <!-- 顶栏：桌面提供站点与账户操作，移动端保留抽屉入口。 -->
   <header class="admin-topbar">
-    <button type="button" class="admin-drawer-toggle admin-icon-btn" aria-label="打开菜单"><?= admin_icon('menu', 20) ?></button>
-    <a class="admin-topbar-account" href="<?= e(url_to('/admin/profile')) ?>">
-      <img class="admin-avatar-sm" src="<?= e($user['avatar_url'] ?: admin_gravatar((string) $user['email'])) ?>" alt="" width="28" height="28">
-      <span><?= e($user['nickname'] ?: $user['username']) ?></span>
-    </a>
+    <div class="admin-topbar-start">
+      <button type="button" class="admin-drawer-toggle admin-icon-btn" aria-label="打开菜单"><?= admin_icon('menu', 20) ?></button>
+      <a class="admin-topbar-site" href="<?= e(url_to('/')) ?>" target="_blank" rel="noopener"><?= e($siteName) ?></a>
+      <span class="admin-topbar-section"><?= e($title) ?></span>
+    </div>
+    <div class="admin-topbar-actions">
+      <a class="admin-topbar-front" href="<?= e(url_to('/')) ?>" target="_blank" rel="noopener"><?= admin_icon('external-link', 15) ?><span>查看网站</span></a>
+      <a class="admin-topbar-account" href="<?= e(url_to('/admin/profile')) ?>">
+        <img class="admin-avatar-sm" src="<?= e($user['avatar_url'] ?: admin_gravatar((string) $user['email'])) ?>" alt="" width="28" height="28">
+        <span><?= e($user['nickname'] ?: $user['username']) ?></span>
+      </a>
+      <form class="admin-topbar-logout" method="post" action="<?= e(url_to('/api/auth/logout')) ?>">
+        <?= csrf_field() ?>
+        <button type="submit" class="admin-topbar-exit"><?= admin_icon('logout', 15) ?><span>退出登录</span></button>
+      </form>
+    </div>
   </header>
   <div class="admin-drawer-backdrop" hidden></div>
 
@@ -61,9 +73,6 @@ window.pafishApi = function (p) {
            href="<?= e(url_to($item['href'])) ?>">
           <?= admin_icon($item['icon']) ?>
           <span><?= e($item['label']) ?></span>
-          <?php if (($item['href'] ?? '') === '/admin/notifications' && $unreadNotifications > 0): ?>
-            <span class="admin-nav-badge"><?= $unreadNotifications > 99 ? '99+' : $unreadNotifications ?></span>
-          <?php endif; ?>
         </a>
       <?php endforeach; ?>
 
@@ -79,9 +88,6 @@ window.pafishApi = function (p) {
                  href="<?= e(url_to($item['href'])) ?>">
                 <?= admin_icon($item['icon']) ?>
                 <span><?= e($item['label']) ?></span>
-                <?php if (($item['href'] ?? '') === '/admin/notifications' && $unreadNotifications > 0): ?>
-                  <span class="admin-nav-badge"><?= $unreadNotifications > 99 ? '99+' : $unreadNotifications ?></span>
-                <?php endif; ?>
               </a>
             <?php endforeach; ?>
           </div>
@@ -98,13 +104,6 @@ window.pafishApi = function (p) {
           <p class="admin-user-sub"><?= e($roleLabel) ?> · <?= e($user['username']) ?></p>
         </div>
       </a>
-      <div class="admin-user-actions">
-        <a class="admin-icon-btn" href="<?= e(url_to('/')) ?>" title="查看博客前台"><?= admin_icon('home', 17) ?></a>
-        <form class="admin-logout" method="post" action="<?= e(url_to('/api/auth/logout')) ?>">
-          <?= csrf_field() ?>
-          <button type="submit" class="admin-icon-btn" title="退出登录"><?= admin_icon('logout', 17) ?></button>
-        </form>
-      </div>
     </div>
   </aside>
 

@@ -1,7 +1,7 @@
 <?php
 /**
  * 文章管理列表
- * 变量：$posts $total $totalPages $page $per $perOptions $params(status/category/q/sort)
+ * 变量：$posts $total $totalPages $page $per $perOptions $params(status/category/author/q/sort)
  *       $counts $isTrash $catTree $statusLabel $role
  */
 
@@ -12,6 +12,7 @@ function admin_posts_url(array $params, array $patch, int $per, bool $includePag
     $sp = [];
     if (($merged['status'] ?? '') !== '') $sp['status'] = $merged['status'];
     if (($merged['category'] ?? '') !== '') $sp['category'] = $merged['category'];
+    if (($merged['author'] ?? '') !== '') $sp['author'] = $merged['author'];
     if (($merged['q'] ?? '') !== '') $sp['q'] = $merged['q'];
     if (($merged['sort'] ?? '') !== 'latest') $sp['sort'] = $merged['sort'];
     if ($per !== 20) $sp['per'] = $per;
@@ -86,7 +87,7 @@ $canEdit = in_array($role ?? '', ['ADMIN', 'EDITOR'], true);
         <?php endforeach; ?>
       </select>
       <form class="admin-search" method="get" action="<?= e(url_to('/admin/posts')) ?>">
-        <?php foreach (['status' => $params['status'], 'category' => $params['category'], 'sort' => $params['sort']] as $k => $v): ?>
+        <?php foreach (['status' => $params['status'], 'category' => $params['category'], 'author' => $params['author'], 'sort' => $params['sort']] as $k => $v): ?>
           <?php if ($v !== '' && $v !== 'latest'): ?><input type="hidden" name="<?= e($k) ?>" value="<?= e($v) ?>"><?php endif; ?>
         <?php endforeach; ?>
         <input class="input" type="search" name="q" value="<?= e($params['q']) ?>" placeholder="搜索标题或内容…">
@@ -145,11 +146,15 @@ $canEdit = in_array($role ?? '', ['ADMIN', 'EDITOR'], true);
                 <?php endif; ?>
               </div>
             </td>
-            <td class="admin-col-md" data-label="分类"><?= $p['category_name'] ? e($p['category_name']) : '<span class="admin-muted">未分类</span>' ?></td>
-            <td class="admin-col-lg" data-label="作者"><?= e($p['author_username']) ?></td>
-            <td class="admin-col-lg" data-label="评论"><?= (int) $p['comment_count'] ?></td>
+            <td class="admin-col-md" data-label="分类">
+              <?php if ($p['category_name']): ?>
+                <a class="admin-table-filter-link" href="<?= e(url_to(admin_posts_url($params, ['category' => (string) $p['category_id']], $per))) ?>"><?= e($p['category_name']) ?></a>
+              <?php else: ?><span class="admin-muted">未分类</span><?php endif; ?>
+            </td>
+            <td class="admin-col-lg" data-label="作者"><a class="admin-table-filter-link" href="<?= e(url_to(admin_posts_url($params, ['author' => (string) $p['author_id']], $per))) ?>"><?= e($p['author_username']) ?></a></td>
+            <td class="admin-col-lg" data-label="评论"><a class="admin-table-filter-link" href="<?= e(url_to('/admin/comments?status=ALL&post_id=' . (int) $p['id'])) ?>"><?= (int) $p['comment_count'] ?></a></td>
             <td class="admin-col-sm" data-label="浏览"><?= number_format((int) $p['view_count']) ?></td>
-            <td class="admin-col-sm" data-label="互动"><?= admin_icon('heart', 13) ?> <?= number_format((int) $p['like_count']) ?>&nbsp; <?= admin_icon('star', 13) ?> <?= number_format((int) $p['favorite_count']) ?></td>
+            <td class="admin-col-sm admin-post-interactions" data-label="互动">点赞 <?= number_format((int) $p['like_count']) ?><br>收藏 <?= number_format((int) $p['favorite_count']) ?></td>
             <td data-label="更新时间"><time class="admin-post-time" datetime="<?= e((string) $p['updated_at']) ?>"><?= e(format_date($p['updated_at'], 'yyyy-MM-dd HH:mm')) ?></time></td>
             <td class="admin-col-ops" data-label="操作">
               <div class="admin-row-ops">

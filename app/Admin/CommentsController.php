@@ -6,14 +6,13 @@ namespace Pafish\Admin;
 
 use Pafish\Core\Auth;
 use Pafish\Core\DB;
-use Pafish\Services\Notify;
 use Pafish\Services\Settings;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
  * 评论审核：
- * - 4 Tab：待审核 PENDING / 已通过 APPROVED / 垃圾 SPAM / 已删除 TRASH（TRASH 无写入路径，保留 Tab）
+ * - 5 Tab：全部 / 待审核 PENDING / 已通过 APPROVED / 垃圾 SPAM / 已删除 TRASH（TRASH 无写入路径，保留 Tab）
  * - 20/页、created_at 倒序；每条显示作者/邮箱/IP/时间/内容/文章链接/父评论作者
  * - 操作：回复（以管理员身份建 APPROVED 子评论）、通过/垃圾（状态流转，驳回即 SPAM）、
  *   置顶/取消、按 IP 删除（物理删，级联子评论）、拉黑 IP（settings blocked_ips JSON）、
@@ -32,15 +31,20 @@ final class CommentsController extends AdminController
     {
         $this->guardCapability('comments.manage');
         $status = strtoupper((string) ($_GET['status'] ?? 'PENDING'));
-        if (!in_array($status, self::STATUSES, true)) {
+        if ($status !== 'ALL' && !in_array($status, self::STATUSES, true)) {
             $status = 'PENDING';
         }
         $page = max(1, (int) ($_GET['page'] ?? 1));
+        $postId = ctype_digit((string) ($_GET['post_id'] ?? '')) ? (int) $_GET['post_id'] : 0;
+        $statusFilter = $status === 'ALL' ? '' : ' AND c.status = ?';
+        $statusParams = $status === 'ALL' ? [] : [$status];
+        $postFilter = $postId > 0 ? ' AND c.post_id = ?' : '';
+        $postParams = $postId > 0 ? [$postId] : [];
 
         $scope = $this->editorScope();
         $total = (int) DB::value(
-            'SELECT COUNT(*) FROM comments c JOIN posts scope_post ON scope_post.id = c.post_id WHERE c.status = ?' . $scope['sql'],
-            array_merge([$status], $scope['params'])
+            'SELECT COUNT(*) FROM comments c JOIN posts scope_post ON scope_post.id = c.post_id WHERE 1=1' . $statusFilter . $postFilter . $scope['sql'],
+            array_merge($statusParams, $postParams, $scope['params'])
         );
         $pages = max(1, (int) ceil($total / self::PAGE_SIZE));
         $page = min($page, $pages);
@@ -52,11 +56,19 @@ final class CommentsController extends AdminController
              LEFT JOIN posts p ON p.id = c.post_id
              LEFT JOIN comments parent ON parent.id = c.parent_id
              JOIN posts scope_post ON scope_post.id = c.post_id
-             WHERE c.status = ?' . $scope['sql'] . '
+             WHERE 1=1' . $statusFilter . $postFilter . $scope['sql'] . '
              ORDER BY c.created_at DESC
              LIMIT ' . self::PAGE_SIZE . ' OFFSET ' . (($page - 1) * self::PAGE_SIZE),
-            array_merge([$status], $scope['params'])
+            array_merge($statusParams, $postParams, $scope['params'])
         );
+
+        $postTitle = '';
+        if ($postId > 0) {
+            $postTitle = (string) DB::value(
+                'SELECT title FROM posts WHERE id = ?' . (Auth::isAdmin() ? '' : ' AND author_id = ?'),
+                Auth::isAdmin() ? [$postId] : [$postId, (int) Auth::id()]
+            );
+        }
 
         $response->getBody()->write($this->render('comments', [
             'items' => $items,
@@ -64,7 +76,9 @@ final class CommentsController extends AdminController
             'total' => $total,
             'page' => $page,
             'pages' => $pages,
-            'statusCounts' => $this->statusCounts(),
+            'statusCounts' => $this->statusCounts($postId),
+            'postId' => $postId,
+            'postTitle' => $postTitle,
         ], '评论审核'));
         return $response;
     }
@@ -130,17 +144,6 @@ final class CommentsController extends AdminController
             ]
         );
         $commentId = (int) DB::lastInsertId();
-
-        $parentUserId = $parent['user_id'] !== null ? (int) $parent['user_id'] : null;
-        if ($parentUserId !== null && $parentUserId !== (int) $user['id']) {
-            Notify::createNotification(
-                'NEW_REPLY',
-                (string) $user['username'] . ' 回复了你的评论',
-                (int) $parent['post_id'],
-                $commentId,
-                $parentUserId
-            );
-        }
 
         // 钩子：管理员回复
         \do_action('after_comment_reply', [
@@ -232,11 +235,13 @@ final class CommentsController extends AdminController
     }
 
     /** 各状态计数（Tab 徽标） */
-    private function statusCounts(): array
+    private function statusCounts(int $postId = 0): array
     {
         $out = [];
         $scope = $this->editorScope();
-        $rows = DB::fetchAll('SELECT c.status, COUNT(*) AS n FROM comments c JOIN posts scope_post ON scope_post.id = c.post_id WHERE 1=1' . $scope['sql'] . ' GROUP BY c.status', $scope['params']);
+        $postFilter = $postId > 0 ? ' AND c.post_id = ?' : '';
+        $postParams = $postId > 0 ? [$postId] : [];
+        $rows = DB::fetchAll('SELECT c.status, COUNT(*) AS n FROM comments c JOIN posts scope_post ON scope_post.id = c.post_id WHERE 1=1' . $postFilter . $scope['sql'] . ' GROUP BY c.status', array_merge($postParams, $scope['params']));
         foreach (self::STATUSES as $s) {
             $out[$s] = 0;
         }

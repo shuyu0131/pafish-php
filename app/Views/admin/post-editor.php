@@ -1,7 +1,7 @@
 <?php
 /**
  * 文章编辑器：
- * 左侧标题+Markdown 编辑器（工具栏/分栏预览/拖拽粘贴上传/插入媒体），右侧 300px 设置栏
+ * 宽屏正文与设置栏按 3:1 双栏展示；窄屏正文优先，发布操作固定在底部。
  * 变量：$post $isEdit $postId $catTree $tags $tagIds $customFields $hasPassword $isScheduled $statusLabel
  */
 $editorData = [
@@ -64,8 +64,8 @@ $editorData = [
           <div class="admin-publish-btns">
             <button type="submit" class="btn btn-outline" data-save="draft">存为草稿</button>
             <button type="submit" class="btn btn-primary" data-save="publish">立即发布</button>
+            <button type="submit" class="btn btn-ghost admin-publish-schedule" data-save="schedule">定时发布</button>
           </div>
-          <button type="submit" class="btn btn-ghost admin-publish-schedule" data-save="schedule">定时发布</button>
           <div class="admin-editor-error" hidden></div>
         </div>
 
@@ -91,7 +91,7 @@ $editorData = [
             <div class="admin-tags-all" id="tagsAll"></div>
           </div>
 
-          <div class="admin-field">
+          <div class="admin-field admin-editor-cover-field">
             <span class="label">封面图</span>
             <div class="admin-cover-row">
               <input class="input" id="fCoverUrl" name="cover_url" value="<?= e($post['cover_url'] ?? '') ?>" placeholder="图片 URL" maxlength="500">
@@ -104,7 +104,7 @@ $editorData = [
             </div>
           </div>
 
-          <div class="admin-field">
+          <div class="admin-field admin-editor-excerpt-field">
             <span class="label">摘要</span>
             <textarea class="input admin-excerpt" id="fExcerpt" name="excerpt"
                       placeholder="展示在列表页（留空自动截取）" maxlength="500"><?= e($post['excerpt']) ?></textarea>

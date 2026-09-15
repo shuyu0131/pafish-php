@@ -118,7 +118,6 @@ final class CommentApiController
         // 回复校验：父评论必须存在、属于同一篇文章且已通过审核
         $parentId = null;
         $parentEmail = null;
-        $parentUserId = null;
         if ($parentIdRaw !== '') {
             $parent = DB::fetchOne(
                 'SELECT id, post_id, status, author_email, user_id FROM comments WHERE id = ?',
@@ -132,7 +131,6 @@ final class CommentApiController
             }
             $parentId = (int) $parent['id'];
             $parentEmail = $parent['author_email'];
-            $parentUserId = $parent['user_id'] !== null ? (int) $parent['user_id'] : null;
         }
 
         // 重复检测：同一文章 + 昵称 + 内容在 1 小时内只允许提交一次
@@ -197,26 +195,10 @@ final class CommentApiController
             Session::set('pending_comment_ids', array_slice(array_values(array_unique($pendingIds)), -50));
         }
 
-        // 站内通知（后台铃铛）+ 可选邮件通知
+        // 仅保留可选邮件提醒；站内通知中心已停用，不再创建通知记录。
         $isReply = $parentId !== null;
         $isAdminComment = $sessionUser !== null && (string) ($sessionUser['role'] ?? '') === 'ADMIN';
         if (!$isAdminComment) {
-            $recipients = [(int) $post['author_id']];
-            if ($isReply && $parentUserId !== null && $parentUserId !== $userId) {
-                $recipients[] = $parentUserId;
-            }
-            foreach (array_unique(array_filter($recipients)) as $recipientId) {
-                if ($recipientId === $userId) {
-                    continue;
-                }
-                Notify::createNotification(
-                    $isReply ? 'NEW_REPLY' : 'NEW_COMMENT',
-                    "{$name}" . ($isReply ? '回复了' : '评论了') . "《{$post['title']}》",
-                    (int) $post['id'],
-                    $commentId,
-                    $recipientId
-                );
-            }
             Notify::sendCommentEmail([
                 'commenter' => $name,
                 'isReply' => $isReply,
@@ -265,11 +247,7 @@ final class CommentApiController
         }
         $id = (int) $raw;
 
-        $comment = DB::fetchOne(
-            'SELECT c.status, c.like_count, c.user_id, c.post_id, p.title AS post_title
-             FROM comments c JOIN posts p ON p.id = c.post_id WHERE c.id = ?',
-            [$id]
-        );
+        $comment = DB::fetchOne('SELECT status, like_count FROM comments WHERE id = ?', [$id]);
         if (!$comment || $comment['status'] !== 'APPROVED') {
             return $this->json($response, ['error' => '评论不存在'], 404);
         }
@@ -295,16 +273,6 @@ final class CommentApiController
                 DB::execute('UPDATE comments SET like_count = like_count + 1 WHERE id = ?', [$id]);
                 return true;
             });
-            if ($isLiked && $comment['user_id'] !== null && (int) $comment['user_id'] !== $viewerId) {
-                $displayName = (string) ($viewer['nickname'] ?: $viewer['username']);
-                Notify::createNotification(
-                    'COMMENT_LIKE',
-                    $displayName . ' 赞了你的评论《' . (string) $comment['post_title'] . '》',
-                    (int) $comment['post_id'],
-                    $id,
-                    (int) $comment['user_id']
-                );
-            }
         } else {
             $cookieName = 'liked_comments';
             $liked = array_values(array_filter(explode(',', (string) ($_COOKIE[$cookieName] ?? ''))));

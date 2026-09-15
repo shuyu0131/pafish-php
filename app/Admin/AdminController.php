@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Pafish\Admin;
 
 use Pafish\Core\Auth;
-use Pafish\Core\DB;
 use Pafish\Core\Session;
 use Pafish\Core\Url;
 use Pafish\Http\Comments;
@@ -43,7 +42,6 @@ abstract class AdminController
             'label' => '互动',
             'items' => [
                 ['href' => '/admin/comments', 'label' => '评论审核', 'icon' => 'message', 'capability' => 'comments.manage'],
-                ['href' => '/admin/notifications', 'label' => '通知', 'icon' => 'bell', 'capability' => 'comments.manage'],
                 ['href' => '/admin/links', 'label' => '友情链接', 'icon' => 'link', 'capability' => 'links.manage'],
             ],
         ],
@@ -80,9 +78,6 @@ abstract class AdminController
             'role' => $role,
             'siteName' => (string) (Settings::get('site_name', '') ?: '纸鱼博客'),
             'nav' => $this->navForRole($role),
-            'unreadNotifications' => Auth::isAdmin()
-                ? (int) DB::value('SELECT COUNT(*) FROM notifications WHERE `read` = 0')
-                : (int) DB::value('SELECT COUNT(*) FROM notifications WHERE `read` = 0 AND recipient_id = ?', [(int) ($user['id'] ?? 0)]),
             'currentPath' => $this->currentPath(),
             'title' => $title,
             'flash' => $this->takeFlash(),

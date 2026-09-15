@@ -1,30 +1,33 @@
 <?php
 /**
  * 评论审核：
- * - 4 Tab（待审核/已通过/垃圾/已删除）+ 徽标计数，20/页 created_at 倒序
+ * - 5 Tab（全部/待审核/已通过/垃圾/已删除）+ 徽标计数，20/页 created_at 倒序
  * - 每条评论：作者、置顶徽标、回复 @父作者、时间「评论于」、文章链接（新窗口）、
  *   内容、邮箱 + IP（等宽）、当前状态、操作行
  * - 操作：回复（展开输入框，以管理员身份直接通过）、通过、垃圾、置顶/取消、
  *   按 IP 删除（提示删除条数）、拉黑 IP、删除（确认弹窗）
- * 变量：$items $status $total $page $pages $statusCounts
+ * 变量：$items $status $total $page $pages $statusCounts $postId $postTitle
  */
-$tabs = ['PENDING' => '待审核', 'APPROVED' => '已通过', 'SPAM' => '垃圾', 'TRASH' => '已删除'];
-$listUrl = url_to('/admin/comments') . '?status=' . $status;
+$tabs = ['ALL' => '全部', 'PENDING' => '待审核', 'APPROVED' => '已通过', 'SPAM' => '垃圾', 'TRASH' => '已删除'];
+$postId = (int) ($postId ?? 0);
+$postTitle = (string) ($postTitle ?? '');
+$querySuffix = $postId > 0 ? '&post_id=' . $postId : '';
+$listUrl = url_to('/admin/comments') . '?status=' . $status . $querySuffix;
 ?>
 <div class="admin-stack">
   <div class="admin-page-head">
     <div>
       <h1 class="admin-h1">评论审核</h1>
-      <p class="admin-page-sub"><?= $total ?> 条<?= $tabs[$status] ?>评论 · 按时间倒序</p>
+      <p class="admin-page-sub"><?= $total ?> 条<?= $tabs[$status] ?>评论<?= $postTitle !== '' ? ' · 《' . e($postTitle) . '》' : '' ?></p>
     </div>
   </div>
 
-  <!-- 4 Tab + 徽标 -->
+  <!-- 状态 Tab + 徽标 -->
   <div class="admin-comment-tabs" role="tablist">
     <?php foreach ($tabs as $s => $label): ?>
       <a class="admin-comment-tab<?= $s === $status ? ' active' : '' ?>"
-         href="<?= e(url_to('/admin/comments') . '?status=' . $s) ?>">
-        <?= $label ?><span class="badge"><?= (int) $statusCounts[$s] ?></span>
+         href="<?= e(url_to('/admin/comments') . '?status=' . $s . $querySuffix) ?>">
+        <?= $label ?><?php if ($s !== 'ALL'): ?><span class="badge"><?= (int) $statusCounts[$s] ?></span><?php endif; ?>
       </a>
     <?php endforeach; ?>
   </div>
@@ -80,8 +83,8 @@ $listUrl = url_to('/admin/comments') . '?status=' . $status;
       </table>
     </div>
 
-    <?= admin_pagination($page, $pages, $total, static function (int $p, int $per = 20) use ($status): string {
-      return url_to('/admin/comments') . '?status=' . rawurlencode($status) . ($p > 1 ? '&page=' . $p : '');
+    <?= admin_pagination($page, $pages, $total, static function (int $p, int $per = 20) use ($status, $postId): string {
+      return url_to('/admin/comments') . '?status=' . rawurlencode($status) . ($postId > 0 ? '&post_id=' . $postId : '') . ($p > 1 ? '&page=' . $p : '');
     }, 20) ?>
   <?php endif; ?>
 </div>

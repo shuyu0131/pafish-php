@@ -30,9 +30,10 @@ get_header();
 
   <?php if ($locked): ?>
     <?php /* 密码门：解锁 cookie 24h */ ?>
-    <div class="password-gate card">
-      <h1 class="password-gate-title"><?= admin_icon('lock', 18) ?> <?= e($post['title']) ?></h1>
-      <p class="password-gate-tip">这篇文章需要密码才能查看</p>
+    <section class="password-gate" aria-labelledby="password-gate-title">
+      <p class="password-gate-kicker">加密文章</p>
+      <h1 id="password-gate-title" class="password-gate-title"><?= e($post['title']) ?></h1>
+      <p class="password-gate-tip">请输入访问密码后继续阅读。</p>
       <?php if (!empty($passwordError)): ?>
         <p class="password-gate-error"><?= e($passwordError) ?></p>
       <?php endif; ?>
@@ -41,7 +42,7 @@ get_header();
         <input type="password" name="password" class="input" placeholder="请输入访问密码" autocomplete="off" required autofocus>
         <button type="submit" class="btn btn-primary">解锁</button>
       </form>
-    </div>
+    </section>
   <?php else: ?>
 
     <?php /* 标题区 */ ?>

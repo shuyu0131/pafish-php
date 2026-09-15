@@ -7,7 +7,6 @@ $posts = $posts ?? [];
 $stats = $stats ?? ['posts' => 0, 'views' => 0, 'comments' => 0];
 $reactions = $reactions ?? [];
 $comments = $comments ?? [];
-$notifications = $notifications ?? [];
 $pointsEnabled = !empty($pointsEnabled);
 $pointsBalance = (int) ($pointsBalance ?? 0);
 $pointTransactions = $pointTransactions ?? [];
@@ -74,19 +73,6 @@ get_header();
         <?php foreach ($comments as $comment): ?>
           <a href="<?= e(url_to('/post/' . rawurlencode((string) $comment['post_slug']))) ?>">
             <span><strong><?= e(mb_strimwidth((string) $comment['content'], 0, 42, '…')) ?></strong><small><?= e((string) $comment['post_title']) ?> · <?= (int) $comment['like_count'] ?> 赞 · <?= e(format_date($comment['created_at'], 'Y-m-d')) ?></small></span><?= admin_icon('arrow-right', 15) ?>
-          </a>
-        <?php endforeach; ?>
-      </div>
-    <?php endif; ?>
-  </section>
-  <section class="profile-posts">
-    <header><h2>我的通知</h2><span>最近 <?= count($notifications) ?> 条</span></header>
-    <?php if ($notifications === []): ?><p class="profile-posts-empty">暂时没有与你相关的通知。</p><?php else: ?>
-      <div class="profile-post-list">
-        <?php foreach ($notifications as $notification): ?>
-          <?php $notificationUrl = $notification['post_slug'] ? url_to('/post/' . rawurlencode((string) $notification['post_slug'])) : url_to('/profile'); ?>
-          <a href="<?= e($notificationUrl) ?>">
-            <span><strong><?= !empty($notification['read']) ? '' : '新 · ' ?><?= e((string) $notification['message']) ?></strong><small><?= e(format_date($notification['created_at'], 'Y-m-d H:i')) ?></small></span><?= admin_icon('arrow-right', 15) ?>
           </a>
         <?php endforeach; ?>
       </div>

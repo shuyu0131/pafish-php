@@ -9,6 +9,7 @@
 
     # 根路径静态资源映射到 public/。
     RewriteRule ^(css|js|uploads|vendor)(/.*)?$ public/$1$2 [L,NC]
+    RewriteRule ^favicon\.svg$ public/favicon.svg [L,NC]
 
     # 兼容旧主题资源地址。
     RewriteRule ^theme-assets/ index.php [QSA,L,NC]

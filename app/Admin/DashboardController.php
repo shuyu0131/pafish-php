@@ -126,17 +126,11 @@ final class DashboardController extends AdminController
              ORDER BY c.created_at DESC LIMIT 5",
             [$userId]
         );
-        $notifications = DB::fetchAll(
-            'SELECT n.message, n.`read`, n.created_at, p.slug AS post_slug FROM notifications n LEFT JOIN posts p ON p.id = n.post_id WHERE n.recipient_id = ? ORDER BY n.created_at DESC LIMIT 5',
-            [$userId]
-        );
-
         $response->getBody()->write($this->render('editor-dashboard', [
             'username' => (string) ($user['username'] ?? ''),
             'stats' => $stats,
             'latest' => $latest,
             'pendingComments' => $pendingComments,
-            'notifications' => $notifications,
         ], '写作台'));
         return $response;
     }

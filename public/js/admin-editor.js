@@ -122,13 +122,19 @@
     els.content.style.padding = "12px";
   }
 
+  function editorHeight() {
+    if (!window.matchMedia || !window.matchMedia("(max-width: 767px)").matches) return 520;
+    var viewport = window.innerHeight || 680;
+    return Math.max(320, Math.min(440, viewport - 210));
+  }
+
   function initEditor() {
     var mount = $("#vditorMount");
     if (!mount) return;
     if (typeof window.Vditor !== "function") { editorFallback(); return; }
 
     vditor = new Vditor(mount, {
-      height: 520,
+      height: editorHeight(),
       mode: "ir",
       value: initial.content || "",
       placeholder: "开始写作…（支持拖拽/粘贴图片上传）",

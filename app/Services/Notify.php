@@ -4,18 +4,16 @@ declare(strict_types=1);
 
 namespace Pafish\Services;
 
-use Pafish\Core\DB;
-
 /**
- * 站内通知 + 邮件通知
- * - createNotification：新评论/新回复写入 notifications 表（后台铃铛）
+ * 邮件通知服务。
+ * - createNotification 保留为兼容入口，但站内通知中心已停用，不再写入 notifications 表。
  * - sendCommentEmail：站长邮件提醒（notify_email_enabled + notify_email 开启时生效；失败静默）
  * - sendReplyEmail：被回复者邮件通知（父评论者勾选 notifyReply；失败静默）
  * - sendEmailCode / sendResetLinkEmail：验证码 / 重置链接（失败抛错给调用方）
  */
 final class Notify
 {
-    /** 站内通知：新评论/新回复 */
+    /** 已停用的站内通知兼容入口，保留以避免旧插件调用报错。 */
     public static function createNotification(
         string $type,
         string $message,
@@ -24,10 +22,7 @@ final class Notify
         ?int $recipientId = null
     ): void
     {
-        DB::execute(
-            'INSERT INTO notifications (type, message, post_id, comment_id, recipient_id) VALUES (?, ?, ?, ?, ?)',
-            [$type, $message, $postId, $commentId, $recipientId]
-        );
+        // Intentionally empty: no database write for deprecated in-app notifications.
     }
 
     /** 邮箱验证码（注册/忘记密码统一入口）；失败抛错给调用方 */

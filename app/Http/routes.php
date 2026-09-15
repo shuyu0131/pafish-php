@@ -26,7 +26,6 @@ use Pafish\Admin\CategoriesController;
 use Pafish\Admin\TagsController;
 use Pafish\Admin\MediaController;
 use Pafish\Admin\CommentsController;
-use Pafish\Admin\NotificationsController;
 use Pafish\Admin\LinksController;
 use Pafish\Admin\NavController;
 use Pafish\Admin\WidgetsController;
@@ -80,7 +79,6 @@ $app->get('/login', [AuthPageController::class, 'login']);
 $app->get('/register', [AuthPageController::class, 'register']);
 $app->get('/forgot-password', [AuthPageController::class, 'forgot']);
 $app->get('/reset-password', [AuthPageController::class, 'reset']);
-$app->get('/logout', [AuthPageController::class, 'logout']); // 兼容主题遗留链接；标准退出走 POST /api/auth/logout
 $app->post('/api/auth/login', [AuthApiController::class, 'login']);
 $app->post('/api/auth/logout', [AuthApiController::class, 'logout']);
 $app->post('/api/auth/send-code', [AuthApiController::class, 'sendCode']);
@@ -147,11 +145,6 @@ $app->group('/admin', function ($group) {
     $group->post('/comments/{id}/delete', [CommentsController::class, 'delete']);
     $group->post('/comments/delete-by-ip', [CommentsController::class, 'deleteByIp']);
     $group->post('/comments/block-ip', [CommentsController::class, 'blockIp']);
-
-    // 通知（20/页 / 全部已读）
-    $group->get('/notifications', [NotificationsController::class, 'index']);
-    $group->post('/notifications/read-all', [NotificationsController::class, 'readAll']);
-    $group->post('/notifications/{id}/delete', [NotificationsController::class, 'delete']);
 
     // 友情链接（列表 / 保存 / 删除 / 显隐 / 上下移动）
     $group->get('/links', [LinksController::class, 'index']);

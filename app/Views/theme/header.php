@@ -43,6 +43,7 @@ $jsonLd = $frontMeta['jsonLd'] ?? [];
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= e($fullTitle) ?></title>
+<link rel="icon" href="<?= e(asset_url('/favicon.svg')) ?>" type="image/svg+xml">
 <?php if ($desc !== ''): ?><meta name="description" content="<?= e($desc) ?>"><?php endif; ?>
 <?php if ($robots !== ''): ?><meta name="robots" content="<?= e($robots) ?>"><?php endif; ?>
 <?php if ($canonical !== ''): ?><link rel="canonical" href="<?= e($canonical) ?>"><?php endif; ?>

@@ -22,7 +22,9 @@ $hasPassword = (bool) ($post['password'] ?? false);
     <?php endif; ?>
   </h2>
 
-  <?php if (!empty($post['excerpt'])): ?>
+  <?php if ($hasPassword): ?>
+    <p class="post-card-excerpt post-card-password-note">该文章已加密，请点击标题输入密码访问。</p>
+  <?php elseif (!empty($post['excerpt'])): ?>
     <p class="post-card-excerpt"><?= e($post['excerpt']) ?></p>
   <?php endif; ?>
 

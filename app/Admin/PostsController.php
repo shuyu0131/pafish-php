@@ -38,6 +38,7 @@ final class PostsController extends AdminController
         $status = !$isTrash && in_array((string) ($_GET['status'] ?? ''), ['PUBLISHED', 'DRAFT', 'SCHEDULED'], true)
             ? (string) $_GET['status'] : null;
         $category = (string) ($_GET['category'] ?? '');
+        $author = (string) ($_GET['author'] ?? '');
         $q = trim((string) ($_GET['q'] ?? ''));
         $sort = in_array((string) ($_GET['sort'] ?? ''), ['latest', 'updated', 'pinned', 'views', 'comments'], true)
             ? (string) $_GET['sort'] : 'latest';
@@ -59,6 +60,12 @@ final class PostsController extends AdminController
         } elseif (ctype_digit($category)) {
             $where .= ' AND p.category_id = ?';
             $params[] = (int) $category;
+        }
+        if (ctype_digit($author) && (int) $author > 0) {
+            $where .= ' AND p.author_id = ?';
+            $params[] = (int) $author;
+        } else {
+            $author = '';
         }
         if ($q !== '') {
             $where .= ' AND (p.title LIKE ? OR p.content LIKE ?)';
@@ -112,7 +119,7 @@ final class PostsController extends AdminController
             'page' => $page,
             'per' => $per,
             'perOptions' => self::PER_PAGE_OPTIONS,
-            'params' => ['status' => $status ?? ($isTrash ? 'trash' : ''), 'category' => $category, 'q' => $q, 'sort' => $sort],
+            'params' => ['status' => $status ?? ($isTrash ? 'trash' : ''), 'category' => $category, 'author' => $author, 'q' => $q, 'sort' => $sort],
             'counts' => $counts,
             'isTrash' => $isTrash,
             'catTree' => $catTree,

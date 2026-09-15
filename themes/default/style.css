@@ -599,6 +599,13 @@ input[type="radio"]:focus-visible {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+.post-card-password-note {
+  display: block;
+  padding-left: 0.75rem;
+  border-left: 2px solid var(--accent);
+  color: var(--side);
+  -webkit-line-clamp: unset;
+}
 
 .post-card-meta {
   display: flex;
@@ -1464,24 +1471,31 @@ input[type="radio"]:focus-visible {
 
 /* 密码门 */
 .password-gate {
-  max-width: 26rem;
-  margin: 3rem auto;
-  padding: 2.5rem 2rem;
-  text-align: center;
+  max-width: 34rem;
+  margin: 4rem auto;
+  padding: 3rem 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+.password-gate-kicker {
+  margin: 0 0 0.75rem;
+  color: var(--meta);
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 .password-gate-title {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.375rem;
-  margin: 0 0 0.5rem;
-  font-size: 1.375rem;
+  margin: 0 0 0.75rem;
+  font-size: 1.75rem;
   font-weight: 600;
-  color: var(--fg);
+  line-height: 1.45;
+  color: var(--title);
   word-break: break-word;
 }
 .password-gate-tip {
-  margin: 0 0 1.25rem;
-  font-size: 0.875rem;
+  margin: 0 0 1.5rem;
+  font-size: 0.9375rem;
   color: var(--muted);
 }
 .password-gate-error {
@@ -1492,10 +1506,20 @@ input[type="radio"]:focus-visible {
 .password-gate-form {
   display: flex;
   gap: 0.625rem;
+  max-width: 28rem;
 }
 .password-gate-form .input {
   flex: 1;
   min-width: 0;
+}
+@media (max-width: 560px) {
+  .password-gate {
+    margin: 2rem 0;
+    padding: 2rem 0;
+  }
+  .password-gate-title { font-size: 1.375rem; }
+  .password-gate-form { flex-direction: column; }
+  .password-gate-form .btn { width: 100%; }
 }
 
 /* 图片放大预览遮罩 */

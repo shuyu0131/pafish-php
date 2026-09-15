@@ -6,6 +6,7 @@ namespace Pafish\Http;
 
 use Pafish\Core\Auth;
 use Pafish\Core\DB;
+use Pafish\Core\Session;
 use Pafish\Services\EmailCode;
 use Pafish\Services\Notify;
 use Pafish\Services\Settings;
@@ -73,6 +74,11 @@ final class AuthApiController
 
     public function logout(Request $request, Response $response): Response
     {
+        $body = $request->getParsedBody() ?? [];
+        $csrf = (string) ($body['_csrf'] ?? $request->getHeaderLine('X-CSRF-Token'));
+        if (!Session::verifyCsrf($csrf)) {
+            return $this->json($response, ['error' => '请求已过期，请刷新页面重试'], 419);
+        }
         $user = Auth::user();
         if ($user) {
             \do_action('after_logout', ['id' => (string) $user['id']]);

@@ -190,6 +190,10 @@ final class ApiController extends AdminController
 
         $where = '1=1';
         $params = [];
+        if (!Auth::isAdmin()) {
+            $where .= ' AND uploader_id = ?';
+            $params[] = (int) Auth::id();
+        }
         if ($q !== '') {
             $where .= ' AND original_name LIKE ?';
             $params[] = "%{$q}%";
@@ -315,7 +319,13 @@ final class ApiController extends AdminController
         $tagIds = [];
         foreach (array_slice(preg_split('/[,，\s]+/', $meta['tags'], -1, PREG_SPLIT_NO_EMPTY) ?: [], 0, 5) as $tagName) {
             try {
-                $tagIds[] = PostsController::resolveNewTags([trim($tagName)])[0] ?? 0;
+                $tagName = trim($tagName);
+                $existing = DB::fetchOne('SELECT id FROM tags WHERE name = ?', [$tagName]);
+                if ($existing !== null) {
+                    $tagIds[] = (int) $existing['id'];
+                } elseif (Auth::isAdmin()) {
+                    $tagIds[] = PostsController::resolveNewTags([$tagName])[0] ?? 0;
+                }
             } catch (\Throwable $e) {
                 // 标签创建失败不影响文章
             }

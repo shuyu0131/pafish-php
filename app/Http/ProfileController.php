@@ -9,7 +9,6 @@ use Pafish\Core\DB;
 use Pafish\Core\Url;
 use Pafish\Services\RedPacket;
 use Pafish\Services\Points;
-use Pafish\Services\Theme;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -18,14 +17,6 @@ final class ProfileController
 {
     public function index(Request $request, Response $response): Response
     {
-        if (!Theme::hasTemplate('profile')) {
-            $response->getBody()->write(\render('error', [
-                'status' => 404,
-                'message' => '当前主题未提供个人中心页面',
-                'backUrl' => Url::to('/'),
-            ]));
-            return $response->withStatus(404);
-        }
         if (!Auth::check()) {
             return $response->withHeader('Location', Url::to('/login') . '?from=%2Fprofile')->withStatus(302);
         }
@@ -59,14 +50,6 @@ final class ProfileController
              ORDER BY c.created_at DESC LIMIT 30",
             [$userId]
         );
-        $notifications = DB::fetchAll(
-            "SELECT n.type, n.message, n.`read`, n.created_at, p.slug AS post_slug
-             FROM notifications n
-             LEFT JOIN posts p ON p.id = n.post_id
-             WHERE n.recipient_id = ?
-             ORDER BY n.created_at DESC LIMIT 30",
-            [$userId]
-        );
         $pointsEnabled = Points::available();
         $response->getBody()->write(\render('profile', [
             'title' => '个人中心',
@@ -76,7 +59,6 @@ final class ProfileController
             'stats' => $stats,
             'reactions' => $reactions,
             'comments' => $comments,
-            'notifications' => $notifications,
             'pointsEnabled' => $pointsEnabled,
             'pointsBalance' => $pointsEnabled ? Points::balance($userId) : 0,
             'pointTransactions' => $pointsEnabled ? Points::transactions($userId) : [],

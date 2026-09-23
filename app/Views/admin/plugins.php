@@ -98,7 +98,9 @@ $pluginActive = count(array_filter($plugins, static fn (array $plugin): bool => 
                         <button type="button" class="btn btn-primary btn-sm admin-plugin-activate" data-name="<?= e($p['name']) ?>" data-title="<?= e($p['title']) ?>">启用</button>
                       <?php endif; ?>
                     <?php endif; ?>
-                    <button type="button" class="btn btn-ghost btn-sm admin-plugin-uninstall" data-name="<?= e($p['name']) ?>" data-title="<?= e($p['title']) ?>">卸载</button>
+                    <?php if (empty($p['builtin'])): ?>
+                      <button type="button" class="btn btn-ghost btn-sm admin-plugin-uninstall" data-name="<?= e($p['name']) ?>" data-title="<?= e($p['title']) ?>">卸载</button>
+                    <?php endif; ?>
                   </div>
                 </td>
               </tr>

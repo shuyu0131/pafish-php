@@ -82,18 +82,6 @@ get_header();
     <?php /* 正文（Markdown 已在控制器渲染） */ ?>
     <div class="md-content"><?= $contentHtml ?></div>
 
-    <?php /* 自定义字段（外观设置可关闭） */ ?>
-    <?php if (!empty($showCustomFields) && !empty($customFields)): ?>
-      <dl class="custom-fields">
-        <?php foreach ($customFields as $field): ?>
-          <div class="custom-field">
-            <dt><?= e($field['key'] ?? '') ?></dt>
-            <dd><?= e($field['value'] ?? '') ?></dd>
-          </div>
-        <?php endforeach; ?>
-      </dl>
-    <?php endif; ?>
-
     <?php /* 上下篇 */ ?>
     <?php if (!empty($prevPost) || !empty($nextPost)): ?>
       <div class="post-pager">

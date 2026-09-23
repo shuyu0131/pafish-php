@@ -21,7 +21,6 @@ final class CommentApiController
 {
     private const MIN_INTERVAL = 5; // 同 IP 两次评论最小间隔（秒）
     private const CAPTCHA_MIN_INTERVAL = 2; // 同一请求身份刷新验证码最小间隔（秒）
-    private const MAX_LIKED = 200;  // 每人最多点赞的评论数（防止 cookie 无限膨胀）
 
     // ---------- 图形验证码 ----------
 
@@ -144,7 +143,7 @@ final class CommentApiController
         }
 
         $needReview = (string) Settings::get('comments_need_review', 'true') !== 'false';
-        $commentDecision = \apply_filters('before_comment_submit', [
+        $commentDecision = \apply_decision_filters('before_comment_submit', [
             'allowed' => true,
             'status' => $needReview ? 'PENDING' : 'APPROVED',
             'httpStatus' => 403,
@@ -160,9 +159,9 @@ final class CommentApiController
             'ip' => $ip,
             'plugins' => is_array($body['plugins'] ?? null) ? $body['plugins'] : [],
         ]);
-        if (is_array($commentDecision) && ($commentDecision['allowed'] ?? true) === false) {
-            $httpStatus = max(400, min(499, (int) ($commentDecision['httpStatus'] ?? 403)));
-            return $this->json($response, ['error' => (string) ($commentDecision['error'] ?? '评论提交被安全策略拒绝')], $httpStatus);
+        if ($commentDecision === false || (is_array($commentDecision) && ($commentDecision['allowed'] ?? true) === false)) {
+            $httpStatus = max(400, min(499, (int) (is_array($commentDecision) ? ($commentDecision['httpStatus'] ?? 403) : 403)));
+            return $this->json($response, ['error' => is_array($commentDecision) ? (string) ($commentDecision['error'] ?? '评论提交被安全策略拒绝') : '评论提交被安全策略拒绝'], $httpStatus);
         }
         $commentStatus = is_array($commentDecision) ? (string) ($commentDecision['status'] ?? '') : '';
         if ($sessionUser !== null && (string) ($sessionUser['role'] ?? '') === 'ADMIN') {
@@ -195,7 +194,7 @@ final class CommentApiController
             Session::set('pending_comment_ids', array_slice(array_values(array_unique($pendingIds)), -50));
         }
 
-        // 仅保留可选邮件提醒；站内通知中心已停用，不再创建通知记录。
+        // 仅发送可选邮件提醒。
         $isReply = $parentId !== null;
         $isAdminComment = $sessionUser !== null && (string) ($sessionUser['role'] ?? '') === 'ADMIN';
         if (!$isAdminComment) {
@@ -234,66 +233,6 @@ final class CommentApiController
         ]);
 
         return $this->json($response, ['ok' => true]);
-    }
-
-    // ---------- 评论点赞 ----------
-
-    public function like(Request $request, Response $response): Response
-    {
-        $body = $request->getParsedBody() ?? [];
-        $raw = (string) ($body['commentId'] ?? '');
-        if (!preg_match('/^\d+$/', $raw)) {
-            return $this->json($response, ['error' => '参数错误'], 400);
-        }
-        $id = (int) $raw;
-
-        $comment = DB::fetchOne('SELECT status, like_count FROM comments WHERE id = ?', [$id]);
-        if (!$comment || $comment['status'] !== 'APPROVED') {
-            return $this->json($response, ['error' => '评论不存在'], 404);
-        }
-
-        $viewer = Auth::user();
-        if ($viewer !== null) {
-            $viewerId = (int) $viewer['id'];
-            $isLiked = DB::transaction(function () use ($id, $viewerId): bool {
-                $locked = DB::fetchOne('SELECT id, status FROM comments WHERE id = ? FOR UPDATE', [$id]);
-                if (!$locked || $locked['status'] !== 'APPROVED') {
-                    throw new \RuntimeException('评论不存在');
-                }
-                $exists = DB::fetchOne(
-                    'SELECT 1 FROM comment_reactions WHERE user_id = ? AND comment_id = ?',
-                    [$viewerId, $id]
-                ) !== null;
-                if ($exists) {
-                    DB::execute('DELETE FROM comment_reactions WHERE user_id = ? AND comment_id = ?', [$viewerId, $id]);
-                    DB::execute('UPDATE comments SET like_count = GREATEST(like_count - 1, 0) WHERE id = ?', [$id]);
-                    return false;
-                }
-                DB::execute('INSERT INTO comment_reactions (user_id, comment_id) VALUES (?, ?)', [$viewerId, $id]);
-                DB::execute('UPDATE comments SET like_count = like_count + 1 WHERE id = ?', [$id]);
-                return true;
-            });
-        } else {
-            $cookieName = 'liked_comments';
-            $liked = array_values(array_filter(explode(',', (string) ($_COOKIE[$cookieName] ?? ''))));
-            $key = (string) $id;
-            $wasLiked = in_array($key, $liked, true);
-            if ($wasLiked) {
-                DB::execute('UPDATE comments SET like_count = GREATEST(like_count - 1, 0) WHERE id = ?', [$id]);
-                $liked = array_values(array_filter($liked, static fn (string $item): bool => $item !== $key));
-            } else {
-                DB::execute('UPDATE comments SET like_count = like_count + 1 WHERE id = ?', [$id]);
-                $liked[] = $key;
-                if (count($liked) > self::MAX_LIKED) {
-                    $liked = array_slice($liked, count($liked) - self::MAX_LIKED);
-                }
-            }
-            setcookie($cookieName, implode(',', $liked), time() + 31536000, '/', '', false, false);
-            $isLiked = !$wasLiked;
-        }
-
-        $count = (int) DB::value('SELECT like_count FROM comments WHERE id = ?', [$id]);
-        return $this->json($response, ['liked' => $isLiked, 'count' => $count]);
     }
 
     private function clientIp(Request $request): string

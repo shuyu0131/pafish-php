@@ -63,6 +63,7 @@ $themeActive = count(array_filter($themes, static fn (array $theme): bool => !em
             <?php if ($t['settingsCount'] > 0): ?>
               <a class="btn btn-primary btn-sm" href="<?= e(url_to('/admin/appearance/' . rawurlencode($t['name']))) ?>">设置</a>
             <?php endif; ?>
+            <?php if ($t['name'] !== 'default'): ?><button type="button" class="btn btn-ghost btn-sm admin-theme-deactivate" data-name="<?= e($t['name']) ?>" data-title="<?= e($t['title']) ?>">停用</button><?php endif; ?>
           <?php else: ?>
             <button type="button" class="btn btn-primary btn-sm admin-theme-activate" data-name="<?= e($t['name']) ?>" data-title="<?= e($t['title']) ?>">启用</button>
             <button type="button" class="btn btn-ghost btn-sm admin-theme-uninstall" data-name="<?= e($t['name']) ?>" data-title="<?= e($t['title']) ?>">卸载</button>
@@ -163,14 +164,30 @@ $themeActive = count(array_filter($themes, static fn (array $theme): bool => !em
       run("/admin/appearance/activate", fd, "已启用主题 " + btn.dataset.title);
     });
   });
-  document.querySelectorAll(".admin-theme-uninstall").forEach(function (btn) {
+  document.querySelectorAll(".admin-theme-deactivate").forEach(function (btn) {
     btn.addEventListener("click", function () {
-      (window.pafishConfirm ? window.pafishConfirm("确定要彻底删除主题“" + btn.dataset.title + "”吗？", { title: "卸载主题", accept: "卸载并删除" }) : Promise.resolve(window.confirm("确定要彻底删除主题？操作不可恢复！"))).then(function (ok) {
+      var confirmTask = window.pafishConfirm ? window.pafishConfirm("停用主题“" + btn.dataset.title + "”并切回默认主题？", { title: "停用主题", accept: "停用" }) : Promise.resolve(window.confirm("停用后将切回默认主题，是否继续？"));
+      confirmTask.then(function (ok) {
         if (!ok) return;
         btn.disabled = true;
         btn.textContent = "处理中…";
         var fd = new FormData();
         fd.append("name", btn.dataset.name);
+        fd.append("_csrf", CSRF);
+        run("/admin/appearance/deactivate", fd, "已停用主题 " + btn.dataset.title);
+      });
+    });
+  });
+  document.querySelectorAll(".admin-theme-uninstall").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      (window.pafishConfirm ? window.pafishConfirm("确定要彻底删除主题“" + btn.dataset.title + "”吗？", { title: "卸载主题", accept: "卸载并删除" }) : Promise.resolve(window.confirm("确定要彻底删除主题？操作不可恢复！"))).then(function (ok) {
+        if (!ok) return;
+        var deleteData = window.confirm("同时删除该主题的设置、数据和自有表吗？\n选择“取消”将保留数据，之后仍可恢复使用。");
+        btn.disabled = true;
+        btn.textContent = "处理中…";
+        var fd = new FormData();
+        fd.append("name", btn.dataset.name);
+        fd.append("delete_data", deleteData ? "1" : "0");
         fd.append("_csrf", CSRF);
         run("/admin/appearance/uninstall", fd, "已卸载主题 " + btn.dataset.title);
       });

@@ -206,42 +206,5 @@ $sep = str_contains($baseUrl, '?') ? '&' : '?';
     }
   });
 
-  // ---- 点赞：乐观更新，失败回滚 ----
-  document.addEventListener('click', function (e) {
-    var btn = e.target.closest('.comment-like');
-    if (!btn || btn.disabled) return;
-    btn.disabled = true;
-    var id = btn.dataset.commentId;
-    var liked = btn.dataset.liked === '1';
-    var countEl = btn.querySelector('.comment-like-count');
-    var count = countEl ? parseInt(countEl.textContent, 10) : 0;
-    var prev = { liked: liked, count: count };
-    // 乐观更新
-    btn.dataset.liked = liked ? '0' : '1';
-    btn.classList.toggle('liked', !liked);
-    var next = Math.max(0, count + (liked ? -1 : 1));
-    if (countEl) {
-      countEl.textContent = next;
-      countEl.hidden = next === 0;
-    }
-    postJSON(pafishApi('/comments/like'), { commentId: id }).then(function (res) {
-      if (!res || typeof res.liked === 'undefined') {
-        btn.dataset.liked = prev.liked ? '1' : '0';
-        btn.classList.toggle('liked', prev.liked);
-        if (countEl) { countEl.textContent = prev.count; countEl.hidden = prev.count === 0; }
-        return;
-      }
-      btn.dataset.liked = res.liked ? '1' : '0';
-      btn.classList.toggle('liked', !!res.liked);
-      if (countEl) { countEl.textContent = res.count; countEl.hidden = res.count === 0; }
-      btn.title = res.liked ? '取消点赞' : '点赞';
-    }).catch(function () {
-      btn.dataset.liked = prev.liked ? '1' : '0';
-      btn.classList.toggle('liked', prev.liked);
-      if (countEl) { countEl.textContent = prev.count; countEl.hidden = prev.count === 0; }
-    }).finally(function () {
-      btn.disabled = false;
-    });
-  });
 })();
 </script>

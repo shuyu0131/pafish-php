@@ -1,7 +1,7 @@
 <?php
 /**
  * 文章编辑器：
- * 宽屏正文与设置栏按 3:1 双栏展示；窄屏正文优先，发布操作固定在底部。
+ * 宽屏正文与设置栏按 3:1 双栏展示；窄屏按正文、设置、发布的顺序阅读。
  * 变量：$post $isEdit $postId $catTree $tags $tagIds $customFields $hasPassword $isScheduled $statusLabel
  */
 $editorData = [
@@ -62,9 +62,8 @@ $editorData = [
         <!-- 发布按钮 -->
         <div class="card admin-form-card admin-publish-card">
           <div class="admin-publish-btns">
+            <button type="submit" class="btn btn-primary admin-publish-primary" data-save="publish">立即发布</button>
             <button type="submit" class="btn btn-outline" data-save="draft">存为草稿</button>
-            <button type="submit" class="btn btn-primary" data-save="publish">立即发布</button>
-            <button type="submit" class="btn btn-ghost admin-publish-schedule" data-save="schedule">定时发布</button>
           </div>
           <div class="admin-editor-error" hidden></div>
         </div>
@@ -95,8 +94,8 @@ $editorData = [
             <span class="label">封面图</span>
             <div class="admin-cover-row">
               <input class="input" id="fCoverUrl" name="cover_url" value="<?= e($post['cover_url'] ?? '') ?>" placeholder="图片 URL" maxlength="500">
-              <button type="button" class="btn btn-outline" id="btnCoverUpload">上传</button>
-              <button type="button" class="btn btn-outline" id="btnCoverPicker">媒体库</button>
+              <button type="button" class="btn btn-outline" id="btnCoverUpload"><?= admin_icon('upload', 14) ?>上传</button>
+              <button type="button" class="btn btn-outline" id="btnCoverPicker"><?= admin_icon('image', 14) ?>媒体库</button>
               <input type="file" id="coverFile" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml" hidden>
             </div>
             <div class="admin-cover-preview" data-cover-preview hidden>
@@ -183,13 +182,15 @@ $editorData = [
   <div class="admin-modal" role="dialog" aria-modal="true" aria-label="插入媒体">
     <div class="admin-modal-head">
       <div class="admin-modal-tabs">
-        <button type="button" class="admin-modal-tab active" data-mtab="upload">本地上传</button>
-        <button type="button" class="admin-modal-tab" data-mtab="library">媒体库</button>
+        <button type="button" class="admin-modal-tab active" data-mtab="upload"><?= admin_icon('upload', 14) ?>本地上传</button>
+        <button type="button" class="admin-modal-tab" data-mtab="library"><?= admin_icon('image', 14) ?>媒体库</button>
       </div>
       <button type="button" class="admin-icon-btn" data-close-modal aria-label="关闭" title="关闭"><?= admin_icon('x', 16) ?></button>
     </div>
     <div class="admin-modal-body">
-      <div data-mpanel="upload">
+      <div class="admin-media-upload-panel" data-mpanel="upload">
+        <div class="admin-media-upload-icon" aria-hidden="true"><?= admin_icon('upload', 24) ?></div>
+        <strong>上传媒体文件</strong>
         <input type="file" class="input" id="mediaFile"
                accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip,.rar,.7z,.tar,.gz,.mp3,.wav,.ogg,.m4a,.flac,.mp4,.webm,.mov,.mkv">
         <p class="admin-field-hint admin-modal-hint" data-mupload-hint>图片插入为 Markdown 图片，其他文件插入为下载链接</p>

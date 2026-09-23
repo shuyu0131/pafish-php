@@ -42,7 +42,7 @@ final class ProfileController
             [$userId]
         );
         $comments = DB::fetchAll(
-            "SELECT c.content, c.status, c.like_count, c.created_at, p.title AS post_title, p.slug AS post_slug
+            "SELECT c.content, c.status, c.created_at, p.title AS post_title, p.slug AS post_slug
              FROM comments c
              JOIN posts p ON p.id = c.post_id
              WHERE c.user_id = ? AND p.deleted_at IS NULL

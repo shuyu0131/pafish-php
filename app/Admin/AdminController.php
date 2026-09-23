@@ -8,6 +8,7 @@ use Pafish\Core\Auth;
 use Pafish\Core\Session;
 use Pafish\Core\Url;
 use Pafish\Http\Comments;
+use Pafish\Services\Plugin;
 use Pafish\Services\Settings;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -31,6 +32,7 @@ abstract class AdminController
             'label' => '内容',
             'items' => [
                 ['href' => '/admin/posts', 'label' => '文章管理', 'icon' => 'file-text', 'capability' => 'posts.manage'],
+                ['href' => '/admin/micro', 'label' => '微语', 'icon' => 'message', 'capability' => 'posts.manage'],
                 ['href' => '/admin/pages', 'label' => '页面管理', 'icon' => 'file-plus', 'capability' => 'pages.manage'],
                 ['href' => '/admin/categories', 'label' => '分类管理', 'icon' => 'folder', 'capability' => 'taxonomy.manage'],
                 ['href' => '/admin/tags', 'label' => '标签管理', 'icon' => 'tags', 'capability' => 'taxonomy.manage'],
@@ -175,8 +177,14 @@ abstract class AdminController
         $ok = fn (array $item): bool => empty($item['capability']) || Auth::can((string) $item['capability']);
         $top = array_values(array_filter(static::TOP_ITEMS, $ok));
         $groups = [];
+        $allExtensionItems = Plugin::adminMenu();
         foreach (static::NAV_GROUPS as $group) {
             $items = array_values(array_filter($group['items'], $ok));
+            $extensionItems = array_values(array_filter(
+                $allExtensionItems,
+                static fn (array $item): bool => ($item['group'] ?? '') === $group['id']
+            ));
+            $items = array_merge($items, array_values(array_filter($extensionItems, $ok)));
             if ($items !== []) {
                 $groups[] = ['id' => $group['id'], 'label' => $group['label'], 'items' => $items];
             }

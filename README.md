@@ -14,15 +14,15 @@ pafish 使用 PHP 与 MySQL，提供浏览器安装向导、完整的内容后�
 4. 安装完成后删除 `install.php`，登录后台开始创建内容。
 
 发行包已包含运行所需的 PHP 依赖，生产部署无需执行 Composer。
-安装器将数据库配置写入 `runtime/config.php`，因此无需开放项目根目录写权限；请只为 PHP 运行账户授予 `runtime/`、`public/uploads/` 与 `backups/` 的写入权限。
+安装器将数据库配置写入 `runtime/config.php`，基础安装只需为 PHP 运行账户开放 `runtime/`、`public/uploads/` 与 `backups/` 的写入权限。若要从后台安装或更新主题/插件，还需开放对应的 `themes/`、`plugins/` 目录；在线升级需要程序文件可写，建议仅在执行升级时按需授权。
 
 ## 核心能力
 
-- 内容发布：Markdown 编辑、草稿、定时发布、置顶、回收站、文章密码、独立页面、分类和标签。
+- 内容发布：Markdown 编辑、草稿、定时发布、置顶、回收站、文章密码、独立页面、微语、分类和标签。
 - 读者体验：评论与楼中楼回复、点赞收藏、全文搜索、归档、RSS、sitemap、robots 和亮暗模式。
-- 媒体与运营：图片上传、媒体库、评论审核、导航、友链、侧栏组件、通知和 SMTP 邮件设置。
+- 媒体与运营：图片上传、媒体库、评论审核、导航、友链、侧栏组件和 SMTP 邮件设置。
 - 站点管理：用户和角色、数据备份、开放 API、内容迁移、纯 PHP 备份与在线更新，兼容禁用 `exec()` 的共享主机。
-- 扩展生态：主题设置、模板覆盖、插件事件钩子和官方应用商店。
+- 扩展生态：主题设置、模板覆盖、插件事件钩子和官方应用商店；主题和插件均可声明前台路由、后台菜单与自有数据表。
 
 ## 应用商店
 
@@ -43,23 +43,31 @@ pafish 使用 PHP 与 MySQL，提供浏览器安装向导、完整的内容后�
 
 ## 部署提示
 
-Apache 可直接使用发行包中的 `.htaccess`。Nginx 站点根目录应指向 pafish 项目根目录，并将不存在的路径交给 `index.php`：
+Apache 可直接使用发行包中的 `.htaccess`。Nginx 站点根目录应指向 pafish 项目根目录。完成安装并删除 `install.php` 后，在站点配置中添加以下规则；PHP 拦截规则需放在通用 PHP-FPM 规则之前：
 
 ```nginx
+location ~* ^/(config\.php|composer\.(json|lock)|\.env)(/|$) {
+    deny all;
+}
+
+location ^~ /runtime/ {
+    deny all;
+}
+
+location ^~ /backups/ {
+    deny all;
+}
+
+location ~ ^/(?!index\.php$|cron\.php$).*\.php(?:/|$) {
+    deny all;
+}
+
 location / {
     try_files $uri $uri/ /index.php?$query_string;
 }
-
-location ~ ^/(config\.php|runtime/|backups/) {
-    deny all;
-}
-
-location ~* ^/themes/.*\.php$ {
-    deny all;
-}
 ```
 
-修改配置后请执行 `nginx -t` 并重载 Nginx。若主机不支持伪静态，可在配置中关闭伪静态，系统会使用 `index.php?p=...` 形式的链接。
+保存后按面板提示应用配置。若主机不支持伪静态，可在安装向导中关闭，或在 `runtime/config.php` 中设置 `pretty_urls` 为 `false`，系统会使用 `index.php?p=...` 形式的链接。
 
 ## 定时发布
 

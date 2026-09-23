@@ -205,8 +205,10 @@ $pluginActive = count(array_filter($plugins, static fn (array $plugin): bool => 
     btn.addEventListener("click", function () {
       (window.pafishConfirm ? window.pafishConfirm("确定要彻底删除插件“" + btn.dataset.title + "”吗？", { title: "卸载插件", accept: "卸载并删除" }) : Promise.resolve(window.confirm("确定要彻底删除插件？操作不可恢复！"))).then(function (ok) {
         if (!ok) return;
+        var deleteData = window.confirm("同时删除该插件的设置、数据和自有表吗？\n选择“取消”将保留数据，之后仍可恢复使用。");
         var fd = new FormData();
         fd.append("name", btn.dataset.name);
+        fd.append("delete_data", deleteData ? "1" : "0");
         fd.append("_csrf", CSRF);
         post("/admin/plugins/uninstall", fd)
           .then(function () { if (typeof window.pafishToastReload === "function") window.pafishToastReload("已卸载 " + btn.dataset.title, "success"); else location.reload(); })

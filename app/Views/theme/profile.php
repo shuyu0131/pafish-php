@@ -67,7 +67,7 @@ get_header();
       <div class="profile-post-list">
         <?php foreach ($comments as $comment): ?>
           <a href="<?= e(url_to('/post/' . rawurlencode((string) $comment['post_slug']))) ?>">
-            <span><strong><?= e(mb_strimwidth((string) $comment['content'], 0, 42, '…')) ?></strong><small><?= e((string) $comment['post_title']) ?> · <?= (int) $comment['like_count'] ?> 赞 · <?= e(format_date($comment['created_at'], 'Y-m-d')) ?></small></span><?= admin_icon('arrow-right', 15) ?>
+            <span><strong><?= e(mb_strimwidth((string) $comment['content'], 0, 42, '…')) ?></strong><small><?= e((string) $comment['post_title']) ?> · <?= e(format_date($comment['created_at'], 'Y-m-d')) ?></small></span><?= admin_icon('arrow-right', 15) ?>
           </a>
         <?php endforeach; ?>
       </div>

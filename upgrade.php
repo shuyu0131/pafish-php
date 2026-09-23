@@ -19,27 +19,8 @@ if (is_file($luminaRecovery) && !is_dir(PAFISH_ROOT . '/themes/lumina')) {
 }
 @unlink($luminaRecovery);
 
-// 在线更新补齐核心积分账本。红包业务由独立插件维护，不随核心升级创建表。
-$pdo = \Pafish\Core\DB::pdo();
-
-$pdo->exec('CREATE TABLE IF NOT EXISTS user_points (
-  user_id    BIGINT UNSIGNED NOT NULL,
-  balance    BIGINT NOT NULL DEFAULT 0,
-  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (user_id),
-  CONSTRAINT fk_user_points_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
-) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci');
-
-$pdo->exec('CREATE TABLE IF NOT EXISTS point_transactions (
-  id             BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  user_id        BIGINT UNSIGNED NOT NULL,
-  amount         BIGINT NOT NULL,
-  reason         VARCHAR(120) NOT NULL,
-  reference_type VARCHAR(40) NULL,
-  reference_id   BIGINT UNSIGNED NULL,
-  created_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (id),
-  KEY idx_point_transactions_user_created (user_id, created_at),
-  UNIQUE KEY uk_point_transactions_reference (user_id, reference_type, reference_id),
-  CONSTRAINT fk_point_transactions_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
-) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci');
+// 核心结构统一由版本化迁移维护；保留本入口兼容旧在线更新流程。
+$pdo = $pdo ?? \Pafish\Core\DB::pdo();
+$migrationRoot = defined('PAFISH_ROOT') ? PAFISH_ROOT : __DIR__;
+require_once $migrationRoot . '/app/Services/Migrator.php';
+\Pafish\Services\Migrator::run($pdo, $migrationRoot . '/migrations');

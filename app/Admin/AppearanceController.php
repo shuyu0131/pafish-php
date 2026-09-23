@@ -120,13 +120,27 @@ final class AppearanceController extends AdminController
         }
     }
 
+    public function deactivate(Request $request, Response $response): Response
+    {
+        $this->guardAdmin();
+        $name = trim((string) (($request->getParsedBody() ?? [])['name'] ?? ''));
+        try {
+            Theme::deactivate($name);
+            return $this->json($response, ['ok' => true, 'name' => $name, 'fallback' => 'default']);
+        } catch (\Throwable $e) {
+            return $this->json($response, ['error' => $e->getMessage()], 400);
+        }
+    }
+
     public function uninstall(Request $request, Response $response): Response
     {
         $this->guardAdmin();
-        $name = trim((string) ($request->getParsedBody()['name'] ?? ''));
+        $body = $request->getParsedBody() ?? [];
+        $name = trim((string) ($body['name'] ?? ''));
+        $deleteData = (($body['delete_data'] ?? '') === '1');
         try {
-            Theme::uninstall($name);
-            return $this->json($response, ['ok' => true]);
+            Theme::uninstall($name, $deleteData);
+            return $this->json($response, ['ok' => true, 'deletedData' => $deleteData]);
         } catch (\Throwable $e) {
             return $this->json($response, ['error' => $e->getMessage()], 400);
         }

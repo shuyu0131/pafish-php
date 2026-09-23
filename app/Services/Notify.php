@@ -6,25 +6,12 @@ namespace Pafish\Services;
 
 /**
  * 邮件通知服务。
- * - createNotification 保留为兼容入口，但站内通知中心已停用，不再写入 notifications 表。
  * - sendCommentEmail：站长邮件提醒（notify_email_enabled + notify_email 开启时生效；失败静默）
  * - sendReplyEmail：被回复者邮件通知（父评论者勾选 notifyReply；失败静默）
  * - sendEmailCode / sendResetLinkEmail：验证码 / 重置链接（失败抛错给调用方）
  */
 final class Notify
 {
-    /** 已停用的站内通知兼容入口，保留以避免旧插件调用报错。 */
-    public static function createNotification(
-        string $type,
-        string $message,
-        ?int $postId = null,
-        ?int $commentId = null,
-        ?int $recipientId = null
-    ): void
-    {
-        // Intentionally empty: no database write for deprecated in-app notifications.
-    }
-
     /** 邮箱验证码（注册/忘记密码统一入口）；失败抛错给调用方 */
     public static function sendEmailCode(string $email, string $code, string $purpose): void
     {

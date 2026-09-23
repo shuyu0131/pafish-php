@@ -12,7 +12,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
  * 侧边栏组件管理：
- * - 6 种内置类型：categories / tags / recent_posts / hot_posts / recent_comments / custom
+ * - 7 种内置类型：categories / tags / recent_posts / hot_posts / recent_comments / recent_micro_statuses / custom
  * - 列表 sort_order ASC, id ASC；行内编辑可改 type；新建 max(sort_order)+1
  * - title 留空用类型默认标题；content 仅 custom 类型保存，其余强制 NULL
  * - 显隐切换；上下移动=相邻交换；删除确认后物理删
@@ -21,7 +21,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 final class WidgetsController extends AdminController
 {
     /** 组件类型 */
-    public const TYPES = ['categories', 'tags', 'recent_posts', 'hot_posts', 'recent_comments', 'custom'];
+    public const TYPES = ['categories', 'tags', 'recent_posts', 'hot_posts', 'recent_comments', 'recent_micro_statuses', 'custom'];
 
     /** 类型中文标签（下拉 + 列表徽标） */
     public const TYPE_LABELS = [
@@ -30,6 +30,7 @@ final class WidgetsController extends AdminController
         'recent_posts' => '最新文章',
         'hot_posts' => '热门文章',
         'recent_comments' => '最新评论',
+        'recent_micro_statuses' => '最新微语',
         'custom' => '自定义文本',
     ];
 
@@ -40,6 +41,7 @@ final class WidgetsController extends AdminController
         'recent_posts' => '最新文章',
         'hot_posts' => '热门文章',
         'recent_comments' => '最新评论',
+        'recent_micro_statuses' => '最新微语',
         'custom' => '自定义',
     ];
 

@@ -107,7 +107,7 @@ function render(string $template, array $data = []): string
     $context = $GLOBALS['pafish_tpl_ctx'] ?? [];
     $vars = array_merge($context, $data);
     $GLOBALS['pafish_tpl_ctx'] = $vars;
-    $file = Theme::template($template);
+    $file = Theme::template($template, $vars);
     extract($vars, EXTR_SKIP);
     ob_start();
     include $file;
@@ -264,6 +264,28 @@ function add_filter(string $name, callable $fn, int $priority = 10, ?string $tag
 function apply_filters(string $name, mixed $value, mixed ...$args): mixed
 {
     return Hooks::applyFilters($name, $value, ...$args);
+}
+
+/**
+ * 应用正文 Markdown 过滤器。
+ *
+ * 正文过滤器是普通的内容变换，不参与拒绝或保存决策；非法返回值回退到原文。
+ * context 使用 type/id/data，调用方可按需保留旧的 post/page 别名以兼容旧插件。
+ */
+function apply_content_filters(string $markdown, array $context): string
+{
+    $filtered = apply_filters('filter_post_content', $markdown, $context);
+    if (!is_string($filtered)) {
+        error_log('[pafish-filter] filter_post_content must return a Markdown string');
+        return $markdown;
+    }
+    return $filtered;
+}
+
+/** 应用决策型过滤器；false / allowed=false 会短路，不能被后续扩展放行。 */
+function apply_decision_filters(string $name, mixed $value, mixed ...$args): mixed
+{
+    return Hooks::applyDecisionFilters($name, $value, ...$args);
 }
 
 /** 默认头像（未设置头像时使用本地占位图） */

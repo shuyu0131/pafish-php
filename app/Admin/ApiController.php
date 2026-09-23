@@ -315,6 +315,42 @@ final class ApiController extends AdminController
             $at = $meta['date'] !== '' ? strtotime($meta['date']) : false;
             $publishedAt = date('Y-m-d H:i:s', $at !== false ? $at : time());
         }
+        $excerpt = '';
+        $externalUrl = '';
+
+        // Markdown 导入也是文章写入入口，必须遵守与编辑器相同的保存前拦截契约。
+        $before = \apply_decision_filters('before_post_save', [
+            'id' => null,
+            'title' => $title,
+            'slug' => $slug,
+            'excerpt' => '',
+            'content' => $content,
+            'status' => $status,
+            'publishedAt' => $publishedAt,
+            'categoryId' => null,
+            'externalUrl' => '',
+            'isPinned' => false,
+            'categoryPinned' => false,
+            'action' => $status === 'PUBLISHED' ? 'publish' : 'draft',
+        ], ['id' => null, 'created' => true, 'source' => 'markdown_import']);
+        if ($before === false || (is_array($before) && ($before['allowed'] ?? true) === false)) {
+            throw new \RuntimeException(is_array($before) ? (string) ($before['error'] ?? '文章保存被扩展拒绝') : '文章保存被扩展拒绝');
+        }
+        if (is_array($before)) {
+            foreach (['title', 'slug', 'excerpt', 'content', 'externalUrl'] as $field) {
+                if (array_key_exists($field, $before) && is_scalar($before[$field])) {
+                    ${$field} = trim((string) $before[$field]);
+                }
+            }
+            if ($content === '' || mb_strlen($content) > 16000000 || $title === '' || mb_strlen($title) > 255
+                || $slug === '' || mb_strlen($slug) > 255 || mb_strlen($excerpt) > 500 || mb_strlen($externalUrl) > 500) {
+                throw new \RuntimeException('文章保存前过滤器返回了无效内容');
+            }
+            if (DB::value('SELECT COUNT(*) FROM posts WHERE slug = ?', [$slug]) > 0) {
+                throw new \RuntimeException('别名已被使用，请更换');
+            }
+        }
+
         // 标签：按 [,，\s]+ 拆分、最多 5 个；按名复用或新建，单个失败静默跳过
         $tagIds = [];
         foreach (array_slice(preg_split('/[,，\s]+/', $meta['tags'], -1, PREG_SPLIT_NO_EMPTY) ?: [], 0, 5) as $tagName) {
@@ -336,13 +372,29 @@ final class ApiController extends AdminController
         $authorId = Auth::id();
         $pdo = DB::pdo();
         $stmt = $pdo->prepare(
-            'INSERT INTO posts (title, slug, excerpt, content, status, published_at, author_id, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            'INSERT INTO posts (title, slug, excerpt, content, external_url, status, published_at, author_id, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
-        $stmt->execute([$title, $slug, '', $content, $status, $publishedAt, $authorId, $now, $now]);
+        $stmt->execute([$title, $slug, $excerpt, $content, $externalUrl !== '' ? $externalUrl : null, $status, $publishedAt, $authorId, $now, $now]);
         $postId = (int) $pdo->lastInsertId();
         if ($tagIds !== []) {
             PostsController::replaceTags($postId, $tagIds);
+        }
+        $payload = [
+            'id' => (string) $postId,
+            'title' => $title,
+            'slug' => $slug,
+            'status' => $status,
+            'publishedAt' => $publishedAt,
+            'categoryId' => null,
+            'externalUrl' => $externalUrl !== '' ? $externalUrl : null,
+            'isPinned' => false,
+            'categoryPinned' => false,
+        ];
+        \do_action('after_create_post', $payload);
+        if ($status === 'PUBLISHED') {
+            $payload['trigger'] = 'import';
+            \do_action('after_post_published', $payload);
         }
     }
 

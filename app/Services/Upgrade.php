@@ -316,24 +316,13 @@ final class Upgrade
     /** 下载 zip 地址（元数据 zip 是相对路径，相对元数据目录解析） */
     private static function httpGet(string $url): string
     {
-        $ch = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_TIMEOUT => 60,
-            CURLOPT_CONNECTTIMEOUT => 10,
-            CURLOPT_USERAGENT => 'pafish-upgrade/' . Version::current(),
-        ]);
-        $body = curl_exec($ch);
-        $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
-        // 不调 curl_close（PHP 8.5 起 deprecated，输出会污染响应体）
-        if ($body === false) {
-            throw new \RuntimeException('下载失败（连接错误）');
-        }
+        $result = OutboundHttp::request('GET', $url, '', ['Accept: application/json, application/zip'], self::MAX_ZIP_BYTES, 60);
+        $body = (string) $result['body'];
+        $status = (int) $result['status'];
         if ($status !== 200) {
             throw new \RuntimeException('下载失败（HTTP ' . $status . '）');
         }
-        return (string) $body;
+        return $body;
     }
 
     /** 元数据声明 sha256 时校验下载完整性（旧元数据无该字段则跳过） */

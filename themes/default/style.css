@@ -567,6 +567,11 @@ input[type="radio"]:focus-visible {
   color: color-mix(in srgb, var(--accent) 70%, transparent);
 }
 
+.micro-badge-private {
+  border-color: color-mix(in srgb, var(--meta) 45%, transparent);
+  color: var(--meta);
+}
+
 .post-lock {
   font-size: 0.875rem;
   vertical-align: middle;
@@ -2074,6 +2079,20 @@ input[type="radio"]:focus-visible {
 .comment-reply-box[hidden] {
   display: none;
 }
+
+/* ---- 微语 ---- */
+.micro-list { display: grid; gap: 1rem; }
+.micro-card { padding: 1.25rem 0; border-bottom: 1px solid var(--border); }
+.micro-card:first-child { padding-top: 0; }
+.micro-card-head { display: flex; align-items: center; gap: .55rem; color: var(--muted); font-size: .8rem; }
+.micro-card-head strong { color: var(--fg); font-size: .9rem; }
+.micro-card-head time { margin-right: auto; }
+.micro-card-content { margin-top: .75rem; line-height: 1.8; }
+.micro-card-content > :first-child { margin-top: 0; }
+.micro-card-media { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .8rem; }
+.micro-card-media img { width: 120px; height: 90px; object-fit: cover; border-radius: 6px; }
+.widget-micro-statuses li { display: flex; flex-direction: column; gap: .15rem; }
+.widget-muted { color: var(--muted); font-size: .72rem; }
 
 /* ---- 评论分页 ---- */
 .comment-pager {

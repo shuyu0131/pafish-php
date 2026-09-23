@@ -49,9 +49,11 @@ final class Migrator
         }
         self::ensureTable($pdo);
 
-        // 存量库（已有业务表且无任何迁移记录）→ baseline 视为已应用基线
+        // 存量库（已有业务表且缺少 baseline 记录）→ baseline 视为已应用基线。
+        // 早期测试库可能已经登记过某些增量迁移，但仍没有正式 baseline；
+        // 此时不能再次执行含全文索引 DDL 的基线文件。
         $recorded = self::appliedVersions($pdo);
-        if ($recorded === [] && self::tableExists($pdo, 'users')) {
+        if (!in_array('baseline', $recorded, true) && self::tableExists($pdo, 'users')) {
             self::markApplied($pdo, 'baseline');
             $recorded = self::appliedVersions($pdo);
         }
@@ -62,12 +64,6 @@ final class Migrator
         foreach ($files as $file) {
             $version = basename($file, '.sql');
             if (in_array($version, $recorded, true)) {
-                continue;
-            }
-            $legacyVersion = self::legacyVersion($version);
-            if ($legacyVersion !== null && in_array($legacyVersion, $recorded, true)) {
-                self::markApplied($pdo, $version);
-                $recorded[] = $version;
                 continue;
             }
             // 新安装的基线已包含全部当前结构；存量迁移若目标结构已完整存在，
@@ -140,27 +136,10 @@ final class Migrator
             'media_capabilities' => self::tableHasColumns($pdo, 'uploads', ['usage_count', 'last_used_at']),
             'widget_areas' => self::tableHasColumns($pdo, 'widgets', ['area']),
             'post_reactions' => self::tableHasColumns($pdo, 'post_reactions', ['user_id', 'post_id', 'kind']),
-            'notification_recipients' => self::tableHasColumns($pdo, 'notifications', ['recipient_id'])
-                && self::indexExists($pdo, 'notifications', 'idx_notifications_recipient_read_created')
-                && self::foreignKeyExists($pdo, 'notifications', 'fk_notifications_recipient'),
-            'comment_reactions' => self::tableHasColumns($pdo, 'comment_reactions', ['user_id', 'comment_id']),
             'user_points' => self::tableHasColumns($pdo, 'user_points', ['user_id', 'balance'])
                 && self::tableHasColumns($pdo, 'point_transactions', ['id', 'user_id', 'amount']),
             default => false,
         };
-    }
-
-    /** 兼容 v1.0.0 前以数字前缀记录的迁移版本。 */
-    private static function legacyVersion(string $version): ?string
-    {
-        return [
-            'baseline' => '0001_initial',
-            'media_capabilities' => '0002_capabilities_media',
-            'widget_areas' => '0003_widget_areas',
-            'post_reactions' => '0004_post_reactions',
-            'notification_recipients' => '0005_notification_recipients',
-            'comment_reactions' => '0006_comment_reactions',
-        ][$version] ?? null;
     }
 
     /** @param list<string> $columns */

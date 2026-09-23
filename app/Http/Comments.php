@@ -11,7 +11,7 @@ use Pafish\Core\Session;
 /**
  * 评论区数据：
  * 顶层评论分页（每页 20，置顶优先 + 时间正序）、回复树递归 5 层、
- * 父节点缺失的回复按顶层展示（不丢评论）、liked_comments cookie 回显
+ * 父节点缺失的回复按顶层展示（不丢评论）
  */
 final class Comments
 {
@@ -69,22 +69,6 @@ final class Comments
             $all = array_merge($all, $pending);
         }
 
-        // 登录用户使用持久记录；游客沿用浏览器 Cookie。
-        $viewerId = Auth::id();
-        if ($viewerId !== null && $all !== []) {
-            $commentIds = array_map(static fn (array $comment): int => (int) $comment['id'], $all);
-            $placeholders = implode(',', array_fill(0, count($commentIds), '?'));
-            $likedSet = array_map(
-                static fn (array $row): string => (string) $row['comment_id'],
-                DB::fetchAll(
-                    'SELECT comment_id FROM comment_reactions WHERE user_id = ? AND comment_id IN (' . $placeholders . ')',
-                    array_merge([$viewerId], $commentIds)
-                )
-            );
-        } else {
-            $likedSet = array_values(array_filter(array_map('trim', explode(',', (string) ($_COOKIE['liked_comments'] ?? '')))));
-        }
-
         // 构建节点 + 回复树（引用索引；父节点缺失的按顶层展示）
         $nodes = [];
         foreach ($all as $c) {
@@ -96,8 +80,6 @@ final class Comments
                 'createdAtLabel' => \format_date($c['created_at'], 'yyyy-MM-dd HH:mm'),
                 'isPinned' => (int) $c['is_pinned'] === 1,
                 'isPending' => $c['status'] === 'PENDING',
-                'likeCount' => (int) $c['like_count'],
-                'liked' => in_array((string) $c['id'], $likedSet, true),
                 'replies' => [],
             ];
         }
@@ -142,7 +124,7 @@ final class Comments
 
     private static function columns(): string
     {
-        return 'c.id, c.author_name, c.author_email, c.user_id, c.content, c.status, c.created_at, c.parent_id, c.is_pinned, c.like_count, u.nickname, u.avatar_url';
+        return 'c.id, c.author_name, c.author_email, c.user_id, c.content, c.status, c.created_at, c.parent_id, c.is_pinned, u.nickname, u.avatar_url';
     }
 
     /** 仅管理员、登录评论者本人或当前访客会话可见的待审评论。 */

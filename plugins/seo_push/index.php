@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Pafish\Core\Config;
 use Pafish\Core\Url;
+use Pafish\Services\OutboundHttp;
 
 function pafish_seo_push_settings(object $ctx): array
 {
@@ -15,28 +16,8 @@ function pafish_seo_push_settings(object $ctx): array
 
 function pafish_seo_push_request(string $url, array $headers, string $body): array
 {
-    if (!function_exists('curl_init')) {
-        throw new RuntimeException('需要 PHP curl 扩展');
-    }
-    $curl = curl_init($url);
-    curl_setopt_array($curl, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_FOLLOWLOCATION => false,
-        CURLOPT_TIMEOUT => 20,
-        CURLOPT_CONNECTTIMEOUT => 8,
-        CURLOPT_USERAGENT => 'pafish-seo-push/1.0',
-        CURLOPT_POST => true,
-        CURLOPT_HTTPHEADER => $headers,
-        CURLOPT_POSTFIELDS => $body,
-    ]);
-    $response = curl_exec($curl);
-    $status = (int) curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
-    $error = (string) curl_error($curl);
-    curl_close($curl);
-    if ($response === false) {
-        throw new RuntimeException($error !== '' ? $error : '连接失败');
-    }
-    return ['status' => $status, 'body' => function_exists('mb_substr') ? mb_substr((string) $response, 0, 800) : substr((string) $response, 0, 800)];
+    $result = OutboundHttp::request('POST', $url, $body, $headers, 512000, 20);
+    return ['status' => (int) $result['status'], 'body' => function_exists('mb_substr') ? mb_substr((string) $result['body'], 0, 800) : substr((string) $result['body'], 0, 800)];
 }
 
 function pafish_seo_push_key_location(string $key, object $ctx): string

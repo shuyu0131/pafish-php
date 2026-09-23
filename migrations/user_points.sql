@@ -1,4 +1,4 @@
--- 用户积分账本。红包等业务能力应由独立插件维护自己的数据表。
+-- 用户积分账本；具体奖励业务应由独立插件维护自己的数据表。
 CREATE TABLE IF NOT EXISTS user_points (
   user_id    BIGINT UNSIGNED NOT NULL,
   balance    BIGINT NOT NULL DEFAULT 0,

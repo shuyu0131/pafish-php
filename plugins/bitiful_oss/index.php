@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Pafish\Core\Url;
+use Pafish\Services\OutboundHttp;
 
 function pafish_bitiful_settings(object $ctx): array
 {
@@ -66,12 +67,12 @@ function pafish_bitiful_request(string $method, string $url, string $body, array
     [$headers] = pafish_bitiful_sign($method, $url, $body, $cfg, $mime);
     $list = [];
     foreach ($headers as $key => $value) { $list[] = $key . ': ' . $value; }
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_CUSTOMREQUEST => $method, CURLOPT_HTTPHEADER => $list, CURLOPT_POSTFIELDS => $body, CURLOPT_FOLLOWLOCATION => false, CURLOPT_CONNECTTIMEOUT => 8, CURLOPT_TIMEOUT => 60]);
-    $response = curl_exec($ch);
-    $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
-    $error = (string) curl_error($ch);
-    return ['status' => $status, 'body' => (string) $response, 'error' => $error];
+    try {
+        $result = OutboundHttp::request($method, $url, $body, $list, 16 * 1024 * 1024, 60);
+        return ['status' => (int) $result['status'], 'body' => (string) $result['body'], 'error' => ''];
+    } catch (Throwable $e) {
+        return ['status' => 0, 'body' => '', 'error' => $e->getMessage()];
+    }
 }
 
 function pafish_bitiful_object_url(array $cfg, string $key): string

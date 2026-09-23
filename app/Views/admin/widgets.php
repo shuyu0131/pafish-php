@@ -25,6 +25,7 @@ $typeHints = [
     'recent_posts' => '显示最新发布文章',
     'hot_posts' => '显示热门文章排行',
     'recent_comments' => '显示最新评论',
+    'recent_micro_statuses' => '显示最新公开微语',
     'custom' => '添加一段自定义内容',
 ];
 ?>

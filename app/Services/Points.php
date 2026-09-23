@@ -53,7 +53,7 @@ final class Points
         return DB::transaction(fn () => self::adjustLocked($userId, $amount, $reason, $referenceType, $referenceId));
     }
 
-    /** 仅供同一事务内的红包服务调用。 */
+    /** 在调用方已开启事务时调整余额。 */
     public static function adjustLocked(int $userId, int $amount, string $reason, ?string $referenceType = null, ?int $referenceId = null): int
     {
         DB::execute('INSERT IGNORE INTO user_points (user_id, balance) VALUES (?, 0)', [$userId]);

@@ -75,6 +75,25 @@ final class Hooks
         return $value;
     }
 
+    /** 决策型过滤器：拒绝结果不可被后续扩展覆盖。 */
+    public static function applyDecisionFilters(string $name, mixed $value, mixed ...$args): mixed
+    {
+        if (empty(self::$filters[$name])) {
+            return $value;
+        }
+        foreach (self::sorted(self::$filters[$name]) as $entry) {
+            try {
+                $value = ($entry['fn'])($value, ...$args);
+                if ($value === false || (is_array($value) && ($value['allowed'] ?? true) === false)) {
+                    return $value;
+                }
+            } catch (\Throwable $e) {
+                error_log("[pafish-filter] {$name}: " . $e->getMessage());
+            }
+        }
+        return $value;
+    }
+
     public static function hasAction(string $name): bool
     {
         return !empty(self::$actions[$name]);

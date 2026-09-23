@@ -89,6 +89,7 @@ final class PostController
             : in_array($postKey, $this->cookieIds('favorited_posts'), true);
 
         // ---- 自定义字段解析（坏数据容错为空） ----
+        // 字段由当前主题或插件自行声明和消费，核心只负责传递原始数据。
         $customFields = $this->parseCustomFields($post['custom_fields'] ?? null);
 
         // ---- 评论区数据（评论功能关闭时整块隐藏） ----
@@ -153,6 +154,7 @@ final class PostController
                 }
             });
             $count = (int) DB::value("SELECT {$kind}_count FROM posts WHERE id = ?", [$id]);
+            $this->fireReactionHooks($id, $kind, $active, $count, $userId);
             return $this->json($response, ['ok' => true, 'active' => $active, 'count' => $count]);
         }
 
@@ -171,7 +173,24 @@ final class PostController
 
         setcookie($cookieName, implode(',', $ids), time() + 31536000, '/', '', false, false);
         $count = (int) DB::value("SELECT {$kind}_count FROM posts WHERE id = ?", [$id]);
+        $this->fireReactionHooks($id, $kind, !$nowLiked, $count, null);
         return $this->json($response, ['ok' => true, 'active' => !$nowLiked, 'count' => $count]);
+    }
+
+    /** 互动事件契约：点赞/收藏成功切换后触发；匿名用户 userId 为 null。 */
+    private function fireReactionHooks(int $postId, string $kind, bool $active, int $count, ?int $userId): void
+    {
+        $payload = [
+            'postId' => (string) $postId,
+            'kind' => $kind,
+            'active' => $active,
+            'count' => $count,
+            'userId' => $userId !== null ? (string) $userId : null,
+        ];
+        \do_action('after_post_reaction', $payload);
+        if ($kind === 'favorite') {
+            \do_action('after_post_favorite', $payload);
+        }
     }
 
     private function renderPost(Request $request, Response $response, array $post, array $extra, array $neighbors): Response
@@ -189,7 +208,17 @@ final class PostController
             ],
         ]);
         // 正文渲染放最后一步（避免密码错误分支重复渲染开销差异）
-        $data['contentHtml'] = Markdown::render((string) ($post['content'] ?? ''));
+        $markdown = (string) ($post['content'] ?? '');
+        $postId = (string) ($post['id'] ?? '');
+        $markdown = \apply_content_filters($markdown, [
+            'type' => 'post',
+            'id' => $postId,
+            'data' => $post,
+            // 兼容早期扩展上下文。
+            'postId' => $postId,
+            'post' => $post,
+        ]);
+        $data['contentHtml'] = Markdown::render($markdown);
         $response->getBody()->write(\render('post', $data));
         return $response;
     }
@@ -197,7 +226,7 @@ final class PostController
     private function findPublishedPost(string $slug): ?array
     {
         $post = DB::fetchOne(
-            "SELECT p.*, u.username AS author_name, u.avatar_url AS author_avatar,
+            "SELECT p.*, COALESCE(NULLIF(u.nickname, ''), u.username) AS author_name, u.avatar_url AS author_avatar, u.email AS author_email,
                     c.name AS category_name, c.slug AS category_slug
              FROM posts p
              LEFT JOIN users u ON u.id = p.author_id
@@ -212,15 +241,6 @@ final class PostController
         if ($publishedAt !== null && strtotime((string) $publishedAt) > time()) {
             return null; // 定时文章未到发布时间
         }
-        $fields = $this->parseCustomFields($post['custom_fields'] ?? null);
-        foreach ($fields as $field) {
-            if (($field['key'] ?? '') === 'lumina_private' && ($field['value'] ?? '') === 'y') {
-                if (Auth::id() !== (int) $post['author_id']) {
-                    return null;
-                }
-                break;
-            }
-        }
         // 标签
         $tags = DB::fetchAll(
             "SELECT t.name, t.slug FROM post_tags pt JOIN tags t ON t.id = pt.tag_id WHERE pt.post_id = ? ORDER BY t.id ASC",
@@ -234,15 +254,13 @@ final class PostController
     private function neighbors(array $post): array
     {
         $where = "status = 'PUBLISHED' AND deleted_at IS NULL AND (published_at IS NULL OR published_at <= NOW())";
-        $visibility = "(COALESCE(custom_fields, '') NOT LIKE ? OR author_id = ?)";
-        $visibilityParams = ['%"key":"lumina_private","value":"y"%', Auth::id() ?? 0];
         $prev = DB::fetchOne(
-            "SELECT title, slug FROM posts WHERE {$where} AND {$visibility} AND (published_at < ? OR (published_at IS NULL AND id < ?)) ORDER BY published_at DESC LIMIT 1",
-            [...$visibilityParams, $post['published_at'], (int) $post['id']]
+            "SELECT title, slug FROM posts WHERE {$where} AND (published_at < ? OR (published_at IS NULL AND id < ?)) ORDER BY published_at DESC LIMIT 1",
+            [$post['published_at'], (int) $post['id']]
         );
         $next = DB::fetchOne(
-            "SELECT title, slug FROM posts WHERE {$where} AND {$visibility} AND (published_at > ? OR (published_at IS NULL AND id > ?)) ORDER BY published_at ASC LIMIT 1",
-            [...$visibilityParams, $post['published_at'], (int) $post['id']]
+            "SELECT title, slug FROM posts WHERE {$where} AND (published_at > ? OR (published_at IS NULL AND id > ?)) ORDER BY published_at ASC LIMIT 1",
+            [$post['published_at'], (int) $post['id']]
         );
         return [$prev, $next];
     }
@@ -254,14 +272,13 @@ final class PostController
         $catId = (int) ($post['category_id'] ?? 0);
         $tagIds = array_map(static fn (array $t): int => (int) DB::value('SELECT id FROM tags WHERE slug = ?', [$t['slug']]), $post['tags'] ?? []);
         $tagIds = array_filter($tagIds);
-        $params = ['%"key":"lumina_private","value":"y"%', Auth::id() ?? 0, $id];
+        $params = [$id];
         $sql = "SELECT p.id, p.title, p.slug, p.excerpt, p.published_at,
                        c.name AS category_name, c.slug AS category_slug
                 FROM posts p
                 LEFT JOIN categories c ON c.id = p.category_id
                 WHERE p.status = 'PUBLISHED' AND p.deleted_at IS NULL
                   AND (p.published_at IS NULL OR p.published_at <= NOW())
-                  AND (COALESCE(p.custom_fields, '') NOT LIKE ? OR p.author_id = ?)
                   AND p.id != ?";
         $or = [];
         if ($catId > 0) {

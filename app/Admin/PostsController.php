@@ -417,6 +417,43 @@ final class PostsController extends AdminController
         $extensions = self::pluginExtensions($body['plugins'] ?? []);
         $previousStatus = null;
 
+        // 文章保存前过滤器：扩展可返回更新后的字段；未知字段不会进入核心写入。
+        $before = \apply_decision_filters('before_post_save', [
+            'id' => $id !== null ? (string) $id : null,
+            'title' => $title,
+            'slug' => $slug,
+            'excerpt' => $excerpt,
+            'content' => $content,
+            'status' => $status,
+            'publishedAt' => $publishedAt,
+            'categoryId' => $categoryId,
+            'externalUrl' => $externalUrl,
+            'isPinned' => $isPinned,
+            'categoryPinned' => $categoryPinned,
+            'action' => $action,
+        ], ['id' => $id !== null ? (string) $id : null, 'created' => $id === null]);
+        if ($before === false || (is_array($before) && ($before['allowed'] ?? true) === false)) {
+            throw new \RuntimeException(is_array($before) ? (string) ($before['error'] ?? '文章保存被扩展拒绝') : '文章保存被扩展拒绝');
+        }
+        if (is_array($before)) {
+            foreach (['title', 'slug', 'excerpt', 'content', 'externalUrl'] as $field) {
+                if (array_key_exists($field, $before) && is_scalar($before[$field])) {
+                    ${$field} = trim((string) $before[$field]);
+                }
+            }
+            if ($content === '' || mb_strlen($content) > 16000000 || $title === '' || mb_strlen($title) > 255
+                || $slug === '' || mb_strlen($slug) > 255
+                || mb_strlen($excerpt) > 500 || mb_strlen($externalUrl) > 500) {
+                throw new \RuntimeException('文章保存前过滤器返回了无效内容');
+            }
+            $slugConflict = $id !== null
+                ? DB::value('SELECT COUNT(*) FROM posts WHERE slug = ? AND id != ?', [$slug, $id]) > 0
+                : DB::value('SELECT COUNT(*) FROM posts WHERE slug = ?', [$slug]) > 0;
+            if ($slugConflict) {
+                throw new \RuntimeException('别名已被使用，请更换');
+            }
+        }
+
         if ($id === null) {
             $created = true;
             $pdo = DB::pdo();

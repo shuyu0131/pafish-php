@@ -42,21 +42,13 @@ final class Store
         if ($token === '') {
             return ['status' => 'unbound', 'data' => null];
         }
-        $ch = curl_init(self::baseUrl() . '/api/store/account');
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_TIMEOUT => 12,
-            CURLOPT_CONNECTTIMEOUT => 5,
-            CURLOPT_USERAGENT => 'pafish-store/1.0',
-            CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $token, 'Accept: application/json'],
-        ]);
-        $body = curl_exec($ch);
-        $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
-        if ($body === false) {
+        try {
+            $result = OutboundHttp::request('GET', self::baseUrl() . '/api/store/account', '', ['Authorization: Bearer ' . $token, 'Accept: application/json'], 512000, 12);
+        } catch (\Throwable) {
             return ['status' => 'unreachable', 'data' => null];
         }
-        $data = json_decode((string) $body, true);
+        $status = (int) $result['status'];
+        $data = json_decode((string) $result['body'], true);
         if ($status === 401 || $status === 403) {
             return ['status' => 'invalid_token', 'data' => null];
         }
@@ -463,31 +455,19 @@ final class Store
 
     private static function httpGet(string $url, array $headers = []): string
     {
-        $ch = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_TIMEOUT => 30,
-            CURLOPT_CONNECTTIMEOUT => 10,
-            CURLOPT_USERAGENT => 'pafish-store/1.0',
-            CURLOPT_HTTPHEADER => $headers,
-        ]);
-        $body = curl_exec($ch);
-        $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
-        // 不调 curl_close（PHP 8.5 起 deprecated，输出会污染响应体）
-        if ($body === false) {
-            throw new \RuntimeException('下载失败（连接错误）');
-        }
+        $result = OutboundHttp::request('GET', $url, '', $headers, self::MAX_ZIP_BYTES, 30);
+        $body = (string) $result['body'];
+        $status = (int) $result['status'];
         if ($status !== 200) {
             // 官网错误为结构化 JSON（{error, code, message}）：透传 message 给用户可读文案
             $message = '下载失败（HTTP ' . $status . '）';
-            $err = json_decode((string) $body, true);
+            $err = json_decode($body, true);
             if (is_array($err) && is_string($err['message'] ?? null) && $err['message'] !== '') {
                 $message = '下载失败：' . $err['message'];
             }
             throw new \RuntimeException($message);
         }
-        return (string) $body;
+        return $body;
     }
 
     /** 解析本地目录 JSON：非法条目（缺字段/名称不合法）跳过 */

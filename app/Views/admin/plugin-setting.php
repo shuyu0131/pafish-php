@@ -142,6 +142,9 @@ $supportsStorageTest = (bool) ($supportsStorageTest ?? false);
         </div>
       </form>
     <?php endif; ?>
+
+    <?php /* 扩展注入点：插件在这里补自己设置页里的额外区块（如分类管理）。 */ ?>
+    <?= \Pafish\Services\Plugin::renderInjection('plugin_setting', ['pluginName' => $pluginName]) ?>
   <?php endif; ?>
 </div>
 
@@ -304,7 +307,7 @@ $supportsStorageTest = (bool) ($supportsStorageTest ?? false);
     });
   }
 
-  // ---- 测试通知 ----
+  // ---- 插件测试通知 ----
   var testNotificationBtn = document.getElementById("pluginTestNotificationBtn");
   if (testNotificationBtn) {
     testNotificationBtn.addEventListener("click", function () {
@@ -317,9 +320,7 @@ $supportsStorageTest = (bool) ($supportsStorageTest ?? false);
         var result = payload.result || {};
         var total = Number(result.total || 0);
         var succeeded = Number(result.success || 0);
-        if (total === 0) {
-          throw new Error("未配置可用的通知通道");
-        }
+        if (total === 0) throw new Error("未配置可用的通知通道");
         var failed = Array.isArray(result.results) ? result.results.filter(function (item) { return !item.ok; }) : [];
         if (failed.length) {
           var first = failed[0] || {};

@@ -1,9 +1,10 @@
 <?php
 /**
  * 侧边栏组件区（系统默认模板；主题可覆盖 themes/{active}/sidebar-widgets.php）
- * 6 种组件：categories / tags / recent_posts / hot_posts / recent_comments / custom
+ * 7 种组件：categories / tags / recent_posts / hot_posts / recent_comments / recent_micro_statuses / custom
  */
 use Pafish\Core\DB;
+use Pafish\Services\MicroStatuses;
 
 $area = preg_match('/^[a-z0-9_-]{1,50}$/', (string) ($area ?? 'sidebar')) === 1 ? (string) ($area ?? 'sidebar') : 'sidebar';
 $widgets = widget_items($area);
@@ -17,6 +18,7 @@ $typeTitles = [
     'recent_posts' => '最新文章',
     'hot_posts' => '热门文章',
     'recent_comments' => '最新评论',
+    'recent_micro_statuses' => '最新微语',
     'custom' => '自定义',
 ];
 
@@ -88,6 +90,15 @@ foreach ($widgets as $widget):
                 echo '<li><span class="widget-comment-author">' . e($c['author_name']) . '</span>：'
                     . '<a href="' . e(url_to('/post/' . rawurlencode((string) $c['post_slug']) . '#comment-' . (int) $c['id'])) . '">'
                     . e(mb_strimwidth(strip_tags($c['content']), 0, 40, '…')) . '</a></li>';
+            endforeach;
+            echo '</ul>';
+            break;
+
+        case 'recent_micro_statuses':
+            $microItems = MicroStatuses::latest(5);
+            echo '<ul class="widget-list widget-micro-statuses">';
+            foreach ($microItems as $micro):
+                echo '<li><a href="' . e(url_to('/micro')) . '">' . e(mb_strimwidth(str_replace(["\r", "\n"], ' ', (string) $micro['content']), 0, 60, '…')) . '</a><small class="widget-muted">' . e(format_date($micro['publishedAt'] ?? null)) . '</small></li>';
             endforeach;
             echo '</ul>';
             break;

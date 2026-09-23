@@ -29,12 +29,21 @@ final class PageController
         $plain = preg_replace('/[#*`>\[\]()!\-]/', '', (string) ($page['content'] ?? ''));
         $desc = mb_substr(trim((string) $plain), 0, 120);
 
+        $pageId = (string) ($page['id'] ?? '');
+        $content = \apply_content_filters((string) ($page['content'] ?? ''), [
+            'type' => 'page',
+            'id' => $pageId,
+            'data' => $page,
+            // 兼容早期扩展上下文。
+            'pageId' => $pageId,
+            'page' => $page,
+        ]);
         $response->getBody()->write(\render('page', [
             'title' => $page['title'],
             'description' => $desc,
             'og' => Listings::og($request, (string) $page['title'], $desc),
             'page' => $page,
-            'contentHtml' => \md((string) ($page['content'] ?? '')),
+            'contentHtml' => \md($content),
         ]));
         return $response;
     }

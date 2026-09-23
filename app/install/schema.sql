@@ -113,6 +113,26 @@ CREATE TABLE IF NOT EXISTS pages (
   KEY idx_pages_status_published (status, published_at)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
+-- 微语（独立内容类型；第一版不复用文章评论/反应）
+CREATE TABLE IF NOT EXISTS micro_statuses (
+  id           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  content      TEXT            NOT NULL,
+  media_json   TEXT            NULL,
+  status       VARCHAR(20)     NOT NULL DEFAULT 'DRAFT',
+  published_at DATETIME        NULL,
+  is_pinned    TINYINT(1)      NOT NULL DEFAULT 0,
+  is_private   TINYINT(1)      NOT NULL DEFAULT 0,
+  deleted_at   DATETIME        NULL,
+  author_id    BIGINT UNSIGNED NOT NULL,
+  created_at   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_micro_status_published (status, published_at),
+  KEY idx_micro_author (author_id),
+  KEY idx_micro_pinned_published (is_pinned, published_at),
+  CONSTRAINT fk_micro_author FOREIGN KEY (author_id) REFERENCES users (id) ON DELETE CASCADE
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
 -- 友情链接
 CREATE TABLE IF NOT EXISTS links (
   id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -165,7 +185,6 @@ CREATE TABLE IF NOT EXISTS comments (
   parent_id    BIGINT UNSIGNED NULL,
   user_id      BIGINT UNSIGNED NULL,
   notify_reply TINYINT(1)      NOT NULL DEFAULT 0,
-  like_count   INT             NOT NULL DEFAULT 0,
   created_at   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_comments_post_status (post_id, status),
@@ -213,24 +232,6 @@ CREATE TABLE IF NOT EXISTS uploads (
   CONSTRAINT fk_uploads_uploader FOREIGN KEY (uploader_id) REFERENCES users (id) ON DELETE SET NULL
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
--- 站内通知（新评论/新回复）
-CREATE TABLE IF NOT EXISTS notifications (
-  id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  type       VARCHAR(20)     NOT NULL,
-  message    VARCHAR(255)    NOT NULL,
-  post_id    BIGINT UNSIGNED NULL,
-  comment_id BIGINT UNSIGNED NULL,
-  recipient_id BIGINT UNSIGNED NULL,
-  `read`     TINYINT(1)      NOT NULL DEFAULT 0,
-  created_at DATETIME(3)     NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-  PRIMARY KEY (id),
-  KEY idx_notifications_read (`read`),
-  KEY idx_notifications_created (created_at),
-  KEY idx_notifications_recipient_read_created (recipient_id, `read`, created_at),
-  CONSTRAINT fk_notifications_post FOREIGN KEY (post_id) REFERENCES posts (id) ON DELETE SET NULL,
-  CONSTRAINT fk_notifications_recipient FOREIGN KEY (recipient_id) REFERENCES users (id) ON DELETE SET NULL
-) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
-
 -- 登录用户的文章点赞与收藏（匿名点赞仍使用浏览器 Cookie）
 CREATE TABLE IF NOT EXISTS post_reactions (
   user_id BIGINT UNSIGNED NOT NULL,
@@ -242,17 +243,6 @@ CREATE TABLE IF NOT EXISTS post_reactions (
   KEY idx_post_reactions_post_kind (post_id, kind),
   CONSTRAINT fk_post_reactions_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
   CONSTRAINT fk_post_reactions_post FOREIGN KEY (post_id) REFERENCES posts (id) ON DELETE CASCADE
-) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
-
--- 登录用户的评论点赞（游客点赞仍使用浏览器 Cookie）
-CREATE TABLE IF NOT EXISTS comment_reactions (
-  user_id BIGINT UNSIGNED NOT NULL,
-  comment_id BIGINT UNSIGNED NOT NULL,
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (user_id, comment_id),
-  KEY idx_comment_reactions_comment (comment_id),
-  CONSTRAINT fk_comment_reactions_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
-  CONSTRAINT fk_comment_reactions_comment FOREIGN KEY (comment_id) REFERENCES comments (id) ON DELETE CASCADE
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 -- 全文搜索索引（ngram 中文分词；MySQL 5.7.6+ / 8.0）

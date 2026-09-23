@@ -181,7 +181,7 @@ try {
           <input class="input" type="email" name="notify_email" value="<?= e($textVal('notify_email')) ?>" placeholder="admin@example.com" maxlength="255">
         </div>
       </div>
-      <p class="admin-field-hint">新评论/新回复产生时发送提醒邮件；站内通知（后台铃铛）始终生效，无需 SMTP。</p>
+      <p class="admin-field-hint">新评论/新回复产生时发送提醒邮件；需要先配置并启用 SMTP。</p>
     </div>
 
     <!-- 开放 API -->

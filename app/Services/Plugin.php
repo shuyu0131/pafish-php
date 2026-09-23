@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Pafish\Services;
 
+use Pafish\Core\Auth;
 use Pafish\Core\Hooks;
 
 /** 插件清单、生命周期、钩子注入和扩展存储管理。 */
@@ -16,16 +17,15 @@ final class Plugin
     private const PAGE_PATH_PATTERN = '/^[a-z0-9_-]{1,50}$/';
     private const INJECT_TARGETS = [
         'head', 'footer', 'sidebar',
-        'comment_form', 'login_form', 'register_form', 'post_editor',
+        'comment_form', 'login_form', 'register_form', 'post_editor', 'micro_editor',
+        // 插件自己的设置页底部：给插件放它独有的管理区块（原 emlog 插件用设置页 Tab 做分类管理等）。
+        'plugin_setting',
     ];
     private const SETTING_TYPES = ['text', 'textarea', 'checkbox', 'select', 'color', 'switcher', 'radio', 'image', 'password'];
     private const MAX_ZIP_BYTES = 10 * 1024 * 1024;
     private const MAX_LOGS = 50;
-    private const LEGACY_NAMES = [
-        'notify-hub' => 'notify_hub',
-        'seo-push' => 'seo_push',
-    ];
-
+    private const ADMIN_MENU_GROUPS = ['content', 'interaction', 'appearance', 'system'];
+    private const ADMIN_ICON_PATTERN = '/^[a-z0-9-]{1,30}$/';
     private static ?array $manifests = [];
     private static ?array $modules = [];
     private static ?array $contexts = [];
@@ -34,17 +34,6 @@ final class Plugin
     public static function root(): string
     {
         return dirname(__DIR__, 2) . '/plugins';
-    }
-
-    private static function canonicalName(string $name): string
-    {
-        return self::LEGACY_NAMES[$name] ?? $name;
-    }
-
-    private static function legacyName(string $name): ?string
-    {
-        $legacy = array_search($name, self::LEGACY_NAMES, true);
-        return is_string($legacy) ? $legacy : null;
     }
 
     /** 扫描 plugins/ 目录下的全部插件名（同 Theme::list：点前缀目录忽略） */
@@ -79,11 +68,7 @@ final class Plugin
         if (is_array($list)) {
             foreach ($list as $n) {
                 if (is_string($n) && preg_match(self::NAME_PATTERN, $n) === 1) {
-                    // v0.1.47 移除了仅作演示用途的内置插件，升级后清理遗留启用状态。
-                    if ($n === 'hello_pafish' || $n === 'hello-pafish') {
-                        continue;
-                    }
-                    $names[] = self::canonicalName($n);
+                    $names[] = $n;
                 }
             }
         }
@@ -96,7 +81,7 @@ final class Plugin
 
     public static function isActive(string $name): bool
     {
-        return in_array(self::canonicalName($name), self::activeNames(), true);
+        return in_array($name, self::activeNames(), true);
     }
 
     /** 读取插件 manifest。 */
@@ -112,7 +97,8 @@ final class Plugin
      */
     public static function describe(string $name): array
     {
-        $name = self::canonicalName($name);
+        // 插件名称即目录名，不在核心维护具体插件的别名或迁移规则。
+        $name = (string) $name;
         if (preg_match(self::NAME_PATTERN, $name) !== 1) {
             return ['manifest' => null, 'error' => '插件名不合法'];
         }
@@ -191,6 +177,18 @@ final class Plugin
                 return 'pages 声明无效';
             }
         }
+        $routesError = ExtensionRoutes::validateDeclaration($json['routes'] ?? null, 'plugin', $dirName);
+        if ($routesError !== null) {
+            return $routesError;
+        }
+        $adminError = self::validateAdminDeclaration($json, $dirName);
+        if ($adminError !== null) {
+            return $adminError;
+        }
+        $schemaError = ExtensionSchema::validateDeclaration($json['schema'] ?? null, 'plugin', $dirName);
+        if ($schemaError !== null) {
+            return $schemaError;
+        }
         return null;
     }
 
@@ -256,6 +254,28 @@ final class Plugin
             }
         }
 
+        $routes = ExtensionRoutes::fromManifest($json, 'plugin', (string) $json['name']);
+        $schema = is_array($json['schema'] ?? null) ? $json['schema'] : null;
+
+        $admin = null;
+        if (is_array($json['admin'] ?? null)) {
+            $menu = [];
+            foreach ((array) ($json['admin']['menu'] ?? []) as $item) {
+                if (!is_array($item)) {
+                    continue;
+                }
+                $menu[] = [
+                    'route' => (string) ($item['route'] ?? ''),
+                    'label' => trim((string) ($item['label'] ?? '')),
+                    'icon' => (string) ($item['icon'] ?? 'puzzle'),
+                    'group' => (string) ($item['group'] ?? 'system'),
+                    'capability' => (string) ($item['capability'] ?? ''),
+                    'order' => (int) ($item['order'] ?? 100),
+                ];
+            }
+            $admin = ['menu' => $menu];
+        }
+
         $storage = null;
         if (is_array($json['storage'] ?? null) && is_string($json['storage']['title'] ?? null)
             && $json['storage']['title'] !== '') {
@@ -271,8 +291,8 @@ final class Plugin
             'name' => $json['name'],
             'title' => $json['title'],
             'version' => $json['version'],
-            // 仅核心 Sitemap 可声明内置，其他插件始终按可安装扩展处理。
-            'builtin' => $json['name'] === 'sitemap' && ($json['builtin'] ?? false) === true,
+            // 是否内置由插件清单声明，核心不维护具体插件名单。
+            'builtin' => ($json['builtin'] ?? false) === true,
             'apiVersion' => is_int($json['apiVersion'] ?? null) ? $json['apiVersion'] : 1,
             'description' => is_string($json['description'] ?? null) ? $json['description'] : '',
             'author' => is_string($json['author'] ?? null) ? $json['author'] : '',
@@ -283,9 +303,107 @@ final class Plugin
             'injects' => $injects,
             'pageTemplates' => $pageTemplates,
             'pages' => $pages,
+            'routes' => $routes,
+            'admin' => $admin,
+            'schema' => $schema,
             'storage' => $storage,
             'frontendUrl' => $frontendUrl,
         ];
+    }
+
+    /** 校验声明式后台菜单：只能挂载已有 capability，并且必须指向 admin GET 路由。 */
+    private static function validateAdminDeclaration(array $json, string $name): ?string
+    {
+        if (!array_key_exists('admin', $json)) {
+            return null;
+        }
+        if (!is_array($json['admin']) || !is_array($json['admin']['menu'] ?? null)) {
+            return 'admin.menu 必须是数组';
+        }
+        $routes = ExtensionRoutes::fromManifest($json, 'plugin', $name);
+        $seen = [];
+        foreach ($json['admin']['menu'] as $item) {
+            if (!is_array($item)) {
+                return 'admin.menu 包含无效项';
+            }
+            $path = $item['route'] ?? null;
+            $label = trim((string) ($item['label'] ?? ''));
+            $icon = (string) ($item['icon'] ?? 'puzzle');
+            $group = (string) ($item['group'] ?? 'system');
+            $capability = $item['capability'] ?? null;
+            $order = $item['order'] ?? 100;
+            if (!is_string($path) || ($path !== '/' && preg_match('#^/[a-z0-9_-]{1,50}(?:/[a-z0-9_-]{1,50})*$#', $path) !== 1)
+                || $label === '' || strlen($label) > 80
+                || preg_match(self::ADMIN_ICON_PATTERN, $icon) !== 1
+                || !in_array($group, self::ADMIN_MENU_GROUPS, true)
+                || !is_string($capability) || !in_array($capability, Auth::CAPABILITIES, true)
+                || (!is_int($order) && !(is_string($order) && ctype_digit($order)))
+                || (int) $order < 0 || (int) $order > 10000) {
+                return 'admin.menu 包含无效项';
+            }
+            if (isset($seen[$path])) {
+                return 'admin.menu 包含重复路由';
+            }
+            $seen[$path] = true;
+            $route = null;
+            foreach ($routes as $candidate) {
+                if ($candidate['admin'] && $candidate['method'] === 'GET' && $candidate['path'] === $path) {
+                    $route = $candidate;
+                    break;
+                }
+            }
+            if ($route === null || $route['capability'] !== $capability) {
+                return 'admin.menu.route 必须对应同 capability 的 admin GET 路由';
+            }
+        }
+        return null;
+    }
+
+    /** 当前激活插件声明的后台菜单，按分组和顺序返回给 AdminController。 */
+    public static function adminMenu(): array
+    {
+        $items = [];
+        foreach (self::activeNames() as $name) {
+            $desc = self::describe($name);
+            $manifest = $desc['manifest'];
+            if ($manifest === null) {
+                continue;
+            }
+            $routes = is_array($manifest['routes'] ?? null) ? $manifest['routes'] : [];
+            foreach (($manifest['admin']['menu'] ?? []) as $item) {
+                if (!is_array($item)) {
+                    continue;
+                }
+                foreach ($routes as $route) {
+                    if (($route['admin'] ?? false) && $route['method'] === 'GET' && $route['path'] === $item['route']) {
+                        $items[] = [
+                            'href' => $route['fullPath'],
+                            'label' => $item['label'],
+                            'icon' => $item['icon'],
+                            'group' => $item['group'],
+                            'capability' => $item['capability'],
+                            'order' => $item['order'],
+                            '_plugin' => $name,
+                        ];
+                        break;
+                    }
+                }
+            }
+        }
+        $groupOrder = array_flip(self::ADMIN_MENU_GROUPS);
+        usort($items, static function (array $a, array $b) use ($groupOrder): int {
+            $group = ($groupOrder[(string) $a['group']] ?? 99) <=> ($groupOrder[(string) $b['group']] ?? 99);
+            if ($group !== 0) {
+                return $group;
+            }
+            $order = ((int) $a['order']) <=> ((int) $b['order']);
+            return $order !== 0 ? $order : strcmp((string) $a['_plugin'], (string) $b['_plugin']);
+        });
+        foreach ($items as &$item) {
+            unset($item['_plugin'], $item['order']);
+        }
+        unset($item);
+        return $items;
     }
 
     /** 兼容 author_url/url 旧字段，过滤非网页地址。 */
@@ -298,7 +416,7 @@ final class Plugin
     /** 加载插件模块；入口缺失或加载失败时返回空结果。 */
     public static function module(string $name): ?array
     {
-        $name = self::canonicalName($name);
+        $name = (string) $name;
         if (preg_match(self::NAME_PATTERN, $name) !== 1) {
             return null;
         }
@@ -319,114 +437,40 @@ final class Plugin
     }
 
     /** 当前插件上下文。 */
-    public static function context(string $name): object
+    public static function context(string $name): ExtensionContext
     {
-        $name = self::canonicalName($name);
+        $name = (string) $name;
         if (isset(self::$contexts[$name])) {
             return self::$contexts[$name];
         }
         $apiVersion = (int) (self::manifest($name)['apiVersion'] ?? 1);
-        return self::$contexts[$name] = new class ($name, $apiVersion) {
-            public readonly string $name;
-            public readonly int $apiVersion;
-
-            public function __construct(string $name, int $apiVersion)
-            {
-                $this->name = $name;
-                $this->apiVersion = $apiVersion;
-            }
-
-            /** 注册事件钩子，返回注销函数（tag 归入 plugin:{name}，停用时整批移除） */
-            public function on(string $hook, callable $fn, int $priority = 10): callable
-            {
-                return Hooks::addAction($hook, $fn, $priority, 'plugin:' . $this->name);
-            }
-
-            /** 注册过滤器，停用插件时与 action 一起按 tag 批量注销（API v2） */
-            public function filter(string $hook, callable $fn, int $priority = 10): callable
-            {
-                return Hooks::addFilter($hook, $fn, $priority, 'plugin:' . $this->name);
-            }
-
-            /** 读写插件自有数据（JSON 对象，settings plugin_data:{name}） */
-            public function getData(): array
-            {
-                return Plugin::data($this->name);
-            }
-
-            public function setData(array $data): void
-            {
-                Plugin::setData($this->name, $data);
-            }
-
-            /** 读写插件设置（settings plugin_settings:{name}，partial 合并） */
-            public function getSettings(): array
-            {
-                return Plugin::settings($this->name);
-            }
-
-            public function setSettings(array $partial): void
-            {
-                Plugin::setSettings($this->name, $partial);
-            }
-
-            /** 追加一行日志（logs 数组最多 50 条） */
-            public function log(string $message): void
-            {
-                Plugin::log($this->name, $message);
-            }
-
-            /** PHP 版即时渲染，无需缓存刷新 */
-            public function refreshInjections(): void
-            {
-            }
-        };
+        return self::$contexts[$name] = new ExtensionContext('plugin', $name, $apiVersion);
     }
 
     /** 插件数据（plugin_data:{name} JSON 对象；损坏/缺失返回空数组） */
     public static function data(string $name): array
     {
-        $name = self::canonicalName($name);
         $v = json_decode((string) Settings::get('plugin_data:' . $name, ''), true);
-        if (!is_array($v)) {
-            $legacy = self::legacyName($name);
-            if ($legacy !== null) {
-                $v = json_decode((string) Settings::get('plugin_data:' . $legacy, ''), true);
-                if (is_array($v)) {
-                    Settings::set('plugin_data:' . $name, json_encode($v, JSON_UNESCAPED_UNICODE));
-                }
-            }
-        }
         return is_array($v) ? $v : [];
     }
 
     public static function setData(string $name, array $data): void
     {
-        $name = self::canonicalName($name);
+        $name = (string) $name;
         Settings::set('plugin_data:' . $name, json_encode($data, JSON_UNESCAPED_UNICODE));
     }
 
     /** 插件设置（plugin_settings:{name}） */
     public static function settings(string $name): array
     {
-        $name = self::canonicalName($name);
+        $name = (string) $name;
         $v = json_decode((string) Settings::get('plugin_settings:' . $name, ''), true);
-        if (!is_array($v)) {
-            $legacy = self::legacyName($name);
-            if ($legacy !== null) {
-                $v = json_decode((string) Settings::get('plugin_settings:' . $legacy, ''), true);
-                if (is_array($v)) {
-                    Settings::set('plugin_settings:' . $name, json_encode($v, JSON_UNESCAPED_UNICODE));
-                }
-            }
-        }
         return is_array($v) ? $v : [];
     }
 
     /** partial 合并写回 */
     public static function setSettings(string $name, array $partial): void
     {
-        $name = self::canonicalName($name);
         Settings::set('plugin_settings:' . $name, json_encode(array_merge(self::settings($name), $partial), JSON_UNESCAPED_UNICODE));
     }
 
@@ -445,7 +489,6 @@ final class Plugin
     /** 注册插件钩子（约定函数 registerHooks(ctx)） */
     public static function registerHooks(string $name): void
     {
-        $name = self::canonicalName($name);
         $mod = self::module($name);
         if ($mod === null || !is_callable($mod['registerHooks'] ?? null)) {
             return;
@@ -460,14 +503,12 @@ final class Plugin
     /** 注销插件全部钩子（tag=plugin:{name}，含 ctx.on 注册的） */
     public static function unregisterHooks(string $name): void
     {
-        $name = self::canonicalName($name);
         Hooks::removeByTag('plugin:' . $name);
     }
 
     /** 生命周期回调（onActivate/onDeactivate/onUninstall），异常隔离 */
     public static function runLifecycle(string $name, string $phase): void
     {
-        $name = self::canonicalName($name);
         $mod = self::module($name);
         if ($mod === null || !is_callable($mod[$phase] ?? null)) {
             return;
@@ -479,13 +520,26 @@ final class Plugin
         }
     }
 
-    /**
-     * 执行插件声明的后台测试操作。仅核心后台控制器调用，避免把模块任意方法暴露为路由。
-     * 测试操作不要求重新加载插件，也不会注册额外钩子。
-     */
+    /** 版本变化时运行显式数据迁移回调，旧版本为空表示首次启用。 */
+    private static function runUpgrade(string $name, string $fromVersion, string $toVersion): void
+    {
+        if ($fromVersion === '' || $fromVersion === $toVersion) {
+            return;
+        }
+        $mod = self::module($name);
+        if ($mod === null || !is_callable($mod['onUpgrade'] ?? null)) {
+            return;
+        }
+        try {
+            $mod['onUpgrade'](self::context($name), $fromVersion, $toVersion);
+        } catch (\Throwable $e) {
+            throw new \RuntimeException('插件升级迁移失败：' . $e->getMessage(), 0, $e);
+        }
+    }
+
+    /** 执行插件声明的后台测试操作；插件自行决定测试内容。 */
     public static function testNotification(string $name): array
     {
-        $name = self::canonicalName($name);
         if (!self::isActive($name)) {
             throw new \RuntimeException('请先启用插件');
         }
@@ -500,17 +554,15 @@ final class Plugin
         return $result;
     }
 
-    /** 是否支持核心提供的通知测试入口。 */
+    /** 是否支持插件自带的通知测试入口。 */
     public static function supportsNotificationTest(string $name): bool
     {
-        $name = self::canonicalName($name);
         $mod = self::module($name);
         return $mod !== null && is_callable($mod['testNotification'] ?? null);
     }
 
     public static function testStorage(string $name): array
     {
-        $name = self::canonicalName($name);
         if (!self::isActive($name)) throw new \RuntimeException('请先启用插件');
         $mod = self::module($name);
         if ($mod === null || !is_callable($mod['testStorage'] ?? null)) throw new \RuntimeException('该插件不支持存储连接测试');
@@ -521,47 +573,66 @@ final class Plugin
 
     public static function supportsStorageTest(string $name): bool
     {
-        $mod = self::module(self::canonicalName($name));
+        $mod = self::module($name);
         return $mod !== null && is_callable($mod['testStorage'] ?? null);
     }
 
     /** 启用插件。 */
     public static function activate(string $name): void
     {
-        $name = self::canonicalName($name);
         $desc = self::describe($name);
         if ($desc['error'] !== null) {
             throw new \RuntimeException('插件"' . $name . '"不可用：' . $desc['error']);
         }
+        ExtensionRoutes::assertCanActivate('plugin', $name, $desc['manifest']);
+        $version = (string) $desc['manifest']['version'];
+        $previousVersion = ExtensionSchema::installedVersion('plugin', $name);
+        $schema = $desc['manifest']['schema'] ?? null;
+        ExtensionSchema::sync('plugin', $name, $schema);
+        ExtensionSchema::recordFingerprint('plugin', $name, $schema);
+        self::runUpgrade($name, $previousVersion, $version);
+        ExtensionSchema::recordVersion('plugin', $name, $version);
         $list = self::activeNames();
-        if (!in_array($name, $list, true)) {
+        $wasActive = in_array($name, $list, true);
+        if (!$wasActive) {
             $list[] = $name;
             self::setActivePlugins($list);
         }
-        self::registerHooks($name);
-        self::runLifecycle($name, 'onActivate');
+        if (!$wasActive) {
+            self::registerHooks($name);
+            self::runLifecycle($name, 'onActivate');
+        }
     }
 
     /** 停用插件。 */
     public static function deactivate(string $name): void
     {
-        $name = self::canonicalName($name);
+        if (!self::isActive($name)) {
+            return;
+        }
         $list = array_values(array_filter(self::activeNames(), static fn (string $n): bool => $n !== $name));
         self::setActivePlugins($list);
         self::unregisterHooks($name);
         self::runLifecycle($name, 'onDeactivate');
     }
 
-    /** 卸载插件：先执行 onUninstall，使清理逻辑仍能读取插件设置/数据，再删除持久化数据和目录。 */
-    public static function uninstall(string $name): void
+    /** 卸载插件：默认保留自有设置、数据和表，避免主题/插件切换误伤业务数据。 */
+    public static function uninstall(string $name, bool $deleteData = false): void
     {
-        $name = self::canonicalName($name);
+        $desc = self::describe($name);
+        if ($desc['error'] !== null) {
+            throw new \RuntimeException('无法卸载：' . $desc['error']);
+        }
         if (self::isActive($name)) {
             self::deactivate($name);
         }
         self::runLifecycle($name, 'onUninstall');
-        Settings::remove('plugin_data:' . $name);
-        Settings::remove('plugin_settings:' . $name);
+        if ($deleteData) {
+            ExtensionSchema::drop('plugin', $name, $desc['manifest']['schema'] ?? null);
+            Settings::remove('plugin_settings:' . $name);
+            Settings::remove('plugin_data:' . $name);
+            ExtensionSchema::forget('plugin', $name);
+        }
         if (!self::rmDir(self::root() . '/' . $name)) {
             throw new \RuntimeException('删除插件目录失败');
         }
@@ -571,7 +642,6 @@ final class Plugin
     /** 按 manifest schema 保存插件设置。 */
     public static function saveSettings(string $name, array $body): array
     {
-        $name = self::canonicalName($name);
         $desc = self::describe($name);
         if ($desc['error'] !== null) {
             throw new \RuntimeException($desc['error']);
@@ -701,7 +771,6 @@ final class Plugin
      */
     public static function renderPluginPage(string $name, string $pagePath): ?array
     {
-        $name = self::canonicalName($name);
         if (!self::isActive($name)) {
             return null;
         }
@@ -815,10 +884,41 @@ final class Plugin
                 return $prev;
             }, 10, 'core');
             foreach (self::activeNames() as $name) {
-                self::registerHooks($name);
+                // 每次请求做廉价版本/schema 指纹检查；只有变化时才访问 INFORMATION_SCHEMA 并执行 DDL。
+                if (self::syncActiveSchema($name)) {
+                    self::registerHooks($name);
+                }
             }
         } catch (\Throwable $e) {
             error_log('[pafish-plugin] boot 失败：' . $e->getMessage());
+        }
+    }
+
+    /** 同步激活插件的表结构和版本迁移；失败时隔离该插件，不能影响其他插件。 */
+    private static function syncActiveSchema(string $name): bool
+    {
+        $desc = self::describe($name);
+        if ($desc['error'] !== null || $desc['manifest'] === null) {
+            error_log('[pafish-plugin] ' . $name . ' schema 跳过：' . (string) ($desc['error'] ?? 'manifest 不可用'));
+            return false;
+        }
+        try {
+            $version = (string) ($desc['manifest']['version'] ?? '');
+            $schema = $desc['manifest']['schema'] ?? null;
+            $fromVersion = ExtensionSchema::installedVersion('plugin', $name);
+            $fingerprint = ExtensionSchema::fingerprint($schema);
+            if (ExtensionSchema::installedFingerprint('plugin', $name) !== $fingerprint) {
+                ExtensionSchema::sync('plugin', $name, $schema);
+                ExtensionSchema::recordFingerprint('plugin', $name, $schema);
+            }
+            self::runUpgrade($name, $fromVersion, $version);
+            if ($fromVersion !== $version) {
+                ExtensionSchema::recordVersion('plugin', $name, $version);
+            }
+            return true;
+        } catch (\Throwable $e) {
+            error_log('[pafish-plugin] ' . $name . ' schema/upgrade 失败：' . $e->getMessage());
+            return false;
         }
     }
 
@@ -927,21 +1027,7 @@ final class Plugin
         if (preg_match('/^https:\/\//i', $url) !== 1) {
             throw new \RuntimeException('URL 需以 https:// 开头');
         }
-        $ch = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_TIMEOUT => 30,
-            CURLOPT_CONNECTTIMEOUT => 10,
-            CURLOPT_USERAGENT => 'pafish-plugin-installer/1.0',
-        ]);
-        $body = curl_exec($ch);
-        $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
-        // PHP 8.0+ 无需显式关闭（curl_close 已无效果，且 8.5 起调用会触发 Deprecated 警告污染 JSON 响应）
-        if ($body === false || $status !== 200) {
-            throw new \RuntimeException('下载失败（HTTP ' . $status . '）');
-        }
-        return self::installFromBuffer((string) $body, $url);
+        return self::installFromBuffer(OutboundHttp::get($url, self::MAX_ZIP_BYTES), $url);
     }
 
     private static function setActivePlugins(array $list): void

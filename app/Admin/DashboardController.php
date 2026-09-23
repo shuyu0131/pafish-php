@@ -6,7 +6,6 @@ namespace Pafish\Admin;
 
 use Pafish\Core\Auth;
 use Pafish\Core\DB;
-use Pafish\Core\Url;
 use Pafish\Core\Version;
 use Pafish\Services\Upgrade;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -22,7 +21,7 @@ final class DashboardController extends AdminController
     {
         $user = Auth::user();
         if (!Auth::isAdmin() && !Auth::isEditor()) {
-            return $response->withStatus(302)->withHeader('Location', Url::to('/profile'));
+            return $this->userDashboard($response, $user ?? []);
         }
         if (Auth::isEditor()) {
             return $this->editorDashboard($response, $user ?? []);
@@ -100,6 +99,35 @@ final class DashboardController extends AdminController
         ], '工作台');
 
         $response->getBody()->write($html);
+        return $response;
+    }
+
+    /** 普通用户工作台：复用后台公共布局，只展示自己的内容与互动。 */
+    private function userDashboard(Response $response, array $user): Response
+    {
+        $userId = (int) ($user['id'] ?? 0);
+        $stats = [
+            ['label' => '我的文章', 'value' => (int) DB::value('SELECT COUNT(*) FROM posts WHERE author_id = ? AND deleted_at IS NULL', [$userId]), 'icon' => 'file-text', 'color' => '#4786d6'],
+            ['label' => '文章浏览', 'value' => (int) DB::value('SELECT COALESCE(SUM(view_count), 0) FROM posts WHERE author_id = ? AND deleted_at IS NULL', [$userId]), 'icon' => 'eye', 'color' => '#2f9e63'],
+            ['label' => '我的评论', 'value' => (int) DB::value('SELECT COUNT(*) FROM comments WHERE user_id = ? AND status <> \'SPAM\'', [$userId]), 'icon' => 'message', 'color' => '#ca8a04'],
+            ['label' => '点赞收藏', 'value' => (int) DB::value('SELECT COUNT(*) FROM post_reactions WHERE user_id = ?', [$userId]), 'icon' => 'heart', 'color' => '#8b5cf6'],
+        ];
+        $latest = DB::fetchAll(
+            "SELECT id, title, status, published_at, updated_at FROM posts WHERE author_id = ? AND deleted_at IS NULL ORDER BY updated_at DESC LIMIT 8",
+            [$userId]
+        );
+        $comments = DB::fetchAll(
+            "SELECT c.content, c.status, c.created_at, p.title AS post_title, p.slug AS post_slug
+             FROM comments c JOIN posts p ON p.id = c.post_id
+             WHERE c.user_id = ? AND p.deleted_at IS NULL ORDER BY c.created_at DESC LIMIT 5",
+            [$userId]
+        );
+        $response->getBody()->write($this->render('user-dashboard', [
+            'username' => (string) ($user['username'] ?? ''),
+            'stats' => $stats,
+            'latest' => $latest,
+            'comments' => $comments,
+        ], '我的工作台'));
         return $response;
     }
 

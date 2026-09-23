@@ -94,10 +94,12 @@ final class PluginsController extends AdminController
     public function uninstall(Request $request, Response $response): Response
     {
         $this->guardAdmin();
-        $name = trim((string) ($request->getParsedBody()['name'] ?? ''));
+        $body = $request->getParsedBody() ?? [];
+        $name = trim((string) ($body['name'] ?? ''));
+        $deleteData = (($body['delete_data'] ?? '') === '1');
         try {
-            Plugin::uninstall($name);
-            return $this->json($response, ['ok' => true]);
+            Plugin::uninstall($name, $deleteData);
+            return $this->json($response, ['ok' => true, 'deletedData' => $deleteData]);
         } catch (\Throwable $e) {
             return $this->json($response, ['error' => $e->getMessage()], 400);
         }
@@ -116,7 +118,7 @@ final class PluginsController extends AdminController
         }
     }
 
-    /** 发送插件测试通知；插件自行返回各通道的结果。 */
+    /** 发送插件自带的测试通知；通道和内容由插件自行实现。 */
     public function testNotification(Request $request, Response $response): Response
     {
         $this->guardAdmin();

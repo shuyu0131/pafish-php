@@ -8,6 +8,7 @@ use Pafish\Core\ApiKey;
 use Pafish\Core\Config;
 use Pafish\Core\DB;
 use Pafish\Services\Settings;
+use Pafish\Services\MicroStatuses;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -310,7 +311,7 @@ final class V1Controller
         $params = [$postId, 'APPROVED'];
         $total = (int) DB::value("SELECT COUNT(*) FROM comments WHERE {$where}", $params);
         $rows = DB::fetchAll(
-            "SELECT id, post_id, parent_id, author_name, content, created_at, is_pinned, like_count
+            "SELECT id, post_id, parent_id, author_name, content, created_at, is_pinned
              FROM comments
              WHERE {$where}
              ORDER BY is_pinned DESC, created_at ASC
@@ -328,7 +329,6 @@ final class V1Controller
                 ->setTimezone(new \DateTimeZone('UTC'))
                 ->format('Y-m-d\TH:i:s\Z'),
             'isPinned' => (bool) $c['is_pinned'],
-            'likeCount' => (int) $c['like_count'],
         ], $rows);
 
         return $this->json($response, [
@@ -365,5 +365,23 @@ final class V1Controller
         $fail = ApiKey::check($request); if ($fail !== null) return $this->authError($response, $fail);
         $rows = DB::fetchAll('SELECT id,label,url,is_external FROM nav_items WHERE visible=1 ORDER BY sort_order,id');
         return $this->json($response, ['menus' => array_map(static fn(array $r): array => ['id'=>(string)$r['id'],'label'=>$r['label'],'url'=>$r['url'],'external'=>(bool)$r['is_external']], $rows)]);
+    }
+
+    /** GET /api/v1/micro-statuses */
+    public function microStatuses(Request $request, Response $response): Response
+    {
+        $fail = ApiKey::check($request);
+        if ($fail !== null) return $this->authError($response, $fail);
+        $query = $request->getQueryParams();
+        $data = MicroStatuses::publicPage(
+            max(1, (int) ($query['page'] ?? 1)),
+            (int) ($query['perPage'] ?? $query['per_page'] ?? self::POSTS_DEFAULT_PER_PAGE)
+        );
+        foreach ($data['items'] as &$item) {
+            $item['publishedAt'] = $this->iso((string) ($item['publishedAt'] ?? ''));
+            $item['updatedAt'] = $this->iso((string) ($item['updatedAt'] ?? ''));
+        }
+        unset($item);
+        return $this->json($response, $data);
     }
 }

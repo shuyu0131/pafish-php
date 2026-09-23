@@ -15,7 +15,7 @@ use Pafish\Http\RobotsController;
 use Pafish\Http\AuthPageController;
 use Pafish\Http\AuthApiController;
 use Pafish\Http\CommentApiController;
-use Pafish\Http\PluginPageController;
+use Pafish\Http\ExtensionController;
 use Pafish\Http\ProfileController as PublicProfileController;
 use Pafish\Admin\AdminAuthMiddleware;
 use Pafish\Admin\DashboardController;
@@ -41,6 +41,7 @@ use Pafish\Admin\TransferController;
 use Pafish\Api\V1Controller;
 use Pafish\Http\StaticFileController;
 use Pafish\Http\ThemeAssetController;
+use Pafish\Http\MicroController;
 
 /**
  * 路由注册。
@@ -70,8 +71,10 @@ $app->get('/rss.xml', [RssController::class, 'index']);
 $app->get('/sitemap.xml', [SitemapController::class, 'index']);
 $app->get('/robots.txt', [RobotsController::class, 'index']);
 
-// 插件前台页面（/plugin/{name}/{path}，path 缺省 index）
-$app->get('/plugin/{name}/{path:.*}', [PluginPageController::class, 'show']);
+// 扩展私有插件路由（/plugin/{name}/...）：GET/POST 均经统一权限、CSRF 与异常隔离。
+// 与 /admin/plugin/{name} 一致，同时注册不带尾斜杠的形式，插件根路由（path 为 "/"）才可达。
+$app->map(['GET', 'POST'], '/plugin/{name}', [ExtensionController::class, 'plugin']);
+$app->map(['GET', 'POST'], '/plugin/{name}/{path:.*}', [ExtensionController::class, 'plugin']);
 
 // 登录、注册和找回密码
 $app->get('/login', [AuthPageController::class, 'login']);
@@ -89,12 +92,15 @@ $app->post('/api/auth/forgot', [AuthApiController::class, 'forgot']);
 // 评论、验证码和点赞
 $app->get('/api/captcha', [CommentApiController::class, 'captcha']);
 $app->post('/api/comments', [CommentApiController::class, 'create']);
-$app->post('/api/comments/like', [CommentApiController::class, 'like']);
 
 // 后台管理
 $app->group('/admin', function ($group) {
     $group->get('', [DashboardController::class, 'dashboard']);
     $group->get('/', [DashboardController::class, 'dashboard']);
+
+    // 插件声明式后台路由；仍由 ExtensionController 统一做激活、capability、CSRF 和异常隔离。
+    $group->map(['GET', 'POST'], '/plugin/{name}', [ExtensionController::class, 'adminPlugin']);
+    $group->map(['GET', 'POST'], '/plugin/{name}/{path:.*}', [ExtensionController::class, 'adminPlugin']);
 
     // 文章管理（列表 / 编辑器 / 导入 / 保存 / 单行操作 / 批量）
     $group->get('/posts', [PostsController::class, 'index']);
@@ -107,6 +113,14 @@ $app->group('/admin', function ($group) {
     $group->post('/posts/{id}/restore', [PostsController::class, 'restore']);
     $group->post('/posts/{id}/purge', [PostsController::class, 'purge']);
     $group->post('/posts/batch', [PostsController::class, 'batch']);
+
+    // 微语管理（列表 / 编辑 / 保存 / 软删除）
+    $group->get('/micro', [\Pafish\Admin\MicroController::class, 'index']);
+    $group->get('/micro/new', [\Pafish\Admin\MicroController::class, 'createEditor']);
+    $group->get('/micro/{id}/edit', [\Pafish\Admin\MicroController::class, 'editEditor']);
+    $group->post('/micro/save', [\Pafish\Admin\MicroController::class, 'save']);
+    $group->post('/micro/{id}/save', [\Pafish\Admin\MicroController::class, 'save']);
+    $group->post('/micro/{id}/delete', [\Pafish\Admin\MicroController::class, 'delete']);
 
     // 页面管理（列表 / 编辑器 / 保存 / 删除 / 设首页）
     $group->get('/pages', [PagesController::class, 'index']);
@@ -205,6 +219,7 @@ $app->group('/admin', function ($group) {
     $group->get('/appearance/{name}', [AppearanceController::class, 'settings']);
     $group->post('/appearance/save', [AppearanceController::class, 'save']);
     $group->post('/appearance/activate', [AppearanceController::class, 'activate']);
+    $group->post('/appearance/deactivate', [AppearanceController::class, 'deactivate']);
     $group->post('/appearance/uninstall', [AppearanceController::class, 'uninstall']);
     $group->post('/appearance/install', [AppearanceController::class, 'install']);
     $group->post('/appearance/import', [AppearanceController::class, 'import']);
@@ -249,9 +264,20 @@ $app->get('/api/v1/site', [V1Controller::class, 'siteInfo']);
 $app->get('/api/v1/pages', [V1Controller::class, 'pages']);
 $app->get('/api/v1/links', [V1Controller::class, 'links']);
 $app->get('/api/v1/menus', [V1Controller::class, 'menus']);
+$app->get('/api/v1/micro-statuses', [V1Controller::class, 'microStatuses']);
+
+// 微语公开列表
+$app->get('/micro', [MicroController::class, 'index']);
 
 // ---- 旧主题资源兼容入口 ----
 // 新主题资源使用 /themes/{name}/... 直链；该入口只兼容旧模板生成的 /theme-assets/... 地址。
 $app->get('/theme-assets/{theme:[a-z0-9_-]+}/{path:.*}', [ThemeAssetController::class, 'serve']);
 $app->get('/{dir:css|js|uploads}/{path:.*}', [StaticFileController::class, 'serve']);
+// 当前主题与声明 public:true 的插件自然路径；必须位于文章 slug 兜底之前。
+// 仅注册已声明的精确模式，不能用 catch-all，否则会吞掉 /{slug} 文章兜底。
+foreach (\Pafish\Services\ExtensionRoutes::publicRoutes() as $extensionRoute) {
+    $app->map([$extensionRoute['method']], $extensionRoute['fullPath'], static function ($request, $response, $args) use ($extensionRoute) {
+        return (new ExtensionController())->publicRoute($request, $response, $args, $extensionRoute);
+    });
+}
 $app->get('/{slug}', [PostController::class, 'show']);

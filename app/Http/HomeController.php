@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Pafish\Http;
 
 use Pafish\Core\DB;
-use Pafish\Core\Auth;
 use Pafish\Services\Settings;
+use Pafish\Services\Theme;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -25,32 +25,43 @@ final class HomeController
                 [(int) $homePageId]
             );
             if ($page) {
+                $pageId = (string) ($page['id'] ?? '');
+                $content = \apply_content_filters((string) ($page['content'] ?? ''), [
+                    'type' => 'page',
+                    'id' => $pageId,
+                    'data' => $page,
+                    // 兼容早期扩展上下文。
+                    'pageId' => $pageId,
+                    'page' => $page,
+                ]);
                 $response->getBody()->write(render('page', [
                     'title' => $page['title'],
                     'description' => '',
                     'page' => $page,
+                    'contentHtml' => \md($content),
                 ]));
                 return $response;
             }
         }
 
         // 文章列表
-        $perPage = min(50, max(1, (int) Settings::get('posts_per_page', '10')));
+        $themeLimit = (int) Theme::value('recent_posts_limit', '0');
+        $perPage = $themeLimit > 0
+            ? min(30, max(1, $themeLimit))
+            : min(50, max(1, (int) Settings::get('posts_per_page', '10')));
         $pageNum = max(1, (int) ($request->getQueryParams()['page'] ?? 1));
         $offset = ($pageNum - 1) * $perPage;
 
         $where = "p.status = 'PUBLISHED' AND p.deleted_at IS NULL AND (p.published_at IS NULL OR p.published_at <= NOW())";
-        $where .= " AND (COALESCE(p.custom_fields, '') NOT LIKE ? OR p.author_id = ?)";
-        $visibilityParams = ['%"key":"lumina_private","value":"y"%', Auth::id() ?? 0];
-        $total = (int) DB::value("SELECT COUNT(*) FROM posts p WHERE {$where}", $visibilityParams);
+        $total = (int) DB::value("SELECT COUNT(*) FROM posts p WHERE {$where}");
         $totalPages = max(1, (int) ceil($total / $perPage));
 
         $posts = DB::fetchAll(
-            "SELECT p.id, p.title, p.slug, p.excerpt, p.content, p.cover_url, p.custom_fields, p.published_at,
+            "SELECT p.id, p.title, p.slug, p.excerpt, p.content, p.cover_url, p.custom_fields, p.published_at, p.author_id,
                     p.is_pinned, p.category_pinned, p.password, p.external_url, p.view_count,
                     p.like_count, p.favorite_count,
                     (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id AND c.status = 'APPROVED') AS comment_count,
-                    u.username AS author_name, u.avatar_url AS author_avatar,
+                    COALESCE(NULLIF(u.nickname, ''), u.username) AS author_name, u.avatar_url AS author_avatar,
                     c.name AS category_name, c.slug AS category_slug
              FROM posts p
              LEFT JOIN users u ON u.id = p.author_id
@@ -58,7 +69,6 @@ final class HomeController
              WHERE {$where}
              ORDER BY p.is_pinned DESC, p.published_at DESC
              LIMIT {$perPage} OFFSET {$offset}",
-            $visibilityParams
         );
 
         // 批量取标签（避免 N+1）

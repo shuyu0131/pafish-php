@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Pafish\Http;
 
 use Pafish\Core\DB;
-use Pafish\Core\Auth;
 use Pafish\Services\Settings;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -33,20 +32,15 @@ final class Listings
         $pageNum = max(1, (int) ($request->getQueryParams()['page'] ?? 1));
         $offset = ($pageNum - 1) * $perPage;
 
-        // 私密字段在列表层过滤，避免泄露。
-        // 搜索、分类和标签页；详情页还会再校验一次，防止直链绕过。
-        $privateMarker = '%"key":"lumina_private","value":"y"%';
-        $visibility = "(COALESCE(p.custom_fields, '') NOT LIKE ? OR p.author_id = ?)";
-        $params = array_merge([$privateMarker, Auth::id() ?? 0], $params);
-        $where = self::PUBLISHED . " AND {$visibility}" . ($extraWhere !== '' ? " AND ({$extraWhere})" : '');
+        $where = self::PUBLISHED . ($extraWhere !== '' ? " AND ({$extraWhere})" : '');
         $total = (int) DB::value("SELECT COUNT(*) FROM posts p WHERE {$where}", $params);
 
         $posts = DB::fetchAll(
-            "SELECT p.id, p.title, p.slug, p.excerpt, p.content, p.cover_url, p.custom_fields, p.published_at,
+            "SELECT p.id, p.title, p.slug, p.excerpt, p.content, p.cover_url, p.custom_fields, p.published_at, p.author_id,
                     p.is_pinned, p.category_pinned, p.password, p.external_url, p.view_count,
                     p.like_count, p.favorite_count,
                     (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id AND c.status = 'APPROVED') AS comment_count,
-                    u.username AS author_name, u.avatar_url AS author_avatar,
+                    COALESCE(NULLIF(u.nickname, ''), u.username) AS author_name, u.avatar_url AS author_avatar,
                     c.name AS category_name, c.slug AS category_slug
              FROM posts p
              LEFT JOIN users u ON u.id = p.author_id

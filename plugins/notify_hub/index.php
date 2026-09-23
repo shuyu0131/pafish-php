@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Pafish\Core\DB;
 use Pafish\Core\Url;
+use Pafish\Services\OutboundHttp;
 
 function pafish_notify_hub_settings(object $ctx): array
 {
@@ -21,37 +22,11 @@ function pafish_notify_hub_lines(string $value): array
 
 function pafish_notify_hub_post(string $url, string $body, array $headers): array
 {
-    if (!function_exists('curl_init')) {
-        throw new RuntimeException('需要 PHP curl 扩展');
-    }
-    if (filter_var($url, FILTER_VALIDATE_URL) === false || preg_match('#^https?://#i', $url) !== 1) {
-        throw new RuntimeException('通知地址必须使用有效的 http(s) URL');
-    }
-
-    $curl = curl_init($url);
-    curl_setopt_array($curl, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_FOLLOWLOCATION => false,
-        CURLOPT_POST => true,
-        CURLOPT_POSTFIELDS => $body,
-        CURLOPT_HTTPHEADER => $headers,
-        CURLOPT_TIMEOUT => 15,
-        CURLOPT_CONNECTTIMEOUT => 6,
-        CURLOPT_USERAGENT => 'pafish-notify-hub/1.0',
-    ]);
-    $response = curl_exec($curl);
-    $status = (int) curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
-    $error = (string) curl_error($curl);
-    curl_close($curl);
-    if ($response === false) {
-        throw new RuntimeException($error !== '' ? $error : '连接失败');
-    }
-
-    $response = trim((string) $response);
+    $result = OutboundHttp::request('POST', $url, $body, $headers, 512000, 15);
     return [
-        'status' => $status,
+        'status' => (int) $result['status'],
         // 第三方机器人返回的错误通常在响应体中；限制长度，避免插件数据无限增长。
-        'response' => $response === '' ? '' : (function_exists('mb_substr') ? mb_substr($response, 0, 500) : substr($response, 0, 500)),
+        'response' => trim(function_exists('mb_substr') ? mb_substr((string) $result['body'], 0, 500) : substr((string) $result['body'], 0, 500)),
     ];
 }
 
@@ -91,7 +66,7 @@ function pafish_notify_hub_send(object $ctx, string $event, string $title, strin
         } catch (Throwable $e) {
             $results[] = ['channel' => $channel, 'ok' => false, 'error' => $e->getMessage()];
         }
-    };
+};
     $text = $title . "\n" . $message . ($url !== '' ? "\n" . $url : '');
 
     $barkKey = trim((string) $settings['bark_key']);

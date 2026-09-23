@@ -44,7 +44,6 @@ return [
             $tagMinPosts = 2;
         }
 
-        $privateMarker = '%"key":"lumina_private","value":"y"%';
         $entries = [];
         $latestModified = null;
         $add = static function (string $path, ?string $modified, string $priority) use (&$entries, &$latestModified, $frequency): void {
@@ -63,9 +62,7 @@ return [
                  WHERE status = 'PUBLISHED' AND deleted_at IS NULL
                    AND (published_at IS NULL OR published_at <= NOW())
                    AND (password IS NULL OR password = '')
-                   AND COALESCE(custom_fields, '') NOT LIKE ?
-                 ORDER BY published_at DESC LIMIT 49999",
-                [$privateMarker]
+                 ORDER BY published_at DESC LIMIT 49999"
             );
             foreach ($posts as $post) {
                 $add('/post/' . rawurlencode((string) $post['slug']), (string) ($post['updated_at'] ?? ''), '0.8');
@@ -91,9 +88,7 @@ return [
                     WHERE p.category_id = c.id AND p.status = 'PUBLISHED' AND p.deleted_at IS NULL
                       AND (p.published_at IS NULL OR p.published_at <= NOW())
                       AND (p.password IS NULL OR p.password = '')
-                      AND COALESCE(p.custom_fields, '') NOT LIKE ?
                  ) ORDER BY c.sort_order ASC, c.id ASC",
-                [$privateMarker]
             );
             foreach ($categories as $category) {
                 $add('/category/' . rawurlencode((string) $category['slug']), null, '0.6');
@@ -108,11 +103,10 @@ return [
                  WHERE p.status = 'PUBLISHED' AND p.deleted_at IS NULL
                    AND (p.published_at IS NULL OR p.published_at <= NOW())
                    AND (p.password IS NULL OR p.password = '')
-                   AND COALESCE(p.custom_fields, '') NOT LIKE ?
                  GROUP BY t.id, t.slug
                  HAVING COUNT(p.id) >= ?
                  ORDER BY t.name ASC",
-                [$privateMarker, $tagMinPosts]
+                [$tagMinPosts]
             );
             foreach ($tags as $tag) {
                 $add('/tag/' . rawurlencode((string) $tag['slug']), null, '0.4');

@@ -317,13 +317,7 @@ final class Upgrade
     /** 下载 zip 地址（元数据 zip 是相对路径，相对元数据目录解析） */
     private static function httpGet(string $url): string
     {
-        $result = OutboundHttp::request('GET', $url, '', ['Accept: application/json, application/zip'], self::MAX_ZIP_BYTES, 60);
-        $body = (string) $result['body'];
-        $status = (int) $result['status'];
-        if ($status !== 200) {
-            throw new \RuntimeException('下载失败（HTTP ' . $status . '）');
-        }
-        return $body;
+        return OutboundHttp::get($url, self::MAX_ZIP_BYTES, ['Accept: application/json, application/zip']);
     }
 
     /** 元数据声明 sha256 时校验下载完整性（旧元数据无该字段则跳过） */

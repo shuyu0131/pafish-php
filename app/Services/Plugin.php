@@ -73,6 +73,17 @@ final class Plugin
             }
         }
         $names = array_values(array_unique($names));
+        // 旧版本升级时可能没有 active_plugins 设置；首次补齐所有声明为内置的插件。
+        // 只有设置完全缺失时才补齐，保留管理员对已存在配置的停用选择。
+        if (trim($raw) === '') {
+            foreach (self::list() as $candidate) {
+                $manifest = self::manifest($candidate);
+                if (($manifest['builtin'] ?? false) === true) {
+                    $names[] = $candidate;
+                }
+            }
+            $names = array_values(array_unique($names));
+        }
         if ($names !== (is_array($list) ? array_values(array_filter($list, static fn ($n): bool => is_string($n))) : [])) {
             Settings::set('active_plugins', json_encode($names, JSON_UNESCAPED_UNICODE));
         }
@@ -82,6 +93,13 @@ final class Plugin
     public static function isActive(string $name): bool
     {
         return in_array($name, self::activeNames(), true);
+    }
+
+    /** 内置插件由发行版提供，允许停用但不能从程序目录卸载。 */
+    public static function isBuiltin(string $name): bool
+    {
+        $manifest = self::manifest($name);
+        return ($manifest['builtin'] ?? false) === true;
     }
 
     /** 读取插件 manifest。 */
@@ -622,6 +640,9 @@ final class Plugin
         $desc = self::describe($name);
         if ($desc['error'] !== null) {
             throw new \RuntimeException('无法卸载：' . $desc['error']);
+        }
+        if (($desc['manifest']['builtin'] ?? false) === true) {
+            throw new \RuntimeException('内置插件不能卸载，可停用其功能');
         }
         if (self::isActive($name)) {
             self::deactivate($name);

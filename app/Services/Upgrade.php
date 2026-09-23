@@ -109,6 +109,7 @@ final class Upgrade
         $zipUrl = self::resolveZipUrl((string) $info['zip']);
         $tmpZip = tempnam(sys_get_temp_dir(), 'pfup');
         $bak = $root . '/runtime/.upgrade-bak-' . bin2hex(random_bytes(4));
+        $backupReady = false;
         $dbBackup = null;
         $dbMigrationStarted = false;
         self::writeState($root, 'starting', ['target' => (string)$info['latest']]);
@@ -134,8 +135,12 @@ final class Upgrade
                 throw new \RuntimeException('更新前数据库备份失败：' . $e->getMessage());
             }
             if (!self::copyDirFiltered($root, $bak, self::BACKUP_EXCLUDE_DIRS)) {
-                throw new \RuntimeException('更新失败：无法备份站点（' . $bak . '）');
+                throw new \RuntimeException('更新失败：无法完整备份站点（备份保留在 ' . $bak . '）');
             }
+            if (!self::hasCoreFiles($bak)) {
+                throw new \RuntimeException('更新失败：站点备份不完整（备份保留在 ' . $bak . '）');
+            }
+            $backupReady = true;
             // 4. 清空非保留项
             self::writeState($root, 'replacing_files', ['database_backup' => $dbBackup]);
             if (!self::clearRoot($root)) {
@@ -160,7 +165,7 @@ final class Upgrade
             }
         } catch (\Throwable $e) {
             // 校验/下载/备份阶段失败：备份目录可能不存在或未完成
-            if (is_dir($bak) && self::isEmptyDir($bak) === false) {
+            if ($backupReady && is_dir($bak) && self::isEmptyDir($bak) === false) {
                 try {
                     self::rollback($root, $bak);
                 } catch (\Throwable $re) {
@@ -386,6 +391,12 @@ final class Upgrade
         }
     }
 
+    /** 核心文件必须存在，避免不完整备份被用于清空并回滚站点。 */
+    private static function hasCoreFiles(string $root): bool
+    {
+        return is_file($root . '/index.php') && is_file($root . '/app/bootstrap.php');
+    }
+
     /** 解压更新包：extractTo 根目录（生成 pafish/），合并到根后删除 pafish/ */
     private static function extractPackage(string $tmpZip, string $root): void
     {
@@ -428,9 +439,17 @@ final class Upgrade
     /** 回滚：清空当前非保留项 → 从备份整体复制回根 → 删备份（失败抛异常，备份保留） */
     private static function rollback(string $root, string $bak): void
     {
-        self::clearRoot($root, false);
+        if (!self::hasCoreFiles($bak)) {
+            throw new \RuntimeException('备份不完整，无法安全恢复');
+        }
+        if (!self::clearRoot($root, false)) {
+            throw new \RuntimeException('无法清理当前文件');
+        }
         if (!self::copyDirFiltered($bak, $root, [])) {
             throw new \RuntimeException('无法从备份恢复文件');
+        }
+        if (!self::hasCoreFiles($root)) {
+            throw new \RuntimeException('恢复后缺少核心文件');
         }
         self::rmDir($bak);
     }
@@ -516,10 +535,7 @@ final class Upgrade
                 if (!self::copyRecursive($from, $to, $childRel, $exclude)) {
                     return false;
                 }
-            } elseif (is_file($to) && !@chmod($to, 0666)) {
-                // Windows 只读目标（如 git 对象）先清只读位再覆盖
-                return false;
-            } elseif (!@copy($from, $to)) {
+            } elseif (!self::copyFile($from, $to)) {
                 return false;
             }
         }
@@ -546,13 +562,26 @@ final class Upgrade
                 if (!self::mergeDir($from, $to)) {
                     return false;
                 }
-            } elseif (is_file($to) && !@chmod($to, 0666)) {
-                return false;
-            } elseif (!@copy($from, $to)) {
+            } elseif (!self::copyFile($from, $to)) {
                 return false;
             }
         }
         return true;
+    }
+
+    /** 覆盖文件；先直接复制，失败时再清除只读位并重试。 */
+    private static function copyFile(string $from, string $to): bool
+    {
+        if (!is_file($from) || is_dir($to)) {
+            return false;
+        }
+        if (@copy($from, $to)) {
+            return true;
+        }
+        if (is_file($to)) {
+            @chmod($to, 0666);
+        }
+        return @copy($from, $to);
     }
 
     /** 目录是否为空 */

@@ -25,6 +25,14 @@ Thumbs.db
 *.zip
 /CHANGELOG.md
 
+# 主系统只携带默认主题与内置 Sitemap；其他扩展由商店/独立包分发
+/plugins/*
+!/plugins/sitemap/
+!/plugins/sitemap/**
+/themes/*
+!/themes/default/
+!/themes/default/**
+
 # 本地开发与发布工具不随公开源码分发
 /router.php
 /scripts/

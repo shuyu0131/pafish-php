@@ -44,12 +44,10 @@ window.pafishApi = function (p) {
 </script>
 </head>
 <body class="admin-body">
-  <!-- 顶栏：桌面提供站点与账户操作，移动端保留抽屉入口。 -->
+  <!-- 顶栏：保留账户操作与移动端抽屉入口。 -->
   <header class="admin-topbar">
     <div class="admin-topbar-start">
       <button type="button" class="admin-drawer-toggle admin-icon-btn" aria-label="打开菜单"><?= admin_icon('menu', 20) ?></button>
-      <a class="admin-topbar-site" href="<?= e(url_to('/')) ?>" target="_blank" rel="noopener"><?= e($siteName) ?></a>
-      <span class="admin-topbar-section"><?= e($title) ?></span>
     </div>
     <div class="admin-topbar-actions">
       <a class="admin-topbar-front" href="<?= e(url_to('/')) ?>" target="_blank" rel="noopener"><?= admin_icon('external-link', 15) ?><span>查看网站</span></a>

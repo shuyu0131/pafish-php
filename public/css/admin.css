@@ -613,22 +613,6 @@ input[type="radio"]:focus-visible {
 .admin-topbar-start { min-width: 0; gap: 12px; }
 .admin-topbar-actions { gap: 8px; }
 .admin-drawer-toggle { display: none; }
-.admin-topbar-site {
-  color: var(--title);
-  font-size: 14px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-.admin-topbar-section {
-  min-width: 0;
-  overflow: hidden;
-  padding-left: 12px;
-  border-left: 1px solid var(--border);
-  color: var(--muted);
-  font-size: 13px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 .admin-topbar-front,
 .admin-topbar-exit {
   gap: 6px;
@@ -1180,9 +1164,7 @@ input[type="radio"]:focus-visible {
   }
   .admin-main { padding-top: 0; }
   .admin-drawer-toggle { display: inline-flex; }
-  .admin-topbar-section,
   .admin-topbar-front { display: none; }
-  .admin-topbar-site { font-size: 13px; }
   .admin-topbar-actions { gap: 2px; }
   .admin-topbar-account { padding-right: 3px; }
   .admin-topbar-account span { display: none; }

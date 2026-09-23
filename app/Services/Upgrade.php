@@ -10,7 +10,8 @@ use Pafish\Services\Backup;
 final class Upgrade
 {
     private const DEFAULT_GITEE_REPO = 'shuyugit/pafish-php';
-    private const MAX_ZIP_BYTES = 50 * 1024 * 1024;
+    // OutboundHttp 的统一响应上限为 16 MB，升级包上限必须与其一致。
+    private const MAX_ZIP_BYTES = 16 * 1024 * 1024;
     private const CACHE_TTL = 86400; // 24h
     private const CACHE_FILE = 'update_check.json';
     private const CACHE_SCHEMA = 3;
@@ -340,11 +341,11 @@ final class Upgrade
         }
     }
 
-    /** 更新包校验：大小 ≤50MB、全部条目位于 pafish/ 顶层、逐段防 '..'/空段/冒号、关键文件存在 */
+    /** 更新包校验：大小 ≤16MB、全部条目位于 pafish/ 顶层、逐段防 '..'/空段/冒号、关键文件存在 */
     private static function validatePackage(string $tmpZip): void
     {
         if (filesize($tmpZip) > self::MAX_ZIP_BYTES) {
-            throw new \RuntimeException('更新包超过 50MB 限制');
+            throw new \RuntimeException('更新包超过 16MB 限制');
         }
         $zip = new \ZipArchive();
         if ($zip->open($tmpZip) !== true) {

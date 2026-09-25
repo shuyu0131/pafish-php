@@ -98,7 +98,7 @@ final class OutboundHttp
             CURLOPT_SSL_VERIFYHOST => 2,
             CURLOPT_USERAGENT => 'pafish-extension-fetch/1.0',
             CURLOPT_HTTPHEADER => array_merge(['Accept: text/html,application/xhtml+xml;q=0.9,*/*;q=0.1'], $curlHeaders),
-            CURLOPT_RESOLVE => array_map(static fn (string $ip): string => $host . ':' . $port . ':' . $ip, $ips),
+            CURLOPT_RESOLVE => self::resolveEntries($host, $port, $ips),
             CURLOPT_WRITEFUNCTION => static function ($curl, string $chunk) use (&$buffer, $maxBytes): int {
                 if (strlen($buffer) + strlen($chunk) > $maxBytes) {
                     return 0;
@@ -107,6 +107,10 @@ final class OutboundHttp
                 return strlen($chunk);
             },
         ]);
+        $caBundle = self::caBundle();
+        if ($caBundle !== null) {
+            curl_setopt($ch, CURLOPT_CAINFO, $caBundle);
+        }
         if ($captureHeaders) {
             curl_setopt($ch, CURLOPT_HEADERFUNCTION, static function ($curl, string $line) use (&$responseHeaders): int {
                 $length = strlen($line);
@@ -177,6 +181,52 @@ final class OutboundHttp
         return $authority . '/' . ltrim($path, '/') . $query;
     }
 
+    /**
+     * 证书链文件路径。
+     *
+     * Windows 上的 PHP 常把 curl.cainfo / openssl.cafile 留空，而 curl 自带的默认路径
+     * （C:\Program Files\Common Files\SSL\cert.pem）往往不存在，结果是所有 HTTPS 请求
+     * 都以 "SSL certificate problem" 失败。这里按顺序探测可用证书链，找不到就返回 null，
+     * 由 curl 用自己的默认值（保持原有行为不变）。
+     */
+    private static function caBundle(): ?string
+    {
+        static $resolved = false;
+        static $path = null;
+        if ($resolved) {
+            return $path;
+        }
+        $resolved = true;
+
+        $candidates = [];
+        $ini = (string) ini_get('curl.cainfo');
+        if ($ini !== '') {
+            $candidates[] = $ini;
+        }
+        $ini = (string) ini_get('openssl.cafile');
+        if ($ini !== '') {
+            $candidates[] = $ini;
+        }
+        // 与 scripts/git-push-api.php 约定一致的用户级证书链
+        $home = (string) (getenv('USERPROFILE') ?: getenv('HOME') ?: '');
+        if ($home !== '') {
+            $candidates[] = rtrim(str_replace('\\', '/', $home), '/') . '/.cacert.pem';
+        }
+        // 项目内自带的一份（runtime/ 已被 gitignore，不会进仓库）
+        if (defined('PAFISH_ROOT')) {
+            $candidates[] = rtrim((string) PAFISH_ROOT, '/\\') . '/runtime/cacert.pem';
+        }
+        $candidates[] = 'C:/Program Files/Common Files/SSL/cert.pem';
+
+        foreach ($candidates as $candidate) {
+            if (is_file($candidate) && is_readable($candidate)) {
+                $path = $candidate;
+                return $path;
+            }
+        }
+        return null;
+    }
+
     /** Resolve all A/AAAA answers once so CURLOPT_RESOLVE pins the request. */
     private static function resolve(string $host): array
     {
@@ -194,6 +244,27 @@ final class OutboundHttp
             $ips = gethostbynamel($host) ?: [];
         }
         return array_values(array_unique($ips));
+    }
+
+    /**
+     * 构造 CURLOPT_RESOLVE 条目。
+     *
+     * 同一主机若同时有 A 与 AAAA，只固定 IPv4：把 IPv6 一起写进固定列表后，
+     * 在没有 IPv6 出口的机器上 curl 会直接判连接失败（实测 0ms 报
+     * "Could not connect to server"），不会回退到 IPv4，导致整站抓取失败。
+     * 所有进入列表的地址都已通过 isPrivate() 校验，固定哪一个都不影响防重绑定。
+     *
+     * @param string[] $ips
+     * @return string[]
+     */
+    private static function resolveEntries(string $host, int $port, array $ips): array
+    {
+        $v4 = array_values(array_filter($ips, static fn (string $ip): bool => !str_contains($ip, ':')));
+        if ($v4 !== []) {
+            return array_map(static fn (string $ip): string => $host . ':' . $port . ':' . $ip, $v4);
+        }
+        // 只有 IPv6 时才用括号形式，这是 curl 的规范写法。
+        return array_map(static fn (string $ip): string => $host . ':' . $port . ':[' . $ip . ']', $ips);
     }
 
     private static function isPrivate(string $ip): bool

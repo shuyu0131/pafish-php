@@ -314,9 +314,15 @@ final class PostsController extends AdminController
         if (mb_strlen($title) > 255) {
             throw new \RuntimeException('标题不能超过 255 个字符');
         }
+        // 外链要在这里读：导航站/书签站的条目只有标题 + 外链、没有自己的详情正文，
+        // 所以「填了外链」是允许正文为空的唯一条件，必须赶在正文校验之前拿到。
+        $externalUrl = trim((string) ($body['external_url'] ?? ''));
+        if (mb_strlen($externalUrl) > 500) {
+            $externalUrl = '';
+        }
         $content = (string) ($body['content'] ?? '');
-        if (trim($content) === '') {
-            throw new \RuntimeException('内容不能为空');
+        if (trim($content) === '' && $externalUrl === '') {
+            throw new \RuntimeException('内容不能为空（若这是纯外链条目，请填写外链地址）');
         }
         if (mb_strlen($content) > 16000000) {
             throw new \RuntimeException('内容过长');
@@ -373,10 +379,7 @@ final class PostsController extends AdminController
 
         $isPinned = !empty($body['is_pinned']);
         $categoryPinned = !empty($body['category_pinned']);
-        $externalUrl = trim((string) ($body['external_url'] ?? ''));
-        if (mb_strlen($externalUrl) > 500) {
-            $externalUrl = '';
-        }
+        // $externalUrl 已在正文校验前读取（纯外链条目允许正文为空）。
 
         // 状态与发布时间
         $status = 'DRAFT';
@@ -441,7 +444,10 @@ final class PostsController extends AdminController
                     ${$field} = trim((string) $before[$field]);
                 }
             }
-            if ($content === '' || mb_strlen($content) > 16000000 || $title === '' || mb_strlen($title) > 255
+            // 正文为空只在「同时没有外链」时才非法：过滤器可能把外链补上或清掉，
+            // 所以这里要用过滤后的值重新判断，不能沿用入口处的结论。
+            if (($content === '' && $externalUrl === '')
+                || mb_strlen($content) > 16000000 || $title === '' || mb_strlen($title) > 255
                 || $slug === '' || mb_strlen($slug) > 255
                 || mb_strlen($excerpt) > 500 || mb_strlen($externalUrl) > 500) {
                 throw new \RuntimeException('文章保存前过滤器返回了无效内容');

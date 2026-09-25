@@ -10,6 +10,7 @@ namespace Pafish\Core;
 final class Session
 {
     private const LIFETIME = 604800; // 7 天
+    private const REQUEST_TTL = 3600;
 
     public static function start(): void
     {
@@ -76,6 +77,47 @@ final class Session
     {
         $expected = $_SESSION['_csrf'] ?? null;
         return is_string($expected) && is_string($token) && hash_equals($expected, $token);
+    }
+
+    /** 返回一次性表单请求令牌；用于防止网络重试/双击造成重复写入。 */
+    public static function requestToken(): string
+    {
+        return bin2hex(random_bytes(16));
+    }
+
+    /** 读取同一会话中已完成的幂等请求结果。 */
+    public static function replay(string $scope, string $token): ?array
+    {
+        if (!preg_match('/^[a-f0-9]{32}$/', $token)) {
+            return null;
+        }
+        $now = time();
+        $records = is_array($_SESSION['_request_replays'][$scope] ?? null)
+            ? $_SESSION['_request_replays'][$scope] : [];
+        $hit = null;
+        foreach ($records as $key => $record) {
+            if (!is_array($record) || (int) ($record['at'] ?? 0) + self::REQUEST_TTL < $now) {
+                unset($records[$key]);
+                continue;
+            }
+            if ((string) $key === $token && is_array($record['result'] ?? null)) {
+                $hit = $record['result'];
+            }
+        }
+        $_SESSION['_request_replays'][$scope] = array_slice($records, -32, 32, true);
+        return $hit;
+    }
+
+    /** 记录成功请求结果；失败请求不会占用令牌，允许用户安全重试。 */
+    public static function remember(string $scope, string $token, array $result): void
+    {
+        if (!preg_match('/^[a-f0-9]{32}$/', $token)) {
+            return;
+        }
+        $records = is_array($_SESSION['_request_replays'][$scope] ?? null)
+            ? $_SESSION['_request_replays'][$scope] : [];
+        $records[$token] = ['at' => time(), 'result' => $result];
+        $_SESSION['_request_replays'][$scope] = array_slice($records, -32, 32, true);
     }
 
     private static function isHttps(): bool

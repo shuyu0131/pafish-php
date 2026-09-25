@@ -9,6 +9,7 @@ if (($mode ?? 'list') === 'editor'):
 <div class="admin-editor">
   <form id="microForm" method="post" action="<?= e(url_to($id > 0 ? '/admin/micro/' . $id . '/save' : '/admin/micro/save')) ?>" novalidate>
     <?= csrf_field() ?>
+    <input type="hidden" name="_idempotency" value="<?= e(\Pafish\Core\Session::requestToken()) ?>">
     <div class="admin-editor-grid">
       <div class="admin-editor-main">
         <div class="admin-editor-topline">

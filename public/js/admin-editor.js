@@ -32,6 +32,14 @@
   function nowTime() {
     return new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
   }
+  function requestToken() {
+    if (window.crypto && typeof window.crypto.randomUUID === "function") {
+      return window.crypto.randomUUID().replace(/-/g, "");
+    }
+    var token = "";
+    for (var i = 0; i < 32; i++) token += Math.floor(Math.random() * 16).toString(16);
+    return token;
+  }
   // 与 PHP Slug::slugify 一致：小写、空白→连字符、仅保留字母数字_-
   function slugify(s) {
     var out = String(s).toLowerCase()
@@ -52,6 +60,8 @@
   var tagIds = (initial.tagIds || []).map(String);
   var newTagNames = [];
   var pending = null;          // null | draft | publish | schedule | auto
+  var manualRequestToken = null;
+  var autoRequestToken = null;
   var lastSavedAt = null;      // 'HH:mm'
   var autosaveFailed = false;
   var currentCategory = String(initial.categoryId || "");
@@ -158,6 +168,7 @@
       ],
       input: function (v) {
         els.content.value = v || "";
+        autoRequestToken = null;
       },
       upload: {
         url: DATA.uploadUrl,
@@ -274,15 +285,17 @@
     if (action === "schedule" && !els.scheduledAt.value) { showError("请选择定时发布时间"); return; }
     pending = action;
     updatePendingUI();
+    manualRequestToken = manualRequestToken || requestToken();
 
     fetch(DATA.saveUrl, {
       method: "POST",
       headers: { "X-Requested-With": "XMLHttpRequest" },
-      body: buildPayload(action),
+      body: (function () { var p = buildPayload(action); p.set("_idempotency", manualRequestToken); return p; }()),
     })
       .then(function (r) { return r.json().catch(function () { return {}; }); })
       .then(function (d) {
         if (!d.ok) throw new Error(d.error || "保存失败");
+        manualRequestToken = null;
         // 保存后跳转到编辑页（服务端最新状态）
         pafishToastNavigate(DATA.editUrl.replace("{id}", d.id), "文章已保存", "success");
       })
@@ -299,17 +312,19 @@
     if (!isDirty() || !els.title.value.trim()) return;
     if (!editorValue().trim() && !els.externalUrl.value.trim()) return;
     pending = "auto";
+    autoRequestToken = autoRequestToken || requestToken();
     updateAutosave();
     fetch(DATA.saveUrl, {
       method: "POST",
       headers: { "X-Requested-With": "XMLHttpRequest" },
-      body: buildPayload("auto"),
+      body: (function () { var p = buildPayload("auto"); p.set("_idempotency", autoRequestToken); return p; }()),
     })
       .then(function (r) { return r.json().catch(function () { return {}; }); })
       .then(function (d) {
         if (!d.ok) throw new Error(d.error || "自动保存失败");
         lastSavedAt = nowTime();
         autosaveFailed = false;
+        autoRequestToken = null;
       })
       .catch(function () {
         if (!autosaveFailed) {
@@ -651,6 +666,8 @@
       if (!slugTouched) els.slug.value = slugify(els.title.value);
     });
     els.slug.addEventListener("input", function () { slugTouched = true; });
+    // 自动保存令牌只对应当前内容；内容变化后必须生成新的请求令牌。
+    els.form.addEventListener("input", function () { autoRequestToken = null; });
 
     // 提交按钮
     $$("[data-save]").forEach(function (b) {

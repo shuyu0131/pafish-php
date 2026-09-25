@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Pafish\Admin;
 
+use Pafish\Core\Session;
 use Pafish\Services\MicroStatuses;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -57,8 +58,16 @@ final class MicroController extends AdminController
         // 其余键（扩展注入的字段）会通过 before_micro_save / after_micro_save 的 input 传给扩展。
         $body = $request->getParsedBody() ?? [];
         $id = isset($args['id']) ? (int) $args['id'] : 0;
+        $requestToken = trim((string) ($body['_idempotency'] ?? ''));
         try {
-            $micro = MicroStatuses::save($body, $id > 0 ? $id : null);
+            // 网络重试或双击可能重复发送同一 POST；同一令牌只执行一次写入。
+            $micro = Session::replay('micro_save', $requestToken);
+            if ($micro === null) {
+                $micro = MicroStatuses::save($body, $id > 0 ? $id : null);
+                Session::remember('micro_save', $requestToken, ['ok' => true, 'id' => (string) $micro['id']]);
+            } else {
+                $micro = MicroStatuses::find((int) ($micro['id'] ?? 0)) ?? $micro;
+            }
         } catch (\RuntimeException $e) {
             if ($this->isAjax($request)) {
                 return $this->json($response, ['error' => $e->getMessage()], 400);

@@ -196,6 +196,10 @@ final class UsersController extends AdminController
         if (!in_array($role, self::ROLES, true)) {
             return $this->userUpdateError($request, $response, $id, '无效角色');
         }
+        $roleError = $this->adminRoleChangeError($user, $role);
+        if ($roleError !== null) {
+            return $this->userUpdateError($request, $response, $id, $roleError, 403);
+        }
         if ($avatarUrl !== '' && !preg_match('#^(?:https?://|/)#i', $avatarUrl)) {
             return $this->userUpdateError($request, $response, $id, '头像地址需使用 http(s) 或站内路径');
         }
@@ -298,6 +302,10 @@ final class UsersController extends AdminController
         $role = (string) ($body['role'] ?? '');
         if (!in_array($role, self::ROLES, true)) {
             return $this->json($response, ['error' => '无效角色'], 400);
+        }
+        $roleError = $this->adminRoleChangeError($user, $role);
+        if ($roleError !== null) {
+            return $this->json($response, ['error' => $roleError], 403);
         }
         DB::execute('UPDATE users SET role = ? WHERE id = ?', [$role, (int) $user['id']]);
         return $this->json($response, ['ok' => true]);
@@ -453,6 +461,20 @@ final class UsersController extends AdminController
         }
         $this->flash('error', $message);
         return $this->redirect($response, '/admin/users');
+    }
+
+    /** 防止当前管理员或最后一个启用管理员被降级，避免系统失去管理入口。 */
+    private function adminRoleChangeError(array $user, string $newRole): ?string
+    {
+        if ((string) ($user['role'] ?? '') !== 'ADMIN' || $newRole === 'ADMIN') {
+            return null;
+        }
+        if ((int) ($user['id'] ?? 0) === (int) (Auth::id() ?? 0)) {
+            return '不能降低当前登录账号的管理员权限';
+        }
+        $activeAdmins = (int) DB::value("SELECT COUNT(*) FROM users WHERE role = 'ADMIN' AND disabled = 0");
+        $targetIsActive = (int) ($user['disabled'] ?? 0) === 0;
+        return $targetIsActive && $activeAdmins <= 1 ? '系统至少需要保留一名启用的管理员' : null;
     }
 
     /** 按 id 查用户；不存在时返回 400 JSON 响应（调用方直接 return） */

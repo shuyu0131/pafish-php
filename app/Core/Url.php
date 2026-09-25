@@ -53,6 +53,39 @@ final class Url
     }
 
     /**
+     * 判断是否为可用于站内跳转的相对路径。
+     *
+     * 反斜杠和编码后的斜杠在浏览器 URL 规范化时可能变成外部主机，
+     * 因此校验路径部分的解码结果，而不是只检查原始字符串前缀。
+     */
+    public static function isLocalPath(string $path): bool
+    {
+        if ($path === '' || $path[0] !== '/') {
+            return false;
+        }
+        $pathPart = explode('?', $path, 2)[0];
+        $decodedPath = rawurldecode($pathPart);
+        if ($decodedPath === '' || $decodedPath[0] !== '/') {
+            return false;
+        }
+        if (
+            str_starts_with($decodedPath, '//')
+            || str_contains($decodedPath, '\\')
+            || preg_match('/[\\x00-\\x1F\\x7F]/', $path) === 1
+            || preg_match('/[\\x00-\\x1F\\x7F]/', $decodedPath) === 1
+        ) {
+            return false;
+        }
+        return true;
+    }
+
+    /** 返回安全的站内路径；不安全输入使用指定回退路径。 */
+    public static function localPathOr(string $path, string $fallback = '/'): string
+    {
+        return self::isLocalPath($path) ? $path : $fallback;
+    }
+
+    /**
      * 静态资源直链（css/js/uploads/vendor 等 public/ 下文件）。
      * 开箱即用：URL 带 /public/ 前缀直接指向真实文件，Web 服务器（Nginx/Apache）
      * 任何配置下都能直接读盘返回，无需 try_files / PHP 兜底 / .htaccess 静态重写。

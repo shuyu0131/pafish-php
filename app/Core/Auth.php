@@ -154,8 +154,8 @@ final class Auth
     public static function requireLogin(): void
     {
         if (!self::check()) {
-            $from = $_SERVER['REQUEST_URI'] ?? '/admin';
-            self::redirect('/login', 'from=' . urlencode($from));
+            $from = Url::localPathOr((string) ($_SERVER['REQUEST_URI'] ?? '/admin'), '/admin');
+            self::redirect('/login', 'from=' . rawurlencode($from));
         }
     }
 

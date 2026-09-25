@@ -209,7 +209,9 @@ require PAFISH_ROOT . '/vendor/autoload.php';
 // 2. 配置：新安装使用 runtime/config.php，旧站根目录 config.php 仍兼容。
 $configFile = Config::resolveFile(PAFISH_ROOT);
 if ($configFile === null) {
-    header('Location: ' . ($__base !== '' ? $__base : '') . '/install.php');
+    (new \Slim\ResponseEmitter())->emit(
+        (new \Slim\Psr7\Response(302))->withHeader('Location', ($__base !== '' ? $__base : '') . '/install.php')
+    );
     exit;
 }
 Config::load($configFile);
@@ -250,6 +252,15 @@ $app->add(function ($request, $handler) use ($__normalizePath) {
         $request = $request->withUri($uri->withPath($canonical));
     }
     return $handler->handle($request);
+});
+
+// 6.5 站内 302：守卫抛 RedirectException，统一在此转为响应（位于错误中间件内侧）
+$app->add(function ($request, $handler) {
+    try {
+        return $handler->handle($request);
+    } catch (\Pafish\Core\RedirectException $e) {
+        return (new \Slim\Psr7\Response(302))->withHeader('Location', $e->target);
+    }
 });
 
 // 7. 错误处理：自定义 404/500（不输出异常详情，规避 Slim 默认 HtmlErrorRenderer）

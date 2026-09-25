@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pafish\Admin;
 
 use Pafish\Core\Auth;
+use Pafish\Core\RedirectException;
 use Pafish\Core\Session;
 use Pafish\Core\Url;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -21,9 +22,7 @@ final class AdminAuthMiddleware
     public function __invoke(Request $request, Handler $handler): Response
     {
         if (!Auth::check()) {
-            $from = (string) $request->getUri();
-            header('Location: ' . Url::to('/login') . '?from=' . urlencode($from));
-            exit;
+            throw new RedirectException(Url::to('/login') . '?from=' . urlencode((string) $request->getUri()));
         }
 
         if ($request->getMethod() === 'POST') {

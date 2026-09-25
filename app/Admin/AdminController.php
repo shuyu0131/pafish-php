@@ -103,8 +103,7 @@ abstract class AdminController
     {
         Auth::requireLogin();
         if (!Auth::can('posts.manage')) {
-            header('Location: ' . Url::to(Auth::isEditor() ? '/admin' : '/profile'));
-            exit;
+            Auth::redirect(Auth::isEditor() ? '/admin' : '/profile');
         }
     }
 
@@ -145,8 +144,7 @@ abstract class AdminController
     {
         Auth::requireLogin();
         if (!Auth::isAdmin()) {
-            header('Location: ' . Url::to(Auth::isEditor() ? '/admin' : '/profile'));
-            exit;
+            Auth::redirect(Auth::isEditor() ? '/admin' : '/profile');
         }
     }
 

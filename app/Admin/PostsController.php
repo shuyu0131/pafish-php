@@ -191,8 +191,9 @@ final class PostsController extends AdminController
         if ($this->isAjax($request)) {
             return $this->json($response, ['ok' => true, 'id' => $result['id'], 'status' => $result['status']]);
         }
-        $this->flash('success', $result['created'] ? '文章已保存' : '文章已更新');
-        return $this->redirect($response, "/admin/posts/{$result['id']}/edit");
+        $published = (string) ($result['status'] ?? '') === 'PUBLISHED';
+        $this->flash('success', $published ? '文章已发布' : ($result['created'] ? '文章已保存' : '文章已更新'));
+        return $this->redirect($response, $published ? '/admin/posts' : "/admin/posts/{$result['id']}/edit");
     }
 
     // ---------- 单行操作 ----------

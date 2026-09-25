@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Pafish\Services;
 
-use Pafish\Core\Config;
 use Pafish\Core\DB;
 use PDO;
 
@@ -140,125 +139,6 @@ final class Backup
         return $path;
     }
 
-    // ---------- 命令行备份兼容 ----------
-
-    /** 探测 mysqldump 可执行文件。 */
-    public static function dumpCommand(): string
-    {
-        $candidates = ['mysqldump', 'mysqldump.exe'];
-        $paths = ['C:\\Program Files\\MySQL\\MySQL Server 8.0\\bin', 'C:\\Program Files\\MySQL\\MySQL Server 8.4\\bin'];
-        foreach ($candidates as $name) {
-            $found = self::findBin($name, $paths);
-            if ($found !== null) {
-                return $found;
-            }
-        }
-        return 'mysqldump';
-    }
-
-    private static function cliCommand(): string
-    {
-        $candidates = ['mysql', 'mysql.exe'];
-        $paths = ['C:\\Program Files\\MySQL\\MySQL Server 8.0\\bin', 'C:\\Program Files\\MySQL\\MySQL Server 8.4\\bin'];
-        foreach ($candidates as $name) {
-            $found = self::findBin($name, $paths);
-            if ($found !== null) {
-                return $found;
-            }
-        }
-        return 'mysql';
-    }
-
-    private static function findBin(string $name, array $extraPaths): ?string
-    {
-        // 命令执行不可用时由纯 PHP 实现接管。
-        if (!self::canExecuteCommands()) {
-            return null;
-        }
-        $check = [$name];
-        foreach ($extraPaths as $p) {
-            $check[] = rtrim($p, '\\/') . '\\' . $name;
-        }
-        foreach ($check as $cand) {
-            $out = [];
-            $code = 1;
-            @exec(escapeshellarg($cand) . ' --version 2>&1', $out, $code);
-            if ($code === 0) {
-                return $cand;
-            }
-        }
-        return null;
-    }
-
-    private static function mysqlDumpAvailable(): bool
-    {
-        return self::findBin('mysqldump', ['C:\\Program Files\\MySQL\\MySQL Server 8.0\\bin', 'C:\\Program Files\\MySQL\\MySQL Server 8.4\\bin']) !== null;
-    }
-
-    private static function mysqlCliAvailable(): bool
-    {
-        return self::findBin('mysql', ['C:\\Program Files\\MySQL\\MySQL Server 8.0\\bin', 'C:\\Program Files\\MySQL\\MySQL Server 8.4\\bin']) !== null;
-    }
-
-    /** 执行命令；失败抛异常（stderr 截断 200 字符） */
-    private static function run(string $cmd, string $failMsg): void
-    {
-        if (!self::canExecuteCommands()) {
-            throw new \RuntimeException($failMsg . '：服务器已禁用命令执行');
-        }
-        $c = Config::get('db', []);
-        putenv('MYSQL_PWD=' . (string) ($c['password'] ?? ''));
-        $cmd = sprintf(
-            '%s --host=%s --port=%d --user=%s --default-character-set=utf8mb4',
-            $cmd,
-            escapeshellarg($c['host'] ?? '127.0.0.1'),
-            (int) ($c['port'] ?? 3306),
-            escapeshellarg($c['username'] ?? 'root')
-        );
-        $out = [];
-        $code = 1;
-        @exec($cmd . ' 2>&1', $out, $code);
-        if ($code !== 0) {
-            throw new \RuntimeException($failMsg . '（退出码 ' . $code . '）：' . mb_substr(implode("\n", $out), 0, 200));
-        }
-    }
-
-    /** 执行命令并从文件喂入 SQL。 */
-    private static function runWithInput(string $cmd, string $inputFile, string $failMsg): void
-    {
-        if (!self::canExecuteCommands()) {
-            throw new \RuntimeException($failMsg . '：服务器已禁用命令执行');
-        }
-        $c = Config::get('db', []);
-        putenv('MYSQL_PWD=' . (string) ($c['password'] ?? ''));
-        $cmd = sprintf(
-            '%s --host=%s --port=%d --user=%s --default-character-set=utf8mb4 %s < %s',
-            $cmd,
-            escapeshellarg($c['host'] ?? '127.0.0.1'),
-            (int) ($c['port'] ?? 3306),
-            escapeshellarg($c['username'] ?? 'root'),
-            escapeshellarg(self::dbName()),
-            escapeshellarg($inputFile)
-        );
-        $out = [];
-        $code = 1;
-        @exec($cmd . ' 2>&1', $out, $code);
-        if ($code !== 0) {
-            throw new \RuntimeException($failMsg . '（退出码 ' . $code . '）：' . mb_substr(implode("\n", $out), 0, 200));
-        }
-    }
-
-    private static function dbName(): string
-    {
-        return (string) (Config::get('db', [])['database'] ?? '');
-    }
-
-    /** 检查命令执行能力。 */
-    private static function canExecuteCommands(): bool
-    {
-        return function_exists('exec');
-    }
-
     // ---------- 纯 PHP 兜底 ----------
 
     /** 逐表导出为 SQL（无 mysqldump 环境时的兜底） */
@@ -329,7 +209,7 @@ final class Backup
             }
             if (preg_match('/^DELIMITER\s+(\S+)/i', $trimmed, $m)) {
                 if (trim($stmt) !== '') {
-                    $pdo->exec(trim($stmt));
+                    $pdo->query(trim($stmt));
                     $count++;
                 }
                 $delimiter = $m[1];
@@ -342,14 +222,14 @@ final class Backup
                 // 逐字符误裁（如内容以 $ 结尾的 DELIMITER $$ 语句）
                 $sql = substr(trim($stmt), 0, -strlen($delimiter));
                 if ($sql !== '') {
-                    $pdo->exec($sql);
+                    $pdo->query($sql);
                     $count++;
                 }
                 $stmt = '';
             }
         }
         if (trim($stmt) !== '') {
-            $pdo->exec(trim($stmt));
+            $pdo->query(trim($stmt));
             $count++;
         }
         fclose($fp);

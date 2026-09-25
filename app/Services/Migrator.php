@@ -12,7 +12,7 @@ final class Migrator
     /** 建迁移记录表（幂等） */
     public static function ensureTable(\PDO $pdo): void
     {
-        $pdo->exec('CREATE TABLE IF NOT EXISTS ' . self::TABLE . ' (
+        $pdo->query('CREATE TABLE IF NOT EXISTS ' . self::TABLE . ' (
             version     VARCHAR(64) NOT NULL,
             applied_at  DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (version)
@@ -90,7 +90,7 @@ final class Migrator
                         && self::foreignKeyExists($pdo, (string)$m[1], (string)$m[2])) {
                         continue;
                     }
-                    $pdo->exec($stmt);
+                    $pdo->query($stmt);
                 }
                 $pdo->prepare('INSERT INTO ' . self::TABLE . ' (version) VALUES (?)')->execute([$version]);
                 if ($pdo->inTransaction()) {
@@ -138,6 +138,8 @@ final class Migrator
             'post_reactions' => self::tableHasColumns($pdo, 'post_reactions', ['user_id', 'post_id', 'kind']),
             'user_points' => self::tableHasColumns($pdo, 'user_points', ['user_id', 'balance'])
                 && self::tableHasColumns($pdo, 'point_transactions', ['id', 'user_id', 'amount']),
+            'user_management' => self::tableHasColumns($pdo, 'users', ['description', 'last_login_ip', 'last_active_at'])
+                && self::indexExists($pdo, 'users', 'idx_users_last_active'),
             default => false,
         };
     }

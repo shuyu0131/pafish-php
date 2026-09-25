@@ -18,7 +18,7 @@
   if (!content) return;
   var form = $("#microForm");
 
-  // 与 emlog 一样，提交后立即锁定按钮；服务端令牌负责处理网络重试和重复请求。
+  // 提交后立即锁定按钮；服务端令牌负责处理网络重试和重复请求。
   if (form) {
     form.addEventListener("submit", function (event) {
       if (form.dataset.submitting === "1") {

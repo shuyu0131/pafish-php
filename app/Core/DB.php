@@ -42,7 +42,7 @@ final class DB
                     ->getOffset(new \DateTimeImmutable());
                 $sign = $offset >= 0 ? '+' : '-';
                 $abs = abs($offset);
-                self::$pdo->exec(sprintf(
+                self::$pdo->query(sprintf(
                     "SET time_zone = '%s%02d:%02d'",
                     $sign,
                     intdiv($abs, 3600),

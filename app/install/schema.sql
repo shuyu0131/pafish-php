@@ -17,6 +17,9 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash        VARCHAR(255)    NOT NULL,
   role                 VARCHAR(20)     NOT NULL DEFAULT 'USER',
   avatar_url           VARCHAR(500)    NULL,
+  description          VARCHAR(500)    NULL,
+  last_login_ip        VARCHAR(45)     NULL,
+  last_active_at       DATETIME        NULL,
   disabled             TINYINT(1)      NOT NULL DEFAULT 0,
   reset_token          VARCHAR(64)     NULL,
   reset_token_expires  DATETIME        NULL,
@@ -25,7 +28,8 @@ CREATE TABLE IF NOT EXISTS users (
   PRIMARY KEY (id),
   UNIQUE KEY uk_users_username (username),
   UNIQUE KEY uk_users_email (email),
-  KEY idx_users_reset_token (reset_token)
+  KEY idx_users_reset_token (reset_token),
+  KEY idx_users_last_active (last_active_at)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 -- 文章

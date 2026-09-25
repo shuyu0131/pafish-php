@@ -276,7 +276,9 @@ $app->get('/{dir:css|js|uploads}/{path:.*}', [StaticFileController::class, 'serv
 // 当前主题与声明 public:true 的插件自然路径；必须位于文章 slug 兜底之前。
 // 仅注册已声明的精确模式，不能用 catch-all，否则会吞掉 /{slug} 文章兜底。
 foreach (\Pafish\Services\ExtensionRoutes::publicRoutes() as $extensionRoute) {
-    $app->map([$extensionRoute['method']], $extensionRoute['fullPath'], static function ($request, $response, $args) use ($extensionRoute) {
+    // 不能用 static 闭包：Slim 的 CallableResolver 会把路由闭包 bindTo 容器，
+    // 而静态闭包无法绑定，bindTo 返回 null 后触发 TypeError（所有扩展自然路径都会 500）。
+    $app->map([$extensionRoute['method']], $extensionRoute['fullPath'], function ($request, $response, $args) use ($extensionRoute) {
         return (new ExtensionController())->publicRoute($request, $response, $args, $extensionRoute);
     });
 }

@@ -4,7 +4,7 @@
  * - 拖拽/粘贴图片上传（/api/upload，GD 压缩入库）；非图片文件插入下载链接
  * - slug 联动（未手动修改时随标题生成）、标签点选+新建、封面上传/媒体库
  * - 高级选项：定时发布、置顶、访问密码、外链、分类内置顶、自定义字段
- * - 提交校验 → AJAX 保存 → 跳转编辑页
+ * - 提交校验 → AJAX 保存 → 发布后跳转列表，草稿留在编辑页
  * - Ctrl+S 快速存草稿；编辑模式每 60 秒自动保存（dirty 检测）
  * - 媒体弹窗（本地上传 / 媒体库 24/页 + 500ms 防抖搜索）
  */
@@ -296,8 +296,9 @@
       .then(function (d) {
         if (!d.ok) throw new Error(d.error || "保存失败");
         manualRequestToken = null;
-        // 保存后跳转到编辑页（服务端最新状态）
-        pafishToastNavigate(DATA.editUrl.replace("{id}", d.id), "文章已保存", "success");
+        var published = d.status === "PUBLISHED";
+        var destination = published ? DATA.listUrl : DATA.editUrl.replace("{id}", d.id);
+        pafishToastNavigate(destination, published ? "文章已发布" : "文章已保存", "success");
       })
       .catch(function (e) {
         showError(e.message || "保存失败");

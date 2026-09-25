@@ -60,7 +60,13 @@ final class AuthApiController
             return $this->json($response, ['error' => '账号已被禁用，请联系管理员'], 403);
         }
 
+        $ip = trim((string) (($request->getServerParams()['REMOTE_ADDR'] ?? '') ?: ''));
+        if (filter_var($ip, FILTER_VALIDATE_IP) === false) {
+            $ip = null;
+        }
+        DB::execute('UPDATE users SET last_login_ip = ?, last_active_at = NOW() WHERE id = ?', [$ip, (int) $user['id']]);
         Auth::login((int) $user['id']);
+        Session::set('last_active_touch', time());
 
         // 钩子：登录成功
         \do_action('after_login', [

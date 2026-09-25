@@ -1299,7 +1299,7 @@ input[type="radio"]:focus-visible {
   align-items: start;
 }
 
-/* 与 Emlog 相同，只有充足宽度时才展开正文/设置双栏。 */
+/* 只有充足宽度时才展开正文/设置双栏。 */
 @media (min-width: 1200px) {
   .admin-editor-grid {
     grid-template-columns: minmax(0, 3fr) minmax(272px, 1fr);
@@ -2624,7 +2624,7 @@ input[type="radio"]:focus-visible {
   margin-top: 0;
 }
 .admin-user-table {
-  min-width: 820px;
+  min-width: 1120px;
 }
 .admin-user-table .admin-user-name-row {
   flex-wrap: nowrap;
@@ -2641,12 +2641,29 @@ input[type="radio"]:focus-visible {
   font-size: 12px;
   white-space: nowrap;
 }
+.admin-user-counts a {
+  color: var(--accent);
+  text-decoration: none;
+}
+.admin-user-counts a:hover { text-decoration: underline; }
 .admin-user-points-value {
   font-variant-numeric: tabular-nums;
 }
 .admin-user-table .admin-user-ops {
-  min-width: 190px;
+  min-width: 250px;
   justify-content: flex-start;
+}
+.admin-user-name {
+  text-decoration: none;
+}
+.admin-user-name:hover {
+  text-decoration: underline;
+}
+.admin-user-ip {
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  white-space: nowrap;
 }
 .admin-user-check-col {
   width: 38px;
@@ -2666,7 +2683,7 @@ input[type="radio"]:focus-visible {
   min-height: 30px;
   padding: 4px 28px 4px 10px;
 }
-.admin-user-action-modal { width: min(440px, 100%); }
+.admin-user-action-modal { width: min(520px, 100%); }
 .admin-user-action-tabs {
   display: flex;
   gap: 4px;
@@ -2689,6 +2706,74 @@ input[type="radio"]:focus-visible {
 }
 .admin-user-action-modal [data-user-panel] .label + .input { margin-bottom: 12px; }
 .admin-user-action-modal [data-user-panel] .input + .label { margin-top: 4px; }
+
+/* 独立用户编辑页 */
+.admin-user-edit-page { gap: 24px; }
+.admin-breadcrumb {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 7px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.admin-breadcrumb a { color: var(--accent); text-decoration: none; }
+.admin-user-edit-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  align-items: start;
+  gap: 20px;
+}
+.admin-user-edit-main .admin-form-card { padding: 24px; }
+.admin-user-edit-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.admin-user-edit-card-head .admin-page-note { margin: 5px 0 0; }
+.admin-user-avatar-field,
+.admin-user-description,
+.admin-user-edit-section,
+.admin-user-edit-main .admin-form-actions { grid-column: 1 / -1; }
+.admin-user-description { resize: vertical; min-height: 110px; }
+.admin-user-edit-section {
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.admin-user-edit-section h3 { margin: 0 0 4px; font-size: 14px; color: var(--title); }
+.admin-user-edit-side { display: flex; flex-direction: column; gap: 16px; }
+.admin-user-info-card,
+.admin-user-points-card,
+.admin-user-danger-card,
+.admin-user-protected-card { padding: 20px; }
+.admin-user-info-list { display: flex; flex-direction: column; gap: 0; margin: 14px 0 0; }
+.admin-user-info-list > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 0;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+}
+.admin-user-info-list dt { color: var(--muted); }
+.admin-user-info-list dd { margin: 0; color: var(--title); text-align: right; word-break: break-word; }
+.admin-user-info-list a { color: var(--accent); text-decoration: none; }
+.admin-user-danger-card { border-color: color-mix(in srgb, var(--danger) 35%, var(--border)); }
+.admin-user-danger-card p,
+.admin-user-protected-card p { margin: 10px 0 16px; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.admin-user-protected-card p { margin: 0; }
+
+@media (max-width: 900px) {
+  .admin-user-edit-grid { grid-template-columns: 1fr; }
+  .admin-user-edit-side { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .admin-user-danger-card,
+  .admin-user-protected-card { grid-column: 1 / -1; }
+}
+@media (max-width: 600px) {
+  .admin-user-edit-side { display: flex; }
+  .admin-user-edit-main .admin-form-card { padding: 18px 16px; }
+}
 
 /* 分页（媒体库/文章列表共用） */
 .admin-pagination {
@@ -4799,7 +4884,7 @@ input[type="radio"] {
 
 @media (max-width: 959px) {
   .admin-table-wrap .admin-table { min-width: 700px; }
-  .admin-table-wrap.admin-user-table-wrap .admin-table { min-width: 820px; }
+  .admin-table-wrap.admin-user-table-wrap .admin-table { min-width: 1120px; }
   .admin-table-wrap.admin-comment-table-wrap .admin-table { min-width: 900px; }
   .admin-table-wrap.admin-media-table-wrap .admin-table { min-width: 720px; }
 }

@@ -188,10 +188,13 @@ $app->group('/admin', function ($group) {
     $group->post('/settings/test-smtp', [SettingsController::class, 'testSmtp']);
     $group->post('/settings/regenerate-key', [SettingsController::class, 'regenerateApiKey']);
 
-    // 用户管理（仅 ADMIN：角色/禁用/重置密码）
+    // 用户管理（仅 ADMIN：资料、角色、禁用、重置密码和积分）
     $group->get('/users', [UsersController::class, 'index']);
     $group->post('/users/create', [UsersController::class, 'create']);
     $group->post('/users/bulk', [UsersController::class, 'bulk']);
+    $group->get('/users/{id}/edit', [UsersController::class, 'edit']);
+    $group->post('/users/{id}/save', [UsersController::class, 'update']);
+    $group->post('/users/{id}/delete', [UsersController::class, 'delete']);
     $group->post('/users/{id}/role', [UsersController::class, 'updateRole']);
     $group->post('/users/{id}/toggle', [UsersController::class, 'toggleDisabled']);
     $group->post('/users/{id}/reset-password', [UsersController::class, 'resetPassword']);

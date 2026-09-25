@@ -49,6 +49,9 @@ $roleLabel = static function (string $role): string {
       <option value="oldest"<?= ($filters['sort'] ?? '') === 'oldest' ? ' selected' : '' ?>>最早注册</option>
       <option value="name"<?= ($filters['sort'] ?? '') === 'name' ? ' selected' : '' ?>>昵称</option>
       <option value="content"<?= ($filters['sort'] ?? '') === 'content' ? ' selected' : '' ?>>内容数量</option>
+      <option value="activity"<?= ($filters['sort'] ?? '') === 'activity' ? ' selected' : '' ?>>最近活动</option>
+      <option value="role"<?= ($filters['sort'] ?? '') === 'role' ? ' selected' : '' ?>>角色</option>
+      <option value="state"<?= ($filters['sort'] ?? '') === 'state' ? ' selected' : '' ?>>状态</option>
     </select>
     <button class="btn btn-primary" type="submit">筛选</button>
     <?php if (($filters['q'] ?? '') !== '' || ($filters['role'] ?? '') !== '' || ($filters['state'] ?? '') !== '' || ($filters['sort'] ?? 'latest') !== 'latest'): ?><a class="btn btn-ghost" href="<?= e(url_to('/admin/users')) ?>">清除</a><?php endif; ?>
@@ -68,6 +71,8 @@ $roleLabel = static function (string $role): string {
             <th>用户</th>
             <th>角色</th>
             <th>注册时间</th>
+            <th>登录 IP</th>
+            <th>最近活动</th>
             <th>内容</th>
             <?php if ($pointsEnabled): ?><th>积分</th><?php endif; ?>
             <th class="admin-col-ops">操作</th>
@@ -80,40 +85,50 @@ $roleLabel = static function (string $role): string {
             $isMe = $uid === $meId;
             $avatar = !empty($u['avatar_url']) ? $u['avatar_url'] : admin_gravatar((string) $u['email']);
             $disabled = ((int) $u['disabled']) === 1;
+            $isFounder = $uid === 1 && (string) $u['role'] === 'ADMIN';
             ?>
-            <tr class="admin-user-row" data-id="<?= $uid ?>">
-              <td class="admin-user-check-col"><input type="checkbox" class="admin-user-check" value="<?= $uid ?>" aria-label="选择<?= e((string) ($u['nickname'] ?: $u['username'])) ?>"<?= $isMe ? ' disabled' : '' ?>></td>
+            <tr class="admin-user-row"
+                data-id="<?= $uid ?>"
+                data-username="<?= e((string) $u['username']) ?>"
+                data-nickname="<?= e((string) ($u['nickname'] ?? '')) ?>"
+                data-email="<?= e((string) $u['email']) ?>"
+                data-avatar-url="<?= e((string) ($u['avatar_url'] ?? '')) ?>">
+              <td class="admin-user-check-col"><input type="checkbox" class="admin-user-check" value="<?= $uid ?>" aria-label="选择<?= e((string) ($u['nickname'] ?: $u['username'])) ?>"<?= ($isMe || $isFounder) ? ' disabled' : '' ?>></td>
               <td data-label="用户">
                 <div class="admin-user-main">
                   <div class="admin-user-name-row">
                     <img class="admin-user-avatar-lg" src="<?= e($avatar) ?>" alt="" width="32" height="32">
-                    <span class="admin-user-name"><?= e((string) ($u['nickname'] ?: $u['username'])) ?></span>
+                    <a class="admin-user-name" href="<?= e(url_to('/admin/users/' . $uid . '/edit')) ?>"><?= e((string) ($u['nickname'] ?: $u['username'])) ?></a>
                     <?php if ($disabled): ?><span class="badge badge-danger">已禁用</span><?php endif; ?>
                   </div>
                   <div class="admin-muted admin-user-subline"><?= e($u['email']) ?></div>
                 </div>
               </td>
               <td data-label="角色">
-                <select class="input admin-role-select" aria-label="角色">
+                <select class="input admin-role-select" aria-label="角色"<?= $isFounder ? ' disabled' : '' ?>>
                   <?php foreach (['ADMIN' => '管理员', 'EDITOR' => '编辑', 'USER' => '用户'] as $val => $label): ?>
                     <option value="<?= $val ?>" <?= (string) $u['role'] === $val ? 'selected' : '' ?>><?= $label ?></option>
                   <?php endforeach; ?>
                 </select>
               </td>
               <td data-label="注册时间" class="admin-user-date"><?= e(date('Y-m-d', strtotime((string) $u['created_at']))) ?></td>
-              <td data-label="内容" class="admin-user-counts"><span><?= (int) $u['post_count'] ?> 篇文章</span><span><?= (int) $u['comment_count'] ?> 条评论</span></td>
+              <td data-label="登录 IP" class="admin-user-ip"><?= e((string) ($u['last_login_ip'] ?? '暂无记录')) ?></td>
+              <td data-label="最近活动" class="admin-user-date"><?= !empty($u['last_active_at']) ? e(date('Y-m-d H:i', strtotime((string) $u['last_active_at']))) : '暂无记录' ?></td>
+              <td data-label="内容" class="admin-user-counts"><a href="<?= e(url_to('/admin/posts?author=' . $uid)) ?>"><?= (int) $u['post_count'] ?> 篇文章</a><span><?= (int) $u['comment_count'] ?> 条评论</span></td>
               <?php if ($pointsEnabled): ?><td data-label="积分" class="admin-user-points-value"><?= (int) ($u['points_balance'] ?? 0) ?></td><?php endif; ?>
               <td data-label="操作" class="admin-col-ops">
                 <div class="admin-user-ops">
-                  <?php if ($isMe): ?>
-                    <span class="admin-muted admin-current-account">当前账号</span>
-                  <?php else: ?>
+                  <?php if ($isMe): ?><span class="admin-muted admin-current-account">当前账号</span><?php endif; ?>
+                  <?php if (!$isFounder || $isMe): ?>
+                    <a class="btn btn-sm btn-ghost" href="<?= e(url_to('/admin/users/' . $uid . '/edit')) ?>">编辑</a>
+                    <button type="button" class="btn btn-sm btn-ghost admin-user-more" data-user-action="more">快速管理</button>
+                  <?php else: ?><span class="admin-muted">创始人账号受保护</span><?php endif; ?>
+                  <?php if (!$isMe && !$isFounder): ?>
                     <?php if ($disabled): ?>
                       <button type="button" class="btn btn-sm btn-ghost admin-user-unban">解禁</button>
                     <?php else: ?>
                       <button type="button" class="btn btn-sm btn-ghost admin-user-ban">禁用</button>
                     <?php endif; ?>
-                    <button type="button" class="btn btn-sm btn-ghost admin-user-more" data-user-action="more">更多</button>
                   <?php endif; ?>
                 </div>
               </td>
@@ -127,6 +142,9 @@ $roleLabel = static function (string $role): string {
         <option value="">批量操作</option>
         <option value="disable">批量禁用</option>
         <option value="enable">批量解禁</option>
+        <option value="role:EDITOR">设为编辑</option>
+        <option value="role:USER">设为用户</option>
+        <option value="role:ADMIN">设为管理员</option>
       </select>
     </div>
     <?= admin_pagination($page, $pages, $total, static function (int $p, int $size = 20) use ($userQuery): string {
@@ -159,8 +177,19 @@ $roleLabel = static function (string $role): string {
     <div class="admin-modal-body">
       <p class="admin-modal-hint" id="adminUserActionHint"></p>
       <div class="admin-user-action-tabs" role="tablist">
-        <button type="button" class="admin-user-action-tab active" data-user-mode="password">重置密码</button>
+        <button type="button" class="admin-user-action-tab active" data-user-mode="profile">资料</button>
+        <button type="button" class="admin-user-action-tab" data-user-mode="password">重置密码</button>
         <?php if ($pointsEnabled): ?><button type="button" class="admin-user-action-tab" data-user-mode="points">调整积分</button><?php endif; ?>
+      </div>
+      <div data-user-panel="profile">
+        <label class="label" for="adminUserUsername">用户名</label>
+        <input type="text" class="input" id="adminUserUsername" maxlength="50" autocomplete="off">
+        <label class="label" for="adminUserNickname">显示昵称</label>
+        <input type="text" class="input" id="adminUserNickname" maxlength="50">
+        <label class="label" for="adminUserEmail">邮箱</label>
+        <input type="email" class="input" id="adminUserEmail" maxlength="255" autocomplete="email">
+        <label class="label" for="adminUserAvatar">头像地址</label>
+        <input type="url" class="input" id="adminUserAvatar" maxlength="500" placeholder="留空使用邮箱头像">
       </div>
       <div data-user-panel="password">
         <label class="label" for="adminUserNewPassword">新密码</label>
@@ -186,6 +215,7 @@ $roleLabel = static function (string $role): string {
 (function () {
   "use strict";
   var CSRF = <?= json_encode($usersCsrf) ?>;
+  var ADMIN_USERS = <?= json_encode(url_to('/admin/users')) ?>;
   var createModal = document.getElementById("adminUserCreateModal");
   function closeCreate() { createModal.hidden = true; if (window.pafishModalSync) window.pafishModalSync(); }
   document.getElementById("adminUserCreateOpen").addEventListener("click", function () { createModal.hidden = false; document.getElementById("createUserError").hidden = true; document.getElementById("createUsername").focus(); if (window.pafishModalSync) window.pafishModalSync(); });
@@ -225,7 +255,7 @@ $roleLabel = static function (string $role): string {
         var fd = new FormData();
         fd.append("role", sel.value);
         fd.append("_csrf", CSRF);
-        post("/admin/users/" + row.dataset.id + "/role", fd, function () {
+        post(ADMIN_USERS + "/" + row.dataset.id + "/role", fd, function () {
           pafishToastReload("用户角色已更新", "success");
         });
       });
@@ -241,7 +271,7 @@ $roleLabel = static function (string $role): string {
         if (!ok) return;
         var fd = new FormData();
         fd.append("_csrf", CSRF);
-        post("/admin/users/" + row.dataset.id + "/toggle", fd, function () {
+        post(ADMIN_USERS + "/" + row.dataset.id + "/toggle", fd, function () {
           pafishToastReload("用户已禁用", "success");
         });
       });
@@ -254,14 +284,14 @@ $roleLabel = static function (string $role): string {
       var row = btn.closest(".admin-user-row");
       var fd = new FormData();
       fd.append("_csrf", CSRF);
-      post("/admin/users/" + row.dataset.id + "/toggle", fd, function () {
+      post(ADMIN_USERS + "/" + row.dataset.id + "/toggle", fd, function () {
         pafishToastReload("用户已解禁", "success");
       });
     });
   });
 
   var actionModal = document.getElementById("adminUserActionModal");
-  var actionMode = "password";
+  var actionMode = "profile";
   var actionRow = null;
   var actionError = document.getElementById("adminUserActionError");
   function closeActionModal() {
@@ -279,33 +309,46 @@ $roleLabel = static function (string $role): string {
     btn.addEventListener("click", function () {
       actionRow = btn.closest(".admin-user-row");
       document.getElementById("adminUserActionHint").textContent = "正在操作：" + (actionRow.querySelector(".admin-user-name").textContent || "用户");
+      document.getElementById("adminUserUsername").value = actionRow.dataset.username || "";
+      document.getElementById("adminUserNickname").value = actionRow.dataset.nickname || "";
+      document.getElementById("adminUserEmail").value = actionRow.dataset.email || "";
+      document.getElementById("adminUserAvatar").value = actionRow.dataset.avatarUrl || "";
       document.getElementById("adminUserNewPassword").value = "";
       <?php if ($pointsEnabled): ?>document.getElementById("adminUserPointsAmount").value = ""; document.getElementById("adminUserPointsReason").value = "";<?php endif; ?>
-      setActionMode("password");
+      setActionMode("profile");
       actionModal.hidden = false;
       if (window.pafishModalSync) window.pafishModalSync();
-      document.getElementById("adminUserNewPassword").focus();
+      document.getElementById("adminUserUsername").focus();
     });
   });
   document.getElementById("adminUserActionSave").addEventListener("click", function () {
     if (!actionRow) return;
     var fd = new FormData();
     fd.append("_csrf", CSRF);
-    var endpoint = "reset-password";
-    if (actionMode === "password") {
+    var endpoint = "save";
+    var successMessage = "用户资料已更新";
+    if (actionMode === "profile") {
+      fd.append("username", document.getElementById("adminUserUsername").value.trim());
+      fd.append("nickname", document.getElementById("adminUserNickname").value.trim());
+      fd.append("email", document.getElementById("adminUserEmail").value.trim());
+      fd.append("avatar_url", document.getElementById("adminUserAvatar").value.trim());
+    } else if (actionMode === "password") {
+      endpoint = "reset-password";
       var password = document.getElementById("adminUserNewPassword").value;
       if (password.length < 6 || password.length > 72) { actionError.textContent = "密码长度需 6-72 位"; actionError.hidden = false; return; }
       fd.append("password", password);
+      successMessage = "密码已重置";
     } else {
       endpoint = "points";
       var amount = document.getElementById("adminUserPointsAmount").value;
       if (!amount || Number(amount) === 0) { actionError.textContent = "请输入非零积分"; actionError.hidden = false; return; }
       fd.append("amount", amount);
       fd.append("reason", document.getElementById("adminUserPointsReason").value);
+      successMessage = "积分已调整";
     }
-    post("/admin/users/" + actionRow.dataset.id + "/" + endpoint, fd, function () {
+    post(ADMIN_USERS + "/" + actionRow.dataset.id + "/" + endpoint, fd, function () {
       closeActionModal();
-      pafishToastReload(actionMode === "password" ? "密码已重置" : "积分已调整", "success");
+      pafishToastReload(successMessage, "success");
     });
   });
 
@@ -332,7 +375,10 @@ $roleLabel = static function (string $role): string {
       var ids = selectedIds();
       var action = bulkSelect.value;
       if (!ids.length || !action) return;
-      var label = action === "disable" ? "禁用" : "解禁";
+      var roleAction = action.indexOf("role:") === 0;
+      var role = roleAction ? action.slice(5) : "";
+      var roleLabels = { ADMIN: "管理员", EDITOR: "编辑", USER: "用户" };
+      var label = roleAction ? "设为" + (roleLabels[role] || "指定角色") : (action === "disable" ? "禁用" : "解禁");
       var confirmTask = window.pafishConfirm
         ? window.pafishConfirm("确定" + label + "选中的 " + ids.length + " 个用户吗？", { title: "批量" + label })
         : Promise.resolve(window.confirm("确定" + label + "选中的用户吗？"));
@@ -340,9 +386,10 @@ $roleLabel = static function (string $role): string {
         if (!ok) return;
         var fd = new FormData();
         fd.append("_csrf", CSRF);
-        fd.append("action", action);
+        fd.append("action", roleAction ? "set_role" : action);
+        if (roleAction) fd.append("role", role);
         ids.forEach(function (id) { fd.append("ids[]", id); });
-        post("/admin/users/bulk", fd, function () {
+        post(ADMIN_USERS + "/bulk", fd, function () {
           pafishToastReload("已" + label + "选中用户", "success");
         });
       });

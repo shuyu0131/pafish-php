@@ -15,6 +15,7 @@ final class Auth
     private const SESSION_KEY = 'user_id';
 
     private static ?array $user = null;
+    private static bool $activityTouched = false;
 
     public const CAPABILITIES = [
         'dashboard.view', 'posts.manage', 'pages.manage', 'taxonomy.manage',
@@ -41,6 +42,9 @@ final class Auth
             return null;
         }
         self::$user = DB::fetchOne('SELECT * FROM users WHERE id = ? AND disabled = 0', [(int) $id]) ?? [];
+        if (self::$user) {
+            self::touchActivity();
+        }
         return self::$user ?: null;
     }
 
@@ -58,13 +62,34 @@ final class Auth
     public static function login(int $userId): void
     {
         Session::set(self::SESSION_KEY, $userId);
+        Session::remove('last_active_touch');
         self::$user = null;
+        self::$activityTouched = false;
     }
 
     public static function logout(): void
     {
         Session::remove(self::SESSION_KEY);
+        Session::remove('last_active_touch');
         self::$user = null;
+        self::$activityTouched = false;
+    }
+
+    /** 每个会话最多每 6 小时写入一次最近活动时间，避免后台页面产生高频写入。 */
+    private static function touchActivity(): void
+    {
+        if (self::$activityTouched || !self::$user) {
+            return;
+        }
+        $now = time();
+        $last = (int) Session::get('last_active_touch', 0);
+        if ($last > 0 && $now - $last < 21600) {
+            self::$activityTouched = true;
+            return;
+        }
+        DB::execute('UPDATE users SET last_active_at = NOW() WHERE id = ?', [(int) self::$user['id']]);
+        Session::set('last_active_touch', $now);
+        self::$activityTouched = true;
     }
 
     public static function isAdmin(): bool
@@ -119,13 +144,18 @@ final class Auth
         return in_array($capability, self::capabilities(), true);
     }
 
+    /** 站内 302 重定向：$path 为站内路径，$query 为已 urlencode 的查询串（由中间件转为响应） */
+    public static function redirect(string $path, string $query = ''): never
+    {
+        throw new RedirectException(Url::to($path) . ($query === '' ? '' : '?' . $query));
+    }
+
     /** 后台页面守卫：未登录跳登录页 */
     public static function requireLogin(): void
     {
         if (!self::check()) {
             $from = $_SERVER['REQUEST_URI'] ?? '/admin';
-            header('Location: ' . Url::to('/login') . '?from=' . urlencode($from));
-            exit;
+            self::redirect('/login', 'from=' . urlencode($from));
         }
     }
 
@@ -134,8 +164,7 @@ final class Auth
     {
         self::requireLogin();
         if (!self::isAdmin()) {
-            header('Location: ' . Url::to(self::isEditor() ? '/admin' : '/profile'));
-            exit;
+            self::redirect(self::isEditor() ? '/admin' : '/profile');
         }
     }
 
@@ -143,8 +172,7 @@ final class Auth
     {
         self::requireLogin();
         if (!self::can($capability)) {
-            header('Location: ' . Url::to(self::isEditor() ? '/admin' : '/profile'));
-            exit;
+            self::redirect(self::isEditor() ? '/admin' : '/profile');
         }
     }
 

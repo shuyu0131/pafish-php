@@ -17,8 +17,8 @@ final class AuthPageController
     public function login(Request $request, Response $response): Response
     {
         $from = (string) ($request->getQueryParams()['from'] ?? '/admin');
-        if ($from === '' || $from[0] !== '/') {
-            $from = '/admin'; // 防开放重定向
+        if ($from === '' || $from[0] !== '/' || str_starts_with($from, '//')) {
+            $from = '/admin'; // 防开放重定向（含 //evil.com 协议相对地址）
         }
         return $this->page($response, 'login', [
             'subtitle' => '登录管理后台',

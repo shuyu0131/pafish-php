@@ -18,7 +18,7 @@ final class Plugin
     private const INJECT_TARGETS = [
         'head', 'footer', 'sidebar',
         'comment_form', 'login_form', 'register_form', 'post_editor', 'micro_editor',
-        // 插件自己的设置页底部：给插件放它独有的管理区块（原 emlog 插件用设置页 Tab 做分类管理等）。
+        // 插件自己的设置页底部：给插件放置独有的管理区块。
         'plugin_setting',
     ];
     private const SETTING_TYPES = ['text', 'textarea', 'checkbox', 'select', 'color', 'switcher', 'radio', 'image', 'password'];

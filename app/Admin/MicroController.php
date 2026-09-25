@@ -76,10 +76,18 @@ final class MicroController extends AdminController
             return $this->redirect($response, $id > 0 ? '/admin/micro/' . $id . '/edit' : '/admin/micro/new');
         }
         if ($this->isAjax($request)) {
-            return $this->json($response, ['ok' => true, 'id' => (string) $micro['id']]);
+            return $this->json($response, [
+                'ok' => true,
+                'id' => (string) $micro['id'],
+                'status' => (string) ($micro['status'] ?? MicroStatuses::DRAFT),
+            ]);
         }
-        $this->flash('success', '微语已保存');
-        return $this->redirect($response, '/admin/micro/' . (int) $micro['id'] . '/edit');
+        $published = (string) ($micro['status'] ?? '') === MicroStatuses::PUBLISHED;
+        $this->flash('success', $published ? '微语已发布' : '微语已保存');
+        return $this->redirect(
+            $response,
+            $published ? '/admin/micro' : '/admin/micro/' . (int) $micro['id'] . '/edit'
+        );
     }
 
     public function delete(Request $request, Response $response, array $args): Response

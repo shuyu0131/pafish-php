@@ -22,9 +22,12 @@ function inst_e(mixed $s): string
     return htmlspecialchars((string) ($s ?? ''), ENT_QUOTES, 'UTF-8');
 }
 
+// 安装向导不依赖 vendor，用 meta refresh 完成站内跳转
 function inst_redirect(string $url): void
 {
-    header('Location: ' . $url);
+    echo '<!doctype html><html lang="zh-CN"><meta charset="utf-8">'
+        . '<meta http-equiv="refresh" content="0;url=' . inst_e($url) . '">'
+        . '<title>正在跳转…</title><body><p>正在跳转…</p></body></html>';
     exit;
 }
 
@@ -219,7 +222,7 @@ function inst_exec_schema(PDO $pdo, string $sqlFile): array
             continue;
         }
         try {
-            $pdo->exec($stmt);
+            $pdo->query($stmt);
         } catch (PDOException $e) {
             // 重复安装时全文索引已存在（MySQL 1061），视为已完成；
             // 旧版 MySQL 不支持 ngram 等其它错误继续记录警告。
@@ -289,17 +292,17 @@ function inst_run(array $post, string $root): array
         // 会话时区对齐应用时区（否则 CURRENT_TIMESTAMP 默认值按 MySQL 时区存，混用两种墙钟）
         $offset = (new DateTimeZone((string) ($db['timezone'] ?? 'Asia/Shanghai')))->getOffset(new DateTimeImmutable());
         $sign = $offset >= 0 ? '+' : '-';
-        $pdo->exec(sprintf(
+        $pdo->query(sprintf(
             "SET time_zone = '%s%02d:%02d'",
             $sign,
             intdiv(abs($offset), 3600),
             intdiv(abs($offset) % 3600, 60)
         ));
-        $pdo->exec(sprintf(
+        $pdo->query(sprintf(
             'CREATE DATABASE IF NOT EXISTS `%s` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci',
             str_replace('`', '', $db['database'])
         ));
-        $pdo->exec('USE `' . str_replace('`', '', $db['database']) . '`');
+        $pdo->query('USE `' . str_replace('`', '', $db['database']) . '`');
 
         // 2. 已有数据检测（上次安装中断 / 运行配置丢失后重装）：提示但不阻断，种子会跳过已存在记录
         $warnings = [];

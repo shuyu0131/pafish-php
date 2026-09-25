@@ -41,6 +41,7 @@ $editorData = [
 <div class="admin-editor">
   <form id="postForm" method="post" action="<?= e(url_to($isEdit ? '/admin/posts/' . $postId . '/save' : '/admin/posts/save')) ?>" novalidate>
     <?= csrf_field() ?>
+    <input type="hidden" name="_idempotency" value="<?= e(\Pafish\Core\Session::requestToken()) ?>">
     <input type="hidden" name="action" id="fAction" value="draft">
 
     <div class="admin-editor-grid">

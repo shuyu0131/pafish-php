@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pafish\Admin;
 
 use Pafish\Core\DB;
+use Pafish\Core\Session;
 use Pafish\Core\Url;
 use Pafish\Services\Categories;
 use Pafish\Services\Settings;
@@ -170,9 +171,15 @@ final class PostsController extends AdminController
         $this->guardCanManage();
         $body = $request->getParsedBody() ?? [];
         $id = isset($args['id']) ? (int) $args['id'] : 0;
+        $requestToken = trim((string) ($body['_idempotency'] ?? ''));
 
         try {
-            $result = $this->savePost($body, $id > 0 ? $id : null);
+            // 网络重试或双击可能重复发送同一 POST；同一令牌只执行一次写入。
+            $result = Session::replay('post_save', $requestToken);
+            if ($result === null) {
+                $result = $this->savePost($body, $id > 0 ? $id : null);
+                Session::remember('post_save', $requestToken, $result);
+            }
         } catch (\RuntimeException $e) {
             if ($this->isAjax($request)) {
                 return $this->json($response, ['error' => $e->getMessage()], 400);

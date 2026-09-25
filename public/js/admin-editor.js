@@ -265,7 +265,12 @@
     if (pending) return;
     clearError();
     if (!els.title.value.trim()) { showError("请填写标题"); return; }
-    if (!editorValue().trim()) { showError("请填写正文内容"); return; }
+    // 纯外链条目（导航站/书签站）没有自己的正文，填了外链就放行；
+    // 服务端同样是这个条件（见 PostsController::savePost）。
+    if (!editorValue().trim() && !els.externalUrl.value.trim()) {
+      showError("请填写正文内容（纯外链条目请填写外链地址）");
+      return;
+    }
     if (action === "schedule" && !els.scheduledAt.value) { showError("请选择定时发布时间"); return; }
     pending = action;
     updatePendingUI();
@@ -288,10 +293,11 @@
       });
   }
 
-  // 自动保存：仅编辑模式，每 60 秒（dirty 且标题/正文非空时）
+  // 自动保存：仅编辑模式，每 60 秒（dirty 且标题非空、且正文或外链至少有一项时）
   function checkAutosave() {
     if (!isEdit || pending) return;
-    if (!isDirty() || !els.title.value.trim() || !editorValue().trim()) return;
+    if (!isDirty() || !els.title.value.trim()) return;
+    if (!editorValue().trim() && !els.externalUrl.value.trim()) return;
     pending = "auto";
     updateAutosave();
     fetch(DATA.saveUrl, {

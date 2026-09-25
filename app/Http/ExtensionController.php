@@ -177,7 +177,7 @@ final class ExtensionController
             return $response->withStatus($this->safeStatus($status))->withHeader('Content-Type', 'application/json; charset=utf-8');
         }
         $target = is_string($result) ? $result : (is_array($result) ? ($result['redirect'] ?? null) : null);
-        if (!is_string($target) || !str_starts_with($target, '/') || str_starts_with($target, '//') || str_contains($target, "\r") || str_contains($target, "\n")) {
+        if (!is_string($target) || !Url::isLocalPath($target)) {
             throw new \RuntimeException('重定向路由处理器必须返回站内相对路径');
         }
         return $response->withStatus(302)->withHeader('Location', Url::to($target));
@@ -194,7 +194,7 @@ final class ExtensionController
             return $response->withStatus($status)->withHeader('Content-Type', 'application/json; charset=utf-8');
         }
         if ($status === 401) {
-            $from = (string) ($_SERVER['REQUEST_URI'] ?? '/');
+            $from = Url::localPathOr((string) ($_SERVER['REQUEST_URI'] ?? '/'), '/');
             return $response->withStatus(302)->withHeader('Location', Url::to('/login') . '?from=' . rawurlencode($from));
         }
         $response->getBody()->write('<!doctype html><meta charset="utf-8"><title>请求失败</title><p>' . \e($message) . '</p>');

@@ -22,7 +22,13 @@ final class AdminAuthMiddleware
     public function __invoke(Request $request, Handler $handler): Response
     {
         if (!Auth::check()) {
-            throw new RedirectException(Url::to('/login') . '?from=' . urlencode((string) $request->getUri()));
+            $uri = $request->getUri();
+            $from = $uri->getPath();
+            if ($uri->getQuery() !== '') {
+                $from .= '?' . $uri->getQuery();
+            }
+            $from = Url::localPathOr($from, '/admin');
+            throw new RedirectException(Url::to('/login') . '?from=' . rawurlencode($from));
         }
 
         if ($request->getMethod() === 'POST') {

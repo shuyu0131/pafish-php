@@ -6,7 +6,9 @@ namespace Pafish\Http;
 
 use Pafish\Core\Auth;
 use Pafish\Core\DB;
+use Pafish\Core\RateLimiter;
 use Pafish\Core\Session;
+use Pafish\Core\Url;
 use Pafish\Services\EmailCode;
 use Pafish\Services\Notify;
 use Pafish\Services\Settings;
@@ -19,7 +21,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  * - register：开放注册（allow_registration）+ 可选邮箱验证码（require_email_verify，默认开）
  * - send-code：注册/忘记密码验证码（忘记密码防枚举，未注册邮箱统一返回成功）
  * - reset-by-code：验证码重置（一次性）
- * - forgot / reset：令牌流（30 分钟一次性链接；未配置 SMTP 时返回 resetUrl 自托管兜底）
+ * - forgot / reset：令牌流（30 分钟一次性链接，令牌只通过邮件传递）
  */
 final class AuthApiController
 {
@@ -33,6 +35,13 @@ final class AuthApiController
 
         if ($username === '' || $password === '') {
             return $this->json($response, ['error' => '请输入用户名和密码'], 400);
+        }
+
+        $ip = $this->remoteIp($request);
+        $loginKey = $ip . '|' . mb_strtolower($username, 'UTF-8');
+        if (!RateLimiter::allow('auth-login-ip', $ip, 30, 300)
+            || !RateLimiter::allow('auth-login-combo', $loginKey, 8, 600)) {
+            return $this->json($response, ['error' => '登录尝试过于频繁，请稍后再试'], 429);
         }
 
         $loginDecision = \apply_decision_filters('before_login', [
@@ -66,6 +75,7 @@ final class AuthApiController
         }
         DB::execute('UPDATE users SET last_login_ip = ?, last_active_at = NOW() WHERE id = ?', [$ip, (int) $user['id']]);
         Auth::login((int) $user['id']);
+        RateLimiter::clear('auth-login-combo', $loginKey);
         Session::set('last_active_touch', time());
 
         // 钩子：登录成功
@@ -135,9 +145,12 @@ final class AuthApiController
 
         // 邮箱验证码：站点开启时必须通过（校验通过后自动标记已使用）；默认开启
         if ((string) Settings::get('require_email_verify', 'true') !== 'false') {
-            if (!EmailCode::verify(strtolower($email), 'register', $code)) {
+            $verifyKey = $this->remoteIp($request) . '|' . strtolower($email) . '|register';
+            if (!RateLimiter::allow('auth-code-verify', $verifyKey, 8, 600)
+                || !EmailCode::verify(strtolower($email), 'register', $code)) {
                 return $this->json($response, ['error' => '验证码错误或已过期'], 400);
             }
+            RateLimiter::clear('auth-code-verify', $verifyKey);
         }
 
         $exists = DB::fetchOne(
@@ -182,6 +195,10 @@ final class AuthApiController
             return $this->json($response, ['error' => '注册已关闭'], 403);
         }
 
+        if (!RateLimiter::allow('auth-code-send-ip', $this->remoteIp($request), 10, 3600)) {
+            return $this->json($response, ['error' => '请求过于频繁，请稍后再试'], 429);
+        }
+
         // 注册场景：邮箱已注册则直接提示（防止用验证码探测）；忘记密码场景统一响应防枚举
         if ($purpose === 'register') {
             $exists = DB::fetchOne('SELECT id FROM users WHERE email = ?', [$email]);
@@ -190,17 +207,17 @@ final class AuthApiController
             }
         }
 
-        [$code, $tooFrequent] = EmailCode::create($email, $purpose);
-        if ($tooFrequent) {
-            return $this->json($response, ['error' => '发送过于频繁，请 60 秒后再试'], 429);
-        }
-
         // 忘记密码：用户不存在（或被禁用）时静默返回成功（防枚举），不发信
         if ($purpose === 'reset') {
             $user = DB::fetchOne('SELECT id, disabled FROM users WHERE email = ?', [$email]);
             if (!$user || (int) $user['disabled'] === 1) {
                 return $this->json($response, ['ok' => true]);
             }
+        }
+
+        [$code, $tooFrequent] = EmailCode::create($email, $purpose);
+        if ($tooFrequent) {
+            return $this->json($response, ['error' => '发送过于频繁，请 60 秒后再试'], 429);
         }
 
         try {
@@ -229,13 +246,16 @@ final class AuthApiController
 
         $user = DB::fetchOne('SELECT id, disabled FROM users WHERE email = ?', [$email]);
         if (!$user || (int) $user['disabled'] === 1) {
-            return $this->json($response, ['error' => '用户不存在'], 404);
+            return $this->json($response, ['error' => '验证码错误或已过期'], 400);
         }
 
         // 校验失败统一提示（含过期 / 不存在 / 已使用）
-        if (!EmailCode::verify($email, 'reset', $code)) {
+        $verifyKey = $this->remoteIp($request) . '|' . $email . '|reset';
+        if (!RateLimiter::allow('auth-code-verify', $verifyKey, 8, 600)
+            || !EmailCode::verify($email, 'reset', $code)) {
             return $this->json($response, ['error' => '验证码错误或已过期'], 400);
         }
+        RateLimiter::clear('auth-code-verify', $verifyKey);
 
         DB::execute(
             'UPDATE users SET password_hash = ?, reset_token = NULL, reset_token_expires = NULL WHERE id = ?',
@@ -256,6 +276,10 @@ final class AuthApiController
             return $this->json($response, ['error' => '邮箱格式不正确'], 400);
         }
 
+        if (!RateLimiter::allow('auth-forgot-ip', $this->remoteIp($request), 5, 3600)) {
+            return $this->json($response, ['error' => '请求过于频繁，请稍后再试'], 429);
+        }
+
         $user = DB::fetchOne('SELECT id, username, disabled FROM users WHERE email = ?', [$email]);
         // 统一响应，避免暴露邮箱是否注册
         if (!$user || (int) $user['disabled'] === 1) {
@@ -268,17 +292,27 @@ final class AuthApiController
             [$token, date('Y-m-d H:i:s', time() + 30 * 60), (int) $user['id']]
         );
 
-        $resetUrl = \absolute_url('/reset-password?token=' . $token);
+        $resetUrl = Url::trustedAbsolute('/reset-password?token=' . rawurlencode($token));
+        if ($resetUrl === null) {
+            DB::execute(
+                'UPDATE users SET reset_token = NULL, reset_token_expires = NULL WHERE id = ?',
+                [(int) $user['id']]
+            );
+            return $this->json($response, ['ok' => true, 'sent' => false]);
+        }
         $mailed = false;
         try {
             Notify::sendResetLinkEmail($email, (string) $user['username'], $resetUrl);
             $mailed = true;
         } catch (\Throwable) {
-            $mailed = false;
+            DB::execute(
+                'UPDATE users SET reset_token = NULL, reset_token_expires = NULL WHERE id = ?',
+                [(int) $user['id']]
+            );
+            return $this->json($response, ['ok' => true, 'sent' => false]);
         }
 
-        // 未配置 SMTP 时返回链接方便自托管用户（生产环境配置 SMTP 后此分支不触发）
-        return $this->json($response, ['ok' => true, 'sent' => $mailed, 'resetUrl' => $mailed ? null : $resetUrl]);
+        return $this->json($response, ['ok' => true, 'sent' => $mailed]);
     }
 
     public function reset(Request $request, Response $response): Response
@@ -317,5 +351,11 @@ final class AuthApiController
         return $response
             ->withStatus($status)
             ->withHeader('Content-Type', 'application/json');
+    }
+
+    private function remoteIp(Request $request): string
+    {
+        $ip = trim((string) (($request->getServerParams()['REMOTE_ADDR'] ?? '') ?: 'unknown'));
+        return filter_var($ip, FILTER_VALIDATE_IP) !== false ? $ip : 'unknown';
     }
 }

@@ -74,7 +74,7 @@ final class Theme
             try {
                 require $file;
             } catch (\Throwable $e) {
-                error_log('[pafish-theme] 加载 ' . $name . ' helpers.php 失败：' . $e->getMessage());
+                \Pafish\Core\Logger::error('[pafish-theme] 加载 ' . $name . ' helpers.php 失败：' . $e->getMessage());
                 Hooks::removeByTag('theme:' . $name);
             }
         }
@@ -294,7 +294,7 @@ final class Theme
             $module = require $file;
             return self::$modules[$name] = is_array($module) ? $module : [];
         } catch (\Throwable $e) {
-            error_log('[pafish-theme] 加载 ' . $name . ' theme.php 失败：' . $e->getMessage());
+            \Pafish\Core\Logger::error('[pafish-theme] 加载 ' . $name . ' theme.php 失败：' . $e->getMessage());
             return self::$modules[$name] = [];
         }
     }
@@ -321,7 +321,7 @@ final class Theme
         try {
             $module['registerHooks'](self::context($name));
         } catch (\Throwable $e) {
-            error_log('[pafish-theme] ' . $name . ' registerHooks 失败：' . $e->getMessage());
+            \Pafish\Core\Logger::error('[pafish-theme] ' . $name . ' registerHooks 失败：' . $e->getMessage());
         }
     }
 
@@ -330,7 +330,7 @@ final class Theme
     {
         $desc = self::describe($name);
         if ($desc['error'] !== null || $desc['manifest'] === null) {
-            error_log('[pafish-theme] ' . $name . ' schema 跳过：' . (string) ($desc['error'] ?? 'manifest 不可用'));
+            \Pafish\Core\Logger::error('[pafish-theme] ' . $name . ' schema 跳过：' . (string) ($desc['error'] ?? 'manifest 不可用'));
             return false;
         }
         try {
@@ -348,7 +348,7 @@ final class Theme
             }
             return true;
         } catch (\Throwable $e) {
-            error_log('[pafish-theme] ' . $name . ' schema/upgrade 失败：' . $e->getMessage());
+            \Pafish\Core\Logger::error('[pafish-theme] ' . $name . ' schema/upgrade 失败：' . $e->getMessage());
             return false;
         }
     }
@@ -367,7 +367,7 @@ final class Theme
                 $module[$phase](self::context($name));
             }
         } catch (\Throwable $e) {
-            error_log('[pafish-theme] ' . $name . ' ' . $phase . ' 失败：' . $e->getMessage());
+            \Pafish\Core\Logger::error('[pafish-theme] ' . $name . ' ' . $phase . ' 失败：' . $e->getMessage());
         }
     }
 

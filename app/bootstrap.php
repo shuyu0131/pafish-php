@@ -15,6 +15,25 @@ use Slim\Factory\AppFactory;
 
 define('PAFISH_ROOT', dirname(__DIR__));
 
+// 入口阶段也必须保持生产环境不回显 PHP 路径、配置和数据库错误。
+ini_set('display_errors', '0');
+require_once __DIR__ . '/Core/Logger.php';
+register_shutdown_function(static function (): void {
+    $last = error_get_last();
+    if (is_array($last) && in_array((int) ($last['type'] ?? 0), [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
+        \Pafish\Core\Logger::error(sprintf(
+            'fatal error: %s in %s:%d',
+            (string) ($last['message'] ?? 'unknown error'),
+            (string) ($last['file'] ?? 'unknown'),
+            (int) ($last['line'] ?? 0)
+        ));
+        if (!headers_sent()) {
+            http_response_code(500);
+            echo '服务器内部错误';
+        }
+    }
+});
+
 // 入口路径归一化：支持根目录/子目录、index.php?p=、index.php/路径三种形式。
 $__scriptName = (string) ($_SERVER['SCRIPT_NAME'] ?? '/index.php');
 $__scriptPath = parse_url($__scriptName, PHP_URL_PATH) ?: '/index.php';

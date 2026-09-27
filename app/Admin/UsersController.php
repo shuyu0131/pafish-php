@@ -390,7 +390,7 @@ final class UsersController extends AdminController
             }
             return $this->json($response, ['ok' => true, 'balance' => $balance]);
         } catch (\Throwable $e) {
-            error_log('[pafish-user-points] ' . $e->getMessage());
+            \Pafish\Core\Logger::error('[pafish-user-points] ' . $e->getMessage());
             return $this->userUpdateError($request, $response, (int) $user['id'], '积分调整失败，请稍后重试', 400);
         }
     }
@@ -428,7 +428,7 @@ final class UsersController extends AdminController
                 DB::execute('DELETE FROM users WHERE id = ?', [$id]);
             });
         } catch (\Throwable $e) {
-            error_log('[pafish-user-delete] ' . $e->getMessage());
+            \Pafish\Core\Logger::error('[pafish-user-delete] ' . $e->getMessage());
             return $this->userDeleteError($request, $response, '删除用户失败，请检查数据库约束后重试', 500);
         }
 

@@ -13,6 +13,8 @@ $version = $manifest['version'] ?? '';
 $description = is_string($manifest['description'] ?? null) ? $manifest['description'] : '';
 $supportsNotificationTest = (bool) ($supportsNotificationTest ?? false);
 $supportsStorageTest = (bool) ($supportsStorageTest ?? false);
+$pluginActive = (bool) ($active ?? false);
+$hasCustomSettingsPage = is_array($manifest) && in_array('plugin_setting', (array) ($manifest['injects'] ?? []), true);
 ?>
 <div class="admin-stack admin-settings-page admin-plugin-settings">
   <p><a class="admin-back-link" href="<?= e(url_to('/admin/plugins')) ?>">← 返回插件列表</a></p>
@@ -50,9 +52,11 @@ $supportsStorageTest = (bool) ($supportsStorageTest ?? false);
     }
     $groupNames = array_keys($groups);
     ?>
-    <?php if ($fields === []): ?>
+    <?php if ($fields === [] && $hasCustomSettingsPage && !$pluginActive): ?>
+      <div class="card admin-empty">该插件的专属配置页需要先启用插件；请返回插件列表启用后再打开此页面。</div>
+    <?php elseif ($fields === [] && !$hasCustomSettingsPage): ?>
       <div class="card admin-empty">该插件没有可配置的设置项。</div>
-    <?php else: ?>
+    <?php elseif ($fields !== []): ?>
       <form class="card admin-form-card admin-schema-form" id="pluginSettingForm" novalidate>
         <?php if (count($groups) > 1): ?>
           <div class="admin-sf-tabs">

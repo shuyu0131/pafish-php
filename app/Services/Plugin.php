@@ -449,7 +449,7 @@ final class Plugin
             $mod = require $file;
             return self::$modules[$name] = is_array($mod) ? $mod : [];
         } catch (\Throwable $e) {
-            error_log('[pafish-plugin] 加载 ' . $name . ' 失败：' . $e->getMessage());
+            \Pafish\Core\Logger::error('[pafish-plugin] 加载 ' . $name . ' 失败：' . $e->getMessage());
             return self::$modules[$name] = [];
         }
     }
@@ -514,7 +514,7 @@ final class Plugin
         try {
             $mod['registerHooks'](self::context($name));
         } catch (\Throwable $e) {
-            error_log("[pafish-plugin] {$name} registerHooks 失败：" . $e->getMessage());
+            \Pafish\Core\Logger::error("[pafish-plugin] {$name} registerHooks 失败：" . $e->getMessage());
         }
     }
 
@@ -534,7 +534,7 @@ final class Plugin
         try {
             $mod[$phase](self::context($name));
         } catch (\Throwable $e) {
-            error_log("[pafish-plugin] {$name} {$phase} 失败：" . $e->getMessage());
+            \Pafish\Core\Logger::error("[pafish-plugin] {$name} {$phase} 失败：" . $e->getMessage());
         }
     }
 
@@ -719,7 +719,7 @@ final class Plugin
                     $parts[] = $html;
                 }
             } catch (\Throwable $e) {
-                error_log("[pafish-plugin] {$name} renderInjection({$target}) 失败：" . $e->getMessage());
+                \Pafish\Core\Logger::error("[pafish-plugin] {$name} renderInjection({$target}) 失败：" . $e->getMessage());
             }
         }
         $joined = implode("\n", $parts);
@@ -757,7 +757,7 @@ final class Plugin
                     return $html;
                 }
             } catch (\Throwable $e) {
-                error_log("[pafish-plugin] {$name} renderPageTemplate 失败：" . $e->getMessage());
+                \Pafish\Core\Logger::error("[pafish-plugin] {$name} renderPageTemplate 失败：" . $e->getMessage());
             }
         }
         return '';
@@ -780,7 +780,7 @@ final class Plugin
                     return trim($xml);
                 }
             } catch (\Throwable $e) {
-                error_log("[pafish-plugin] {$name} renderSitemap 失败：" . $e->getMessage());
+                \Pafish\Core\Logger::error("[pafish-plugin] {$name} renderSitemap 失败：" . $e->getMessage());
             }
         }
         return null;
@@ -816,7 +816,7 @@ final class Plugin
         try {
             $html = $mod['renderPluginPage']($pagePath, self::context($name));
         } catch (\Throwable $e) {
-            error_log("[pafish-plugin] {$name} renderPluginPage({$pagePath}) 失败：" . $e->getMessage());
+            \Pafish\Core\Logger::error("[pafish-plugin] {$name} renderPluginPage({$pagePath}) 失败：" . $e->getMessage());
             return null;
         }
         if (!is_string($html) || trim($html) === '') {
@@ -863,7 +863,7 @@ final class Plugin
             }
             return trim($url);
         } catch (\Throwable $e) {
-            error_log('[pafish-plugin] 云存储上传失败，回退本地：' . $e->getMessage());
+            \Pafish\Core\Logger::error('[pafish-plugin] 云存储上传失败，回退本地：' . $e->getMessage());
             return null;
         }
     }
@@ -881,7 +881,7 @@ final class Plugin
             }
             $backend['module']['deleteFile']($url, self::context($backend['name']));
         } catch (\Throwable $e) {
-            error_log('[pafish-plugin] 云端删除失败（忽略）：' . $url);
+            \Pafish\Core\Logger::error('[pafish-plugin] 云端删除失败（忽略）：' . $url);
         }
     }
 
@@ -911,7 +911,7 @@ final class Plugin
                 }
             }
         } catch (\Throwable $e) {
-            error_log('[pafish-plugin] boot 失败：' . $e->getMessage());
+            \Pafish\Core\Logger::error('[pafish-plugin] boot 失败：' . $e->getMessage());
         }
     }
 
@@ -920,7 +920,7 @@ final class Plugin
     {
         $desc = self::describe($name);
         if ($desc['error'] !== null || $desc['manifest'] === null) {
-            error_log('[pafish-plugin] ' . $name . ' schema 跳过：' . (string) ($desc['error'] ?? 'manifest 不可用'));
+            \Pafish\Core\Logger::error('[pafish-plugin] ' . $name . ' schema 跳过：' . (string) ($desc['error'] ?? 'manifest 不可用'));
             return false;
         }
         try {
@@ -938,7 +938,7 @@ final class Plugin
             }
             return true;
         } catch (\Throwable $e) {
-            error_log('[pafish-plugin] ' . $name . ' schema/upgrade 失败：' . $e->getMessage());
+            \Pafish\Core\Logger::error('[pafish-plugin] ' . $name . ' schema/upgrade 失败：' . $e->getMessage());
             return false;
         }
     }

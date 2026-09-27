@@ -108,11 +108,17 @@ final class ExtensionController
         }
 
         if (strtoupper($request->getMethod()) === 'POST') {
-            $body = $request->getParsedBody();
-            $token = is_array($body) ? ($body['_csrf'] ?? null) : null;
-            $token = is_string($token) ? $token : $request->getHeaderLine('X-CSRF-Token');
-            if (!Session::verifyCsrf($token)) {
-                return $this->error($response, $route, '请求已过期，请刷新页面重试', 419);
+            // 路由可用 csrf:false 关闭会话令牌校验。会话令牌与 pafish_session cookie 绑定，
+            // 只对「浏览器自动携带凭据」的调用方有意义；小程序（wx.request 无 cookie jar）
+            // 拿到的令牌永远属于另一个会话，校验必然失败。这类路由改用请求头里的
+            // 自管凭据鉴权（如小程序的 X-MP-Token），并由下方限流兜底匿名写入。
+            if (($route['csrf'] ?? true) === true) {
+                $body = $request->getParsedBody();
+                $token = is_array($body) ? ($body['_csrf'] ?? null) : null;
+                $token = is_string($token) ? $token : $request->getHeaderLine('X-CSRF-Token');
+                if (!Session::verifyCsrf($token)) {
+                    return $this->error($response, $route, '请求已过期，请刷新页面重试', 419);
+                }
             }
             if ($user === null && !ExtensionRoutes::allowAnonymousPost($matched['kind'], $matched['name'], $path)) {
                 return $this->error($response, $route, '请求过于频繁，请稍后再试', 429);
@@ -122,7 +128,7 @@ final class ExtensionController
         $module = $matched['kind'] === 'plugin' ? Plugin::module($matched['name']) : Theme::module($matched['name']);
         $handler = $module[$route['handler']] ?? null;
         if (!is_callable($handler)) {
-            error_log('[pafish-extension] ' . $matched['kind'] . ':' . $matched['name'] . ' 缺少路由处理器 ' . $route['handler']);
+            \Pafish\Core\Logger::error('[pafish-extension] ' . $matched['kind'] . ':' . $matched['name'] . ' 缺少路由处理器 ' . $route['handler']);
             return $this->error($response, $route, '扩展功能暂时不可用', 503);
         }
 
@@ -134,7 +140,7 @@ final class ExtensionController
             );
             return $this->respond($response, $route, $result);
         } catch (\Throwable $e) {
-            error_log('[pafish-extension] request=' . $requestId . ' ' . $matched['kind'] . ':' . $matched['name'] . ' handler=' . $route['handler'] . ' failed: ' . $e->getMessage());
+            \Pafish\Core\Logger::error('[pafish-extension] request=' . $requestId . ' ' . $matched['kind'] . ':' . $matched['name'] . ' handler=' . $route['handler'] . ' failed: ' . $e->getMessage());
             return $this->error($response, $route, '扩展处理失败，请稍后重试', 500, $requestId);
         }
     }

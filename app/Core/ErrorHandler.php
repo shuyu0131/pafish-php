@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Pafish\Core;
 
-use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
 use Slim\Exception\HttpException;
 use Slim\Handlers\ErrorHandler as SlimErrorHandler;
@@ -64,8 +63,19 @@ final class ErrorHandler extends SlimErrorHandler
 
     protected function logError(string $error): void
     {
+        // Slim 的 PlainTextErrorRenderer 输出不含请求 URI，补上方法与路径后 404/500 才能定位来源。
+        $uri = $this->request->getUri()->getPath();
+        $query = Logger::redactQuery($this->request->getUri()->getQuery());
+        if ($query !== '') {
+            $uri .= '?' . $query;
+        }
+        $status = $this->exception instanceof HttpException ? $this->exception->getCode() : 500;
+        $prefix = '[' . date('Y-m-d H:i:s') . '] ' . $status . ' ' . $this->request->getMethod() . ' ' . $uri;
+        // 4xx（404/405 等扫描器探测）nginx 访问日志已有完整记录，只记一行；
+        // 5xx 才保留完整堆栈便于排查。
+        $text = $status < 500 ? $prefix : $prefix . PHP_EOL . $error;
         // 写 runtime/error.log（php -S 终端 / 虚拟主机 stderr 不可见；log_errors 关闭时
         // error_log() 会被丢弃，文件日志保证可排查）
-        @file_put_contents(PAFISH_ROOT . '/runtime/error.log', '[' . date('Y-m-d H:i:s') . '] ' . $error . PHP_EOL, FILE_APPEND);
+        Logger::error($text);
     }
 }

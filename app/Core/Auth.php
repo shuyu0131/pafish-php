@@ -61,6 +61,7 @@ final class Auth
 
     public static function login(int $userId): void
     {
+        session_regenerate_id(true);
         Session::set(self::SESSION_KEY, $userId);
         Session::remove('last_active_touch');
         self::$user = null;

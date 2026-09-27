@@ -40,7 +40,7 @@ final class Hooks
             try {
                 ($entry['fn'])(...$args);
             } catch (\Throwable $e) {
-                error_log("[pafish-hook] {$name}: " . $e->getMessage());
+                Logger::error("[pafish-hook] {$name}: " . $e->getMessage());
             }
         }
     }
@@ -69,7 +69,7 @@ final class Hooks
             try {
                 $value = ($entry['fn'])($value, ...$args);
             } catch (\Throwable $e) {
-                error_log("[pafish-filter] {$name}: " . $e->getMessage());
+                Logger::error("[pafish-filter] {$name}: " . $e->getMessage());
             }
         }
         return $value;
@@ -88,7 +88,7 @@ final class Hooks
                     return $value;
                 }
             } catch (\Throwable $e) {
-                error_log("[pafish-filter] {$name}: " . $e->getMessage());
+                Logger::error("[pafish-filter] {$name}: " . $e->getMessage());
             }
         }
         return $value;

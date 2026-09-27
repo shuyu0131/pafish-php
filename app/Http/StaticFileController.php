@@ -69,6 +69,20 @@ final class StaticFileController
             ->withHeader('Cache-Control', 'public, max-age=86400');
     }
 
+    /** 浏览器与爬虫默认请求 /favicon.ico；public 只放 favicon.svg 时重定向过去，避免每次访问都产生一条 404 堆栈日志。 */
+    public function favicon(Request $request, Response $response): Response
+    {
+        foreach (['favicon.svg', 'favicon.png'] as $file) {
+            if (is_file(PAFISH_ROOT . '/public/' . $file)) {
+                return $response
+                    ->withStatus(301)
+                    ->withHeader('Location', '/' . $file)
+                    ->withHeader('Cache-Control', 'public, max-age=86400');
+            }
+        }
+        return $this->notFound($response);
+    }
+
     private function notFound(Response $response): Response
     {
         $response->getBody()->write('404 Not Found');

@@ -31,8 +31,8 @@ final class PostController
         // 评论分页参数（cpage），非法值回退第 1 页
         $commentPage = max(1, (int) ($request->getQueryParams()['cpage'] ?? 1));
         $settings = Settings::all();
-        $showCustomFields = \Theme::value('show_custom_fields', '1') !== '0';
-        $showRelated = \Theme::value('show_related_posts', '1') !== '0';
+        $showCustomFields = \theme_value('show_custom_fields', '1') !== '0';
+        $showRelated = \theme_value('show_related_posts', '1') !== '0';
 
         // ---- 密码门 ----
         if (!empty($post['password'])) {

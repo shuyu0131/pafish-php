@@ -28,7 +28,9 @@ function settings(?string $key = null, mixed $default = null): mixed
 /** 当前激活主题的某个设置值（theme:{key}，缺省取 theme.json 默认值） */
 function theme_value(string $key, string $default = ''): string
 {
-    return Theme::value($key, $default);
+    $value = Theme::value($key, $default);
+    $filtered = Hooks::applyFilters('theme_setting_value', $value, $key, $default);
+    return is_scalar($filtered) ? (string) $filtered : $value;
 }
 
 /** 站点名称 */
@@ -276,7 +278,7 @@ function apply_content_filters(string $markdown, array $context): string
 {
     $filtered = apply_filters('filter_post_content', $markdown, $context);
     if (!is_string($filtered)) {
-        error_log('[pafish-filter] filter_post_content must return a Markdown string');
+        \Pafish\Core\Logger::error('[pafish-filter] filter_post_content must return a Markdown string');
         return $markdown;
     }
     return $filtered;

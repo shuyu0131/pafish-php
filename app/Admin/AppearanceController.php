@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Pafish\Admin;
 
+use Pafish\Services\Settings;
 use Pafish\Services\Theme;
 use Pafish\Core\Url;
 use Psr\Http\Message\ResponseInterface as Response;

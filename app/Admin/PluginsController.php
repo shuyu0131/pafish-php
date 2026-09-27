@@ -30,7 +30,9 @@ final class PluginsController extends AdminController
                 'homepage' => self::manifestUrl($m, 'homepage'),
                 'frontendUrl' => (string) ($m['frontendUrl'] ?? ''),
                 'error' => $desc['error'],
-                'settingsCount' => count($m['settings'] ?? []),
+                // 插件可以通过 plugin_setting 注入自己的完整设置页，即使没有声明式 schema 字段。
+                'settingsCount' => count($m['settings'] ?? [])
+                    + (in_array('plugin_setting', (array) ($m['injects'] ?? []), true) ? 1 : 0),
                 'active' => Plugin::isActive($name),
             ];
         }
@@ -60,6 +62,7 @@ final class PluginsController extends AdminController
             'pluginName' => $name,
             'manifest' => $desc['manifest'],
             'error' => $desc['error'],
+            'active' => Plugin::isActive($name),
             'values' => $desc['manifest'] !== null ? Plugin::settings($name) : [],
             'supportsNotificationTest' => Plugin::supportsNotificationTest($name),
             'supportsStorageTest' => Plugin::supportsStorageTest($name),

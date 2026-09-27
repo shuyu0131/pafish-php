@@ -161,4 +161,22 @@ final class Url
         }
         return $base . self::to($path);
     }
+
+    /**
+     * Build an absolute URL only from the administrator-provided canonical site URL.
+     * Security-sensitive links must not fall back to the untrusted Host header.
+     */
+    public static function trustedAbsolute(string $path = ''): ?string
+    {
+        $base = rtrim((string) Config::get('site_url', ''), '/');
+        $parts = parse_url($base);
+        if ($base === '' || !is_array($parts)
+            || !in_array(strtolower((string) ($parts['scheme'] ?? '')), ['http', 'https'], true)
+            || (string) ($parts['host'] ?? '') === ''
+            || isset($parts['user']) || isset($parts['pass'])
+            || str_contains($base, "\r") || str_contains($base, "\n")) {
+            return null;
+        }
+        return $base . self::to($path);
+    }
 }

@@ -16,6 +16,8 @@ declare(strict_types=1);
 
 define('PAFISH_ROOT', __DIR__);
 
+ini_set('display_errors', '0');
+require PAFISH_ROOT . '/app/Core/Logger.php';
 require PAFISH_ROOT . '/vendor/autoload.php';
 
 use Pafish\Core\Config;
@@ -42,7 +44,8 @@ try {
     DB::pdo();
     Plugin::boot();
 } catch (Throwable $e) {
-    $out('[定时发布] 数据库连接失败：' . $e->getMessage());
+    \Pafish\Core\Logger::exception('[定时发布] 数据库连接失败', $e);
+    $out(PHP_SAPI === 'cli' ? '[定时发布] 数据库连接失败，请查看日志' : '[定时发布] 执行失败，请稍后重试');
     exit(1);
 }
 
@@ -50,6 +53,7 @@ try {
     $count = Scheduler::publishDue();
     $out("[定时发布] {$count} 篇文章已发布");
 } catch (Throwable $e) {
-    $out('[定时发布] 执行失败：' . $e->getMessage());
+    \Pafish\Core\Logger::exception('[定时发布] 执行失败', $e);
+    $out(PHP_SAPI === 'cli' ? '[定时发布] 执行失败，请查看日志' : '[定时发布] 执行失败，请稍后重试');
     exit(1);
 }

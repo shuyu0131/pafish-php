@@ -70,7 +70,7 @@ final class Scheduler
         }
         @touch($lock);
         if (self::publishDue() > 0) {
-            error_log('[pafish] 定时发布：前台请求兜底已发布到期文章');
+            \Pafish\Core\Logger::error('[pafish] 定时发布：前台请求兜底已发布到期文章');
         }
     }
 }

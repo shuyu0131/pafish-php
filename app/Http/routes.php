@@ -70,6 +70,8 @@ $app->get('/pages/{slug}', [PageController::class, 'show']);
 $app->get('/rss.xml', [RssController::class, 'index']);
 $app->get('/sitemap.xml', [SitemapController::class, 'index']);
 $app->get('/robots.txt', [RobotsController::class, 'index']);
+// public/ 只放 favicon.svg；浏览器默认请求的 /favicon.ico 重定向过去，避免 404 落进错误日志
+$app->get('/favicon.ico', [StaticFileController::class, 'favicon']);
 
 // 扩展私有插件路由（/plugin/{name}/...）：GET/POST 均经统一权限、CSRF 与异常隔离。
 // 与 /admin/plugin/{name} 一致，同时注册不带尾斜杠的形式，插件根路由（path 为 "/"）才可达。

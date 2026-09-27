@@ -148,13 +148,13 @@ final class ExtensionRoutes
                 self::assertNotReserved($route['fullPath']);
                 self::assertNotFlatPostConflict($route['fullPath']);
             } catch (\Throwable $e) {
-                error_log('[pafish-extension] 忽略非法已启用自然路由 ' . $route['kind'] . ':' . $route['name'] . ' ' . $route['fullPath'] . '：' . $e->getMessage());
+                \Pafish\Core\Logger::error('[pafish-extension] 忽略非法已启用自然路由 ' . $route['kind'] . ':' . $route['name'] . ' ' . $route['fullPath'] . '：' . $e->getMessage());
                 continue;
             }
             $conflict = false;
             foreach ($routes as $existing) {
                 if ($existing['method'] === $route['method'] && self::pathsOverlap($existing['fullPath'], $route['fullPath'])) {
-                    error_log('[pafish-extension] 忽略冲突自然路由 ' . $route['kind'] . ':' . $route['name'] . ' ' . $route['fullPath']);
+                    \Pafish\Core\Logger::error('[pafish-extension] 忽略冲突自然路由 ' . $route['kind'] . ':' . $route['name'] . ' ' . $route['fullPath']);
                     $conflict = true;
                     break;
                 }
@@ -223,6 +223,9 @@ final class ExtensionRoutes
         $admin = $kind === 'plugin' && (($route['admin'] ?? false) === true);
         $public = $kind === 'theme' || (($route['public'] ?? false) === true);
         $capability = $route['capability'] ?? null;
+        // 会话令牌校验默认对 POST 开启；无 cookie 的调用方（如小程序）可按路由显式关掉，
+        // 改用请求头里的自管凭据鉴权（见 ExtensionController 的说明）。
+        $csrf = array_key_exists('csrf', $route) ? $route['csrf'] : ($method === 'POST');
 
         if (!in_array($kind, ['theme', 'plugin'], true)
             || !in_array($method, ['GET', 'POST'], true)
@@ -230,6 +233,7 @@ final class ExtensionRoutes
             || preg_match(self::HANDLER_PATTERN, $handler) !== 1
             || !in_array($auth, ['guest', 'login', 'editor', 'admin'], true)
             || !in_array($response, ['html', 'json', 'redirect'], true)
+            || (array_key_exists('csrf', $route) && !is_bool($route['csrf']))
             || ($kind === 'theme' && (($route['public'] ?? true) !== true))
             || (array_key_exists('admin', $route) && !is_bool($route['admin']))
             || (($route['admin'] ?? false) === true && $kind !== 'plugin')
@@ -252,7 +256,7 @@ final class ExtensionRoutes
             'fullPath' => $fullPath,
             'handler' => $handler,
             'auth' => $auth,
-            'csrf' => $method === 'POST',
+            'csrf' => $csrf,
             'response' => $response,
             'public' => $public,
             'admin' => $admin,

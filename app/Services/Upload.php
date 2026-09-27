@@ -22,7 +22,7 @@ final class Upload
     private const JPEG_Q = 82;
 
     public const ALLOWED_EXT = [
-        'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg',
+        'png', 'jpg', 'jpeg', 'gif', 'webp',
         'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'md', 'csv',
         'zip', 'rar', '7z', 'tar', 'gz',
         'mp3', 'wav', 'ogg', 'm4a', 'flac',
@@ -31,7 +31,7 @@ final class Upload
 
     public const MIME_MAP = [
         'png' => 'image/png', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg',
-        'gif' => 'image/gif', 'webp' => 'image/webp', 'svg' => 'image/svg+xml',
+        'gif' => 'image/gif', 'webp' => 'image/webp',
         'pdf' => 'application/pdf', 'doc' => 'application/msword',
         'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         'xls' => 'application/vnd.ms-excel',

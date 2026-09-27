@@ -84,16 +84,18 @@ final class Mail
             self::cmd($fp, "EHLO " . (gethostname() ?: 'localhost'));
             self::expect($fp, '250');
             if (!$secure) {
-                // STARTTLS：若服务器支持则升级为 TLS，否则继续明文
+                // 587 端口必须完成 TLS 升级，禁止回退到明文认证。
                 self::cmd($fp, 'STARTTLS');
                 $code = self::expect($fp, '220', false);
-                if ($code === '220') {
-                    $ok = stream_socket_enable_crypto($fp, true, STREAM_CRYPTO_METHOD_TLS_CLIENT);
-                    if ($ok) {
-                        self::cmd($fp, "EHLO " . (gethostname() ?: 'localhost'));
-                        self::expect($fp, '250');
-                    }
+                if ($code !== '220') {
+                    throw new \RuntimeException('SMTP 服务器不支持 STARTTLS');
                 }
+                $ok = stream_socket_enable_crypto($fp, true, STREAM_CRYPTO_METHOD_TLS_CLIENT);
+                if ($ok !== true) {
+                    throw new \RuntimeException('SMTP TLS 加密失败');
+                }
+                self::cmd($fp, "EHLO " . (gethostname() ?: 'localhost'));
+                self::expect($fp, '250');
             }
             self::cmd($fp, 'AUTH LOGIN');
             self::expect($fp, '334');

@@ -16,6 +16,7 @@ final class Upgrade
     private const CACHE_FILE = 'update_check.json';
     private const CACHE_SCHEMA = 3;
     private const STATE_FILE = 'upgrade_state.json';
+    private static string $deleteFailure = '';
 
     // ---------- 公开 ----------
 
@@ -144,7 +145,7 @@ final class Upgrade
             // 4. 清空非保留项
             self::writeState($root, 'replacing_files', ['database_backup' => $dbBackup]);
             if (!self::clearRoot($root)) {
-                throw new \RuntimeException('更新失败：无法清理旧文件');
+                throw new \RuntimeException('更新失败：无法清理旧文件' . self::deleteFailureSuffix());
             }
             try {
                 // 5. 解压覆盖（剥掉 pafish/ 顶层）
@@ -443,7 +444,7 @@ final class Upgrade
             throw new \RuntimeException('备份不完整，无法安全恢复');
         }
         if (!self::clearRoot($root, false)) {
-            throw new \RuntimeException('无法清理当前文件');
+            throw new \RuntimeException('无法清理当前文件' . self::deleteFailureSuffix());
         }
         if (!self::copyDirFiltered($bak, $root, [])) {
             throw new \RuntimeException('无法从备份恢复文件');
@@ -457,8 +458,10 @@ final class Upgrade
     /** 清空核心文件；正常升级保留已安装主题/插件，回滚时清理后从备份恢复。 */
     private static function clearRoot(string $root, bool $preserveApps = true): bool
     {
+        self::$deleteFailure = '';
         $items = @scandir($root);
         if ($items === false) {
+            self::$deleteFailure = $root . '（无法读取目录）';
             return false;
         }
         foreach ($items as $name) {
@@ -478,12 +481,21 @@ final class Upgrade
                 // public 只保留运行期上传
                 $sub = @scandir($root . '/public');
                 if ($sub !== false) {
-                    foreach ($sub as $subName) {
-                        if ($subName === '.' || $subName === '..' || $subName === 'uploads') {
-                            continue;
+                    $publicMode = @fileperms($root . '/public');
+                    $publicMode = is_int($publicMode) ? ($publicMode & 0777) : null;
+                    @chmod($root . '/public', 0755);
+                    try {
+                        foreach ($sub as $subName) {
+                            if ($subName === '.' || $subName === '..' || $subName === 'uploads') {
+                                continue;
+                            }
+                            if (!self::rmDir($root . '/public/' . $subName)) {
+                                return false;
+                            }
                         }
-                        if (!self::rmDir($root . '/public/' . $subName)) {
-                            return false;
+                    } finally {
+                        if ($publicMode !== null && is_dir($root . '/public')) {
+                            @chmod($root . '/public', $publicMode);
                         }
                     }
                 }
@@ -594,8 +606,22 @@ final class Upgrade
     /** 递归删除（scandir 快照 + rename 换名再删，Windows 兼容，同 Plugin::rmRemove） */
     private static function rmDir(string $dir): bool
     {
+        if (is_link($dir)) {
+            return self::rmRemove($dir, false);
+        }
+        if (!is_dir($dir)) {
+            return true;
+        }
+        // 目录本身的写权限决定了能否删除其中的文件；安装包可能带有只读目录。
+        $originalMode = @fileperms($dir);
+        $originalMode = is_int($originalMode) ? ($originalMode & 0777) : null;
+        @chmod($dir, 0755);
         $items = @scandir($dir);
         if ($items === false) {
+            if ($originalMode !== null) {
+                @chmod($dir, $originalMode);
+            }
+            self::$deleteFailure = $dir . '（无法读取目录）';
             return !is_dir($dir);
         }
         foreach ($items as $name) {
@@ -603,11 +629,24 @@ final class Upgrade
                 continue;
             }
             $path = $dir . '/' . $name;
-            if (is_dir($path)) {
+            if (is_link($path)) {
+                if (!self::rmRemove($path, false)) {
+                    if ($originalMode !== null) {
+                        @chmod($dir, $originalMode);
+                    }
+                    return false;
+                }
+            } elseif (is_dir($path)) {
                 if (!self::rmDir($path)) {
+                    if ($originalMode !== null) {
+                        @chmod($dir, $originalMode);
+                    }
                     return false;
                 }
             } elseif (!self::rmRemove($path, false)) {
+                if ($originalMode !== null) {
+                    @chmod($dir, $originalMode);
+                }
                 return false;
             }
         }
@@ -618,22 +657,61 @@ final class Upgrade
     private static function rmRemove(string $path, bool $isDir): bool
     {
         // 清除只读属性，避免删除失败。
-        if (!$isDir) {
-            @chmod($path, 0666);
+        $isLink = is_link($path);
+        $originalMode = $isLink ? null : @fileperms($path);
+        $originalMode = is_int($originalMode) ? ($originalMode & 0777) : null;
+        if (!$isLink) {
+            if ($isDir) {
+                @chmod($path, 0755);
+            } else {
+                @chmod($path, 0666);
+            }
         }
         $tmp = dirname($path) . '/.' . basename($path) . '.del' . bin2hex(random_bytes(3));
         for ($i = 0; $i < 3; $i++) {
             if (@rename($path, $tmp)) {
                 if ($isDir) {
-                    return @rmdir($tmp) || !is_dir($tmp);
+                    if (@rmdir($tmp) || !is_dir($tmp)) {
+                        return true;
+                    }
+                    @chmod($tmp, 0755);
+                    if (@rmdir($tmp) || !is_dir($tmp)) {
+                        return true;
+                    }
+                    @rename($tmp, $path);
+                    if ($originalMode !== null) {
+                        @chmod($path, $originalMode);
+                    }
+                    self::$deleteFailure = $path . '（目录不可写或仍被占用）';
+                    return false;
                 }
-                return @unlink($tmp) || !is_file($tmp);
+                if (@unlink($tmp) || !is_file($tmp)) {
+                    return true;
+                }
+                @rename($tmp, $path);
+                if ($originalMode !== null) {
+                    @chmod($path, $originalMode);
+                }
+                self::$deleteFailure = $path . '（文件不可写或仍被占用）';
+                return false;
             }
             if ($i < 2) {
                 usleep(150000);
             }
         }
-        return $isDir ? @rmdir($path) : @unlink($path);
+        $removed = $isDir ? @rmdir($path) : @unlink($path);
+        if (!$removed && ($isDir ? is_dir($path) : is_file($path))) {
+            if ($originalMode !== null) {
+                @chmod($path, $originalMode);
+            }
+            self::$deleteFailure = $path . ($isDir ? '（目录不可写或仍被占用）' : '（文件不可写或仍被占用）');
+        }
+        return $removed || ($isDir ? !is_dir($path) : !is_file($path));
+    }
+
+    private static function deleteFailureSuffix(): string
+    {
+        return self::$deleteFailure !== '' ? '：' . self::$deleteFailure : '';
     }
 
     /** 数字分段版本比较（统一走 Version::compare） */

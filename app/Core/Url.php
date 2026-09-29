@@ -87,21 +87,38 @@ final class Url
 
     /**
      * 静态资源直链（css/js/uploads/vendor 等 public/ 下文件）。
-     * URL 使用站点根下的资源路径，既适配 public/ 作为文档根目录，也能由
-     * 项目内置路由映射到 public/，避免 /public/public/... 造成资源 404。
+     * 项目根目录部署使用 /public/ 前缀；public/ 作为文档根目录时省略前缀。
      * 本地文件按修改时间附加版本号，主程序升级后浏览器不会继续使用旧 CSS/JS 缓存。
      * 前台主题布局样式由 Theme 服务内联注入，不经过此处。
      */
     public static function asset(string $path): string
     {
         $path = ltrim($path, '/');
-        $url = self::base() . '/' . $path;
+        $prefix = self::publicIsDocumentRoot() ? '' : '/public';
+        $url = self::base() . $prefix . '/' . $path;
         $pathOnly = explode('?', $path, 2)[0];
         $file = dirname(__DIR__, 2) . '/public/' . $pathOnly;
         if (!is_file($file)) {
             return $url;
         }
         return $url . (str_contains($path, '?') ? '&' : '?') . 'v=' . (string) filemtime($file);
+    }
+
+    /** 判断 Web 文档根是否直接指向项目的 public/ 目录。 */
+    private static function publicIsDocumentRoot(): bool
+    {
+        $documentRoot = trim((string) ($_SERVER['DOCUMENT_ROOT'] ?? ''));
+        if ($documentRoot === '') {
+            return false;
+        }
+        $documentRoot = realpath($documentRoot);
+        $publicRoot = realpath(dirname(__DIR__, 2) . '/public');
+        if ($documentRoot === false || $publicRoot === false) {
+            return false;
+        }
+        return DIRECTORY_SEPARATOR === '\\'
+            ? strcasecmp($documentRoot, $publicRoot) === 0
+            : $documentRoot === $publicRoot;
     }
 
     /** 主题资源 URL。 */

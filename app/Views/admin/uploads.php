@@ -44,7 +44,7 @@ $pageUrl = function (int $p, string $t = '') use ($q, $date, $view): string {
     return url_to('/admin/uploads' . ($qs === [] ? '' : '?' . http_build_query($qs)));
 };
 $pageCsrf = csrf_token();
-$accept = 'image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip,.rar,.7z,.tar,.gz,.mp3,.wav,.ogg,.m4a,.flac,.mp4,.webm,.mov,.mkv';
+$accept = 'image/*,.svg,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip,.rar,.7z,.tar,.gz,.mp3,.wav,.ogg,.m4a,.flac,.mp4,.webm,.mov,.mkv';
 ?>
 <div class="admin-stack">
   <div class="admin-page-head">

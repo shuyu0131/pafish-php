@@ -6,18 +6,20 @@ namespace Pafish\Http;
 
 use Pafish\Core\DB;
 use Pafish\Core\Auth;
+use Pafish\Core\Session;
 use Pafish\Services\Markdown;
-use Pafish\Services\Settings;use Psr\Http\Message\ResponseInterface as Response;
+use Pafish\Services\Settings;
+use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
  * 前台文章详情：
- * 密码门（cookie 解锁 24h）/ 浏览量（cookie 7 天去重）/ 点赞收藏（cookie 列表 + DB 计数）
+ * 密码门（会话解锁 24h）/ 浏览量（cookie 7 天去重）/ 点赞收藏（cookie 列表 + DB 计数）
  * 上下篇 / 相关推荐 / 自定义字段 / 面包屑 / JSON-LD / OG
  */
 final class PostController
 {
-    private const UNLOCK_TTL = 86400;      // 密码解锁 cookie 24h
+    private const UNLOCK_TTL = 86400;      // 密码解锁会话 24h
     private const VIEW_TTL = 604800;       // 浏览量去重 7 天
 
     public function show(Request $request, Response $response, array $args): Response
@@ -36,10 +38,11 @@ final class PostController
 
         // ---- 密码门 ----
         if (!empty($post['password'])) {
-            $unlocked = ($_COOKIE['unlocked_post_' . $post['id']] ?? '') === '1';
+            $postId = (int) $post['id'];
+            $unlocked = Session::unlockedPost($postId, (string) $post['password'], time());
             $method = strtoupper($request->getMethod());
 
-            // POST 提交密码：验证通过 → 写解锁 cookie → 重定向回本页（PRG）
+            // POST 提交密码：验证通过 → 写入服务端会话 → 重定向回本页（PRG）
             if ($method === 'POST') {
                 if (!$this->verifyPassword((string) ($request->getParsedBody()['password'] ?? ''), $post['password'])) {
                     return $this->renderPost($request, $response, $post, [
@@ -52,7 +55,7 @@ final class PostController
                         'locked' => true,
                     ], $this->neighbors($post));
                 }
-                setcookie('unlocked_post_' . $post['id'], '1', time() + self::UNLOCK_TTL, '/', '', false, true);
+                Session::unlockPost($postId, (string) $post['password'], time() + self::UNLOCK_TTL);
                 return $response
                     ->withHeader('Location', \url_to('/post/' . rawurlencode($post['slug'])))
                     ->withStatus(302);
@@ -195,19 +198,34 @@ final class PostController
 
     private function renderPost(Request $request, Response $response, array $post, array $extra, array $neighbors): Response
     {
+        // 锁定文章的 meta 不带摘要与正文，只给固定提示；没填摘要时取正文前 160 字纯文本兜底
+        $excerpt = trim((string) ($post['excerpt'] ?? ''));
+        if (!empty($extra['locked'])) {
+            $excerpt = '本文章已加密，请输入密码后查看';
+        } elseif ($excerpt === '') {
+            $plain = trim((string) preg_replace('/\s+/u', ' ', strip_tags(\md((string) ($post['content'] ?? '')))));
+            $excerpt = mb_substr($plain, 0, 160);
+        }
         $data = array_merge($extra, [
             'post' => $post,
             'title' => $post['title'],
-            'description' => (string) ($post['excerpt'] ?? ''), // meta description 用摘要
+            'description' => $excerpt, // meta description 用摘要
             'og' => [
                 'type' => 'article',
                 'title' => $post['title'],
-                'description' => $post['excerpt'] ?? '',
+                'description' => $excerpt,
                 'url' => \absolute_url('/post/' . rawurlencode((string) $post['slug'])),
                 'image' => $post['cover_url'] ? \absolute_url((string) $post['cover_url']) : '',
             ],
         ]);
-        // 正文渲染放最后一步（避免密码错误分支重复渲染开销差异）
+        // 仅在已解锁分支渲染正文，避免锁定页面把文章内容交给主题或插件。
+        if (!empty($extra['locked'])) {
+            unset($data['post']['content']);
+            $data['contentHtml'] = '';
+            $response->getBody()->write(\render('post', $data));
+            return $response;
+        }
+
         $markdown = (string) ($post['content'] ?? '');
         $postId = (string) ($post['id'] ?? '');
         $markdown = \apply_content_filters($markdown, [

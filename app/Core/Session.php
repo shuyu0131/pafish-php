@@ -45,6 +45,37 @@ final class Session
         unset($_SESSION[$key]);
     }
 
+    /** 读取文章密码解锁记录，供前台文章门使用。 */
+    public static function unlockedPost(int $postId, string $passwordHash, int $now): bool
+    {
+        $records = self::get('unlocked_posts', []);
+        if (!is_array($records)) {
+            return false;
+        }
+        $record = $records[(string) $postId] ?? null;
+        if (!is_array($record)
+            || (int) ($record['expires'] ?? 0) < $now
+            || !is_string($record['password'] ?? null)
+            || !hash_equals((string) $record['password'], hash('sha256', $passwordHash))) {
+            return false;
+        }
+        return true;
+    }
+
+    /** 保存文章密码解锁记录，不把密码或可伪造状态放入客户端 Cookie。 */
+    public static function unlockPost(int $postId, string $passwordHash, int $expires): void
+    {
+        $records = self::get('unlocked_posts', []);
+        if (!is_array($records)) {
+            $records = [];
+        }
+        $records[(string) $postId] = [
+            'password' => hash('sha256', $passwordHash),
+            'expires' => $expires,
+        ];
+        self::set('unlocked_posts', $records);
+    }
+
     /** 登出：清空会话并删除 cookie */
     public static function destroy(): void
     {

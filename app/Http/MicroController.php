@@ -23,6 +23,7 @@ final class MicroController
         $response->getBody()->write(render('micro', [
             'title' => '微语',
             'description' => '站点最新微语',
+            'og' => Listings::og($request, '微语', '站点最新微语'),
             'items' => $page['items'],
             'pageNum' => $page['page'],
             'totalPages' => $page['totalPages'],

@@ -37,6 +37,10 @@ final class HomeController
                 $response->getBody()->write(render('page', [
                     'title' => $page['title'],
                     'description' => '',
+                    'og' => [
+                        'type' => 'website',
+                        'url' => \absolute_url('/'),
+                    ],
                     'page' => $page,
                     'contentHtml' => \md($content),
                 ]));
@@ -101,6 +105,11 @@ final class HomeController
         $response->getBody()->write(render('index', [
             'title' => '首页',
             'description' => (string) Settings::get('site_description', ''),
+            'og' => [
+                'type' => 'website',
+                'description' => (string) Settings::get('site_description', ''),
+                'url' => Listings::og($request, '首页')['url'],
+            ],
             'posts' => $posts,
             'pageNum' => $pageNum,
             'totalPages' => $totalPages,

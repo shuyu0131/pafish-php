@@ -22,7 +22,7 @@ final class Upload
     private const JPEG_Q = 82;
 
     public const ALLOWED_EXT = [
-        'png', 'jpg', 'jpeg', 'gif', 'webp',
+        'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg',
         'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'md', 'csv',
         'zip', 'rar', '7z', 'tar', 'gz',
         'mp3', 'wav', 'ogg', 'm4a', 'flac',
@@ -31,7 +31,7 @@ final class Upload
 
     public const MIME_MAP = [
         'png' => 'image/png', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg',
-        'gif' => 'image/gif', 'webp' => 'image/webp',
+        'gif' => 'image/gif', 'webp' => 'image/webp', 'svg' => 'image/svg+xml',
         'pdf' => 'application/pdf', 'doc' => 'application/msword',
         'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         'xls' => 'application/vnd.ms-excel',
@@ -148,6 +148,9 @@ final class Upload
         if (in_array($ext, ['png', 'jpg', 'jpeg', 'webp'], true)) {
             return self::process((string) file_get_contents($path), $origName, $size);
         }
+        if ($ext === 'svg') {
+            return self::process((string) file_get_contents($path), $origName, $size);
+        }
         $mime = self::MIME_MAP[$ext] ?? 'application/octet-stream';
         $url = self::storeLocalFromPath($path, $ext);
         DB::execute(
@@ -175,6 +178,10 @@ final class Upload
         $mime = self::MIME_MAP[$ext] ?? 'application/octet-stream';
         if ($buffer === '') {
             throw new \RuntimeException('读取文件失败');
+        }
+
+        if ($ext === 'svg') {
+            $buffer = self::sanitizeSvg($buffer);
         }
 
         $width = null;
@@ -334,6 +341,71 @@ final class Upload
             return [$out, $w, $h];
         } catch (\Throwable $e) {
             return null;
+        }
+    }
+
+    /**
+     * 清理 SVG 中可执行脚本、外部引用和事件属性后再公开提供。
+     * SVG 仍以 image/svg+xml 提供，但不会把上传内容当作任意 HTML 执行。
+     */
+    private static function sanitizeSvg(string $svg): string
+    {
+        $dom = new \DOMDocument('1.0', 'UTF-8');
+        $dom->preserveWhiteSpace = false;
+        $dom->resolveExternals = false;
+        $previous = libxml_use_internal_errors(true);
+        try {
+            if (!$dom->loadXML($svg, LIBXML_NONET | LIBXML_NOBLANKS)) {
+                throw new \RuntimeException('SVG 文件格式无效');
+            }
+            $root = $dom->documentElement;
+            if (!$root || strtolower($root->localName ?: $root->nodeName) !== 'svg') {
+                throw new \RuntimeException('SVG 文件格式无效');
+            }
+
+            $blocked = ['script', 'foreignobject', 'iframe', 'object', 'embed', 'audio', 'video', 'animate', 'animatemotion', 'animatetransform', 'set'];
+            $walk = function (\DOMNode $node) use (&$walk, $blocked): void {
+                for ($child = $node->firstChild; $child !== null;) {
+                    $next = $child->nextSibling;
+                    if ($child instanceof \DOMElement) {
+                        $name = strtolower($child->localName ?: $child->nodeName);
+                        if (in_array($name, $blocked, true)) {
+                            $node->removeChild($child);
+                            $child = $next;
+                            continue;
+                        }
+                        if ($name === 'style' && preg_match('/(?:url|expression|@import)/i', $child->textContent) === 1) {
+                            $node->removeChild($child);
+                            $child = $next;
+                            continue;
+                        }
+                        for ($i = $child->attributes->length - 1; $i >= 0; $i--) {
+                            $attribute = $child->attributes->item($i);
+                            if (!$attribute) {
+                                continue;
+                            }
+                            $attrName = strtolower($attribute->name);
+                            $value = trim($attribute->value);
+                            if (str_starts_with($attrName, 'on')
+                                || (in_array($attrName, ['href', 'xlink:href'], true) && $value !== '' && !str_starts_with($value, '#'))
+                                || ($attrName === 'style' && preg_match('/(?:url|expression|@import)/i', $value) === 1)) {
+                                $child->removeAttributeNode($attribute);
+                            }
+                        }
+                        $walk($child);
+                    }
+                    $child = $next;
+                }
+            };
+            $walk($root);
+            $clean = $dom->saveXML($root);
+            if (!is_string($clean) || $clean === '') {
+                throw new \RuntimeException('SVG 文件格式无效');
+            }
+            return $clean;
+        } finally {
+            libxml_clear_errors();
+            libxml_use_internal_errors($previous);
         }
     }
 }

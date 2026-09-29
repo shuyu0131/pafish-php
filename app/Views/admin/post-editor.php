@@ -97,7 +97,7 @@ $editorData = [
               <input class="input" id="fCoverUrl" name="cover_url" value="<?= e($post['cover_url'] ?? '') ?>" placeholder="图片 URL" maxlength="500">
               <button type="button" class="btn btn-outline" id="btnCoverUpload"><?= admin_icon('upload', 14) ?>上传</button>
               <button type="button" class="btn btn-outline" id="btnCoverPicker"><?= admin_icon('image', 14) ?>媒体库</button>
-              <input type="file" id="coverFile" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml" hidden>
+              <input type="file" id="coverFile" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml,.svg" hidden>
             </div>
             <div class="admin-cover-preview" data-cover-preview hidden>
               <img alt="封面预览">
@@ -193,7 +193,7 @@ $editorData = [
         <div class="admin-media-upload-icon" aria-hidden="true"><?= admin_icon('upload', 24) ?></div>
         <strong>上传媒体文件</strong>
         <input type="file" class="input" id="mediaFile"
-               accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip,.rar,.7z,.tar,.gz,.mp3,.wav,.ogg,.m4a,.flac,.mp4,.webm,.mov,.mkv">
+               accept="image/*,.svg,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip,.rar,.7z,.tar,.gz,.mp3,.wav,.ogg,.m4a,.flac,.mp4,.webm,.mov,.mkv">
         <p class="admin-field-hint admin-modal-hint" data-mupload-hint>图片插入为 Markdown 图片，其他文件插入为下载链接</p>
         <div class="admin-modal-error" data-mupload-error hidden></div>
       </div>

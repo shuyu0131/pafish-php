@@ -36,12 +36,15 @@ $loggedIn = (bool) ($loggedIn ?? false);
 </div>
 <?php if ($loggedIn): ?>
 <script>
+  // 退出成功后回到首页。跳转目标用服务端生成的站内地址，避免硬编码 '/' 在子目录部署下丢前缀。
+  // 不要用 fetch 的 res.url：脚本调用拿到的是 JSON（200），res.url 就是接口地址本身。
   document.querySelectorAll('.mobile-nav-logout').forEach(function (f) {
     f.addEventListener('submit', function (e) {
       e.preventDefault();
-      fetch(f.action, { method: 'POST', body: new FormData(f) })
-        .then(function () { window.location.href = '/'; })
-        .catch(function () { window.location.href = '/'; });
+      var home = <?= json_encode(url_to('/')) ?>;
+      fetch(f.action, { method: 'POST', body: new FormData(f), headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
+        .then(function () { window.location.href = home; })
+        .catch(function () { window.location.href = home; });
     });
   });
 </script>

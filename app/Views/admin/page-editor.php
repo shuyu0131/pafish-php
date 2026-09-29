@@ -93,7 +93,7 @@ $template = $isEdit ? (string) $page['template'] : 'default';
     <div class="admin-modal-body">
       <div data-mpanel="upload">
         <input type="file" class="input" id="mediaFile"
-               accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip,.rar,.7z,.tar,.gz,.mp3,.wav,.ogg,.m4a,.flac,.mp4,.webm,.mov,.mkv">
+               accept="image/*,.svg,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip,.rar,.7z,.tar,.gz,.mp3,.wav,.ogg,.m4a,.flac,.mp4,.webm,.mov,.mkv">
         <p class="admin-field-hint admin-modal-hint" data-mupload-hint>图片插入为 Markdown 图片，其他文件插入为下载链接</p>
         <div class="admin-modal-error" data-mupload-error hidden></div>
       </div>

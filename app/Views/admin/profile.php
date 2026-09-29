@@ -25,7 +25,7 @@ $avatar = !empty($me['avatar_url']) ? $me['avatar_url'] : admin_gravatar((string
         <div class="admin-avatar-edit">
           <img class="admin-avatar-preview" id="avatarPreview" src="<?= e($avatar) ?>" alt="" width="64" height="64">
           <div class="admin-avatar-edit-actions">
-            <input type="file" id="avatarFile" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml" hidden>
+            <input type="file" id="avatarFile" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml,.svg" hidden>
             <button type="button" id="avatarUploadBtn" class="btn btn-outline btn-sm">上传头像</button>
           </div>
         </div>

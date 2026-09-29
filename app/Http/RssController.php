@@ -20,7 +20,7 @@ final class RssController
     public function index(Request $request, Response $response): Response
     {
         $posts = DB::fetchAll(
-            "SELECT title, slug, excerpt, published_at FROM posts
+            "SELECT title, slug, excerpt, password, published_at FROM posts
              WHERE status = 'PUBLISHED' AND deleted_at IS NULL
                AND (published_at IS NULL OR published_at <= NOW())
              ORDER BY published_at DESC
@@ -34,12 +34,15 @@ final class RssController
         $items = '';
         foreach ($posts as $p) {
             $url = \absolute_url('/post/' . rawurlencode((string) $p['slug']));
+            $excerpt = ($p['password'] !== null && $p['password'] !== '')
+                ? '本文章已加密，请输入密码后查看'
+                : (string) ($p['excerpt'] ?? '');
             $items .= "<item>\n" .
                 "    <title><![CDATA[" . $p['title'] . "]]></title>\n" .
                 "    <link>" . $url . "</link>\n" .
                 "    <guid>" . $url . "</guid>\n" .
                 "    <pubDate>" . ($p['published_at'] ? date('r', strtotime((string) $p['published_at'])) : '') . "</pubDate>\n" .
-                "    <description><![CDATA[" . ($p['excerpt'] ?? '') . "]]></description>\n" .
+                "    <description><![CDATA[" . $excerpt . "]]></description>\n" .
                 "  </item>";
         }
 

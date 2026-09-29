@@ -87,15 +87,15 @@ final class Url
 
     /**
      * 静态资源直链（css/js/uploads/vendor 等 public/ 下文件）。
-     * 开箱即用：URL 带 /public/ 前缀直接指向真实文件，Web 服务器（Nginx/Apache）
-     * 任何配置下都能直接读盘返回，无需 try_files / PHP 兜底 / .htaccess 静态重写。
+     * URL 使用站点根下的资源路径，既适配 public/ 作为文档根目录，也能由
+     * 项目内置路由映射到 public/，避免 /public/public/... 造成资源 404。
      * 本地文件按修改时间附加版本号，主程序升级后浏览器不会继续使用旧 CSS/JS 缓存。
      * 前台主题布局样式由 Theme 服务内联注入，不经过此处。
      */
     public static function asset(string $path): string
     {
         $path = ltrim($path, '/');
-        $url = self::base() . '/public/' . $path;
+        $url = self::base() . '/' . $path;
         $pathOnly = explode('?', $path, 2)[0];
         $file = dirname(__DIR__, 2) . '/public/' . $pathOnly;
         if (!is_file($file)) {

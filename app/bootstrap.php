@@ -87,7 +87,7 @@ $__queryPath = $_GET['p'] ?? null;
     (string) $__requestPath,
     is_string($__queryPath) ? $__queryPath : null
 );
-// asset() 输出 /public/ 前缀：剥掉前缀后匹配（兼容 /css/ 直链与 /public/css/ 两种）
+// 静态资源既支持 /css/ 直链，也兼容历史模板生成的 /public/css/ 地址。
 if (str_starts_with($__path, '/public/')) {
     $__path = substr($__path, strlen('/public'));
 }

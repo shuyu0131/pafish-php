@@ -170,12 +170,16 @@ window.pafishApi = function (p) {
   });
 
   // 退出登录（POST + CSRF，成功后回首页）
-  document.querySelectorAll('.admin-logout').forEach(function (f) {
+  // 选择器必须匹配顶栏表单的实际 class：一旦不匹配，表单会走浏览器原生提交，
+  // 直接把页面导航到 /api/auth/logout 的 JSON 响应上（用户看到的"退出后跳到接口地址"）。
+  // 注意不要用 res.url 做跳转目标——fetch 收到的是 JSON（200），res.url 就是接口地址本身。
+  var logoutHome = <?= json_encode(url_to('/')) ?>;
+  document.querySelectorAll('.admin-topbar-logout, .admin-logout').forEach(function (f) {
     f.addEventListener('submit', function (e) {
       e.preventDefault();
-      fetch(f.action, { method: 'POST', body: new FormData(f) })
-        .then(function () { location.href = f.dataset.home || '/'; })
-        .catch(function () { location.href = f.dataset.home || '/'; });
+      fetch(f.action, { method: 'POST', body: new FormData(f), headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
+        .then(function () { location.href = f.dataset.home || logoutHome; })
+        .catch(function () { location.href = f.dataset.home || logoutHome; });
     });
   });
 

@@ -73,11 +73,12 @@ final class V1Controller
     /** 行 → 开放 API 输出结构（列表版，无正文/自定义字段） */
     private function postListItem(array $p): array
     {
+        $hasPassword = $p['password'] !== null && $p['password'] !== '';
         return [
             'id' => (string) $p['id'],
             'title' => $p['title'],
             'slug' => $p['slug'],
-            'excerpt' => $p['excerpt'],
+            'excerpt' => $hasPassword ? '本文章已加密，请输入密码后查看' : $p['excerpt'],
             'coverUrl' => $p['cover_url'],
             'publishedAt' => $this->iso($p['published_at']),
             'viewCount' => (int) $p['view_count'],
@@ -85,7 +86,7 @@ final class V1Controller
             'favoriteCount' => (int) $p['favorite_count'],
             'isPinned' => (bool) $p['is_pinned'],
             'categoryPinned' => (bool) $p['category_pinned'],
-            'hasPassword' => $p['password'] !== null && $p['password'] !== '',
+            'hasPassword' => $hasPassword,
             'externalUrl' => $p['external_url'],
             'category' => $p['category_name'] !== null ? ['name' => $p['category_name'], 'slug' => $p['category_slug']] : null,
             'tags' => $p['tags'],
@@ -215,6 +216,14 @@ final class V1Controller
             && $p['published_at'] <= date('Y-m-d H:i:s');
         if (!$isPublic) {
             return $this->json($response, ['error' => '文章不存在'], 404);
+        }
+
+        // API Key 只证明调用方能访问 API，不能替代文章自身的阅读密码。
+        if ($p['password'] !== null && $p['password'] !== '') {
+            return $this->json($response, [
+                'error' => '文章需要密码',
+                'hasPassword' => true,
+            ], 403);
         }
 
         // 自定义字段 JSON 解析（坏数据容错为空数组）

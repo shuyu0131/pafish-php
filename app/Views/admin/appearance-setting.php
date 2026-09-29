@@ -120,6 +120,8 @@ $description = is_string($manifest['description'] ?? null) ? $manifest['descript
                     <input type="text" class="input" id="sf-<?= e($key) ?>" data-sf-key="<?= e($key) ?>" data-sf-type="image"
                            value="<?= e($value) ?>" placeholder="<?= e($placeholder !== '' ? $placeholder : '/uploads/xxx 或外部图片 URL') ?>" autocomplete="off">
                     <button type="button" class="btn btn-outline btn-sm admin-sf-lib" data-target="<?= e($key) ?>">从媒体库选择</button>
+                    <button type="button" class="btn btn-outline btn-sm admin-sf-upload" data-target="<?= e($key) ?>">上传图片</button>
+                    <input type="file" id="sf-upload-<?= e($key) ?>" class="admin-sf-upload-input" data-target="<?= e($key) ?>" accept="image/*,.svg" hidden>
                     <button type="button" class="btn btn-ghost btn-sm admin-sf-image-clear" data-target="<?= e($key) ?>">清除</button>
                     <p class="admin-field-hint"><?= $value === '' ? '无图片' : '已设置' ?></p>
                   </div>
@@ -252,6 +254,40 @@ $description = is_string($manifest['description'] ?? null) ? $manifest['descript
       var key = btn.dataset.target;
       document.querySelector('[data-sf-key="' + key + '"][data-sf-type="image"]').value = "";
       refreshShowIf();
+    });
+  });
+
+  // ---- image：本地上传 ----
+  document.querySelectorAll(".admin-sf-upload").forEach(function (btn) {
+    var key = btn.dataset.target;
+    var input = document.getElementById("sf-upload-" + key);
+    if (!input) return;
+    btn.addEventListener("click", function () { input.click(); });
+    input.addEventListener("change", function () {
+      var file = input.files && input.files[0];
+      if (!file) return;
+      var label = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = "上传中…";
+      var fd = new FormData();
+      fd.append("file", file);
+      fd.append("_csrf", CSRF);
+      fetch(pafishApi("/upload"), {
+        method: "POST",
+        body: fd,
+        headers: { "X-Requested-With": "XMLHttpRequest" }
+      }).then(function (r) { return r.json(); }).then(function (j) {
+        if (!j || !j.ok || !j.url) throw new Error((j && j.error) || "上传失败");
+        var target = document.querySelector('[data-sf-key="' + key + '"][data-sf-type="image"]');
+        if (target) target.value = j.url;
+        showMsg("图片上传成功，请保存设置", false);
+      }).catch(function (err) {
+        showMsg(err.message || "上传失败", true);
+      }).finally(function () {
+        btn.disabled = false;
+        btn.textContent = label;
+        input.value = "";
+      });
     });
   });
 

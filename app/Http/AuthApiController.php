@@ -100,7 +100,19 @@ final class AuthApiController
             \do_action('after_logout', ['id' => (string) $user['id']]);
         }
         Auth::logout();
+
+        // 原生表单提交（浏览器导航）会把用户带到接口地址；只有明确标记为
+        // XHR 的脚本请求才返回 JSON，其余请求统一回到首页。
+        if (!$this->isAjax($request)) {
+            return $response->withStatus(302)->withHeader('Location', Url::to('/'));
+        }
         return $this->json($response, ['ok' => true]);
+    }
+
+    /** 只有明确的 XHR 请求才返回 JSON，避免原生表单停留在接口页面。 */
+    private function isAjax(Request $request): bool
+    {
+        return strtolower($request->getHeaderLine('X-Requested-With')) === 'xmlhttprequest';
     }
 
     // ---------- 注册 ----------

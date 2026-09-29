@@ -300,8 +300,11 @@ final class Upgrade
     /** 核心更新不接管的已安装应用目录。 */
     private const APP_DIRS = ['themes', 'plugins'];
 
+    /** 由证书工具或 Web 服务器管理、升级时不得删除的根目录。 */
+    private const PRESERVE_ROOT_DIRS = ['runtime', 'backups', '.well-known'];
+
     /** 升级备份排除运行期数据，主题和插件必须进入备份以支持完整回滚。 */
-    private const BACKUP_EXCLUDE_DIRS = ['runtime', 'backups', 'public/uploads'];
+    private const BACKUP_EXCLUDE_DIRS = ['runtime', 'backups', 'public/uploads', '.well-known'];
 
     /** 解析 Gitee Release 安装包地址。 */
     private static function resolveZipUrl(string $zip): string
@@ -471,7 +474,7 @@ final class Upgrade
             if ($name === 'config.php') {
                 continue;
             }
-            if (in_array($name, ['runtime', 'backups'], true)) {
+            if (in_array($name, self::PRESERVE_ROOT_DIRS, true)) {
                 continue;
             }
             if ($preserveApps && in_array($name, self::APP_DIRS, true)) {

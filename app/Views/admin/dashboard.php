@@ -135,10 +135,8 @@
       <p class="admin-modal-hint" id="dashboardUpgradeMessage">正在检查更新…</p>
       <div class="admin-upgrade-modal-notes" id="dashboardUpgradeNotes" hidden></div>
       <p class="admin-modal-error" id="dashboardUpgradeError" hidden></p>
-      <input type="file" id="dashboardUpgradeUploadInput" accept=".zip,application/zip" hidden>
     </div>
     <div class="admin-modal-actions">
-      <button type="button" class="btn btn-ghost" id="dashboardUpgradeUpload">上传开发包</button>
       <button type="button" class="btn btn-ghost" data-modal-close id="dashboardUpgradeCancel">关闭</button>
       <button type="button" class="btn btn-primary" id="dashboardUpgradeRun" hidden>立即更新</button>
     </div>
@@ -155,44 +153,12 @@
   var notes = document.getElementById("dashboardUpgradeNotes");
   var error = document.getElementById("dashboardUpgradeError");
   var run = document.getElementById("dashboardUpgradeRun");
-  var upload = document.getElementById("dashboardUpgradeUpload");
-  var uploadInput = document.getElementById("dashboardUpgradeUploadInput");
   var cancel = document.getElementById("dashboardUpgradeCancel");
   var csrf = <?= json_encode($dashboardUpgradeCsrf) ?>;
   var current = <?= json_encode($current) ?>;
   var latest = trigger.dataset.latest || "";
   var hasUpdate = trigger.dataset.hasUpdate === "1";
   var completed = false;
-
-  function uploadPackage(file) {
-    var fd = new FormData();
-    fd.append("_csrf", csrf);
-    fd.append("package", file);
-    upload.disabled = true;
-    run.disabled = true;
-    message.textContent = "正在上传并更新，请不要关闭页面…";
-    error.hidden = true;
-    return fetch(<?= json_encode(url_to('/admin/upgrade/upload')) ?>, { method: "POST", body: fd, headers: { "X-Requested-With": "XMLHttpRequest" } })
-      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok || !j.ok) throw new Error(j.error || "更新失败"); return j; }); })
-      .then(function (j) {
-        var installed = j.latest || j.current || current;
-        completed = true;
-        message.textContent = "更新完成，当前版本 v" + installed + "。";
-        upload.textContent = "上传完成";
-        cancel.textContent = "稍后刷新";
-        run.hidden = false;
-        run.textContent = "刷新页面";
-        run.disabled = false;
-        run.onclick = function () { window.location.reload(); };
-      })
-      .catch(function (e) {
-        message.textContent = "上传更新失败";
-        error.textContent = e.message;
-        error.hidden = false;
-        upload.disabled = false;
-        run.disabled = false;
-      });
-  }
 
   function post(path, force) {
     var fd = new FormData();
@@ -210,8 +176,6 @@
     run.hidden = true;
     run.disabled = false;
     run.textContent = "立即更新";
-    upload.disabled = false;
-    upload.textContent = "上传开发包";
     completed = false;
     post(<?= json_encode(url_to('/admin/upgrade/check')) ?>, true)
       .then(function (j) {
@@ -232,12 +196,6 @@
       .catch(function (e) { message.textContent = "检查更新失败"; error.textContent = e.message; error.hidden = false; });
   }
   trigger.addEventListener("click", open);
-  upload.addEventListener("click", function () { if (!completed) uploadInput.click(); });
-  uploadInput.addEventListener("change", function () {
-    var file = uploadInput.files && uploadInput.files[0];
-    if (file) uploadPackage(file);
-    uploadInput.value = "";
-  });
   run.addEventListener("click", function () {
     if (!hasUpdate || completed || run.disabled) return;
     run.disabled = true;

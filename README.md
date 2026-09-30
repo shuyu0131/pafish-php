@@ -81,7 +81,7 @@ php /www/wwwroot/你的站点/cron.php
 
 ## 在线更新
 
-后台“系统更新”可从 Gitee Release 在线更新，也可由管理员直接上传开发包。两种方式共用 ZIP 结构校验、数据库和文件备份、覆盖及失败回滚流程；在线下载额外校验 HTTPS 和发布包 SHA-256。更新过程使用纯 PHP 实现，不依赖 `exec()`、`mysqldump` 或 `mysql` 命令。
+后台“系统更新”固定从 Gitee Release 检查并下载版本。更新包会进行 HTTPS、哈希和结构校验，备份与恢复使用纯 PHP 实现，不依赖 `exec()`、`mysqldump` 或 `mysql` 命令。
 
 ## 常见问题
 

@@ -250,7 +250,6 @@ $app->group('/admin', function ($group) {
     $group->get('/upgrade', [UpgradeController::class, 'index']);
     $group->post('/upgrade/check', [UpgradeController::class, 'check']);
     $group->post('/upgrade/run', [UpgradeController::class, 'run']);
-    $group->post('/upgrade/upload', [UpgradeController::class, 'upload']);
 })->add(AdminAuthMiddleware::class);
 
 // 编辑器配套 API

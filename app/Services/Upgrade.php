@@ -12,6 +12,7 @@ final class Upgrade
     private const DEFAULT_GITEE_REPO = 'shuyugit/pafish-php';
     // OutboundHttp 的统一响应上限为 16 MB，升级包上限必须与其一致。
     private const MAX_ZIP_BYTES = 16 * 1024 * 1024;
+    private const MAX_PACKAGE_UNCOMPRESSED_BYTES = 128 * 1024 * 1024;
     private const CACHE_TTL = 86400; // 24h
     private const CACHE_FILE = 'update_check.json';
     private const CACHE_SCHEMA = 3;
@@ -94,11 +95,67 @@ final class Upgrade
             throw new \RuntimeException('当前版本 v' . Version::current() . ' 过低，请先升级到 v' . $minVersion);
         }
 
+        $tmpZip = tempnam(sys_get_temp_dir(), 'pfup');
+        if ($tmpZip === false) {
+            throw new \RuntimeException('无法创建临时文件');
+        }
+        try {
+            $zipUrl = self::resolveZipUrl((string) $info['zip']);
+            $buffer = self::httpGet($zipUrl);
+            if (@file_put_contents($tmpZip, $buffer) === false) {
+                throw new \RuntimeException('无法写入更新包临时文件');
+            }
+            self::verifySha256($buffer, (string) ($info['sha256'] ?? ''));
+            self::validatePackage($tmpZip);
+            return self::applyPackage($tmpZip, $info);
+        } catch (\Throwable $e) {
+            @unlink($tmpZip);
+            throw $e;
+        }
+    }
+
+    /** 从后台上传的本地 ZIP 执行开发版更新，不依赖 Gitee Release。 */
+    public static function runUploaded(string $sourcePath): array
+    {
+        if (!is_file($sourcePath)) {
+            throw new \RuntimeException('更新包不存在');
+        }
+        if ((int) @filesize($sourcePath) > self::MAX_ZIP_BYTES) {
+            throw new \RuntimeException('更新包超过 16MB 限制');
+        }
+        $tmpZip = tempnam(sys_get_temp_dir(), 'pfup');
+        if ($tmpZip === false || !@copy($sourcePath, $tmpZip)) {
+            if (is_string($tmpZip)) {
+                @unlink($tmpZip);
+            }
+            throw new \RuntimeException('无法读取上传的更新包');
+        }
+        try {
+            self::validatePackage($tmpZip);
+            $version = self::packageVersion($tmpZip);
+            if (self::compareVersions($version, Version::current()) < 0) {
+                throw new \RuntimeException('上传包版本 v' . $version . ' 低于当前版本 v' . Version::current());
+            }
+            $digest = hash_file('sha256', $tmpZip);
+            if (!is_string($digest) || $digest === '') {
+                throw new \RuntimeException('无法计算更新包校验值');
+            }
+            return self::applyPackage($tmpZip, [
+                'latest' => $version,
+                'sha256' => $digest,
+                'source' => 'upload',
+            ]);
+        } catch (\Throwable $e) {
+            @unlink($tmpZip);
+            throw $e;
+        }
+    }
+
+    /** 复用下载更新与上传更新的备份、覆盖和回滚流程。 */
+    private static function applyPackage(string $tmpZip, array $info): array
+    {
         set_time_limit(300);
         $root = self::root();
-        // 并发锁：同一站点同时只允许一个更新任务。Windows 上多进程同时覆盖同一
-        // 目录会互相踩踏（一个进程解压、另一个进程正在清理/备份同一文件 → 部分
-        // 写入失败、备份不完整），flock 在 PHP 进程间互斥，抢不到锁直接拒绝
         $lockPath = $root . '/runtime/upgrade.lock';
         $lock = @fopen($lockPath, 'c');
         if ($lock === false || !flock($lock, LOCK_EX | LOCK_NB)) {
@@ -107,28 +164,15 @@ final class Upgrade
             }
             throw new \RuntimeException('已有更新任务正在进行中，请稍后再试');
         }
-        $zipUrl = self::resolveZipUrl((string) $info['zip']);
-        $tmpZip = tempnam(sys_get_temp_dir(), 'pfup');
         $bak = $root . '/runtime/.upgrade-bak-' . bin2hex(random_bytes(4));
         $backupReady = false;
         $dbBackup = null;
         $dbMigrationStarted = false;
-        self::writeState($root, 'starting', ['target' => (string)$info['latest']]);
+        self::writeState($root, 'starting', ['target' => (string) ($info['latest'] ?? '')]);
         try {
-            if ($tmpZip === false) {
-                throw new \RuntimeException('无法创建临时文件');
-            }
-            // 1. 下载
-            self::writeState($root, 'downloading', ['target' => (string)$info['latest']]);
-            $buffer = self::httpGet($zipUrl);
-            if (@file_put_contents($tmpZip, $buffer) === false) {
-                throw new \RuntimeException('无法写入更新包临时文件');
-            }
-            // 2. 校验（元数据声明 sha256 时先验哈希，防下载篡改/损坏）
-            self::writeState($root, 'validating');
-            self::verifySha256($buffer, (string) ($info['sha256'] ?? ''));
+            self::writeState($root, 'validating', ['source' => (string) ($info['source'] ?? 'gitee')]);
+            self::verifySha256((string) @file_get_contents($tmpZip), (string) ($info['sha256'] ?? ''));
             self::validatePackage($tmpZip);
-            // 3. 备份（排除 public/uploads、backups、runtime；旧根目录 config.php 一并备份）
             self::writeState($root, 'backing_up');
             try {
                 $dbBackup = Backup::create();
@@ -142,15 +186,12 @@ final class Upgrade
                 throw new \RuntimeException('更新失败：站点备份不完整（备份保留在 ' . $bak . '）');
             }
             $backupReady = true;
-            // 4. 清空非保留项
             self::writeState($root, 'replacing_files', ['database_backup' => $dbBackup]);
             if (!self::clearRoot($root)) {
                 throw new \RuntimeException('更新失败：无法清理旧文件' . self::deleteFailureSuffix());
             }
             try {
-                // 5. 解压覆盖（剥掉 pafish/ 顶层）
                 self::extractPackage($tmpZip, $root);
-                // 6. 执行包内迁移脚本 upgrade.php（执行后删除）
                 $dbMigrationStarted = is_file($root . '/upgrade.php');
                 self::runUpgradeScript($root);
                 self::writeState($root, 'completed');
@@ -165,7 +206,6 @@ final class Upgrade
                 throw new \RuntimeException('更新失败：' . $e->getMessage() . '（已恢复旧版本）');
             }
         } catch (\Throwable $e) {
-            // 校验/下载/备份阶段失败：备份目录可能不存在或未完成
             if ($backupReady && is_dir($bak) && self::isEmptyDir($bak) === false) {
                 try {
                     self::rollback($root, $bak);
@@ -196,13 +236,30 @@ final class Upgrade
             flock($lock, LOCK_UN);
             fclose($lock);
         }
-        // 7. 成功：删除备份、清静态缓存
         self::rmDir($bak);
         self::resetCache();
         @unlink($root . '/runtime/' . self::STATE_FILE);
-        // 当前 PHP 请求仍加载着升级前的 Version 常量；返回安装包目标版本，
-        // 让更新接口和前端成功提示反映实际已安装的版本。
-        return ['ok' => true, 'current' => (string) $info['latest'], 'latest' => (string) $info['latest']];
+        return ['ok' => true, 'current' => (string) ($info['latest'] ?? ''), 'latest' => (string) ($info['latest'] ?? '')];
+    }
+
+    /** 从包内 composer.json 读取版本，避免上传包文件名可伪造。 */
+    private static function packageVersion(string $tmpZip): string
+    {
+        $zip = new \ZipArchive();
+        if ($zip->open($tmpZip) !== true) {
+            throw new \RuntimeException('更新包不是有效的 zip 压缩包');
+        }
+        try {
+            $raw = $zip->getFromName('pafish/composer.json');
+        } finally {
+            @$zip->close();
+        }
+        $data = is_string($raw) ? json_decode($raw, true) : null;
+        $version = is_array($data) ? trim((string) ($data['version'] ?? '')) : '';
+        if (preg_match('/^\d+(?:\.\d+){1,3}$/', $version) !== 1) {
+            throw new \RuntimeException('上传包缺少有效版本号');
+        }
+        return $version;
     }
 
     /** 读取 Gitee 最新 Release。 */
@@ -359,10 +416,23 @@ final class Upgrade
             if ($count <= 0) {
                 throw new \RuntimeException('更新包为空');
             }
+            $uncompressedBytes = 0;
             $hasIndex = false;
             $hasBootstrap = false;
             for ($i = 0; $i < $count; $i++) {
                 $entryName = (string) $zip->getNameIndex($i);
+                $stat = $zip->statIndex($i);
+                $uncompressedBytes += (int) ($stat['size'] ?? 0);
+                if ($uncompressedBytes > self::MAX_PACKAGE_UNCOMPRESSED_BYTES) {
+                    throw new \RuntimeException('更新包解压后超过 128MB 限制');
+                }
+                $opsys = 0;
+                $attributes = 0;
+                if ($zip->getExternalAttributesIndex($i, $opsys, $attributes)
+                    && $opsys === \ZipArchive::OPSYS_UNIX
+                    && (($attributes >> 16) & 0170000) === 0120000) {
+                    throw new \RuntimeException('更新包包含不支持的符号链接：' . $entryName);
+                }
                 $normalized = str_replace('\\', '/', $entryName);
                 $trimmed = rtrim($normalized, '/');
                 if ($trimmed === '') {

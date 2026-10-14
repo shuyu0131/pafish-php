@@ -34,24 +34,27 @@ $filters = [
 $view = (($_GET['view'] ?? 'grid') === 'list') ? 'list' : 'grid';
 // 分页/筛选链接：t 传空=不筛选，传筛选值时保留当前搜索词
 $date = $date ?? '';
-$pageUrl = function (int $p, string $t = '') use ($q, $date, $view): string {
+$pageUrl = function (int $p, string $t = '', int $size = 48) use ($q, $date, $view): string {
     $qs = [];
     if ($p > 1) $qs['page'] = $p;
     if ($q !== '') $qs['q'] = $q;
     if ($t !== '') $qs['type'] = $t;
     if ($date !== '') $qs['date'] = $date;
     if ($view !== 'grid') $qs['view'] = $view;
+    if ($size !== 48) $qs['per'] = $size;
     return url_to('/admin/uploads' . ($qs === [] ? '' : '?' . http_build_query($qs)));
 };
 $pageCsrf = csrf_token();
 $accept = 'image/*,.svg,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip,.rar,.7z,.tar,.gz,.mp3,.wav,.ogg,.m4a,.flac,.mp4,.webm,.mov,.mkv';
 ?>
-<div class="admin-stack">
+<div class="admin-stack admin-detail-page">
   <div class="admin-page-head">
     <div>
       <h1 class="admin-h1">媒体库</h1>
-      <p class="admin-page-sub">共 <?= (int) $total ?> 个媒体，支持本地上传与外部链接（图片自动压缩，大小限制可在站点设置调整）</p>
+      <p class="admin-page-sub">共 <?= (int) $total ?> 个媒体</p>
     </div>
+    <div class="admin-head-actions"><button type="button" class="btn btn-outline" id="btnAddExternal" title="添加外部资源" aria-label="添加外部资源"><?= admin_icon('link', 15) ?><span>添加外部资源</span></button>
+<button type="button" class="btn btn-primary" id="btnUploadMedia"><?= admin_icon('upload', 15) ?><span id="btnUploadLabel">上传媒体</span></button></div>
   </div>
 
   <div class="admin-media-toolbar">
@@ -61,7 +64,7 @@ $accept = 'image/*,.svg,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip
     </div>
     <div class="admin-media-filters">
       <?php foreach ($filters as $val => $label): ?>
-        <a class="admin-media-filter <?= $type === $val ? 'active' : '' ?>" href="<?= e($pageUrl(1, $val)) ?>"><?= e($label) ?></a>
+        <a class="admin-media-filter <?= $type === $val ? 'active' : '' ?>" href="<?= e($pageUrl(1, $val, (int) ($per ?? 48))) ?>"><?= e($label) ?></a>
       <?php endforeach; ?>
     </div>
     <?php
@@ -76,13 +79,7 @@ $accept = 'image/*,.svg,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip
       <a class="admin-icon-btn<?= $view === 'grid' ? ' active' : '' ?>" href="<?= e($viewBase . $viewSep . 'view=grid') ?>" title="网格视图" aria-label="网格视图"><?= admin_icon('dashboard', 15) ?></a>
       <a class="admin-icon-btn<?= $view === 'list' ? ' active' : '' ?>" href="<?= e($viewBase . $viewSep . 'view=list') ?>" title="列表视图" aria-label="列表视图"><?= admin_icon('list', 15) ?></a>
     </div>
-    <div class="admin-head-actions">
-      <button type="button" class="btn btn-primary" id="btnUploadMedia">
-        <?= admin_icon('upload', 15) ?><span id="btnUploadLabel">上传媒体</span>
-      </button>
-      <input type="file" id="mediaFiles" multiple hidden accept="<?= e($accept) ?>">
-      <button type="button" class="btn btn-outline" id="btnAddExternal"><?= admin_icon('link', 15) ?>添加外部资源</button>
-    </div>
+    <input type="file" id="mediaFiles" multiple hidden accept="<?= e($accept) ?>">
   </div>
   <div class="admin-upload-progress" id="mediaUploadProgress" hidden aria-live="polite">
     <div class="admin-upload-progress-head"><span id="mediaUploadProgressLabel">准备上传</span><strong id="mediaUploadProgressValue">0%</strong></div>
@@ -150,8 +147,8 @@ $accept = 'image/*,.svg,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip
     <?php endif; ?>
 
     <?= admin_pagination($page, $pages, $total, static function (int $p, int $size = 48) use ($pageUrl, $type): string {
-      return $pageUrl($p, $type);
-    }, 48) ?>
+      return $pageUrl($p, $type, $size);
+    }, (int) ($per ?? 48), [24, 48, 96]) ?>
   <?php endif; ?>
 </div>
 
@@ -203,6 +200,8 @@ $accept = 'image/*,.svg,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip
       if (type) qs.push("type=" + encodeURIComponent(type));
       var date = document.getElementById("mediaDate").value;
       if (date) qs.push("date=" + encodeURIComponent(date));
+      var per = new URLSearchParams(window.location.search).get("per");
+      if (per) qs.push("per=" + encodeURIComponent(per));
       var view = <?= json_encode($view) ?>;
       if (view !== "grid") qs.push("view=" + encodeURIComponent(view));
       location.href = <?= json_encode(url_to('/admin/uploads')) ?> + (qs.length ? "?" + qs.join("&") : "");

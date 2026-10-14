@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pafish\Admin;
 
 use Pafish\Services\Plugin;
+use Pafish\Services\PluginSettingException;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Psr\Http\Message\UploadedFileInterface;
@@ -31,7 +32,7 @@ final class PluginsController extends AdminController
                 'frontendUrl' => (string) ($m['frontendUrl'] ?? ''),
                 'error' => $desc['error'],
                 // 插件可以通过 plugin_setting 注入自己的完整设置页，即使没有声明式 schema 字段。
-                'settingsCount' => count($m['settings'] ?? [])
+                'settingsCount' => count(Plugin::settingsFields($name))
                     + (in_array('plugin_setting', (array) ($m['injects'] ?? []), true) ? 1 : 0),
                 'active' => Plugin::isActive($name),
             ];
@@ -64,6 +65,7 @@ final class PluginsController extends AdminController
             'error' => $desc['error'],
             'active' => Plugin::isActive($name),
             'values' => $desc['manifest'] !== null ? Plugin::settings($name) : [],
+            'settings' => $desc['manifest'] !== null ? Plugin::settingsFields($name) : [],
             'supportsNotificationTest' => Plugin::supportsNotificationTest($name),
             'supportsStorageTest' => Plugin::supportsStorageTest($name),
         ], '插件设置'));
@@ -116,6 +118,9 @@ final class PluginsController extends AdminController
         try {
             $saved = Plugin::saveSettings($name, $body);
             return $this->json($response, ['ok' => true, 'saved' => $saved]);
+        } catch (PluginSettingException $e) {
+            // 逐字段回传，前端据此标红具体输入框（与主题设置页一致）
+            return $this->json($response, ['error' => $e->getMessage(), 'fields' => $e->fieldErrors()], 400);
         } catch (\Throwable $e) {
             return $this->json($response, ['error' => $e->getMessage()], 400);
         }

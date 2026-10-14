@@ -19,7 +19,11 @@ final class MicroController extends AdminController
         $status = in_array((string) ($query['status'] ?? ''), [MicroStatuses::DRAFT, MicroStatuses::PUBLISHED], true)
             ? (string) $query['status'] : '';
         $q = trim((string) ($query['q'] ?? ''));
-        $data = MicroStatuses::adminPage(max(1, (int) ($query['page'] ?? 1)), 20, $status, $q);
+        $perPage = (int) ($query['per'] ?? 20);
+        if (!in_array($perPage, [20, 50, 100], true)) {
+            $perPage = 20;
+        }
+        $data = MicroStatuses::adminPage(max(1, (int) ($query['page'] ?? 1)), $perPage, $status, $q);
         $response->getBody()->write($this->render('micro', [
             'mode' => 'list',
             'items' => $data['items'],
@@ -109,7 +113,7 @@ final class MicroController extends AdminController
             'isEdit' => $micro !== null,
             'items' => [],
             'filters' => [],
-            // Vditor 样式与文章、页面编辑器共用同一份
+            // 编辑器页面沿用后台通用资源注入点
             'headExtra' => editor_head_extra(),
         ], $micro === null ? '新建微语' : '编辑微语'));
         return $response;

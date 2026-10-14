@@ -21,7 +21,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  */
 final class CommentsController extends AdminController
 {
-    private const PAGE_SIZE = 20;
+    private const PAGE_SIZES = [20, 50, 100];
 
     /** 状态常量 */
     private const STATUSES = ['PENDING', 'APPROVED', 'SPAM', 'TRASH'];
@@ -35,6 +35,10 @@ final class CommentsController extends AdminController
             $status = 'PENDING';
         }
         $page = max(1, (int) ($_GET['page'] ?? 1));
+        $perPage = (int) ($_GET['per'] ?? self::PAGE_SIZES[0]);
+        if (!in_array($perPage, self::PAGE_SIZES, true)) {
+            $perPage = self::PAGE_SIZES[0];
+        }
         $postId = ctype_digit((string) ($_GET['post_id'] ?? '')) ? (int) $_GET['post_id'] : 0;
         $statusFilter = $status === 'ALL' ? '' : ' AND c.status = ?';
         $statusParams = $status === 'ALL' ? [] : [$status];
@@ -46,7 +50,7 @@ final class CommentsController extends AdminController
             'SELECT COUNT(*) FROM comments c JOIN posts scope_post ON scope_post.id = c.post_id WHERE 1=1' . $statusFilter . $postFilter . $scope['sql'],
             array_merge($statusParams, $postParams, $scope['params'])
         );
-        $pages = max(1, (int) ceil($total / self::PAGE_SIZE));
+        $pages = max(1, (int) ceil($total / $perPage));
         $page = min($page, $pages);
 
         // 每条评论带文章标题 + 父评论作者（楼中楼「回复 @xx」徽标）
@@ -58,7 +62,7 @@ final class CommentsController extends AdminController
              JOIN posts scope_post ON scope_post.id = c.post_id
              WHERE 1=1' . $statusFilter . $postFilter . $scope['sql'] . '
              ORDER BY c.created_at DESC
-             LIMIT ' . self::PAGE_SIZE . ' OFFSET ' . (($page - 1) * self::PAGE_SIZE),
+             LIMIT ' . $perPage . ' OFFSET ' . (($page - 1) * $perPage),
             array_merge($statusParams, $postParams, $scope['params'])
         );
 
@@ -76,6 +80,7 @@ final class CommentsController extends AdminController
             'total' => $total,
             'page' => $page,
             'pages' => $pages,
+            'per' => $perPage,
             'statusCounts' => $this->statusCounts($postId),
             'postId' => $postId,
             'postTitle' => $postTitle,
@@ -112,6 +117,85 @@ final class CommentsController extends AdminController
         ]);
 
         return $this->json($response, ['ok' => true]);
+    }
+
+    /** POST /admin/comments/batch：批量审核或删除当前用户有权管理的评论。 */
+    public function batch(Request $request, Response $response): Response
+    {
+        $this->guardCapability('comments.manage');
+        $body = $request->getParsedBody() ?? [];
+        $rawIds = $body['ids'] ?? [];
+        $operation = (string) ($body['op'] ?? '');
+        if (!is_array($rawIds) || $rawIds === [] || count($rawIds) > 100) {
+            return $this->json($response, ['error' => '请选择 1 至 100 条评论'], 400);
+        }
+        if (!in_array($operation, ['approve', 'spam', 'delete'], true)) {
+            return $this->json($response, ['error' => '无效的批量操作'], 400);
+        }
+        $ids = [];
+        foreach ($rawIds as $rawId) {
+            if (!is_int($rawId) && !is_string($rawId)) {
+                return $this->json($response, ['error' => '评论编号无效'], 400);
+            }
+            $id = filter_var($rawId, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+            if ($id === false) {
+                return $this->json($response, ['error' => '评论编号无效'], 400);
+            }
+            $ids[] = (int) $id;
+        }
+        $ids = array_values(array_unique($ids));
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $scope = $this->editorScope();
+        $rows = DB::fetchAll(
+            'SELECT c.id, c.post_id, c.parent_id, c.author_name, c.status FROM comments c JOIN posts scope_post ON scope_post.id = c.post_id WHERE c.id IN (' . $placeholders . ')' . $scope['sql'],
+            array_merge($ids, $scope['params'])
+        );
+        if (count($rows) !== count($ids)) {
+            return $this->json($response, ['error' => '所选评论不存在或无权管理'], 403);
+        }
+        if ($operation === 'delete') {
+            $parentById = [];
+            foreach ($rows as $row) {
+                $parentById[(int) $row['id']] = (int) ($row['parent_id'] ?? 0);
+            }
+            $depth = static function (int $id) use (&$depth, $parentById): int {
+                $parent = $parentById[$id] ?? 0;
+                return $parent !== 0 && isset($parentById[$parent]) ? 1 + $depth($parent) : 0;
+            };
+            usort($rows, static fn (array $a, array $b): int => $depth((int) $b['id']) <=> $depth((int) $a['id']));
+        }
+
+        $changed = 0;
+        foreach ($rows as $row) {
+            $id = (int) $row['id'];
+            if ($operation === 'delete') {
+                if (DB::execute('DELETE FROM comments WHERE id = ?', [$id]) > 0) {
+                    $changed++;
+                    \do_action('after_comment_delete', [
+                        'id' => (string) $id,
+                        'authorName' => (string) $row['author_name'],
+                    ]);
+                }
+                continue;
+            }
+
+            $next = $operation === 'approve' ? 'APPROVED' : 'SPAM';
+            $from = (string) $row['status'];
+            if ($from === $next) {
+                continue;
+            }
+            if (DB::execute('UPDATE comments SET status = ? WHERE id = ?', [$next, $id]) > 0) {
+                $changed++;
+                \do_action('after_comment_status', [
+                    'id' => (string) $id,
+                    'postId' => (string) $row['post_id'],
+                    'from' => $from,
+                    'to' => $next,
+                ]);
+            }
+        }
+
+        return $this->json($response, ['ok' => true, 'changed' => $changed]);
     }
 
     /** POST /admin/comments/{id}/reply：以管理员身份回复（创建 APPROVED 子评论，前台直接显示） */

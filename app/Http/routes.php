@@ -136,6 +136,7 @@ $app->group('/admin', function ($group) {
     // 分类管理（树列表 / 保存 / 同级移动 / 删除）
     $group->get('/categories', [CategoriesController::class, 'index']);
     $group->post('/categories/save', [CategoriesController::class, 'save']);
+    $group->post('/categories/reorder', [CategoriesController::class, 'reorder']);
     $group->post('/categories/{id}/save', [CategoriesController::class, 'save']);
     $group->post('/categories/{id}/move', [CategoriesController::class, 'move']);
     $group->post('/categories/{id}/delete', [CategoriesController::class, 'delete']);
@@ -153,6 +154,7 @@ $app->group('/admin', function ($group) {
 
     // 评论审核（4 Tab 20/页 / 状态流转 / 管理员回复 / 置顶 / 按 IP 删 / 拉黑）
     $group->get('/comments', [CommentsController::class, 'index']);
+    $group->post('/comments/batch', [CommentsController::class, 'batch']);
     $group->post('/comments/{id}/status', [CommentsController::class, 'status']);
     $group->post('/comments/{id}/reply', [CommentsController::class, 'reply']);
     $group->post('/comments/{id}/pin', [CommentsController::class, 'pin']);
@@ -163,6 +165,7 @@ $app->group('/admin', function ($group) {
     // 友情链接（列表 / 保存 / 删除 / 显隐 / 上下移动）
     $group->get('/links', [LinksController::class, 'index']);
     $group->post('/links/save', [LinksController::class, 'save']);
+    $group->post('/links/reorder', [LinksController::class, 'reorder']);
     $group->post('/links/{id}/save', [LinksController::class, 'save']);
     $group->post('/links/{id}/delete', [LinksController::class, 'delete']);
     $group->post('/links/{id}/toggle', [LinksController::class, 'toggle']);
@@ -171,6 +174,7 @@ $app->group('/admin', function ($group) {
     // 导航菜单（列表 / 保存 / 删除 / 显隐 / 上下移动）
     $group->get('/nav', [NavController::class, 'index']);
     $group->post('/nav/save', [NavController::class, 'save']);
+    $group->post('/nav/reorder', [NavController::class, 'reorder']);
     $group->post('/nav/{id}/save', [NavController::class, 'save']);
     $group->post('/nav/{id}/delete', [NavController::class, 'delete']);
     $group->post('/nav/{id}/toggle', [NavController::class, 'toggle']);
@@ -224,10 +228,10 @@ $app->group('/admin', function ($group) {
     $group->get('/appearance/{name}', [AppearanceController::class, 'settings']);
     $group->post('/appearance/save', [AppearanceController::class, 'save']);
     $group->post('/appearance/activate', [AppearanceController::class, 'activate']);
-    $group->post('/appearance/deactivate', [AppearanceController::class, 'deactivate']);
     $group->post('/appearance/uninstall', [AppearanceController::class, 'uninstall']);
     $group->post('/appearance/install', [AppearanceController::class, 'install']);
     $group->post('/appearance/import', [AppearanceController::class, 'import']);
+    $group->post('/appearance/reset', [AppearanceController::class, 'reset']);
 
     // 插件管理（仅 ADMIN：列表/设置页/启停/卸载/保存设置/安装 zip·URL）
     $group->get('/plugins', [PluginsController::class, 'index']);

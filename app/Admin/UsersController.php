@@ -84,6 +84,10 @@ final class UsersController extends AdminController
         }
         $whereSql = implode(' AND ', $where);
         $total = (int) DB::value("SELECT COUNT(*) FROM users u WHERE {$whereSql}", $params);
+        $overview = DB::fetchOne("SELECT COUNT(*) AS total,
+            SUM(role = 'ADMIN') AS admins,
+            SUM(role = 'EDITOR') AS editors,
+            SUM(disabled = 1) AS disabled FROM users") ?: [];
         $pages = max(1, (int) ceil($total / $per));
         $page = min($page, $pages);
         $orderBy = match ($sort) {
@@ -114,6 +118,7 @@ final class UsersController extends AdminController
             'me' => Auth::user(),
             'pointsEnabled' => $pointsEnabled,
             'total' => $total,
+            'overview' => $overview,
             'page' => $page,
             'pages' => $pages,
             'per' => $per,

@@ -5,7 +5,7 @@
  * 变量：$tags $role
  */
 ?>
-<div class="admin-stack">
+<div class="admin-stack admin-detail-page admin-tags-page">
   <div class="admin-page-head">
     <div>
       <h1 class="admin-h1">标签管理</h1>

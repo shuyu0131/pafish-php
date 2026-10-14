@@ -352,7 +352,8 @@ final class V1Controller
     public function siteInfo(Request $request, Response $response): Response
     {
         $fail = ApiKey::check($request); if ($fail !== null) return $this->authError($response, $fail);
-        return $this->json($response, ['site' => ['name' => Settings::get('site_name', '纸鱼博客'), 'subtitle' => Settings::get('site_subtitle', ''), 'description' => Settings::get('site_description', ''), 'url' => \absolute_url('/'), 'version' => \Pafish\Core\Version::current()]]);
+        // 统一走 site_name() 助手：空值时回退与前台一致，避免 API 返回空站名
+        return $this->json($response, ['site' => ['name' => \site_name(), 'subtitle' => Settings::get('site_subtitle', ''), 'description' => Settings::get('site_description', ''), 'url' => \absolute_url('/'), 'version' => \Pafish\Core\Version::current()]]);
     }
 
     public function pages(Request $request, Response $response): Response

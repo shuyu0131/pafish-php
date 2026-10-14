@@ -91,35 +91,21 @@ final class LinksController extends AdminController
         return $this->json($response, ['ok' => true]);
     }
 
-    /** POST /admin/links/{id}/move：与相邻项交换 sort_order（dir: up|down，边界直接返回） */
+    /** POST /admin/links/{id}/move：按实际顺序相邻移动（dir: up|down，边界直接返回） */
     public function move(Request $request, Response $response, array $args): Response
     {
         $this->guardAdmin();
-        $id = (int) ($args['id'] ?? 0);
-        $dir = ($request->getParsedBody()['dir'] ?? '') === 'up' ? 'up' : 'down';
-        DB::transaction(function () use ($id, $dir): void {
-            $cur = DB::fetchOne('SELECT sort_order FROM links WHERE id = ?', [$id]);
-            if ($cur === null) {
-                return;
-            }
-            if ($dir === 'up') {
-                $other = DB::fetchOne(
-                    'SELECT id, sort_order FROM links WHERE sort_order < ? ORDER BY sort_order DESC, id DESC LIMIT 1',
-                    [$cur['sort_order']]
-                );
-            } else {
-                $other = DB::fetchOne(
-                    'SELECT id, sort_order FROM links WHERE sort_order > ? ORDER BY sort_order ASC, id ASC LIMIT 1',
-                    [$cur['sort_order']]
-                );
-            }
-            if ($other === null) {
-                return; // 已在边界
-            }
-            DB::execute('UPDATE links SET sort_order = ? WHERE id = ?', [$other['sort_order'], $id]);
-            DB::execute('UPDATE links SET sort_order = ? WHERE id = ?', [$cur['sort_order'], $other['id']]);
-        });
-        Cache::clearPrefix('links.');
+        try {
+            \Pafish\Services\AdminOrdering::move('links', (int) ($args['id'] ?? 0),
+                ($request->getParsedBody()['dir'] ?? '') === 'up' ? 'up' : 'down');
+        } catch (\InvalidArgumentException $e) {
+            return $this->json($response, ['error' => $e->getMessage()], 400);
+        }
         return $this->json($response, ['ok' => true]);
+    }
+
+    public function reorder(Request $request, Response $response): Response
+    {
+        return $this->reorderList($request, $response, 'links');
     }
 }

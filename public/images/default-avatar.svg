@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80" role="img" aria-label="默认用户头像">
+  <defs>
+    <clipPath id="avatar-clip"><circle cx="40" cy="40" r="40"/></clipPath>
+  </defs>
+  <g clip-path="url(#avatar-clip)">
+    <rect width="80" height="80" fill="#e8f0ec"/>
+    <path d="M9 80c2-15 12-24 31-24s29 9 31 24" fill="#477b6e"/>
+    <path d="M32 48h16v13c-4 5-12 5-16 0z" fill="#cb896b"/>
+    <path d="M27 57c4 4 8 6 13 6s9-2 13-6l7 5-6 18H26l-6-18z" fill="#f7f8f5"/>
+    <path d="M20 34c0-16 8-25 21-25 13 0 21 9 21 25v9H20z" fill="#293a37"/>
+    <path d="M24 32c0-11 6-19 16-19s16 8 16 19v8c0 12-7 20-16 20s-16-8-16-20z" fill="#d99b7b"/>
+    <path d="M22 33c1-15 8-24 20-24 10 0 18 7 20 20-5-1-9-4-12-9-6 6-15 9-28 9z" fill="#293a37"/>
+    <path d="M29 39h5m12 0h5" fill="none" stroke="#394440" stroke-linecap="round" stroke-width="2"/>
+    <path d="M37 48c2 2 5 2 7 0" fill="none" stroke="#9d5f50" stroke-linecap="round" stroke-width="1.8"/>
+    <path d="M29 35c2-2 5-2 7 0m8 0c2-2 5-2 7 0" fill="none" stroke="#293a37" stroke-linecap="round" stroke-width="1.5"/>
+  </g>
+</svg>

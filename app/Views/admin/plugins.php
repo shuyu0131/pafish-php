@@ -2,7 +2,7 @@
 $pluginTotal = count($plugins);
 $pluginActive = count(array_filter($plugins, static fn (array $plugin): bool => !empty($plugin['active'])));
 ?>
-<div class="admin-stack admin-extension-page admin-plugin-page">
+<div class="admin-stack admin-extension-page admin-plugin-page admin-detail-page">
   <div class="admin-page-head">
     <div>
       <h1 class="admin-h1">插件管理</h1>
@@ -56,7 +56,7 @@ $pluginActive = count(array_filter($plugins, static fn (array $plugin): bool => 
                       <span class="admin-plugin-name"><?= e($p['title']) ?></span>
                     <?php endif; ?>
                     <?php if (!empty($p['builtin'])): ?><span class="badge badge-primary admin-plugin-builtin">内置</span><?php endif; ?>
-                    <?php if (($p['frontendUrl'] ?? '') !== ''): ?>
+                    <?php if ($p['active'] && ($p['frontendUrl'] ?? '') !== ''): ?>
                       <a class="admin-resource-link admin-plugin-front-link" href="<?= e(url_to((string) $p['frontendUrl'])) ?>" target="_blank" rel="noopener noreferrer" aria-label="打开<?= e($p['title']) ?>前台页面" title="打开前台页面"><?= admin_icon('external-link', 13) ?></a>
                     <?php endif; ?>
                   </div>

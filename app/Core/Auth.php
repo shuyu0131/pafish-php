@@ -24,11 +24,43 @@ final class Auth
         'users.manage', 'backup.manage', 'transfer.manage', 'api.manage',
     ];
 
+    /** 能力的中文标签，供后台权限矩阵展示。 */
+    public const CAPABILITY_LABELS = [
+        'dashboard.view'    => '访问后台',
+        'posts.manage'      => '管理文章',
+        'pages.manage'      => '管理页面',
+        'taxonomy.manage'   => '管理分类与标签',
+        'media.manage'      => '管理媒体库',
+        'comments.manage'   => '管理评论',
+        'links.manage'      => '管理友情链接',
+        'appearance.manage' => '管理主题外观',
+        'settings.manage'   => '修改站点设置',
+        'plugins.manage'    => '管理插件',
+        'store.manage'      => '访问应用商店',
+        'upgrade.manage'    => '执行系统升级',
+        'users.manage'      => '管理用户',
+        'backup.manage'     => '备份与恢复',
+        'transfer.manage'   => '站点迁移',
+        'api.manage'        => '管理开放 API',
+    ];
+
     private const DEFAULT_ROLE_CAPABILITIES = [
         'ADMIN' => self::CAPABILITIES,
         'EDITOR' => ['dashboard.view', 'posts.manage', 'media.manage', 'comments.manage'],
         'USER' => ['dashboard.view'],
     ];
+
+    /**
+     * 各角色的默认能力。
+     *
+     * 公开给后台设置页用于「恢复默认」，避免管理员误改后无法回退。
+     *
+     * @return array<string, array<int, string>>
+     */
+    public static function defaultRoleCapabilities(): array
+    {
+        return self::DEFAULT_ROLE_CAPABILITIES;
+    }
 
     /** 当前登录用户（回查库），未登录返回 null */
     public static function user(): ?array

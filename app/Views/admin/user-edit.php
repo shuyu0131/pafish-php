@@ -17,7 +17,6 @@ $displayName = (string) (($user['nickname'] ?? '') ?: ($user['username'] ?? '用
 <div class="admin-stack admin-user-edit-page">
   <div class="admin-page-head">
     <div>
-      <p class="admin-breadcrumb"><a href="<?= e(url_to('/admin/users')) ?>">用户管理</a><span>/</span>编辑用户</p>
       <h1 class="admin-h1">编辑用户</h1>
       <p class="admin-page-sub"><?= e($displayName) ?> · ID <?= $userId ?></p>
     </div>
@@ -26,21 +25,22 @@ $displayName = (string) (($user['nickname'] ?? '') ?: ($user['username'] ?? '用
 
   <div class="admin-user-edit-grid">
     <div class="admin-user-edit-main">
-      <div class="card admin-form-card">
+      <div class="admin-user-profile-panel">
         <div class="admin-user-edit-card-head">
-          <div><h2 class="admin-card-title">账号资料</h2><p class="admin-page-note">修改后立即对后台和前台生效。</p></div>
+          <h2 class="admin-card-title">账号资料</h2>
           <?php if ((int) ($user['disabled'] ?? 0) === 1): ?><span class="badge badge-danger">已禁用</span><?php else: ?><span class="badge badge-success">正常</span><?php endif; ?>
         </div>
         <form class="admin-form-grid" method="post" action="<?= e(url_to('/admin/users/' . $userId . '/save')) ?>" novalidate>
           <?= csrf_field() ?>
           <div class="admin-field admin-user-avatar-field">
-            <span class="label">头像</span>
             <div class="admin-avatar-edit">
-              <img class="admin-avatar-preview" id="adminUserAvatarPreview" src="<?= e($avatar) ?>" alt="" width="72" height="72">
-              <div class="admin-avatar-edit-actions"><button type="button" class="btn btn-outline btn-sm" id="adminUserAvatarClear">删除头像</button></div>
+              <img class="admin-avatar-preview" id="adminUserAvatarPreview" src="<?= e($avatar) ?>" alt="" width="48" height="48">
+              <div class="admin-user-avatar-controls">
+                <label class="label" for="adminUserAvatarUrl">头像地址</label>
+                <input class="input" type="text" id="adminUserAvatarUrl" name="avatar_url" value="<?= e((string) ($user['avatar_url'] ?? '')) ?>" maxlength="500" placeholder="/uploads/… 或 https://…">
+                <div class="admin-user-avatar-hint"><span class="admin-field-hint">留空使用默认头像。</span><button type="button" class="btn btn-ghost btn-sm" id="adminUserAvatarClear">恢复默认</button></div>
+              </div>
             </div>
-            <input class="input" type="url" id="adminUserAvatarUrl" name="avatar_url" value="<?= e((string) ($user['avatar_url'] ?? '')) ?>" maxlength="500" placeholder="/uploads/… 或 https://…">
-            <p class="admin-field-hint">留空后使用邮箱生成默认头像。</p>
           </div>
           <div class="admin-field"><span class="label">用户名（登录名）</span><input class="input" type="text" name="username" value="<?= e((string) ($user['username'] ?? '')) ?>" maxlength="50" required><p class="admin-field-hint">2-50 位，可使用中文、字母、数字、下划线和连字符。</p></div>
           <div class="admin-field"><span class="label">显示昵称</span><input class="input" type="text" name="nickname" value="<?= e((string) ($user['nickname'] ?? '')) ?>" maxlength="50" placeholder="留空则显示用户名"></div>
@@ -49,17 +49,18 @@ $displayName = (string) (($user['nickname'] ?? '') ?: ($user['username'] ?? '用
             <?php if ($isFounder): ?><input type="hidden" name="role" value="ADMIN"><select class="input" disabled><option selected>管理员（创始人账号）</option></select><p class="admin-field-hint">创始人账号的角色不可修改。</p>
             <?php else: ?><select class="input" name="role"><option value="USER"<?= ($user['role'] ?? '') === 'USER' ? ' selected' : '' ?>>用户</option><option value="EDITOR"<?= ($user['role'] ?? '') === 'EDITOR' ? ' selected' : '' ?>>编辑</option><option value="ADMIN"<?= ($user['role'] ?? '') === 'ADMIN' ? ' selected' : '' ?>>管理员</option></select><?php endif; ?>
           </div>
-          <div class="admin-field"><span class="label">个人简介</span><textarea class="input admin-user-description" name="description" maxlength="500" rows="5" placeholder="介绍一下这个用户"><?= e((string) ($user['description'] ?? '')) ?></textarea><p class="admin-field-hint">最多 500 个字符。</p></div>
-          <div class="admin-user-edit-section"><h3>设置新密码</h3><p class="admin-field-hint">留空表示不修改密码。密码长度为 6-72 位。</p></div>
+          <div class="admin-field admin-user-bio-field"><span class="label">个人简介</span><textarea class="input admin-user-description" name="description" maxlength="500" rows="3" placeholder="介绍一下这个用户"><?= e((string) ($user['description'] ?? '')) ?></textarea></div>
+          <details class="admin-user-password-section"><summary>设置新密码</summary><p class="admin-field-hint">留空表示不修改密码。密码长度为 6-72 位。</p><div class="admin-form-grid">
           <div class="admin-field"><span class="label">新密码</span><input class="input" type="password" name="password" autocomplete="new-password" minlength="6" maxlength="72"></div>
           <div class="admin-field"><span class="label">确认新密码</span><input class="input" type="password" name="password_confirm" autocomplete="new-password" minlength="6" maxlength="72"></div>
+          </div></details>
           <div class="admin-form-actions"><button type="submit" class="btn btn-primary">保存用户</button><a class="btn btn-ghost" href="<?= e(url_to('/admin/users')) ?>">取消</a></div>
         </form>
       </div>
     </div>
 
     <aside class="admin-user-edit-side">
-      <div class="card admin-user-info-card">
+      <div class="admin-user-info-card">
         <h2 class="admin-card-title">账号信息</h2>
         <dl class="admin-user-info-list">
           <div><dt>用户 ID</dt><dd><?= $userId ?></dd></div>
@@ -73,27 +74,27 @@ $displayName = (string) (($user['nickname'] ?? '') ?: ($user['username'] ?? '用
       </div>
 
       <?php if ($pointsEnabled): ?>
-      <div class="card admin-form-card admin-user-points-card">
-        <h2 class="admin-card-title">调整积分</h2>
+      <details class="admin-user-points-card">
+        <summary>调整积分</summary>
         <form class="admin-form-grid" method="post" action="<?= e(url_to('/admin/users/' . $userId . '/points')) ?>">
           <?= csrf_field() ?>
           <div class="admin-field"><span class="label">调整数量</span><input class="input" type="number" name="amount" min="-100000000" max="100000000" step="1" placeholder="正数发放，负数扣减" required></div>
           <div class="admin-field"><span class="label">原因</span><input class="input" type="text" name="reason" maxlength="120" value="管理员调整"></div>
           <div class="admin-form-actions"><button class="btn btn-outline" type="submit">调整积分</button></div>
         </form>
-      </div>
+      </details>
       <?php endif; ?>
 
       <?php if (!$isFounder && $userId !== (int) ($me['id'] ?? 0)): ?>
-      <div class="card admin-user-danger-card">
+      <div class="admin-user-danger-card">
         <h2 class="admin-card-title">危险操作</h2>
-        <p>删除后，该用户的文章和微语会转移给当前管理员，评论和积分记录将按数据库规则处理。</p>
+        <p>删除后，该用户的文章和微语会转移给当前管理员。</p>
         <form id="adminUserDeleteForm" method="post" action="<?= e(url_to('/admin/users/' . $userId . '/delete')) ?>">
           <?= csrf_field() ?>
           <button class="btn btn-danger" type="submit">删除用户</button>
         </form>
       </div>
-      <?php else: ?><div class="card admin-user-protected-card"><p><?= $isFounder ? '创始人账号受保护，不能删除。' : '当前登录账号不能删除。' ?></p></div><?php endif; ?>
+      <?php else: ?><p class="admin-user-protection-note"><?= $isFounder ? '创始人账号受保护，不能删除。' : '当前登录账号不能删除。' ?></p><?php endif; ?>
     </aside>
   </div>
 </div>

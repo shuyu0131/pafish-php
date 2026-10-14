@@ -94,12 +94,29 @@ final class Listings
     }
 
     /** 列表页 OG 与 canonical。 */
-    public static function og(Request $request, string $title, string $description = ''): array
+    public static function og(Request $request, string $title, string $description = '', array $queryKeys = ['page']): array
     {
-        $uri = $request->getUri();
-        $url = \Url::absolute($uri->getPath());
-        if ($uri->getQuery() !== '') {
-            $url .= '?' . $uri->getQuery();
+        $path = $request->getUri()->getPath();
+        $base = \Url::base();
+        if ($base !== '' && ($path === $base || str_starts_with($path, $base . '/'))) {
+            $path = substr($path, strlen($base)) ?: '/';
+        }
+        $url = \Url::absolute($path);
+        // 仅保留改变页面内容的参数，避免追踪参数生成重复 canonical。
+        $params = $request->getQueryParams();
+        $query = [];
+        foreach ($queryKeys as $key) {
+            if (!is_scalar($params[$key] ?? null)) continue;
+            if ($key === 'page') {
+                $page = max(1, (int) $params[$key]);
+                if ($page > 1) $query[$key] = $page;
+            } elseif ($key === 'q') {
+                $keyword = trim((string) $params[$key]);
+                if ($keyword !== '') $query[$key] = $keyword;
+            }
+        }
+        if ($query !== []) {
+            $url .= (str_contains($url, '?') ? '&' : '?') . http_build_query($query, '', '&', PHP_QUERY_RFC3986);
         }
         $og = ['title' => $title];
         if ($description !== '') {

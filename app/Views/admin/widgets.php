@@ -29,7 +29,7 @@ $typeHints = [
     'custom' => '添加一段自定义内容',
 ];
 ?>
-<div class="admin-stack">
+<div class="admin-stack admin-detail-page admin-widgets-page">
   <div class="admin-page-head">
     <div>
       <h1 class="admin-h1">组件管理</h1>
@@ -131,15 +131,20 @@ $typeHints = [
             }
         }
         $wTitle = trim((string) ($w['title'] ?? ''));
-        $showTitle = $wTitle !== '' ? $wTitle : $defaultTitles[$w['type']] ?? $w['type'];
+        $typeLabel = $typeLabels[$w['type']] ?? $w['type'];
+        $showTitle = $w['type'] === 'custom'
+            ? ($wTitle !== '' ? $wTitle : '自定义内容')
+            : $typeLabel;
         ?>
         <div class="admin-list-row" data-id="<?= (int) $w['id'] ?>"
              data-type="<?= e($w['type']) ?>" data-area="<?= e((string) ($w['area'] ?? 'sidebar')) ?>" data-title="<?= e($wTitle) ?>"
              data-content="<?= e((string) ($w['content'] ?? '')) ?>">
           <div class="admin-list-main">
             <span class="admin-list-name"><?= e($showTitle) ?></span>
-            <span class="badge badge-accent"><?= e($typeLabels[$w['type']] ?? $w['type']) ?></span>
-            <span class="badge"><?= e(($areas ?? ['sidebar' => '侧边栏'])[$w['area'] ?? 'sidebar'] ?? (string) ($w['area'] ?? 'sidebar')) ?></span>
+            <?php if ($w['type'] === 'custom'): ?>
+              <span class="badge badge-accent">自定义</span>
+            <?php endif; ?>
+            <span class="admin-widget-area"><?= e(($areas ?? ['sidebar' => '侧边栏'])[$w['area'] ?? 'sidebar'] ?? (string) ($w['area'] ?? 'sidebar')) ?></span>
             <?php if ((int) $w['visible'] === 0): ?>
               <span class="badge badge-danger">已隐藏</span>
             <?php endif; ?>
@@ -151,13 +156,13 @@ $typeHints = [
             <?php endif; ?>
           </div>
           <div class="admin-list-ops">
-            <button type="button" class="admin-icon-btn" data-move="up" title="上移" <?= $areaPosition === 0 ? 'disabled' : '' ?>><?= admin_icon('chevron-up', 15) ?></button>
-            <button type="button" class="admin-icon-btn" data-move="down" title="下移" <?= $areaPosition === count($areaRows) - 1 ? 'disabled' : '' ?>><?= admin_icon('chevron-down', 15) ?></button>
-            <button type="button" class="admin-icon-btn" data-toggle title="<?= (int) $w['visible'] === 1 ? '隐藏' : '显示' ?>">
+            <button type="button" class="admin-icon-btn" data-move="up" title="上移" aria-label="上移 <?= e($showTitle) ?>" <?= $areaPosition === 0 ? 'disabled' : '' ?>><?= admin_icon('chevron-up', 15) ?></button>
+            <button type="button" class="admin-icon-btn" data-move="down" title="下移" aria-label="下移 <?= e($showTitle) ?>" <?= $areaPosition === count($areaRows) - 1 ? 'disabled' : '' ?>><?= admin_icon('chevron-down', 15) ?></button>
+            <button type="button" class="admin-icon-btn" data-toggle title="<?= (int) $w['visible'] === 1 ? '隐藏' : '显示' ?>" aria-label="<?= (int) $w['visible'] === 1 ? '隐藏' : '显示' ?> <?= e($showTitle) ?>">
               <?= admin_icon((int) $w['visible'] === 1 ? 'eye' : 'eye-off', 15) ?>
             </button>
-            <button type="button" class="admin-icon-btn" data-edit title="编辑"><?= admin_icon('edit', 15) ?></button>
-            <button type="button" class="admin-icon-btn admin-icon-danger" data-delete title="删除"><?= admin_icon('trash', 15) ?></button>
+            <button type="button" class="admin-icon-btn" data-edit title="编辑" aria-label="编辑 <?= e($showTitle) ?>"><?= admin_icon('edit', 15) ?></button>
+            <button type="button" class="admin-icon-btn admin-icon-danger" data-delete title="删除" aria-label="删除 <?= e($showTitle) ?>"><?= admin_icon('trash', 15) ?></button>
           </div>
           <!-- 行内编辑表单 -->
           <div class="admin-list-edit" hidden>
@@ -249,6 +254,8 @@ $typeHints = [
     if (label) label.textContent = "内容" + (custom ? " *" : "");
   }
   function wireForm(form, isEdit) {
+    if (form.dataset.widgetWired === "true") return;
+    form.dataset.widgetWired = "true";
     var select = form.querySelector('[name="type"]');
     var title = form.querySelector('[name="title"]');
     var contentField = form.querySelector(".admin-field > textarea[name=content]").closest(".admin-field");

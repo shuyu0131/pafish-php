@@ -31,7 +31,7 @@ $avatar = !empty($me['avatar_url']) ? $me['avatar_url'] : admin_gravatar((string
         </div>
         <input class="input" type="text" id="avatarUrl" name="avatar_url" value="<?= e((string) ($me['avatar_url'] ?? '')) ?>"
                placeholder="或粘贴图片地址（/uploads/… 或 https://…）" maxlength="500">
-        <p class="admin-field-hint">支持上传图片或填写图片地址（留空则按邮箱显示默认头像）</p>
+        <p class="admin-field-hint">留空使用默认头像。</p>
       </div>
       <div class="admin-field">
         <span class="label">显示昵称</span>

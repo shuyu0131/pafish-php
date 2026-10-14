@@ -63,16 +63,39 @@ final class ExtensionRoutes
         return $routes;
     }
 
+    /** 统一运行时使用的路由规范化入口。 */
+    public static function normalizeRuntimeRoute(mixed $route, string $kind, string $name): ?array
+    {
+        return self::normalizeRoute($route, $kind, $name);
+    }
+
+    /** 合并清单路由和 extension.php 动态注册的路由。 */
+    public static function routesFor(array $manifest, string $kind, string $name): array
+    {
+        return array_merge(
+            self::fromManifest($manifest, $kind, $name),
+            ExtensionKernel::routesFor($kind, $name)
+        );
+    }
+
     /** 启用主题/插件前检查自然路径是否与核心或其他已启用扩展冲突。 */
     public static function assertCanActivate(string $kind, string $name, array $manifest): void
     {
         $candidate = array_values(array_filter(
-            self::fromManifest($manifest, $kind, $name),
+            self::routesFor($manifest, $kind, $name),
             static fn (array $route): bool => $route['public']
         ));
         foreach ($candidate as $route) {
             self::assertNotReserved($route['fullPath']);
             self::assertNotFlatPostConflict($route['fullPath']);
+        }
+        foreach ($candidate as $index => $route) {
+            foreach (array_slice($candidate, $index + 1) as $other) {
+                if ($route['method'] === $other['method']
+                    && self::pathsOverlap($route['fullPath'], $other['fullPath'])) {
+                    throw new \RuntimeException('扩展自身声明了冲突路由：' . $route['fullPath'] . ' 与 ' . $other['fullPath']);
+                }
+            }
         }
 
         foreach (self::activePublicRoutes($kind, $name) as $existing) {
@@ -103,7 +126,7 @@ final class ExtensionRoutes
                 if ($desc['manifest'] === null) {
                     continue;
                 }
-                foreach (self::fromManifest($desc['manifest'], 'plugin', $name) as $route) {
+                foreach (self::routesFor($desc['manifest'], 'plugin', $name) as $route) {
                     if (!$route['admin'] || $route['method'] !== $method) {
                         continue;
                     }
@@ -130,7 +153,7 @@ final class ExtensionRoutes
             if ($desc['manifest'] === null) {
                 continue;
             }
-            foreach (self::fromManifest($desc['manifest'], 'plugin', $name) as $route) {
+            foreach (self::routesFor($desc['manifest'], 'plugin', $name) as $route) {
                 if ($route['method'] === $method && ($params = self::matchPath($route['fullPath'], $path)) !== null) {
                     return ['kind' => 'plugin', 'name' => $name, 'route' => $route, 'params' => $params];
                 }
@@ -299,7 +322,7 @@ final class ExtensionRoutes
         if (!($skipKind === 'theme' && $skipName === $themeName)) {
             $desc = Theme::describe($themeName);
             if ($desc['manifest'] !== null) {
-                foreach (self::fromManifest($desc['manifest'], 'theme', $themeName) as $route) {
+                foreach (self::routesFor($desc['manifest'], 'theme', $themeName) as $route) {
                     if ($route['public']) {
                         $out[] = ['kind' => 'theme', 'name' => $themeName] + $route;
                     }
@@ -314,7 +337,7 @@ final class ExtensionRoutes
             if ($desc['manifest'] === null) {
                 continue;
             }
-            foreach (self::fromManifest($desc['manifest'], 'plugin', $pluginName) as $route) {
+            foreach (self::routesFor($desc['manifest'], 'plugin', $pluginName) as $route) {
                 if ($route['public']) {
                     $out[] = ['kind' => 'plugin', 'name' => $pluginName] + $route;
                 }

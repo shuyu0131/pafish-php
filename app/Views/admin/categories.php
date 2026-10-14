@@ -7,7 +7,7 @@
  */
 $canEdit = in_array($role ?? '', ['ADMIN', 'EDITOR'], true);
 ?>
-<div class="admin-stack">
+<div class="admin-stack admin-detail-page admin-categories-page">
   <div class="admin-page-head">
     <div>
       <h1 class="admin-h1">分类管理</h1>
@@ -27,7 +27,7 @@ $canEdit = in_array($role ?? '', ['ADMIN', 'EDITOR'], true);
               <th class="admin-col-ops">操作</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody data-admin-sort="<?= e(url_to('/admin/categories/reorder')) ?>" data-sort-csrf="<?= e(csrf_token()) ?>">
             <?php if ($tree === []): ?>
               <tr><td colspan="3">
                 <div class="admin-empty-list">
@@ -46,6 +46,7 @@ $canEdit = in_array($role ?? '', ['ADMIN', 'EDITOR'], true);
                     data-parent="<?= $c['parent_id'] ? (int) $c['parent_id'] : '' ?>">
                   <td>
                     <div class="admin-cat-name">
+                      <button type="button" class="admin-icon-btn admin-sort-handle" aria-label="拖动排序" title="拖动排序"><svg width="14" height="18" viewBox="0 0 14 18" aria-hidden="true" fill="currentColor"><circle cx="4" cy="4" r="1.2"/><circle cx="10" cy="4" r="1.2"/><circle cx="4" cy="9" r="1.2"/><circle cx="10" cy="9" r="1.2"/><circle cx="4" cy="14" r="1.2"/><circle cx="10" cy="14" r="1.2"/></svg></button>
                       <?php if ($depth > 0): ?>
                         <span class="admin-tree-indent" style="width:<?= $depth * 18 ?>px"></span>
                         <span class="admin-tree-branch">└</span>
@@ -227,3 +228,5 @@ window.PAFISH_CAT_DATA = <?= json_encode($catJs) ?>;
   });
 })();
 </script>
+
+<script src="<?= e(asset_url('/js/admin-sort.js')) ?>" defer></script>

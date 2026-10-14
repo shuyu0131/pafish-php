@@ -70,7 +70,9 @@ final class ErrorHandler extends SlimErrorHandler
             $uri .= '?' . $query;
         }
         $status = $this->exception instanceof HttpException ? $this->exception->getCode() : 500;
-        $prefix = '[' . date('Y-m-d H:i:s') . '] ' . $status . ' ' . $this->request->getMethod() . ' ' . $uri;
+        // 不自行拼时间戳：Logger::error() 会统一加 '[Y-m-d H:i:s]' 前缀，
+        // 这里再加一次会写出 '[时间] [时间] 404 GET /path' 的双重前缀。
+        $prefix = $status . ' ' . $this->request->getMethod() . ' ' . $uri;
         // 4xx（404/405 等扫描器探测）nginx 访问日志已有完整记录，只记一行；
         // 5xx 才保留完整堆栈便于排查。
         $text = $status < 500 ? $prefix : $prefix . PHP_EOL . $error;

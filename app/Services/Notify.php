@@ -6,8 +6,8 @@ namespace Pafish\Services;
 
 /**
  * 邮件通知服务。
- * - sendCommentEmail：站长邮件提醒（notify_email_enabled + notify_email 开启时生效；失败静默）
- * - sendReplyEmail：被回复者邮件通知（父评论者勾选 notifyReply；失败静默）
+ * - sendCommentEmail：站长邮件提醒（notify_email_enabled + notify_email 开启时生效；失败记日志但不阻塞）
+ * - sendReplyEmail：被回复者邮件通知（父评论者勾选 notifyReply；失败记日志但不阻塞）
  * - sendEmailCode / sendResetLinkEmail：验证码 / 重置链接（失败抛错给调用方）
  */
 final class Notify
@@ -34,7 +34,7 @@ final class Notify
         );
     }
 
-    /** 站长邮件提醒：站点设置开启 + SMTP 配置后生效；发信失败静默，不影响主流程 */
+    /** 站长邮件提醒：站点设置开启 + SMTP 配置后生效；发信失败不阻塞主流程，但会写入 error.log */
     public static function sendCommentEmail(array $ctx): void
     {
         $enabled = (string) Settings::get('notify_email_enabled', '') === 'true';
@@ -57,8 +57,13 @@ final class Notify
                     '审核评论：' . $adminUrl,
                 ])
             );
-        } catch (\Throwable) {
-            // 邮件发送失败不阻塞评论流程
+        } catch (\Throwable $e) {
+            // 不阻塞评论流程，但必须留痕：否则 SMTP 配置错误、端口被封、证书过期
+            // 会让通知信"悄悄坏几个月"，站长完全无从察觉。
+            \Pafish\Core\Logger::error(
+                '[pafish-notify] 新评论通知发送失败，收件人=' . self::maskEmail($to)
+                . ' 文章=' . (string) ($ctx['postTitle'] ?? '') . '：' . $e->getMessage()
+            );
         }
     }
 
@@ -80,9 +85,23 @@ final class Notify
                     '查看回复：' . $threadUrl,
                 ])
             );
-        } catch (\Throwable) {
-            // 邮件发送失败不阻塞评论流程
+        } catch (\Throwable $e) {
+            // 同上：被回复者收不到通知时必须留痕
+            \Pafish\Core\Logger::error(
+                '[pafish-notify] 回复通知发送失败，收件人=' . self::maskEmail((string) $input['toEmail'])
+                . '：' . $e->getMessage()
+            );
         }
+    }
+
+    /** 邮箱脱敏：保留首字符与域名，便于排查又不泄露完整地址 */
+    private static function maskEmail(string $email): string
+    {
+        $at = strrpos($email, '@');
+        if ($at === false || $at === 0) {
+            return $email === '' ? '(空)' : '***';
+        }
+        return mb_substr($email, 0, 1) . '***' . mb_substr($email, $at);
     }
 
     /** 重置链接邮件（forgot 流程）；失败抛错 */

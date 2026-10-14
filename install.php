@@ -576,6 +576,12 @@ function inst_layout(string $title, string $inner, string $extra = ''): string
   .done .btn { display:inline-flex; width:auto; margin-left:0; }
   .info { color:#4b5563; font-size:14px; line-height:1.85; }
   .info b { color:#111827; }
+  /* 安装完成后的「接下来做什么」清单：把"去后台配置"变成可执行的 4 步 */
+  .next-steps { margin:20px 0 4px; padding:16px 18px; border:1px solid #e5e7eb; border-radius:8px; background:#f9fafb; text-align:left; }
+  .next-title { margin:0 0 10px; color:#111827; font-size:14px; }
+  .next-list { margin:0; padding-left:20px; color:#4b5563; font-size:13px; line-height:1.9; }
+  .next-list b { color:#111827; }
+  .next-tip { margin:12px 0 0; color:#6b7280; font-size:12px; line-height:1.7; }
   .checkbox { display:flex; align-items:flex-start; gap:8px; margin-top:18px; color:#4b5563; font-size:13px; line-height:1.55; }
   .checkbox label { margin:0; font-weight:400; }
   .checkbox input { margin-top:4px; accent-color:#111827; }
@@ -751,7 +757,15 @@ if ($action === 'install') {
     管理员密码：安装时设置的密码
   </p>
   {$warnHtml}
-  <p class="warn"><strong>下一步</strong><br>请删除根目录的 <b>install.php</b>，再登录后台完成站点配置。</p>
+  <div class="next-steps">
+    <p class="next-title"><strong>接下来做什么</strong></p>
+    <ol class="next-list">
+      <li><b>删除根目录的 install.php</b>，避免他人重装覆盖数据。</li>
+      <li>进入后台，在「站点设置」填写<strong>站点名称和描述</strong>。</li>
+      <li>在「主题与外观」挑一套喜欢的主题。</li>
+      <li>在「文章」里写下第一篇内容。</li>
+    </ol>
+  </div>
   <a class="btn" href="{$links['admin']}">进入后台</a>
   <a class="btn" href="{$links['home']}" style="margin-left:8px;background:#fff;color:var(--ink)">访问首页</a>
 </div>

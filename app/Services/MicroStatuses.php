@@ -102,7 +102,7 @@ final class MicroStatuses
         $rows = DB::fetchAll(
             "SELECT m.*, COALESCE(NULLIF(u.nickname, ''), u.username) AS author_name
              FROM micro_statuses m LEFT JOIN users u ON u.id = m.author_id
-             WHERE {$condition} ORDER BY m.updated_at DESC, m.id DESC
+             WHERE {$condition} ORDER BY m.is_pinned DESC, m.updated_at DESC, m.id DESC
              LIMIT {$perPage} OFFSET {$offset}",
             $params
         );
@@ -125,6 +125,35 @@ final class MicroStatuses
             $row['media'] = self::decodeMedia($row['media_json'] ?? null);
         }
         return $row;
+    }
+
+    /** 将独立图片合入 Markdown，供编辑和默认前台展示使用；已有正文图片不重复插入。 */
+    public static function contentWithMedia(string $content, array $media): string
+    {
+        $media = self::normalizeMedia($media);
+        if ($media === []) {
+            return $content;
+        }
+
+        // 按实际 Markdown 图片识别，避免把普通链接、代码示例误当成已展示的图片。
+        $parser = new \ParsedownExtra();
+        $parser->setSafeMode(true);
+        preg_match_all('/<img\b[^>]*\bsrc="([^"]*)"/i', $parser->text($content), $matches);
+        $key = static fn (string $url): string => rawurldecode(html_entity_decode($url, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+        $seen = array_fill_keys(array_map($key, $matches[1]), true);
+        $images = [];
+        foreach ($media as $url) {
+            $imageKey = $key($url);
+            if (isset($seen[$imageKey])) {
+                continue;
+            }
+            $seen[$imageKey] = true;
+            // URL 作为 Markdown 目标写入，空白、括号等须编码，不能改变正文结构。
+            $destination = preg_replace_callback('/[\x00-\x20\x7f()<>"\x27\\\\]/', static fn (array $m): string => rawurlencode($m[0]), $url);
+            $images[] = '![](' . $destination . ')';
+        }
+
+        return $images === [] ? $content : rtrim($content) . "\n\n" . implode("\n\n", $images);
     }
 
     /** 保存新建/编辑微语；返回规范化后的记录。 */

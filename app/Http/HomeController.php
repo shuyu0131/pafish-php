@@ -34,11 +34,13 @@ final class HomeController
                     'pageId' => $pageId,
                     'page' => $page,
                 ]);
+                $description = (string) Settings::get('site_description', '');
                 $response->getBody()->write(render('page', [
                     'title' => $page['title'],
-                    'description' => '',
+                    'description' => $description,
                     'og' => [
                         'type' => 'website',
+                        'description' => $description,
                         'url' => \absolute_url('/'),
                     ],
                     'page' => $page,

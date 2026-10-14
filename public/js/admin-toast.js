@@ -69,6 +69,19 @@
     start();
   }
 
+  function build(message, type) {
+    var payload = normalizePayload(message, type);
+    var toast = document.createElement("div");
+    toast.className = "admin-toast admin-toast-" + payload.type;
+    toast.setAttribute("data-toast", "");
+    toast.setAttribute("role", payload.type === "error" ? "alert" : "status");
+    toast.setAttribute("aria-live", "polite");
+    toast.innerHTML = '<span class="admin-toast-icon">' + ICONS[payload.type] + '</span><span class="admin-toast-content"><strong class="admin-toast-title"></strong><span class="admin-toast-msg"></span></span><button type="button" class="admin-toast-close" aria-label="关闭提示" title="关闭">&times;</button>';
+    toast.querySelector(".admin-toast-title").textContent = payload.title;
+    toast.querySelector(".admin-toast-msg").textContent = payload.content;
+    return toast;
+  }
+
   function getStack() {
     var stack = document.querySelector("[data-toast-stack]");
     if (!stack) {
@@ -82,15 +95,7 @@
 
   window.pafishToast = function (message, type) {
     if (!document.body) return;
-    var payload = normalizePayload(message, type);
-    var toast = document.createElement("div");
-    toast.className = "admin-toast admin-toast-" + payload.type;
-    toast.setAttribute("data-toast", "");
-    toast.setAttribute("role", payload.type === "error" ? "alert" : "status");
-    toast.setAttribute("aria-live", "polite");
-    toast.innerHTML = '<span class="admin-toast-icon">' + ICONS[payload.type] + '</span><span class="admin-toast-content"><strong class="admin-toast-title"></strong><span class="admin-toast-msg"></span></span><button type="button" class="admin-toast-close" aria-label="关闭提示" title="关闭">&times;</button>';
-    toast.querySelector(".admin-toast-title").textContent = payload.title;
-    toast.querySelector(".admin-toast-msg").textContent = payload.content;
+    var toast = build(message, type);
     getStack().appendChild(toast);
     bind(toast);
   };

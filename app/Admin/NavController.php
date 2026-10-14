@@ -88,35 +88,21 @@ final class NavController extends AdminController
         return $this->json($response, ['ok' => true]);
     }
 
-    /** POST /admin/nav/{id}/move：与相邻项交换 sort_order（dir: up|down） */
+    /** POST /admin/nav/{id}/move：按实际顺序相邻移动（dir: up|down） */
     public function move(Request $request, Response $response, array $args): Response
     {
         $this->guardAdmin();
-        $id = (int) ($args['id'] ?? 0);
-        $dir = ($request->getParsedBody()['dir'] ?? '') === 'up' ? 'up' : 'down';
-        DB::transaction(function () use ($id, $dir): void {
-            $cur = DB::fetchOne('SELECT sort_order FROM nav_items WHERE id = ?', [$id]);
-            if ($cur === null) {
-                return;
-            }
-            if ($dir === 'up') {
-                $other = DB::fetchOne(
-                    'SELECT id, sort_order FROM nav_items WHERE sort_order < ? ORDER BY sort_order DESC, id DESC LIMIT 1',
-                    [$cur['sort_order']]
-                );
-            } else {
-                $other = DB::fetchOne(
-                    'SELECT id, sort_order FROM nav_items WHERE sort_order > ? ORDER BY sort_order ASC, id ASC LIMIT 1',
-                    [$cur['sort_order']]
-                );
-            }
-            if ($other === null) {
-                return;
-            }
-            DB::execute('UPDATE nav_items SET sort_order = ? WHERE id = ?', [$other['sort_order'], $id]);
-            DB::execute('UPDATE nav_items SET sort_order = ? WHERE id = ?', [$cur['sort_order'], $other['id']]);
-        });
-        Cache::clearPrefix('nav.');
+        try {
+            \Pafish\Services\AdminOrdering::move('nav', (int) ($args['id'] ?? 0),
+                ($request->getParsedBody()['dir'] ?? '') === 'up' ? 'up' : 'down');
+        } catch (\InvalidArgumentException $e) {
+            return $this->json($response, ['error' => $e->getMessage()], 400);
+        }
         return $this->json($response, ['ok' => true]);
+    }
+
+    public function reorder(Request $request, Response $response): Response
+    {
+        return $this->reorderList($request, $response, 'nav');
     }
 }

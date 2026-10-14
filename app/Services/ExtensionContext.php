@@ -26,6 +26,40 @@ final class ExtensionContext
         return Hooks::addFilter($hook, $fn, $priority, $this->kind . ':' . $this->name);
     }
 
+    /** 注册统一扩展路由；handler 可直接传闭包，也可传旧模块入口中的方法名。 */
+    public function route(
+        string $method,
+        string $path,
+        callable|string $handler,
+        array $options = []
+    ): string {
+        return ExtensionKernel::route($this->kind, $this->name, $method, $path, $handler, $options);
+    }
+
+    /** 注册扩展设置声明；普通扩展只声明实际需要的字段。 */
+    public function settings(array $fields): void
+    {
+        ExtensionKernel::settings($this->kind, $this->name, $fields);
+    }
+
+    /** 注册前台注入处理器；目标点的权限由 manifest injects 控制。 */
+    public function inject(string $target, callable $handler): void
+    {
+        ExtensionKernel::inject($this->kind, $this->name, $target, $handler);
+    }
+
+    /** 注册供核心服务调用的扩展能力。 */
+    public function provider(string $key, callable $handler): void
+    {
+        ExtensionKernel::provider($this->kind, $this->name, $key, $handler);
+    }
+
+    /** 注册生命周期回调。 */
+    public function lifecycle(string $phase, callable $handler): void
+    {
+        ExtensionKernel::lifecycle($this->kind, $this->name, $phase, $handler);
+    }
+
     public function getData(): array
     {
         return $this->kind === 'plugin' ? Plugin::data($this->name) : Theme::data($this->name);

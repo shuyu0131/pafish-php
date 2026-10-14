@@ -23,12 +23,12 @@ $template = $isEdit ? (string) $page['template'] : 'default';
           <a class="btn btn-ghost" href="<?= e(url_to('/admin/pages')) ?>"><?= admin_icon('arrow-left', 15) ?>返回</a>
           <span class="admin-editor-topline-title"><?= $isEdit ? '编辑页面' : '新建页面' ?></span>
         </div>
-        <input class="admin-editor-title" type="text" id="fTitle" name="title"
+        <input class="admin-editor-title" type="text" id="fTitle" name="title" aria-label="标题"
                value="<?= e($title) ?>" placeholder="页面标题" maxlength="100">
 
-        <!-- Markdown 编辑器（Vditor：所见即所得/分栏/源码三种模式，完整博客写作工具栏，拖拽粘贴上传） -->
+        <!-- 轻量 Markdown 源码编辑器 -->
         <div class="admin-md-editor">
-          <div id="vditorMount"></div>
+          <div id="markdownMount"></div>
           <textarea id="fContent" name="content" hidden
                     maxlength="16000000"><?= e($content) ?></textarea>
         </div>
@@ -38,30 +38,33 @@ $template = $isEdit ? (string) $page['template'] : 'default';
       <div class="admin-editor-side">
         <div class="card admin-form-card admin-publish-card">
           <div class="admin-publish-btns">
+            <button type="submit" class="btn btn-primary admin-publish-primary" data-save="publish">发布</button>
             <button type="submit" class="btn btn-outline" data-save="draft">存为草稿</button>
-            <button type="submit" class="btn btn-primary" data-save="publish">发布</button>
           </div>
           <div class="admin-editor-error" hidden></div>
         </div>
 
         <div class="card admin-form-card admin-settings-card">
+          <div class="admin-editor-card-heading">
+            <strong>页面设置</strong>
+          </div>
           <div class="admin-field">
-            <span class="label">状态</span>
+            <label class="label" for="fStatus">状态</label>
             <select id="fStatus" name="status" class="input">
               <option value="DRAFT" <?= $status === 'DRAFT' ? 'selected' : '' ?>>草稿</option>
               <option value="PUBLISHED" <?= $status === 'PUBLISHED' ? 'selected' : '' ?>>发布</option>
             </select>
           </div>
           <div class="admin-field">
-            <span class="label">页面地址</span>
+            <label class="label" for="fSlug">页面地址</label>
             <input class="input" id="fSlug" name="slug" value="<?= e($slug) ?>"
                    placeholder="自动根据标题生成" maxlength="100">
             <span class="admin-field-hint">访问路径 /pages/地址；留空自动生成</span>
           </div>
           <?php if (count($templateOptions) > 1): ?>
             <div class="admin-field">
-              <span class="label">模板</span>
-              <select name="template" class="input">
+              <label class="label" for="pageTemplate">模板</label>
+              <select id="pageTemplate" name="template" class="input">
                 <?php foreach ($templateOptions as $key => $label): ?>
                   <option value="<?= e($key) ?>" <?= $template === $key ? 'selected' : '' ?>><?= e($label) ?></option>
                 <?php endforeach; ?>
@@ -80,31 +83,7 @@ $template = $isEdit ? (string) $page['template'] : 'default';
   </form>
 </div>
 
-<!-- 媒体选择弹窗 -->
-<div class="admin-modal-backdrop" id="mediaModal" hidden>
-  <div class="admin-modal" role="dialog" aria-modal="true" aria-label="插入媒体">
-    <div class="admin-modal-head">
-      <div class="admin-modal-tabs">
-        <button type="button" class="admin-modal-tab active" data-mtab="upload">本地上传</button>
-        <button type="button" class="admin-modal-tab" data-mtab="library">媒体库</button>
-      </div>
-      <button type="button" class="admin-icon-btn" data-close-modal aria-label="关闭" title="关闭"><?= admin_icon('x', 16) ?></button>
-    </div>
-    <div class="admin-modal-body">
-      <div data-mpanel="upload">
-        <input type="file" class="input" id="mediaFile"
-               accept="image/*,.svg,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip,.rar,.7z,.tar,.gz,.mp3,.wav,.ogg,.m4a,.flac,.mp4,.webm,.mov,.mkv">
-        <p class="admin-field-hint admin-modal-hint" data-mupload-hint>图片插入为 Markdown 图片，其他文件插入为下载链接</p>
-        <div class="admin-modal-error" data-mupload-error hidden></div>
-      </div>
-      <div data-mpanel="library" hidden>
-        <input class="input admin-lib-search" type="search" placeholder="搜索媒体…" data-lib-q>
-        <div class="admin-lib-grid" data-lib-grid></div>
-        <div class="admin-pager admin-lib-pager" data-lib-pager hidden></div>
-      </div>
-    </div>
-  </div>
-</div>
+<?php require __DIR__ . '/partials/editor-media-modal.php'; ?>
 
 <script>
 window.PAFISH_PAGE_EDITOR = {
@@ -119,5 +98,5 @@ window.PAFISH_PAGE_EDITOR = {
   csrf: <?= json_encode(csrf_token()) ?>
 };
 </script>
-<script src="<?= e(asset_url('/vendor/vditor/dist/index.min.js')) ?>"></script>
+<script src="<?= e(asset_url('/js/admin-markdown-editor.js')) ?>"></script>
 <script src="<?= e(asset_url('/js/admin-page-editor.js')) ?>"></script>

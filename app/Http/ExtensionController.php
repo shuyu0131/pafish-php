@@ -9,6 +9,7 @@ use Pafish\Core\Session;
 use Pafish\Core\Url;
 use Pafish\Services\ExtensionRequest;
 use Pafish\Services\ExtensionRoutes;
+use Pafish\Services\ExtensionKernel;
 use Pafish\Services\Plugin;
 use Pafish\Services\Theme;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -17,7 +18,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 /** 主题与插件的声明式前台路由分发器。 */
 final class ExtensionController
 {
-    /** /plugin/{name}/... 的私有插件入口，兼容旧 pages。 */
+    /** /plugin/{name}/... 的私有插件入口。 */
     public function plugin(Request $request, Response $response, array $args): Response
     {
         $name = (string) ($args['name'] ?? '');
@@ -31,21 +32,6 @@ final class ExtensionController
             return $result;
         }
 
-        // v1/v2 的 pages 入口只支持 GET，保持已发布插件兼容。
-        if (strtoupper($request->getMethod()) === 'GET' && preg_match('/^[a-z0-9_-]{1,50}$/', $name) === 1) {
-            $pagePath = $tail === '' ? 'index' : $tail;
-            if (preg_match('/^[a-z0-9_-]{1,50}$/', $pagePath) === 1) {
-                $legacy = Plugin::renderPluginPage($name, $pagePath);
-                if ($legacy !== null) {
-                    $response->getBody()->write(\render('plugin-page', [
-                        'title' => $legacy['title'],
-                        'pluginName' => $name,
-                        'pluginPageHtml' => $legacy['html'],
-                    ]));
-                    return $response;
-                }
-            }
-        }
         return Listings::notFound($response, '页面不存在');
     }
 
@@ -125,8 +111,8 @@ final class ExtensionController
             }
         }
 
-        $module = $matched['kind'] === 'plugin' ? Plugin::module($matched['name']) : Theme::module($matched['name']);
-        $handler = $module[$route['handler']] ?? null;
+        $handler = ExtensionKernel::handler($matched['kind'], (string) $matched['name'], (string) $route['handler'])
+            ?? ExtensionKernel::providerFor($matched['kind'], (string) $matched['name'], (string) $route['handler']);
         if (!is_callable($handler)) {
             \Pafish\Core\Logger::error('[pafish-extension] ' . $matched['kind'] . ':' . $matched['name'] . ' 缺少路由处理器 ' . $route['handler']);
             return $this->error($response, $route, '扩展功能暂时不可用', 503);

@@ -7,6 +7,7 @@ namespace Pafish\Http;
 use Pafish\Core\Auth;
 use Pafish\Core\DB;
 use Pafish\Core\Session;
+use Pafish\Core\Url;
 
 /**
  * 评论区数据：
@@ -114,12 +115,7 @@ final class Comments
         if ($avatarUrl !== '') {
             return $avatarUrl;
         }
-        $svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80">'
-            . '<circle cx="40" cy="40" r="38" fill="#f3f6f9" stroke="#d8e0e8" stroke-width="2"/>'
-            . '<circle cx="40" cy="30" r="13" fill="#94a3b8"/>'
-            . '<path d="M17 70c2-14 10-22 23-22s21 8 23 22" fill="#64748b"/>'
-            . '</svg>';
-        return 'data:image/svg+xml;charset=UTF-8,' . rawurlencode($svg);
+        return Url::asset('/images/default-avatar.svg');
     }
 
     private static function columns(): string

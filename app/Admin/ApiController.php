@@ -28,7 +28,7 @@ final class ApiController extends AdminController
     private const IMPORT_MAX_SIZE = 1048576; // 1MB
     private const UPLOAD_CHUNK_BYTES = 1024 * 1024;
 
-    /** POST /api/upload：multipart 上传（兼容 Vditor 编辑器 file[] 多文件与旧单文件两种调用） */
+    /** POST /api/upload：multipart 上传（兼容历史 file[] 多文件与当前单文件调用） */
     public function upload(Request $request, Response $response): Response
     {
         $guard = $this->guardJson($request, $response);
@@ -36,7 +36,7 @@ final class ApiController extends AdminController
             return $guard;
         }
         $body = $request->getParsedBody() ?? [];
-        // Vditor 上传走 XHR，CSRF 放 X-CSRF-Token 头；其余调用放 _csrf 表单字段
+        // XHR 上传可将 CSRF 放在 X-CSRF-Token 头；其余调用放 _csrf 表单字段
         $csrf = (string) ($body['_csrf'] ?? '');
         if ($csrf === '') {
             $csrf = $request->getHeaderLine('X-CSRF-Token');
@@ -81,7 +81,7 @@ final class ApiController extends AdminController
             return $this->json($response, ['error' => $msg], 400);
         }
 
-        // Vditor 期望 {code:0,message:'',data:{succMap:{文件名:url}}}；旧调用（媒体库/封面）用 ok/url 单文件字段，两者共存
+        // 保留历史响应字段，兼容旧客户端；当前编辑器使用 ok/url 单文件字段
         return $this->json($response, [
             'ok' => true,
             'code' => 0,

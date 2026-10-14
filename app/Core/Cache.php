@@ -48,8 +48,32 @@ final class Cache
             'value' => $value,
         ], true) . ';';
         if (@file_put_contents($tmp, $data, LOCK_EX) !== false) {
-            @rename($tmp, $file);
+            if (!@rename($tmp, $file)) {
+                @unlink($tmp);
+                self::warnOnce('缓存文件落盘失败（rename）：' . $file);
+            }
+            return;
         }
+        @unlink($tmp);
+        self::warnOnce('缓存写入失败（磁盘满或目录不可写）：' . dirname($file));
+    }
+
+    /**
+     * 缓存故障每个请求只记一次。
+     *
+     * 缓存失败会让每次请求都回源查库、站点变慢，但此前是完全静默的
+     * （`@file_put_contents` + 无日志）。若每个请求每条缓存都记，磁盘满时
+     * 反而会把 error.log 冲爆，所以这里按请求去重。
+     */
+    private static function warnOnce(string $message): void
+    {
+        static $reported = [];
+        $kind = str_contains($message, 'rename') ? 'rename' : 'write';
+        if (isset($reported[$kind])) {
+            return;
+        }
+        $reported[$kind] = true;
+        \Pafish\Core\Logger::error('[pafish-cache] ' . $message);
     }
 
     public static function delete(string $key): void

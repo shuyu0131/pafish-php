@@ -47,14 +47,35 @@ $editorData = [
     <div class="admin-editor-grid">
       <!-- 左列 -->
       <div class="admin-editor-main">
-        <input class="admin-editor-title" type="text" id="fTitle" name="title"
+        <div class="admin-editor-topline">
+          <a class="btn btn-ghost" href="<?= e(url_to('/admin/posts')) ?>"><?= admin_icon('arrow-left', 15) ?>返回</a>
+          <span class="admin-editor-topline-title"><?= $isEdit ? '编辑文章' : '新建文章' ?></span>
+        </div>
+        <input class="admin-editor-title" type="text" id="fTitle" name="title" aria-label="标题"
                value="<?= e($post['title']) ?>" placeholder="文章标题" maxlength="255">
 
-        <!-- Markdown 编辑器（Vditor：所见即所得/分栏/源码三模式，完整博客写作工具栏，拖拽粘贴上传） -->
+        <!-- 轻量 Markdown 源码编辑器 -->
         <div class="admin-md-editor">
-          <div id="vditorMount"></div>
+          <div id="markdownMount"></div>
           <textarea id="fContent" name="content" hidden
                     maxlength="16000000"><?= e($post['content']) ?></textarea>
+        </div>
+        <div class="card admin-form-card admin-editor-extra">
+          <div class="admin-field admin-editor-excerpt-field">
+            <label class="label" for="fExcerpt">摘要</label>
+            <textarea class="input admin-excerpt" id="fExcerpt" name="excerpt"
+                      placeholder="展示在列表页（留空自动截取）" maxlength="500"><?= e($post['excerpt']) ?></textarea>
+          </div>
+
+          <section class="admin-field admin-custom-fields-field" aria-labelledby="customFieldsTitle">
+            <div class="admin-editor-extra-head">
+              <span class="label" id="customFieldsTitle">自定义字段</span>
+              <button type="button" class="btn btn-ghost admin-add-field" id="btnAddField">+ 添加字段</button>
+            </div>
+            <p class="admin-field-hint">供前台模板详情页按字段名调用，具体展示由模板决定。</p>
+            <div class="admin-custom-fields" id="customFields"></div>
+            <datalist id="postCustomFieldKeys"></datalist>
+          </section>
         </div>
       </div>
 
@@ -76,8 +97,11 @@ $editorData = [
 
         <!-- 设置 -->
         <div class="card admin-form-card admin-settings-card">
+          <div class="admin-editor-card-heading">
+            <strong>文章设置</strong>
+          </div>
           <div class="admin-field">
-            <span class="label">分类</span>
+            <label class="label" for="catTrigger">分类</label>
             <div class="admin-cat-select" id="catSelect"></div>
             <div class="admin-field-hint" data-new-cat-wrap hidden>
               <input class="input" id="fNewCategory" name="new_category" placeholder="输入新分类名称（保存文章时创建）" maxlength="100">
@@ -85,14 +109,14 @@ $editorData = [
           </div>
 
           <div class="admin-field">
-            <span class="label">标签</span>
+            <label class="label" for="fTagInput">标签</label>
             <div class="admin-tags-selected" id="tagsSelected"></div>
             <input class="input" id="fTagInput" placeholder="输入标签名，回车/逗号添加" maxlength="100">
             <div class="admin-tags-all" id="tagsAll"></div>
           </div>
 
           <div class="admin-field admin-editor-cover-field">
-            <span class="label">封面图</span>
+            <label class="label" for="fCoverUrl">封面图</label>
             <div class="admin-cover-row">
               <input class="input" id="fCoverUrl" name="cover_url" value="<?= e($post['cover_url'] ?? '') ?>" placeholder="图片 URL" maxlength="500">
               <button type="button" class="btn btn-outline" id="btnCoverUpload"><?= admin_icon('upload', 14) ?>上传</button>
@@ -104,12 +128,6 @@ $editorData = [
             </div>
           </div>
 
-          <div class="admin-field admin-editor-excerpt-field">
-            <span class="label">摘要</span>
-            <textarea class="input admin-excerpt" id="fExcerpt" name="excerpt"
-                      placeholder="展示在列表页（留空自动截取）" maxlength="500"><?= e($post['excerpt']) ?></textarea>
-          </div>
-
           <!-- 高级选项 -->
           <details class="admin-advanced">
             <summary>
@@ -118,11 +136,11 @@ $editorData = [
             </summary>
             <div class="admin-advanced-body">
               <div class="admin-field">
-                <span class="label">别名（Slug）</span>
+                <label class="label" for="fSlug">别名（Slug）</label>
                 <input class="input" id="fSlug" name="slug" value="<?= e($post['slug']) ?>" placeholder="自动根据标题生成" maxlength="255">
               </div>
               <div class="admin-field">
-                <span class="label">定时发布时间</span>
+                <label class="label" for="fScheduledAt">定时发布时间</label>
                 <input class="input" type="datetime-local" id="fScheduledAt" name="scheduled_at" value="<?= e($editorData['scheduledAt']) ?>">
                 <?php if ($isScheduled): ?>
                   <div class="admin-field-hint">当前为定时发布状态，保存时将更新时间</div>
@@ -133,7 +151,7 @@ $editorData = [
                 <span>置顶文章（列表页优先展示）</span>
               </label>
               <div class="admin-field">
-                <span class="label">访问密码（可选）</span>
+                <label class="label" for="fPassword">访问密码（可选）</label>
                 <input class="input" type="password" id="fPassword" name="password" autocomplete="new-password"
                        placeholder="<?= $hasPassword ? '已设置密码，留空保持不变' : '设置后访客需输入密码才能阅读' ?>" maxlength="100">
                 <?php if ($hasPassword): ?>
@@ -144,18 +162,13 @@ $editorData = [
                 <?php endif; ?>
               </div>
               <div class="admin-field">
-                <span class="label">外链跳转地址（可选）</span>
+                <label class="label" for="fExternalUrl">外链跳转地址（可选）</label>
                 <input class="input" id="fExternalUrl" name="external_url" value="<?= e($post['external_url'] ?? '') ?>" placeholder="https://… 填写后列表标题/封面点击直接跳转外链" maxlength="500">
               </div>
               <label class="admin-check">
                 <input type="checkbox" id="fCatPinned" name="category_pinned" value="1" <?= $post['category_pinned'] ? 'checked' : '' ?>>
                 <span>分类内置顶（在所属分类页置顶展示）</span>
               </label>
-              <div class="admin-field">
-                <span class="label">其他自定义字段</span>
-                <div class="admin-custom-fields" id="customFields"></div>
-                <button type="button" class="btn btn-outline admin-add-field" id="btnAddField">+ 添加字段</button>
-              </div>
               <?= \Pafish\Services\Plugin::renderInjection('post_editor', [
                   'post' => $post,
                   'isEdit' => $isEdit,
@@ -170,45 +183,16 @@ $editorData = [
           </details>
         </div>
 
-        <a class="btn btn-ghost admin-back-link" href="<?= e(url_to('/admin/posts')) ?>">
-          <?= admin_icon('arrow-left', 15) ?>返回文章列表
-        </a>
       </div>
     </div>
   </form>
 </div>
 
-<!-- 媒体选择弹窗 -->
-<div class="admin-modal-backdrop" id="mediaModal" hidden>
-  <div class="admin-modal" role="dialog" aria-modal="true" aria-label="插入媒体">
-    <div class="admin-modal-head">
-      <div class="admin-modal-tabs">
-        <button type="button" class="admin-modal-tab active" data-mtab="upload"><?= admin_icon('upload', 14) ?>本地上传</button>
-        <button type="button" class="admin-modal-tab" data-mtab="library"><?= admin_icon('image', 14) ?>媒体库</button>
-      </div>
-      <button type="button" class="admin-icon-btn" data-close-modal aria-label="关闭" title="关闭"><?= admin_icon('x', 16) ?></button>
-    </div>
-    <div class="admin-modal-body">
-      <div class="admin-media-upload-panel" data-mpanel="upload">
-        <div class="admin-media-upload-icon" aria-hidden="true"><?= admin_icon('upload', 24) ?></div>
-        <strong>上传媒体文件</strong>
-        <input type="file" class="input" id="mediaFile"
-               accept="image/*,.svg,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip,.rar,.7z,.tar,.gz,.mp3,.wav,.ogg,.m4a,.flac,.mp4,.webm,.mov,.mkv">
-        <p class="admin-field-hint admin-modal-hint" data-mupload-hint>图片插入为 Markdown 图片，其他文件插入为下载链接</p>
-        <div class="admin-modal-error" data-mupload-error hidden></div>
-      </div>
-      <div data-mpanel="library" hidden>
-        <input class="input admin-lib-search" type="search" placeholder="搜索媒体…" data-lib-q>
-        <div class="admin-lib-grid" data-lib-grid></div>
-        <div class="admin-pager admin-lib-pager" data-lib-pager hidden></div>
-      </div>
-    </div>
-  </div>
-</div>
+<?php require __DIR__ . '/partials/editor-media-modal.php'; ?>
 
 <script>
 window.PAFISH_EDITOR_DATA = <?= json_encode($editorData, JSON_UNESCAPED_UNICODE) ?>;
 window.PAFISH_EDITOR_CSRF = <?= json_encode(\Pafish\Core\Session::csrfToken()) ?>;
 </script>
-<script src="<?= e(asset_url('/vendor/vditor/dist/index.min.js')) ?>"></script>
+<script src="<?= e(asset_url('/js/admin-markdown-editor.js')) ?>"></script>
 <script src="<?= e(asset_url('/js/admin-editor.js')) ?>"></script>

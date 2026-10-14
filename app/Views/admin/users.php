@@ -22,16 +22,16 @@ $roleLabel = static function (string $role): string {
     };
 };
 ?>
-<div class="admin-stack">
+<div class="admin-stack admin-list-page admin-users-list">
   <div class="admin-page-head">
     <div>
       <h1 class="admin-h1">用户管理</h1>
       <p class="admin-page-sub">共 <?= $total ?> 个用户</p>
     </div>
-    <div class="admin-head-actions"><button type="button" class="btn btn-primary" id="adminUserCreateOpen"><?= admin_icon('plus', 15) ?>新建用户</button></div>
+    <div class="admin-head-actions"><button type="button" class="btn btn-primary" id="adminUserCreateOpen"><?= admin_icon('plus', 15) ?><span>新建用户</span></button></div>
   </div>
 
-  <form class="admin-user-toolbar" action="<?= e(url_to('/admin/users')) ?>" method="get" role="search">
+  <form class="admin-list-toolbar admin-list-filter-form admin-user-filter-form" action="<?= e(url_to('/admin/users')) ?>" method="get" role="search">
     <input type="search" class="input" name="q" value="<?= e((string) ($filters['q'] ?? '')) ?>" placeholder="搜索昵称、用户名或邮箱" autocomplete="off">
     <select class="input" name="role" aria-label="筛选角色" onchange="this.form.submit()">
       <option value="">全部角色</option>
@@ -53,7 +53,7 @@ $roleLabel = static function (string $role): string {
       <option value="role"<?= ($filters['sort'] ?? '') === 'role' ? ' selected' : '' ?>>角色</option>
       <option value="state"<?= ($filters['sort'] ?? '') === 'state' ? ' selected' : '' ?>>状态</option>
     </select>
-    <button class="btn btn-primary" type="submit">筛选</button>
+    <button class="btn btn-outline" type="submit" aria-label="搜索用户"><?= admin_icon('search', 15) ?></button>
     <?php if (($filters['q'] ?? '') !== '' || ($filters['role'] ?? '') !== '' || ($filters['state'] ?? '') !== '' || ($filters['sort'] ?? 'latest') !== 'latest'): ?><a class="btn btn-ghost" href="<?= e(url_to('/admin/users')) ?>">清除</a><?php endif; ?>
   </form>
 
@@ -69,12 +69,9 @@ $roleLabel = static function (string $role): string {
           <tr>
             <th class="admin-user-check-col"><input type="checkbox" id="adminUsersCheckAll" aria-label="全选用户"></th>
             <th>用户</th>
-            <th>角色</th>
-            <th>注册时间</th>
-            <th>登录 IP</th>
-            <th>最近活动</th>
-            <th>内容</th>
-            <?php if ($pointsEnabled): ?><th>积分</th><?php endif; ?>
+            <th class="admin-user-role-col">角色</th>
+            <th class="admin-user-content-col">文章</th>
+            <th class="admin-list-date">最近活动</th>
             <th class="admin-col-ops">操作</th>
           </tr>
         </thead>
@@ -87,48 +84,34 @@ $roleLabel = static function (string $role): string {
             $disabled = ((int) $u['disabled']) === 1;
             $isFounder = $uid === 1 && (string) $u['role'] === 'ADMIN';
             ?>
-            <tr class="admin-user-row"
-                data-id="<?= $uid ?>"
-                data-username="<?= e((string) $u['username']) ?>"
-                data-nickname="<?= e((string) ($u['nickname'] ?? '')) ?>"
-                data-email="<?= e((string) $u['email']) ?>"
-                data-avatar-url="<?= e((string) ($u['avatar_url'] ?? '')) ?>">
+            <tr class="admin-user-row" data-id="<?= $uid ?>">
               <td class="admin-user-check-col"><input type="checkbox" class="admin-user-check" value="<?= $uid ?>" aria-label="选择<?= e((string) ($u['nickname'] ?: $u['username'])) ?>"<?= ($isMe || $isFounder) ? ' disabled' : '' ?>></td>
               <td data-label="用户">
-                <div class="admin-user-main">
+                <div class="admin-user-identity">
+                  <img class="admin-user-avatar-lg" src="<?= e($avatar) ?>" alt="" width="32" height="32">
+                  <div class="admin-user-main">
                   <div class="admin-user-name-row">
-                    <img class="admin-user-avatar-lg" src="<?= e($avatar) ?>" alt="" width="32" height="32">
-                    <a class="admin-user-name" href="<?= e(url_to('/admin/users/' . $uid . '/edit')) ?>"><?= e((string) ($u['nickname'] ?: $u['username'])) ?></a>
+                    <a class="admin-user-name" title="<?= e((string) ($u['nickname'] ?: $u['username'])) ?>" href="<?= e(url_to('/admin/users/' . $uid . '/edit')) ?>"><?= e((string) ($u['nickname'] ?: $u['username'])) ?></a>
+                    <?php if ($isMe): ?><span class="admin-muted admin-current-account">当前账号</span><?php endif; ?>
                     <?php if ($disabled): ?><span class="badge badge-danger">已禁用</span><?php endif; ?>
                   </div>
                   <div class="admin-muted admin-user-subline"><?= e($u['email']) ?></div>
+                  </div>
                 </div>
               </td>
-              <td data-label="角色">
-                <select class="input admin-role-select" aria-label="角色"<?= $isFounder ? ' disabled' : '' ?>>
-                  <?php foreach (['ADMIN' => '管理员', 'EDITOR' => '编辑', 'USER' => '用户'] as $val => $label): ?>
-                    <option value="<?= $val ?>" <?= (string) $u['role'] === $val ? 'selected' : '' ?>><?= $label ?></option>
-                  <?php endforeach; ?>
-                </select>
-              </td>
-              <td data-label="注册时间" class="admin-user-date"><?= e(date('Y-m-d', strtotime((string) $u['created_at']))) ?></td>
-              <td data-label="登录 IP" class="admin-user-ip"><?= e((string) ($u['last_login_ip'] ?? '暂无记录')) ?></td>
-              <td data-label="最近活动" class="admin-user-date"><?= !empty($u['last_active_at']) ? e(date('Y-m-d H:i', strtotime((string) $u['last_active_at']))) : '暂无记录' ?></td>
-              <td data-label="内容" class="admin-user-counts"><a href="<?= e(url_to('/admin/posts?author=' . $uid)) ?>"><?= (int) $u['post_count'] ?> 篇文章</a><span><?= (int) $u['comment_count'] ?> 条评论</span></td>
-              <?php if ($pointsEnabled): ?><td data-label="积分" class="admin-user-points-value"><?= (int) ($u['points_balance'] ?? 0) ?></td><?php endif; ?>
+              <td class="admin-user-role-col" data-label="角色"><?= e($roleLabel((string) $u['role'])) ?></td>
+              <td class="admin-user-content-col" data-label="文章"><a href="<?= e(url_to('/admin/posts?author=' . $uid)) ?>"><?= (int) $u['post_count'] ?></a></td>
+              <td class="admin-list-date" data-label="最近活动"><span title="<?= e((string) ($u['last_active_at'] ?? '暂无记录')) ?>"><?= !empty($u['last_active_at']) ? e(date('Y-m-d', strtotime((string) $u['last_active_at']))) : '暂无记录' ?></span></td>
               <td data-label="操作" class="admin-col-ops">
                 <div class="admin-user-ops">
-                  <?php if ($isMe): ?><span class="admin-muted admin-current-account">当前账号</span><?php endif; ?>
-                  <?php if (!$isFounder || $isMe): ?>
-                    <a class="btn btn-sm btn-ghost" href="<?= e(url_to('/admin/users/' . $uid . '/edit')) ?>">编辑</a>
-                    <button type="button" class="btn btn-sm btn-ghost admin-user-more" data-user-action="more">快速管理</button>
-                  <?php else: ?><span class="admin-muted">创始人账号受保护</span><?php endif; ?>
+                  <a class="admin-icon-btn" href="<?= e(url_to('/admin/users/' . $uid . '/edit')) ?>" title="编辑用户" aria-label="编辑用户"><?= admin_icon('edit', 15) ?></a>
                   <?php if (!$isMe && !$isFounder): ?>
                     <?php if ($disabled): ?>
                       <button type="button" class="btn btn-sm btn-ghost admin-user-unban">解禁</button>
                     <?php else: ?>
                       <button type="button" class="btn btn-sm btn-ghost admin-user-ban">禁用</button>
                     <?php endif; ?>
+                    <button type="button" class="admin-icon-btn admin-icon-danger admin-user-delete" title="删除用户" aria-label="删除用户"><?= admin_icon('trash', 15) ?></button>
                   <?php endif; ?>
                 </div>
               </td>
@@ -138,6 +121,7 @@ $roleLabel = static function (string $role): string {
       </table>
     </div>
     <div class="admin-batch-bar admin-user-batch-bar" id="adminUserBatchBar">
+      <span class="admin-batch-count">已选 <span class="admin-user-batch-count-number">0</span> 个用户</span>
       <select class="input admin-user-bulk-select" id="adminUserBulkAction" aria-label="批量操作" disabled>
         <option value="">批量操作</option>
         <option value="disable">批量禁用</option>
@@ -165,48 +149,6 @@ $roleLabel = static function (string $role): string {
       <p class="admin-modal-error" id="createUserError" hidden></p>
     </div>
     <div class="admin-modal-actions"><button type="button" class="btn btn-ghost" data-create-close>取消</button><button type="button" class="btn btn-primary" id="adminUserCreateSave">创建用户</button></div>
-  </div>
-</div>
-
-<div class="admin-modal-backdrop" id="adminUserActionModal" hidden>
-  <div class="admin-modal admin-user-action-modal" role="dialog" aria-modal="true" aria-labelledby="adminUserActionTitle">
-    <div class="admin-modal-head">
-      <h2 class="admin-modal-title" id="adminUserActionTitle">用户操作</h2>
-      <button type="button" class="admin-icon-btn" data-modal-close aria-label="关闭">×</button>
-    </div>
-    <div class="admin-modal-body">
-      <p class="admin-modal-hint" id="adminUserActionHint"></p>
-      <div class="admin-user-action-tabs" role="tablist">
-        <button type="button" class="admin-user-action-tab active" data-user-mode="profile">资料</button>
-        <button type="button" class="admin-user-action-tab" data-user-mode="password">重置密码</button>
-        <?php if ($pointsEnabled): ?><button type="button" class="admin-user-action-tab" data-user-mode="points">调整积分</button><?php endif; ?>
-      </div>
-      <div data-user-panel="profile">
-        <label class="label" for="adminUserUsername">用户名</label>
-        <input type="text" class="input" id="adminUserUsername" maxlength="50" autocomplete="off">
-        <label class="label" for="adminUserNickname">显示昵称</label>
-        <input type="text" class="input" id="adminUserNickname" maxlength="50">
-        <label class="label" for="adminUserEmail">邮箱</label>
-        <input type="email" class="input" id="adminUserEmail" maxlength="255" autocomplete="email">
-        <label class="label" for="adminUserAvatar">头像地址</label>
-        <input type="url" class="input" id="adminUserAvatar" maxlength="500" placeholder="留空使用邮箱头像">
-      </div>
-      <div data-user-panel="password">
-        <label class="label" for="adminUserNewPassword">新密码</label>
-        <input type="password" class="input" id="adminUserNewPassword" autocomplete="new-password" maxlength="72" placeholder="6-72 位">
-      </div>
-      <?php if ($pointsEnabled): ?><div data-user-panel="points" hidden>
-        <label class="label" for="adminUserPointsAmount">调整数量</label>
-        <input type="number" class="input" id="adminUserPointsAmount" placeholder="正数发放，负数扣减">
-        <label class="label" for="adminUserPointsReason">原因</label>
-        <input class="input" id="adminUserPointsReason" maxlength="120" placeholder="管理员调整">
-      </div><?php endif; ?>
-      <p class="admin-modal-error" id="adminUserActionError" hidden></p>
-    </div>
-    <div class="admin-modal-actions">
-      <button type="button" class="btn btn-ghost" data-modal-close>取消</button>
-      <button type="button" class="btn btn-primary" id="adminUserActionSave">保存</button>
-    </div>
   </div>
 </div>
 
@@ -240,28 +182,6 @@ $roleLabel = static function (string $role): string {
       .catch(function () { pafishNotify("操作失败", true); });
   }
 
-  // 角色下拉：变更即确认后提交，成功刷新列表
-  document.querySelectorAll(".admin-role-select").forEach(function (sel) {
-    sel.dataset.original = sel.value;
-    sel.addEventListener("change", function () {
-      var row = sel.closest(".admin-user-row");
-      var isMe = row.querySelector(".admin-current-account") !== null;
-      var roleText = sel.options[sel.selectedIndex].textContent;
-      var prompt = isMe
-        ? "确定将自己的用户组改为「" + roleText + "」吗？\n修改后权限立即变化，请谨慎操作。"
-        : "确定将该用户的用户组改为「" + roleText + "」吗？";
-      (window.pafishConfirm ? window.pafishConfirm(prompt, { title: "修改用户组" }) : Promise.resolve(window.confirm(prompt))).then(function (ok) {
-        if (!ok) { sel.value = sel.dataset.original; return; }
-        var fd = new FormData();
-        fd.append("role", sel.value);
-        fd.append("_csrf", CSRF);
-        post(ADMIN_USERS + "/" + row.dataset.id + "/role", fd, function () {
-          pafishToastReload("用户角色已更新", "success");
-        });
-      });
-    });
-  });
-
   // 禁用确认
   document.querySelectorAll(".admin-user-ban").forEach(function (btn) {
     btn.addEventListener("click", function () {
@@ -290,76 +210,37 @@ $roleLabel = static function (string $role): string {
     });
   });
 
-  var actionModal = document.getElementById("adminUserActionModal");
-  var actionMode = "profile";
-  var actionRow = null;
-  var actionError = document.getElementById("adminUserActionError");
-  function closeActionModal() {
-    actionModal.hidden = true;
-    if (window.pafishModalSync) window.pafishModalSync();
-  }
-  function setActionMode(mode) {
-    actionMode = mode;
-    document.querySelectorAll(".admin-user-action-tab").forEach(function (tab) { tab.classList.toggle("active", tab.dataset.userMode === mode); });
-    document.querySelectorAll("[data-user-panel]").forEach(function (panel) { panel.hidden = panel.dataset.userPanel !== mode; });
-    actionError.hidden = true;
-  }
-  document.querySelectorAll(".admin-user-action-tab").forEach(function (tab) { tab.addEventListener("click", function () { setActionMode(tab.dataset.userMode); }); });
-  document.querySelectorAll(".admin-user-more").forEach(function (btn) {
+  // 删除用户：后端会把文章和微语转移给当前管理员，必须二次确认。
+  document.querySelectorAll(".admin-user-delete").forEach(function (btn) {
     btn.addEventListener("click", function () {
-      actionRow = btn.closest(".admin-user-row");
-      document.getElementById("adminUserActionHint").textContent = "正在操作：" + (actionRow.querySelector(".admin-user-name").textContent || "用户");
-      document.getElementById("adminUserUsername").value = actionRow.dataset.username || "";
-      document.getElementById("adminUserNickname").value = actionRow.dataset.nickname || "";
-      document.getElementById("adminUserEmail").value = actionRow.dataset.email || "";
-      document.getElementById("adminUserAvatar").value = actionRow.dataset.avatarUrl || "";
-      document.getElementById("adminUserNewPassword").value = "";
-      <?php if ($pointsEnabled): ?>document.getElementById("adminUserPointsAmount").value = ""; document.getElementById("adminUserPointsReason").value = "";<?php endif; ?>
-      setActionMode("profile");
-      actionModal.hidden = false;
-      if (window.pafishModalSync) window.pafishModalSync();
-      document.getElementById("adminUserUsername").focus();
-    });
-  });
-  document.getElementById("adminUserActionSave").addEventListener("click", function () {
-    if (!actionRow) return;
-    var fd = new FormData();
-    fd.append("_csrf", CSRF);
-    var endpoint = "save";
-    var successMessage = "用户资料已更新";
-    if (actionMode === "profile") {
-      fd.append("username", document.getElementById("adminUserUsername").value.trim());
-      fd.append("nickname", document.getElementById("adminUserNickname").value.trim());
-      fd.append("email", document.getElementById("adminUserEmail").value.trim());
-      fd.append("avatar_url", document.getElementById("adminUserAvatar").value.trim());
-    } else if (actionMode === "password") {
-      endpoint = "reset-password";
-      var password = document.getElementById("adminUserNewPassword").value;
-      if (password.length < 6 || password.length > 72) { actionError.textContent = "密码长度需 6-72 位"; actionError.hidden = false; return; }
-      fd.append("password", password);
-      successMessage = "密码已重置";
-    } else {
-      endpoint = "points";
-      var amount = document.getElementById("adminUserPointsAmount").value;
-      if (!amount || Number(amount) === 0) { actionError.textContent = "请输入非零积分"; actionError.hidden = false; return; }
-      fd.append("amount", amount);
-      fd.append("reason", document.getElementById("adminUserPointsReason").value);
-      successMessage = "积分已调整";
-    }
-    post(ADMIN_USERS + "/" + actionRow.dataset.id + "/" + endpoint, fd, function () {
-      closeActionModal();
-      pafishToastReload(successMessage, "success");
+      var row = btn.closest(".admin-user-row");
+      var name = row.querySelector(".admin-user-name").textContent.trim();
+      var confirmTask = window.pafishConfirm
+        ? window.pafishConfirm("确定删除用户「" + name + "」吗？文章和微语会转移给当前管理员。", { title: "删除用户" })
+        : Promise.resolve(window.confirm("确定删除该用户吗？文章和微语会转移给当前管理员。"));
+      confirmTask.then(function (ok) {
+        if (!ok) return;
+        var fd = new FormData();
+        fd.append("_csrf", CSRF);
+        post(ADMIN_USERS + "/" + row.dataset.id + "/delete", fd, function () {
+          pafishToastReload("用户已删除", "success");
+        });
+      });
     });
   });
 
   var checks = Array.prototype.slice.call(document.querySelectorAll(".admin-user-check"));
   var checkAll = document.getElementById("adminUsersCheckAll");
   var bulkSelect = document.getElementById("adminUserBulkAction");
+  var batchBar = document.getElementById("adminUserBatchBar");
+  var batchCount = batchBar ? batchBar.querySelector(".admin-user-batch-count-number") : null;
   function selectedIds() {
     return checks.filter(function (box) { return box.checked && !box.disabled; }).map(function (box) { return box.value; });
   }
   function syncBatch() {
     var ids = selectedIds();
+    if (batchBar) batchBar.hidden = ids.length === 0;
+    if (batchCount) batchCount.textContent = ids.length;
     if (bulkSelect) bulkSelect.disabled = ids.length === 0;
     if (checkAll) {
       checkAll.checked = ids.length > 0 && ids.length === checks.filter(function (box) { return !box.disabled; }).length;

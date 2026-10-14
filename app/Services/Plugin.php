@@ -14,22 +14,20 @@ final class Plugin
 
     private const NAME_PATTERN = '/^[a-z0-9_-]{1,50}$/';
     private const TEMPLATE_NAME_PATTERN = '/^[a-z0-9-]{1,40}$/';
-    private const PAGE_PATH_PATTERN = '/^[a-z0-9_-]{1,50}$/';
     private const INJECT_TARGETS = [
         'head', 'footer', 'sidebar',
         'comment_form', 'login_form', 'register_form', 'post_editor', 'micro_editor',
         // 插件自己的设置页底部：给插件放置独有的管理区块。
         'plugin_setting',
     ];
-    private const SETTING_TYPES = ['text', 'textarea', 'checkbox', 'select', 'color', 'switcher', 'radio', 'image', 'password'];
     private const MAX_ZIP_BYTES = 10 * 1024 * 1024;
     private const MAX_LOGS = 50;
     private const ADMIN_MENU_GROUPS = ['content', 'interaction', 'appearance', 'system'];
     private const ADMIN_ICON_PATTERN = '/^[a-z0-9-]{1,30}$/';
     private static ?array $manifests = [];
-    private static ?array $modules = [];
     private static ?array $contexts = [];
     private static ?array $activeCache = null;
+    private static array $registeredHooks = [];
 
     public static function root(): string
     {
@@ -129,6 +127,10 @@ final class Plugin
             self::$manifests[$name] = ['m' => null, 'e' => '缺少 plugin.json'];
             return ['manifest' => null, 'error' => '缺少 plugin.json'];
         }
+        if (!is_file(self::root() . '/' . $name . '/extension.php')) {
+            self::$manifests[$name] = ['m' => null, 'e' => '缺少 extension.php'];
+            return ['manifest' => null, 'error' => '缺少 extension.php'];
+        }
         $json = json_decode((string) file_get_contents($file), true);
         if (!is_array($json)) {
             self::$manifests[$name] = ['m' => null, 'e' => 'plugin.json 不是合法 JSON'];
@@ -177,24 +179,6 @@ final class Plugin
                 return 'pageTemplates 声明无效';
             }
         }
-        if (array_key_exists('pages', $json)) {
-            if (!is_array($json['pages'])) {
-                return 'pages 必须是数组';
-            }
-            $decls = [];
-            foreach ($json['pages'] as $p) {
-                if (!is_array($p) || !is_string($p['path'] ?? null) || !is_string($p['title'] ?? null)) {
-                    continue;
-                }
-                if (preg_match(self::PAGE_PATH_PATTERN, $p['path']) !== 1) {
-                    continue;
-                }
-                $decls[] = ['path' => $p['path'], 'title' => $p['title']];
-            }
-            if ($decls === []) {
-                return 'pages 声明无效';
-            }
-        }
         $routesError = ExtensionRoutes::validateDeclaration($json['routes'] ?? null, 'plugin', $dirName);
         if ($routesError !== null) {
             return $routesError;
@@ -210,29 +194,21 @@ final class Plugin
         return null;
     }
 
-    /** 规范化 manifest（过滤 settings/injects/pageTemplates/pages/storage） */
+    /** 规范化 manifest（过滤 settings/injects/pageTemplates/storage） */
     private static function normalize(array $json): array
     {
+        // 设置项一律委托 ExtensionKernel 规范化，不再自建一份。
+        //
+        // 这里原来有一套独立的类型白名单与字段拷贝逻辑，只放行 9 种类型和
+        // 7 个键——于是插件写 desc / section / maxlength / pattern / fields
+        // 会被**静默丢弃**，插件作者在后台看不到自己的设置项，日志里也没有任何提示。
+        // 规则必须只有一份，否则一定会随内核演进而分叉。
         $settings = [];
         foreach ((array) ($json['settings'] ?? []) as $s) {
-            if (!is_array($s) || !is_string($s['key'] ?? null) || !is_string($s['label'] ?? null)
-                || !is_string($s['type'] ?? null) || !in_array($s['type'], self::SETTING_TYPES, true)) {
-                continue;
+            $field = ExtensionKernel::describeSetting($s, 'plugin');
+            if ($field !== null) {
+                $settings[] = $field;
             }
-            $field = ['key' => $s['key'], 'label' => $s['label'], 'type' => $s['type']];
-            if (is_array($s['options'] ?? null)) {
-                $field['options'] = $s['options'];
-            }
-            foreach (['default', 'placeholder', 'group'] as $k) {
-                if (is_string($s[$k] ?? null)) {
-                    $field[$k] = $s[$k];
-                }
-            }
-            if (is_array($s['show_if'] ?? null) && is_string($s['show_if']['key'] ?? null)
-                && is_string($s['show_if']['value'] ?? null)) {
-                $field['show_if'] = ['key' => $s['show_if']['key'], 'value' => $s['show_if']['value']];
-            }
-            $settings[] = $field;
         }
 
         $injects = [];
@@ -258,19 +234,6 @@ final class Plugin
             }
         }
 
-        $pages = null;
-        if (is_array($json['pages'] ?? null)) {
-            $pages = [];
-            foreach ($json['pages'] as $p) {
-                if (!is_array($p) || !is_string($p['path'] ?? null) || !is_string($p['title'] ?? null)) {
-                    continue;
-                }
-                if (preg_match(self::PAGE_PATH_PATTERN, $p['path']) !== 1) {
-                    continue;
-                }
-                $pages[] = ['path' => $p['path'], 'title' => $p['title']];
-            }
-        }
 
         $routes = ExtensionRoutes::fromManifest($json, 'plugin', (string) $json['name']);
         $schema = is_array($json['schema'] ?? null) ? $json['schema'] : null;
@@ -320,7 +283,6 @@ final class Plugin
             'settings' => $settings,
             'injects' => $injects,
             'pageTemplates' => $pageTemplates,
-            'pages' => $pages,
             'routes' => $routes,
             'admin' => $admin,
             'schema' => $schema,
@@ -431,29 +393,6 @@ final class Plugin
         return is_string($value) && preg_match('/^https?:\\/\\//i', $value) === 1 ? $value : '';
     }
 
-    /** 加载插件模块；入口缺失或加载失败时返回空结果。 */
-    public static function module(string $name): ?array
-    {
-        $name = (string) $name;
-        if (preg_match(self::NAME_PATTERN, $name) !== 1) {
-            return null;
-        }
-        if (array_key_exists($name, self::$modules)) {
-            return self::$modules[$name];
-        }
-        $file = self::root() . '/' . $name . '/index.php';
-        if (!is_file($file)) {
-            return self::$modules[$name] = null;
-        }
-        try {
-            $mod = require $file;
-            return self::$modules[$name] = is_array($mod) ? $mod : [];
-        } catch (\Throwable $e) {
-            \Pafish\Core\Logger::error('[pafish-plugin] 加载 ' . $name . ' 失败：' . $e->getMessage());
-            return self::$modules[$name] = [];
-        }
-    }
-
     /** 当前插件上下文。 */
     public static function context(string $name): ExtensionContext
     {
@@ -489,7 +428,29 @@ final class Plugin
     /** partial 合并写回 */
     public static function setSettings(string $name, array $partial): void
     {
-        Settings::set('plugin_settings:' . $name, json_encode(array_merge(self::settings($name), $partial), JSON_UNESCAPED_UNICODE));
+        $fields = [];
+        foreach (ExtensionKernel::flattenFields(self::settingsFields($name)) as $field) {
+            if (isset($field['key'])) {
+                $fields[(string) $field['key']] = $field;
+            }
+        }
+        $clean = [];
+        foreach ($partial as $key => $value) {
+            $key = (string) $key;
+            if (!isset($fields[$key]) || !is_scalar($value)) {
+                continue;
+            }
+            $value = (string) $value;
+            if (($fields[$key]['type'] ?? '') === 'password' && trim($value) === '') {
+                continue;
+            }
+            $error = ExtensionKernel::validateSettingValue($fields[$key], $value);
+            if ($error !== null) {
+                throw new PluginSettingException([$key => $error]);
+            }
+            $clean[$key] = $value;
+        }
+        Settings::set('plugin_settings:' . $name, json_encode(array_merge(self::settings($name), $clean), JSON_UNESCAPED_UNICODE));
     }
 
     /** 追加插件日志。 */
@@ -507,12 +468,16 @@ final class Plugin
     /** 注册插件钩子（约定函数 registerHooks(ctx)） */
     public static function registerHooks(string $name): void
     {
-        $mod = self::module($name);
-        if ($mod === null || !is_callable($mod['registerHooks'] ?? null)) {
+        if (isset(self::$registeredHooks[$name])) {
+            return;
+        }
+        $handler = ExtensionKernel::providerFor('plugin', $name, 'registerHooks');
+        if ($handler === null) {
             return;
         }
         try {
-            $mod['registerHooks'](self::context($name));
+            $handler(self::context($name));
+            self::$registeredHooks[$name] = true;
         } catch (\Throwable $e) {
             \Pafish\Core\Logger::error("[pafish-plugin] {$name} registerHooks 失败：" . $e->getMessage());
         }
@@ -527,12 +492,15 @@ final class Plugin
     /** 生命周期回调（onActivate/onDeactivate/onUninstall），异常隔离 */
     public static function runLifecycle(string $name, string $phase): void
     {
-        $mod = self::module($name);
-        if ($mod === null || !is_callable($mod[$phase] ?? null)) {
+        if (ExtensionKernel::runLifecycle('plugin', $name, $phase)) {
+            return;
+        }
+        $handler = ExtensionKernel::providerFor('plugin', $name, $phase);
+        if ($handler === null) {
             return;
         }
         try {
-            $mod[$phase](self::context($name));
+            $handler(self::context($name));
         } catch (\Throwable $e) {
             \Pafish\Core\Logger::error("[pafish-plugin] {$name} {$phase} 失败：" . $e->getMessage());
         }
@@ -544,12 +512,15 @@ final class Plugin
         if ($fromVersion === '' || $fromVersion === $toVersion) {
             return;
         }
-        $mod = self::module($name);
-        if ($mod === null || !is_callable($mod['onUpgrade'] ?? null)) {
+        if (ExtensionKernel::runLifecycle('plugin', $name, 'onUpgrade', [$fromVersion, $toVersion], true)) {
+            return;
+        }
+        $handler = ExtensionKernel::providerFor('plugin', $name, 'onUpgrade');
+        if ($handler === null) {
             return;
         }
         try {
-            $mod['onUpgrade'](self::context($name), $fromVersion, $toVersion);
+            $handler(self::context($name), $fromVersion, $toVersion);
         } catch (\Throwable $e) {
             throw new \RuntimeException('插件升级迁移失败：' . $e->getMessage(), 0, $e);
         }
@@ -561,11 +532,11 @@ final class Plugin
         if (!self::isActive($name)) {
             throw new \RuntimeException('请先启用插件');
         }
-        $mod = self::module($name);
-        if ($mod === null || !is_callable($mod['testNotification'] ?? null)) {
+        $handler = ExtensionKernel::providerFor('plugin', $name, 'testNotification');
+        if ($handler === null) {
             throw new \RuntimeException('该插件不支持发送测试通知');
         }
-        $result = $mod['testNotification'](self::context($name));
+        $result = $handler(self::context($name));
         if (!is_array($result)) {
             throw new \RuntimeException('插件返回的测试结果无效');
         }
@@ -575,24 +546,22 @@ final class Plugin
     /** 是否支持插件自带的通知测试入口。 */
     public static function supportsNotificationTest(string $name): bool
     {
-        $mod = self::module($name);
-        return $mod !== null && is_callable($mod['testNotification'] ?? null);
+        return ExtensionKernel::providerFor('plugin', $name, 'testNotification') !== null;
     }
 
     public static function testStorage(string $name): array
     {
         if (!self::isActive($name)) throw new \RuntimeException('请先启用插件');
-        $mod = self::module($name);
-        if ($mod === null || !is_callable($mod['testStorage'] ?? null)) throw new \RuntimeException('该插件不支持存储连接测试');
-        $result = $mod['testStorage'](self::context($name));
+        $handler = ExtensionKernel::providerFor('plugin', $name, 'testStorage');
+        if ($handler === null) throw new \RuntimeException('该插件不支持存储连接测试');
+        $result = $handler(self::context($name));
         if (!is_array($result)) throw new \RuntimeException('插件返回的测试结果无效');
         return $result;
     }
 
     public static function supportsStorageTest(string $name): bool
     {
-        $mod = self::module($name);
-        return $mod !== null && is_callable($mod['testStorage'] ?? null);
+        return ExtensionKernel::providerFor('plugin', $name, 'testStorage') !== null;
     }
 
     /** 启用插件。 */
@@ -602,7 +571,13 @@ final class Plugin
         if ($desc['error'] !== null) {
             throw new \RuntimeException('插件"' . $name . '"不可用：' . $desc['error']);
         }
-        ExtensionRoutes::assertCanActivate('plugin', $name, $desc['manifest']);
+        ExtensionKernel::boot('plugin', $name, self::root(), self::context($name));
+        try {
+            ExtensionRoutes::assertCanActivate('plugin', $name, $desc['manifest']);
+        } catch (\Throwable $e) {
+            ExtensionKernel::reset('plugin', $name);
+            throw $e;
+        }
         $version = (string) $desc['manifest']['version'];
         $previousVersion = ExtensionSchema::installedVersion('plugin', $name);
         $schema = $desc['manifest']['schema'] ?? null;
@@ -631,7 +606,9 @@ final class Plugin
         $list = array_values(array_filter(self::activeNames(), static fn (string $n): bool => $n !== $name));
         self::setActivePlugins($list);
         self::unregisterHooks($name);
+        unset(self::$registeredHooks[$name]);
         self::runLifecycle($name, 'onDeactivate');
+        ExtensionKernel::reset('plugin', $name);
     }
 
     /** 卸载插件：默认保留自有设置、数据和表，避免主题/插件切换误伤业务数据。 */
@@ -657,34 +634,103 @@ final class Plugin
         if (!self::rmDir(self::root() . '/' . $name)) {
             throw new \RuntimeException('删除插件目录失败');
         }
-        unset(self::$manifests[$name], self::$modules[$name], self::$contexts[$name]);
+        unset(self::$manifests[$name], self::$contexts[$name], self::$registeredHooks[$name]);
     }
 
-    /** 按 manifest schema 保存插件设置。 */
+    /**
+     * 按 manifest schema 保存插件设置。
+     *
+     * 校验走 ExtensionKernel::validateSettingValue，与主题侧同一套规则；
+     * 原来这里只硬编码了颜色格式检查，插件声明的 maxlength / pattern /
+     * 数值区间 / 复合结构全部不生效。
+     *
+     * @return array<string, string>
+     */
     public static function saveSettings(string $name, array $body): array
     {
+        if (!self::isActive($name)) {
+            throw new \RuntimeException('请先启用插件再配置');
+        }
         $desc = self::describe($name);
         if ($desc['error'] !== null) {
             throw new \RuntimeException($desc['error']);
         }
         $clean = [];
-        foreach (($desc['manifest']['settings'] ?? []) as $field) {
+        $errors = [];
+        // 展平 group 容器：容器自身不存值，子字段才是真实设置项
+        foreach (ExtensionKernel::flattenFields(self::settingsFields($name)) as $field) {
             $key = (string) $field['key'];
             if (!array_key_exists($key, $body)) {
                 continue;
             }
             $raw = $body[$key];
             $value = is_scalar($raw) ? (string) $raw : '';
+            if ($field['type'] === 'password' && trim($value) === '') {
+                continue;
+            }
             if ($field['type'] === 'checkbox' || $field['type'] === 'switcher') {
                 $value = $value === '1' ? '1' : '0';
             }
-            if ($field['type'] === 'color' && $value !== '' && preg_match('/^#[0-9a-fA-F]{6}$/', $value) !== 1) {
-                throw new \RuntimeException('颜色值 ' . $value . ' 不合法（需 #rrggbb）');
+            $error = ExtensionKernel::validateSettingValue($field, $value);
+            if ($error !== null) {
+                $errors[$key] = $error;
+                continue;
             }
             $clean[$key] = $value;
         }
+        if ($errors !== []) {
+            throw new PluginSettingException($errors);
+        }
         self::setSettings($name, $clean);
         return $clean;
+    }
+
+    /**
+     * 插件设置字段（合并 plugin.json 声明与运行时 $ctx->settings() 注册）。
+     *
+     * 注意：`manifest()` 已经过一次 normalizeSetting，字段结构里带 `rules`；
+     * 若这里再规范化一遍，`normalizeSetting` 会去读顶层的 maxlength/required
+     * （它们已经被折叠进 rules），第二次规范化反而会把约束**丢掉**。
+     * 因此只在字段尚未规范化（缺 rules）时才补一次。
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public static function settingsFields(string $name): array
+    {
+        // 判断字段是否**已经**规范化过。容器与复合类型没有顶层 `rules`，
+        // 不能只看 rules——否则 group 会被二次规范化，子字段的 rules 会被重建掉。
+        $alreadyNormalized = static function (array $field): bool {
+            $type = (string) ($field['type'] ?? '');
+            return isset($field['rules'])
+                || ExtensionKernel::isDecorativeType($type)
+                || ExtensionKernel::isContainerType($type)
+                || in_array($type, ['repeater', 'spacing', 'typography'], true);
+        };
+
+        $manifest = self::manifest($name);
+        $fields = [];
+        foreach ((array) ($manifest['settings'] ?? []) as $field) {
+            if (!is_array($field) || !isset($field['key'])) {
+                continue;
+            }
+            $normalized = $alreadyNormalized($field)
+                ? $field
+                : ExtensionKernel::describeSetting($field, 'plugin');
+            if ($normalized !== null) {
+                $fields[(string) $normalized['key']] = $normalized;
+            }
+        }
+        foreach (ExtensionKernel::settingsFor('plugin', $name) as $field) {
+            if (is_array($field) && isset($field['key'])) {
+                $normalized = $alreadyNormalized($field)
+                    ? $field
+                    : ExtensionKernel::describeSetting($field, 'plugin');
+                if ($normalized !== null) {
+                    $fields[(string) $normalized['key']] = $normalized;
+                }
+            }
+        }
+        return array_values($fields);
     }
 
     // ---------- 注入管线 ----------
@@ -709,12 +755,26 @@ final class Plugin
                 && !in_array($target, (array) ($manifest['injects'] ?? []), true)) {
                 continue;
             }
-            $mod = self::module($name);
-            if ($mod === null || !is_callable($mod['renderInjection'] ?? null)) {
+            $handlers = ExtensionKernel::injectionsFor('plugin', $name, $target);
+            if ($handlers !== []) {
+                foreach ($handlers as $handler) {
+                    try {
+                        $html = $handler($context, self::context($name));
+                        if (is_string($html) && trim($html) !== '') {
+                            $parts[] = $html;
+                        }
+                    } catch (\Throwable $e) {
+                        \Pafish\Core\Logger::error("[pafish-plugin] {$name} renderInjection({$target}) 失败：" . $e->getMessage());
+                    }
+                }
+                continue;
+            }
+            $handler = ExtensionKernel::providerFor('plugin', $name, 'renderInjection');
+            if ($handler === null) {
                 continue;
             }
             try {
-                $html = $mod['renderInjection']($target, self::context($name), $context);
+                $html = $handler($target, self::context($name), $context);
                 if (is_string($html) && trim($html) !== '') {
                     $parts[] = $html;
                 }
@@ -747,12 +807,12 @@ final class Plugin
     public static function renderPageTemplate(array $page): string
     {
         foreach (self::activeNames() as $name) {
-            $mod = self::module($name);
-            if ($mod === null || !is_callable($mod['renderPageTemplate'] ?? null)) {
+            $handler = ExtensionKernel::providerFor('plugin', $name, 'renderPageTemplate');
+            if ($handler === null) {
                 continue;
             }
             try {
-                $html = $mod['renderPageTemplate']((string) ($page['template'] ?? 'default'), $page, self::context($name));
+                $html = $handler((string) ($page['template'] ?? 'default'), $page, self::context($name));
                 if (is_string($html) && trim($html) !== '') {
                     return $html;
                 }
@@ -770,12 +830,12 @@ final class Plugin
     public static function renderSitemap(): ?string
     {
         foreach (self::activeNames() as $name) {
-            $mod = self::module($name);
-            if ($mod === null || !is_callable($mod['renderSitemap'] ?? null)) {
+            $handler = ExtensionKernel::providerFor('plugin', $name, 'renderSitemap');
+            if ($handler === null) {
                 continue;
             }
             try {
-                $xml = $mod['renderSitemap'](self::context($name));
+                $xml = $handler(self::context($name));
                 if (is_string($xml) && trim($xml) !== '') {
                     return trim($xml);
                 }
@@ -784,45 +844,6 @@ final class Plugin
             }
         }
         return null;
-    }
-
-    /**
-     * 插件前台页：返回 ['html' => string, 'title' => string]；任一条件不满足返回 null
-     * 插件页面：激活 + 声明该 path + renderPluginPage 函数 + 非空输出
-     */
-    public static function renderPluginPage(string $name, string $pagePath): ?array
-    {
-        if (!self::isActive($name)) {
-            return null;
-        }
-        $desc = self::describe($name);
-        if ($desc['error'] !== null) {
-            return null;
-        }
-        $decl = null;
-        foreach (($desc['manifest']['pages'] ?? []) as $p) {
-            if ($p['path'] === $pagePath) {
-                $decl = $p;
-                break;
-            }
-        }
-        if ($decl === null) {
-            return null;
-        }
-        $mod = self::module($name);
-        if ($mod === null || !is_callable($mod['renderPluginPage'] ?? null)) {
-            return null;
-        }
-        try {
-            $html = $mod['renderPluginPage']($pagePath, self::context($name));
-        } catch (\Throwable $e) {
-            \Pafish\Core\Logger::error("[pafish-plugin] {$name} renderPluginPage({$pagePath}) 失败：" . $e->getMessage());
-            return null;
-        }
-        if (!is_string($html) || trim($html) === '') {
-            return null;
-        }
-        return ['html' => trim($html), 'title' => (string) $decl['title']];
     }
 
     // ---------- 云存储管线 ----------
@@ -835,14 +856,15 @@ final class Plugin
             if ($desc['error'] !== null || $desc['manifest']['storage'] === null) {
                 continue;
             }
-            $mod = self::module($name);
-            if ($mod === null || !is_callable($mod['storeFile'] ?? null)) {
+            $store = ExtensionKernel::providerFor('plugin', $name, 'storeFile');
+            if ($store === null) {
                 continue;
             }
             return [
                 'name' => $name,
                 'title' => (string) $desc['manifest']['storage']['title'],
-                'module' => $mod,
+                'storeFile' => $store,
+                'deleteFile' => ExtensionKernel::providerFor('plugin', $name, 'deleteFile'),
             ];
         }
         return null;
@@ -856,7 +878,7 @@ final class Plugin
             if ($backend === null) {
                 return null;
             }
-            $res = $backend['module']['storeFile']($file, self::context($backend['name']));
+            $res = $backend['storeFile']($file, self::context($backend['name']));
             $url = is_string($res) ? $res : (is_array($res) ? ($res['url'] ?? null) : null);
             if (!is_string($url) || trim($url) === '') {
                 return null;
@@ -876,10 +898,10 @@ final class Plugin
         }
         try {
             $backend = self::activeStorage();
-            if ($backend === null || !is_callable($backend['module']['deleteFile'] ?? null)) {
+            if ($backend === null || !is_callable($backend['deleteFile'] ?? null)) {
                 return;
             }
-            $backend['module']['deleteFile']($url, self::context($backend['name']));
+            $backend['deleteFile']($url, self::context($backend['name']));
         } catch (\Throwable $e) {
             \Pafish\Core\Logger::error('[pafish-plugin] 云端删除失败（忽略）：' . $url);
         }
@@ -907,7 +929,11 @@ final class Plugin
             foreach (self::activeNames() as $name) {
                 // 每次请求做廉价版本/schema 指纹检查；只有变化时才访问 INFORMATION_SCHEMA 并执行 DDL。
                 if (self::syncActiveSchema($name)) {
+                    ExtensionKernel::boot('plugin', $name, self::root(), self::context($name));
                     self::registerHooks($name);
+                } else {
+                    // schema/迁移失败的插件不能把本次请求里提前注册的能力留在运行时。
+                    ExtensionKernel::reset('plugin', $name);
                 }
             }
         } catch (\Throwable $e) {
@@ -932,6 +958,8 @@ final class Plugin
                 ExtensionSchema::sync('plugin', $name, $schema);
                 ExtensionSchema::recordFingerprint('plugin', $name, $schema);
             }
+            // 版本迁移可能由 extension.php 注册，先加载统一入口再执行 onUpgrade。
+            ExtensionKernel::boot('plugin', $name, self::root(), self::context($name));
             self::runUpgrade($name, $fromVersion, $version);
             if ($fromVersion !== $version) {
                 ExtensionSchema::recordVersion('plugin', $name, $version);
@@ -1110,8 +1138,11 @@ final class Plugin
     /** 清空静态缓存。 */
     public static function reset(): void
     {
+        foreach (self::activeNames() as $name) {
+            ExtensionKernel::reset('plugin', $name);
+        }
         self::$manifests = [];
-        self::$modules = [];
+        self::$registeredHooks = [];
         self::$contexts = [];
         self::$activeCache = null;
     }

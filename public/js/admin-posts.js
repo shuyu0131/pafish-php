@@ -51,7 +51,7 @@
   function updateBatchBar() {
     if (!batchBar) return;
     var n = selectedIds().length;
-    batchBar.hidden = false;
+    batchBar.hidden = n === 0;
     if (countEl) countEl.textContent = n;
     [opSelect, moveSelect, applyBtn, batchBar.querySelector("[data-batch-clear]")].forEach(function (control) {
       if (!control) return;

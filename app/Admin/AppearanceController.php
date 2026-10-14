@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Pafish\Admin;
 
-use Pafish\Services\Settings;
 use Pafish\Services\Theme;
 use Pafish\Core\Url;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -18,7 +17,17 @@ final class AppearanceController extends AdminController
         $this->guardAdmin();
         $active = Theme::active();
         $themes = [];
-        foreach (Theme::list() as $name) {
+        $themeNames = Theme::list();
+        usort($themeNames, static function (string $left, string $right) use ($active): int {
+            if ($left === $active) {
+                return -1;
+            }
+            if ($right === $active) {
+                return 1;
+            }
+            return strcmp($left, $right);
+        });
+        foreach ($themeNames as $name) {
             $desc = Theme::describe($name);
             $manifest = $desc['manifest'];
             $themes[] = [
@@ -31,7 +40,10 @@ final class AppearanceController extends AdminController
                 'homepage' => self::manifestUrl($manifest, 'homepage'),
                 'preview' => self::previewUrl($name),
                 'error' => $desc['error'],
-                'settingsCount' => count(Theme::schemaKeys($name)),
+                // 统计真实设置项数量：group 容器自身不算，要展平到子字段
+                'settingsCount' => count(\Pafish\Services\ExtensionKernel::flattenFields(
+                    Theme::settingsFields($name)
+                )),
                 'active' => $name === $active,
             ];
         }
@@ -50,7 +62,8 @@ final class AppearanceController extends AdminController
 
     private static function previewUrl(string $name): string
     {
-        foreach (['preview.png', 'preview.jpg', 'preview.jpeg', 'preview.webp', 'screenshot.png', 'screenshot.jpg'] as $file) {
+        // preview.jpg is the canonical installed-theme cover; older aliases remain compatible.
+        foreach (['preview.jpg', 'preview.png', 'preview.jpeg', 'preview.webp', 'screenshot.jpg', 'screenshot.png'] as $file) {
             if (Theme::assetFile($name, $file) !== null) {
                 return Url::themeAsset($name, $file);
             }
@@ -69,6 +82,7 @@ final class AppearanceController extends AdminController
             'error' => $desc['error'],
             'active' => $name === Theme::active(),
             'values' => $desc['manifest'] !== null ? Theme::valuesFor($name) : [],
+            'settings' => $desc['manifest'] !== null ? Theme::settingsFields($name) : [],
         ], '主题设置'));
         return $response;
     }
@@ -82,30 +96,47 @@ final class AppearanceController extends AdminController
         if ($desc['error'] !== null) {
             return $this->json($response, ['error' => $desc['error'] ?? '主题不存在'], 400);
         }
+        if ($name !== Theme::active()) {
+            return $this->json($response, ['error' => '请先启用该主题再配置'], 400);
+        }
         // 只保存提交的键，checkbox 由前端全量序列化为 '1'/'0'
         // 先收集并完成全部校验，再统一写库（校验失败不产生部分写入）
         $pairs = [];
-        foreach ($desc['manifest']['settings'] as $field) {
+        $errors = [];
+        // group 容器自身不存值，其子字段才是真实设置项——必须先展平，
+        // 否则容器里的设置会被整块忽略（用户填了却保存不上）
+        foreach (\Pafish\Services\ExtensionKernel::flattenFields(Theme::settingsFields($name)) as $field) {
             $key = (string) $field['key'];
             if (!array_key_exists($key, $body)) {
                 continue;
             }
             $type = (string) ($field['type'] ?? 'text');
+            // 展示型字段（heading/subheading）没有值；前端不会提交，
+            // 但伪造 POST 也不该在库里凭空造出这些键
+            if (\Pafish\Services\ExtensionKernel::isDecorativeType($type)) {
+                continue;
+            }
             $raw = $body[$key];
             if ($type === 'checkbox' || $type === 'switcher') {
                 $value = (is_scalar($raw) && (string) $raw === '1') ? '1' : '0';
             } else {
                 $value = is_scalar($raw) ? trim((string) $raw) : '';
             }
-            if ($type === 'color' && $value !== '' && preg_match('/^#[0-9a-fA-F]{6}$/', $value) !== 1) {
-                return $this->json($response, ['error' => '颜色值 ' . $value . ' 不合法（需 #rrggbb）'], 400);
+            // 由 schema 声明的约束统一校验（长度 / 必填 / 正则 / 候选项 / 颜色）
+            $error = \Pafish\Services\ExtensionKernel::validateSettingValue($field, $value);
+            if ($error !== null) {
+                $errors[$key] = $error;
+                continue;
             }
             $pairs[$key] = $value;
         }
-        foreach ($pairs as $key => $value) {
-            Settings::set('theme:' . $key, $value);
+        if ($errors !== []) {
+            return $this->json($response, [
+                'error' => '有 ' . count($errors) . ' 项设置未通过校验，已全部放弃保存',
+                'fields' => $errors,
+            ], 400);
         }
-        Theme::resetValues();
+        Theme::setExtensionSettings($name, $pairs);
         return $this->json($response, ['ok' => true, 'saved' => $pairs]);
     }
 
@@ -116,18 +147,6 @@ final class AppearanceController extends AdminController
         try {
             Theme::setActive($name);
             return $this->json($response, ['ok' => true, 'name' => $name]);
-        } catch (\Throwable $e) {
-            return $this->json($response, ['error' => $e->getMessage()], 400);
-        }
-    }
-
-    public function deactivate(Request $request, Response $response): Response
-    {
-        $this->guardAdmin();
-        $name = trim((string) (($request->getParsedBody() ?? [])['name'] ?? ''));
-        try {
-            Theme::deactivate($name);
-            return $this->json($response, ['ok' => true, 'name' => $name, 'fallback' => 'default']);
         } catch (\Throwable $e) {
             return $this->json($response, ['error' => $e->getMessage()], 400);
         }
@@ -182,6 +201,9 @@ final class AppearanceController extends AdminController
         $this->guardAdmin();
         $body = $request->getParsedBody() ?? [];
         $name = trim((string) ($body['name'] ?? ''));
+        if ($name !== Theme::active()) {
+            return $this->json($response, ['error' => '请先启用该主题再导入设置'], 400);
+        }
         $files = $request->getUploadedFiles();
         $upload = $files['file'] ?? null;
         if (!$upload instanceof UploadedFileInterface || $upload->getError() !== UPLOAD_ERR_OK) {
@@ -203,10 +225,28 @@ final class AppearanceController extends AdminController
         }
     }
 
+    public function reset(Request $request, Response $response): Response
+    {
+        $this->guardAdmin();
+        $name = trim((string) (($request->getParsedBody() ?? [])['name'] ?? ''));
+        if ($name !== Theme::active()) {
+            return $this->json($response, ['error' => '请先启用该主题再恢复默认设置'], 400);
+        }
+        try {
+            $cleared = Theme::resetToDefaults($name);
+            return $this->json($response, ['ok' => true, 'cleared' => $cleared]);
+        } catch (\Throwable $e) {
+            return $this->json($response, ['error' => $e->getMessage()], 400);
+        }
+    }
+
     public function export(Request $request, Response $response): Response
     {
         $this->guardAdmin();
         $name = (string) ($_GET['name'] ?? '');
+        if ($name !== Theme::active()) {
+            return $this->json($response, ['error' => '请先启用该主题再导出设置'], 400);
+        }
         try {
             $data = Theme::exportValues($name);
         } catch (\Throwable $e) {

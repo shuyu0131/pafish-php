@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Pafish\Admin;
 
 use Pafish\Core\Auth;
+use Pafish\Core\DB;
 use Pafish\Core\Session;
 use Pafish\Core\Url;
 use Pafish\Http\Comments;
 use Pafish\Services\Plugin;
-use Pafish\Services\Settings;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -78,8 +78,8 @@ abstract class AdminController
         $ctx = [
             'user' => $user,
             'role' => $role,
-            'siteName' => (string) (Settings::get('site_name', '') ?: '纸鱼博客'),
-            'nav' => $this->navForRole($role),
+            'siteName' => \site_name(),
+            'nav' => $this->navWithBadges($this->navForRole($role), $role),
             'currentPath' => $this->currentPath(),
             'title' => $title,
             'flash' => $this->takeFlash(),
@@ -90,6 +90,26 @@ abstract class AdminController
             $ctx['headExtra'] = $data['headExtra'];
         }
         return self::renderView('layout', array_merge($ctx, ['content' => $content]));
+    }
+
+    /** 排序入口仍经由后台权限和 CSRF 中间件。 */
+    protected function reorderList(Request $request, Response $response, string $scope): Response
+    {
+        $this->guardAdmin();
+        $body = $request->getParsedBody() ?? [];
+        try {
+            $ids = json_decode(is_string($body['ids'] ?? null) ? $body['ids'] : '', true, 512, JSON_THROW_ON_ERROR);
+            $expected = json_decode(is_string($body['expected'] ?? null) ? $body['expected'] : '', true, 512, JSON_THROW_ON_ERROR);
+            \Pafish\Services\AdminOrdering::reorder($scope, $ids, $expected);
+        } catch (\JsonException | \InvalidArgumentException $e) {
+            return $this->json($response, ['error' => '排序数据无效，请刷新后重试'], 400);
+        } catch (\RuntimeException $e) {
+            if ($e instanceof \PDOException) {
+                throw $e;
+            }
+            return $this->json($response, ['error' => $e->getMessage()], 409);
+        }
+        return $this->json($response, ['ok' => true]);
     }
 
     /** 设置一条后台 flash 消息（重定向后显示一次） */
@@ -163,7 +183,7 @@ abstract class AdminController
         };
     }
 
-    /** 当前登录者头像（user.avatarUrl 优先，否则 cravatar） */
+    /** 当前登录者头像，未设置时使用本地默认图。 */
     protected function avatarSrc(array $user, int $size = 72): string
     {
         return Comments::avatarUrl($user['avatar_url'] ?? null, (string) ($user['email'] ?? ''));
@@ -188,6 +208,38 @@ abstract class AdminController
             }
         }
         return ['top' => $top, 'groups' => $groups];
+    }
+
+    /** 注入低成本待办计数；编辑角色只统计自己可管理的内容。 */
+    private function navWithBadges(array $nav, string $role): array
+    {
+        $userId = (int) (Auth::id() ?? 0);
+        $postScope = $role === 'EDITOR' ? ' AND p.author_id = ?' : '';
+        $postParams = $role === 'EDITOR' ? [$userId] : [];
+        $drafts = (int) DB::value(
+            "SELECT COUNT(*) FROM posts p WHERE p.status = 'DRAFT' AND p.deleted_at IS NULL{$postScope}",
+            $postParams
+        );
+        $pendingComments = (int) DB::value(
+            "SELECT COUNT(*) FROM comments c JOIN posts p ON p.id = c.post_id WHERE c.status = 'PENDING' AND p.deleted_at IS NULL{$postScope}",
+            $postParams
+        );
+        $badges = [
+            '/admin/posts' => $drafts,
+            '/admin/comments' => $pendingComments,
+        ];
+        foreach ($nav['top'] as &$item) {
+            $item['badge'] = (int) ($badges[$item['href']] ?? 0);
+        }
+        unset($item);
+        foreach ($nav['groups'] as &$group) {
+            foreach ($group['items'] as &$item) {
+                $item['badge'] = (int) ($badges[$item['href']] ?? 0);
+            }
+            unset($item);
+        }
+        unset($group);
+        return $nav;
     }
 
     /** 当前请求路径（已去 base 前缀；查询串兜底模式下取 ?p=） */

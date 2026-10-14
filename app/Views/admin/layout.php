@@ -1,8 +1,8 @@
 <?php
 /**
  * 后台布局：
- * 桌面：固定左侧栏（品牌 → 分组导航 → 用户信息/退出/查看前台）+ 内容区
- * 移动端：顶栏 + 抽屉（遮罩点击/Esc 关闭）；分组折叠状态记忆于 localStorage admin_nav_collapsed
+ * 桌面：固定左侧导航 + 顶栏账户操作 + 内容区
+ * 移动端：顶栏 + 抽屉（遮罩点击/Esc 关闭）；导航分组始终展开
  * 变量：$title $siteName $user $nav $currentPath $content
  */
 
@@ -14,11 +14,6 @@ function admin_nav_active(array $item, string $currentPath): bool
     return $currentPath === $item['href']
         || str_starts_with($currentPath, rtrim($item['href'], '/') . '/');
 }
-$roleLabel = match ((string) ($user['role'] ?? '')) {
-    'ADMIN' => '管理员',
-    'EDITOR' => '编辑',
-    default => '用户',
-};
 ?>
 <!doctype html>
 <html lang="zh-CN">
@@ -51,13 +46,13 @@ window.pafishApi = function (p) {
     </div>
     <div class="admin-topbar-actions">
       <a class="admin-topbar-front" href="<?= e(url_to('/')) ?>" target="_blank" rel="noopener"><?= admin_icon('external-link', 15) ?><span>查看网站</span></a>
-      <a class="admin-topbar-account" href="<?= e(url_to('/admin/profile')) ?>">
+      <a class="admin-topbar-account" href="<?= e(url_to('/admin/profile')) ?>" aria-label="个人资料" title="个人资料">
         <img class="admin-avatar-sm" src="<?= e($user['avatar_url'] ?: admin_gravatar((string) $user['email'])) ?>" alt="" width="28" height="28">
         <span><?= e($user['nickname'] ?: $user['username']) ?></span>
       </a>
       <form class="admin-topbar-logout" method="post" action="<?= e(url_to('/api/auth/logout')) ?>">
         <?= csrf_field() ?>
-        <button type="submit" class="admin-topbar-exit"><?= admin_icon('logout', 15) ?><span>退出登录</span></button>
+        <button type="submit" class="admin-topbar-exit" aria-label="退出登录" title="退出登录"><?= admin_icon('logout', 15) ?><span>退出登录</span></button>
       </form>
     </div>
   </header>
@@ -71,21 +66,22 @@ window.pafishApi = function (p) {
            href="<?= e(url_to($item['href'])) ?>">
           <?= admin_icon($item['icon']) ?>
           <span><?= e($item['label']) ?></span>
+          <?php if (!empty($item['badge'])): ?><span class="admin-nav-badge"><?= (int) $item['badge'] > 99 ? '99+' : (int) $item['badge'] ?></span><?php endif; ?>
         </a>
       <?php endforeach; ?>
 
       <?php foreach ($nav['groups'] as $group): ?>
         <div class="admin-nav-group" data-group-id="<?= e($group['id']) ?>">
-          <button type="button" class="admin-nav-group-toggle">
+          <p class="admin-nav-group-toggle">
             <span><?= e($group['label']) ?></span>
-            <?= admin_icon('chevron', 14) ?>
-          </button>
+          </p>
             <div class="admin-nav-group-items">
             <?php foreach ($group['items'] as $item): ?>
               <a class="admin-nav-item<?= admin_nav_active($item, $currentPath) ? ' active' : '' ?>"
                  href="<?= e(url_to($item['href'])) ?>">
                 <?= admin_icon($item['icon']) ?>
                 <span><?= e($item['label']) ?></span>
+                 <?php if (!empty($item['badge'])): ?><span class="admin-nav-badge"><?= (int) $item['badge'] > 99 ? '99+' : (int) $item['badge'] ?></span><?php endif; ?>
               </a>
             <?php endforeach; ?>
           </div>
@@ -93,16 +89,6 @@ window.pafishApi = function (p) {
       <?php endforeach; ?>
     </nav>
 
-    <div class="admin-sidebar-foot">
-      <a class="admin-user" href="<?= e(url_to('/admin/profile')) ?>" title="个人资料">
-        <img class="admin-avatar" src="<?= e($user['avatar_url'] ?: admin_gravatar((string) $user['email'])) ?>"
-             alt="" width="32" height="32">
-        <div class="admin-user-meta">
-          <p class="admin-user-name"><?= e($user['nickname'] ?: $user['username']) ?></p>
-          <p class="admin-user-sub"><?= e($roleLabel) ?> · <?= e($user['username']) ?></p>
-        </div>
-      </a>
-    </div>
   </aside>
 
   <!-- 内容区 -->
@@ -151,30 +137,12 @@ window.pafishApi = function (p) {
   if (backdrop) backdrop.addEventListener('click', close);
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
 
-  // 导航分组折叠（localStorage 记忆）
-  var key = 'admin_nav_collapsed';
-  var saved = [];
-  try { saved = JSON.parse(localStorage.getItem(key) || '[]'); } catch (err) {}
-  document.querySelectorAll('.admin-nav-group').forEach(function (g) {
-    var id = g.dataset.groupId;
-    if (saved.indexOf(id) !== -1) g.classList.add('collapsed');
-    g.querySelector('.admin-nav-group-toggle').addEventListener('click', function () {
-      g.classList.toggle('collapsed');
-      var arr = [];
-      try { arr = JSON.parse(localStorage.getItem(key) || '[]'); } catch (err) {}
-      var i = arr.indexOf(id);
-      if (g.classList.contains('collapsed')) { if (i === -1) arr.push(id); }
-      else if (i !== -1) arr.splice(i, 1);
-      localStorage.setItem(key, JSON.stringify(arr));
-    });
-  });
-
   // 退出登录（POST + CSRF，成功后回首页）
   // 选择器必须匹配顶栏表单的实际 class：一旦不匹配，表单会走浏览器原生提交，
   // 直接把页面导航到 /api/auth/logout 的 JSON 响应上（用户看到的"退出后跳到接口地址"）。
   // 注意不要用 res.url 做跳转目标——fetch 收到的是 JSON（200），res.url 就是接口地址本身。
   var logoutHome = <?= json_encode(url_to('/')) ?>;
-  document.querySelectorAll('.admin-topbar-logout, .admin-logout').forEach(function (f) {
+  document.querySelectorAll('.admin-topbar-logout').forEach(function (f) {
     f.addEventListener('submit', function (e) {
       e.preventDefault();
       fetch(f.action, { method: 'POST', body: new FormData(f), headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })

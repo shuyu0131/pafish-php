@@ -1,155 +1,108 @@
 <?php
 /**
  * 插件设置页：
- * 返回链接 → 标题（manifest.title v{version}）→ 不可用提示 → 分组 Tab 表单（9 类型含 password）
+ * 返回链接 → 标题（manifest.title）→ 不可用提示 → 朴素单栏表单
  * 变量：$pluginName、$manifest、$error、$values
+ *
+ * 这里是**普通表单**，不是主题设置页那种"选项面板"：
+ * 标签在上、控件在下，分组降级成小节标题，没有左侧导航、没有吸顶条、没有搜索框，
+ * 也没有「有设置已修改」那条未保存胶囊（emlog 的插件设置页同样没有）。
+ * 插件配置一般十几项，套面板会让每一项都要先找分组——比直接顺排还慢。
+ * 字段渲染、校验、show_if、repeater 仍与主题设置页共用同一份实现
+ * （partials/ + admin-schema-form.js），外壳也共用 .admin-plain-form。
  */
 $pluginName = (string) ($pluginName ?? '');
 $manifest = $manifest ?? null;
 $error = $error ?? null;
 $values = $values ?? [];
+$settings = is_array($settings ?? null) ? $settings : (array) ($manifest['settings'] ?? []);
 $title = $manifest['title'] ?? $pluginName;
-$version = $manifest['version'] ?? '';
-$description = is_string($manifest['description'] ?? null) ? $manifest['description'] : '';
 $supportsNotificationTest = (bool) ($supportsNotificationTest ?? false);
 $supportsStorageTest = (bool) ($supportsStorageTest ?? false);
 $pluginActive = (bool) ($active ?? false);
 $hasCustomSettingsPage = is_array($manifest) && in_array('plugin_setting', (array) ($manifest['injects'] ?? []), true);
-?>
-<div class="admin-stack admin-settings-page admin-plugin-settings">
-  <p><a class="admin-back-link" href="<?= e(url_to('/admin/plugins')) ?>">← 返回插件列表</a></p>
-  <div class="admin-page-head">
-    <div>
-      <h1 class="admin-h1"><?= e($title) ?>
-        <?php if ($version !== ''): ?><span class="admin-theme-version">v<?= e($version) ?></span><?php endif; ?>
-      </h1>
-      <p class="admin-page-sub"><?= e($description !== '' ? $description : '插件设置') ?></p>
-    </div>
-  </div>
-  <?php if (is_string($manifest['frontendUrl'] ?? null) && trim((string) $manifest['frontendUrl']) !== ''): ?>
-    <p class="admin-page-sub">前台地址：<a href="<?= e(url_to((string) $manifest['frontendUrl'])) ?>" target="_blank" rel="noopener noreferrer"><?= e(url_to((string) $manifest['frontendUrl'])) ?></a></p>
-  <?php endif; ?>
-  <p class="admin-backup-msg" id="pluginSettingMsg" hidden></p>
 
-  <?php if ($error !== null): ?>
-    <div class="card admin-empty">插件“<?= e($pluginName) ?>”不可用：<?= e($error) ?></div>
-  <?php elseif ($manifest !== null): ?>
-    <?php
-    $fields = [];
-    foreach (($manifest['settings'] ?? []) as $field) {
+// 字段渲染统一走共享 partial（主题页与插件页必须同一份实现）
+$renderField = require __DIR__ . '/partials/schema-field.php';
+$buildGroups = require __DIR__ . '/partials/schema-groups.php';
+
+ob_start();
+?>
+<h1 class="admin-h1"><?= e($title) ?></h1>
+<?php if ($pluginActive && is_string($manifest['frontendUrl'] ?? null) && trim((string) $manifest['frontendUrl']) !== ''): ?>
+  <p class="admin-page-sub">前台地址：<a href="<?= e(url_to((string) $manifest['frontendUrl'])) ?>" target="_blank" rel="noopener noreferrer"><?= e(url_to((string) $manifest['frontendUrl'])) ?></a></p>
+<?php endif; ?>
+<?php
+$headMain = ob_get_clean();
+
+$fields = [];
+if ($manifest !== null) {
+    foreach ($settings as $field) {
         if (is_array($field) && isset($field['key'])) {
             $fields[] = $field;
         }
     }
-    // 分组（保持 manifest 首现顺序；缺省"常规"）
-    $groups = [];
-    foreach ($fields as $field) {
-        $g = (string) ($field['group'] ?? '常规');
-        if (!isset($groups[$g])) {
-            $groups[$g] = [];
-        }
-        $groups[$g][] = $field;
-    }
-    $groupNames = array_keys($groups);
-    ?>
-    <?php if ($fields === [] && $hasCustomSettingsPage && !$pluginActive): ?>
-      <div class="card admin-empty">该插件的专属配置页需要先启用插件；请返回插件列表启用后再打开此页面。</div>
-    <?php elseif ($fields === [] && !$hasCustomSettingsPage): ?>
-      <div class="card admin-empty">该插件没有可配置的设置项。</div>
-    <?php elseif ($fields !== []): ?>
-      <form class="card admin-form-card admin-schema-form" id="pluginSettingForm" novalidate>
-        <?php if (count($groups) > 1): ?>
-          <div class="admin-sf-tabs">
-            <?php foreach ($groupNames as $i => $g): ?>
-              <button type="button" class="admin-sf-tab<?= $i === 0 ? ' active' : '' ?>" data-sf-tab="<?= e($g) ?>"><?= e($g) ?></button>
-            <?php endforeach; ?>
-          </div>
-        <?php endif; ?>
+}
+$built = $buildGroups($fields);
+$canConfigure = $pluginActive && $manifest !== null && $error === null && $fields !== [];
+?>
+<div class="admin-stack admin-settings-page">
+  <nav aria-label="面包屑">
+    <ol class="admin-crumb">
+      <li><a href="<?= e(url_to('/admin/plugins')) ?>">插件</a></li>
+      <?php /* 末项用 manifest 的显示名，与下方 h1 一致；manifest 缺失时退回目录名。 */ ?>
+      <li aria-current="page"><?= e($title) ?></li>
+    </ol>
+  </nav>
+  <p class="admin-backup-msg" id="pluginSettingMsg" hidden></p>
 
-        <?php foreach ($groupNames as $gi => $g): ?>
-          <div class="admin-sf-group<?= count($groups) > 1 && $gi > 0 ? ' hidden' : '' ?>" data-sf-group="<?= e($g) ?>">
-            <?php foreach ($groups[$g] as $field): ?>
-              <?php
-              $key = (string) $field['key'];
-              $label = (string) $field['label'];
-              $type = (string) ($field['type'] ?? 'text');
-              $value = array_key_exists($key, $values) ? (string) $values[$key] : (string) ($field['default'] ?? '');
-              $placeholder = is_string($field['placeholder'] ?? null) ? $field['placeholder'] : '';
-              $options = is_array($field['options'] ?? null) ? $field['options'] : [];
-              $showIf = is_array($field['show_if'] ?? null) ? $field['show_if'] : null;
-              ?>
-              <div class="admin-sf-field"<?= $showIf !== null ? ' data-show-if-key="' . e((string) $showIf['key']) . '" data-show-if-value="' . e((string) $showIf['value']) . '"' : '' ?>>
-                <label class="admin-sf-label" for="sf-<?= e($key) ?>"><?= e($label) ?></label>
-                <?php if ($type === 'text'): ?>
-                  <input type="text" class="input" id="sf-<?= e($key) ?>" data-sf-key="<?= e($key) ?>" data-sf-type="text"
-                         value="<?= e($value) ?>"<?= $placeholder !== '' ? ' placeholder="' . e($placeholder) . '"' : '' ?> autocomplete="off">
-                <?php elseif ($type === 'textarea'): ?>
-                  <textarea class="input admin-sf-textarea" id="sf-<?= e($key) ?>" rows="4" data-sf-key="<?= e($key) ?>" data-sf-type="textarea"
-                            placeholder="<?= e($placeholder) ?>"><?= e($value) ?></textarea>
-                <?php elseif ($type === 'password'): ?>
-                  <input type="password" class="input" id="sf-<?= e($key) ?>" data-sf-key="<?= e($key) ?>" data-sf-type="password"
-                         value="<?= e($value) ?>"<?= $placeholder !== '' ? ' placeholder="' . e($placeholder) . '"' : '' ?> autocomplete="new-password">
-                <?php elseif ($type === 'checkbox'): ?>
-                  <label class="admin-sf-check">
-                    <input type="checkbox" data-sf-key="<?= e($key) ?>" data-sf-type="checkbox"<?= $value === '1' ? ' checked' : '' ?>>
-                    <span><?= e($label) ?></span>
-                  </label>
-                <?php elseif ($type === 'switcher'): ?>
-                  <label class="admin-sf-switch">
-                    <input type="checkbox" class="admin-sf-switch-input" data-sf-key="<?= e($key) ?>" data-sf-type="switcher"<?= $value === '1' ? ' checked' : '' ?>>
-                    <span class="admin-sf-switch-track"></span>
-                  </label>
-                <?php elseif ($type === 'select'): ?>
-                  <select class="input" id="sf-<?= e($key) ?>" data-sf-key="<?= e($key) ?>" data-sf-type="select">
-                    <?php foreach ($options as $optValue => $optLabel): ?>
-                      <option value="<?= e((string) $optValue) ?>"<?= (string) $optValue === $value ? ' selected' : '' ?>><?= e((string) $optLabel) ?></option>
-                    <?php endforeach; ?>
-                  </select>
-                <?php elseif ($type === 'radio'): ?>
-                  <div class="admin-sf-radio-group">
-                    <?php foreach ($options as $optValue => $optLabel): ?>
-                      <label class="admin-sf-radio">
-                        <input type="radio" name="sf-radio-<?= e($key) ?>" data-sf-key="<?= e($key) ?>" data-sf-type="radio"
-                               value="<?= e((string) $optValue) ?>"<?= (string) $optValue === $value ? ' checked' : '' ?>>
-                        <span><?= e((string) $optLabel) ?></span>
-                      </label>
-                    <?php endforeach; ?>
-                  </div>
-                <?php elseif ($type === 'color'): ?>
-                  <div class="admin-sf-color">
-                    <input type="color" class="admin-sf-color-picker" data-sf-key="<?= e($key) ?>" data-sf-type="color" value="<?= e($value !== '' ? $value : '#000000') ?>">
-                    <input type="text" class="input admin-sf-hex" data-sf-key="<?= e($key) ?>" data-sf-type="hex" placeholder="#rrggbb" value="<?= e($value) ?>" autocomplete="off">
-                  </div>
-                <?php elseif ($type === 'image'): ?>
-                  <div class="admin-sf-image">
-                    <input type="text" class="input" id="sf-<?= e($key) ?>" data-sf-key="<?= e($key) ?>" data-sf-type="image"
-                           value="<?= e($value) ?>" placeholder="<?= e($placeholder !== '' ? $placeholder : '/uploads/xxx 或外部图片 URL') ?>" autocomplete="off">
-                    <button type="button" class="btn btn-outline btn-sm admin-sf-lib" data-target="<?= e($key) ?>">从媒体库选择</button>
-                    <button type="button" class="btn btn-outline btn-sm admin-sf-upload" data-target="<?= e($key) ?>">上传图片</button>
-                    <input type="file" id="sf-upload-<?= e($key) ?>" class="admin-sf-upload-input" data-target="<?= e($key) ?>" accept="image/*,.svg" hidden>
-                    <button type="button" class="btn btn-ghost btn-sm admin-sf-image-clear" data-target="<?= e($key) ?>">清除</button>
-                    <p class="admin-field-hint"><?= $value === '' ? '无图片' : '已设置' ?></p>
-                  </div>
-                <?php endif; ?>
-              </div>
-            <?php endforeach; ?>
-          </div>
-        <?php endforeach; ?>
+  <?php if ($error !== null): ?>
+    <div class="card admin-empty">插件“<?= e($pluginName) ?>”不可用：<?= e($error) ?></div>
+  <?php endif; ?>
 
-        <p class="admin-field-hint">保存后自动刷新前台注入内容。</p>
-        <div class="admin-sf-actions">
-          <button type="submit" class="btn btn-primary" id="pluginSaveBtn">保存</button>
-          <?php if ($supportsNotificationTest): ?>
-            <button type="button" class="btn btn-outline" id="pluginTestNotificationBtn">发送测试通知</button>
-          <?php endif; ?>
-          <?php if ($supportsStorageTest): ?>
-            <button type="button" class="btn btn-outline" id="pluginTestStorageBtn">测试存储连接</button>
-          <?php endif; ?>
+  <?php if ($canConfigure): ?>
+      <?php /* 与主题设置页同一套外壳（admin-plain-form + 平铺分组），区别只有一处：
+             这里没有搜索框——插件配置通常十几项，滚动就能看完。
+             操作按钮全部落在表单末尾的操作区，页头只留标题与描述。 */ ?>
+      <form class="card admin-form-card admin-plain-form" id="pluginSettingForm">
+        <div class="admin-page-head">
+          <div><?= $headMain ?></div>
+        </div>
+
+        <?php /* 平铺模式：不渲染分组导航，每个分组直接作为一条小节标题顺排 */ ?>
+        <?php $flat = true; require __DIR__ . '/partials/schema-nav.php'; ?>
+
+        <?php /* 操作区：测试类动作在主操作左边，保存恒定在最右——
+                 顺序在窄屏换行后也保持一致。
+                 这里**不放**「有设置已修改」那条橙色胶囊：它属主题设置页的
+                 面板形态（配置几十项、改一项不容易记住），插件设置页是十来项
+                 的朴素表单，emlog 的插件设置页也没有这一条。 */ ?>
+        <div class="admin-sf-footer">
+          <div class="admin-sf-actions">
+            <?php if ($supportsNotificationTest): ?>
+              <button type="button" class="btn btn-success" id="pluginTestNotificationBtn">发送测试通知</button>
+            <?php endif; ?>
+            <?php if ($supportsStorageTest): ?>
+              <button type="button" class="btn btn-success" id="pluginTestStorageBtn">测试存储连接</button>
+            <?php endif; ?>
+            <button type="submit" class="btn btn-primary" id="pluginSaveBtn">保存</button>
+          </div>
         </div>
       </form>
+  <?php else: ?>
+    <?php /* 不可配置时（插件不可用 / 无设置项）：标题仍以普通页头出现 */ ?>
+    <div class="card admin-form-card"><div class="admin-page-head"><div><?= $headMain ?></div></div></div>
+    <?php if ($error === null && $manifest !== null): ?>
+      <?php if (!$pluginActive): ?>
+        <div class="card admin-empty">该插件当前未启用，请先 <a href="<?= e(url_to('/admin/plugins')) ?>">返回插件列表启用</a> 后再配置。</div>
+      <?php elseif ($fields === [] && !$hasCustomSettingsPage): ?>
+        <div class="card admin-empty">该插件没有可配置的设置项。</div>
+      <?php endif; ?>
     <?php endif; ?>
+  <?php endif; ?>
 
-    <?php /* 扩展注入点：插件在这里补自己设置页里的额外区块（如分类管理）。 */ ?>
+  <?php /* 扩展注入点：插件在这里补自己设置页里的额外区块（如分类管理）。 */ ?>
+  <?php if ($pluginActive && $error === null): ?>
     <?= \Pafish\Services\Plugin::renderInjection('plugin_setting', ['pluginName' => $pluginName]) ?>
   <?php endif; ?>
 </div>
@@ -169,6 +122,8 @@ $hasCustomSettingsPage = is_array($manifest) && in_array('plugin_setting', (arra
   </div>
 </div>
 
+<?php /* 设置页字段行为（show_if、滑块、间距、排版、repeater 等） */ ?>
+<script src="<?= e(asset_url('/js/admin-schema-form.js')) ?>"></script>
 <?php $pluginSettingCsrf = csrf_token(); ?>
 <script>
 (function () {
@@ -177,6 +132,9 @@ $hasCustomSettingsPage = is_array($manifest) && in_array('plugin_setting', (arra
   var NAME = <?= json_encode($pluginName) ?>;
   var msg = document.getElementById("pluginSettingMsg");
 
+  /* 结果提示优先走全局顶部居中的提示条（与 emlog 后台自带的 cocoMessage 同位置，
+     长页面滚到底保存也能看到）；#pluginSettingMsg 是同一个位置上的页内兜底，
+     照 emlog 把插件设置页的提示块渲染在表单上方的做法，供没有 toast 时落位。 */
   function showMsg(text, isError) {
     if (typeof window.pafishToast === "function") {
       window.pafishToast(text, isError ? "error" : "success");
@@ -207,145 +165,34 @@ $hasCustomSettingsPage = is_array($manifest) && in_array('plugin_setting', (arra
       .then(function (r) { return r.json(); })
       .then(function (j) {
         if (j && j.ok) return j;
-        throw new Error((j && j.error) || "操作失败");
+        var err = new Error((j && j.error) || "操作失败");
+        err.fields = (j && j.fields) || null;
+        throw err;
       });
   }
 
-  // ---- 分组 Tab ----
-  var tabBtns = document.querySelectorAll(".admin-sf-tab");
-  tabBtns.forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      tabBtns.forEach(function (b) { b.classList.remove("active"); });
-      btn.classList.add("active");
-      document.querySelectorAll(".admin-sf-group").forEach(function (g) {
-        g.classList.toggle("hidden", g.dataset.sfGroup !== btn.dataset.sfTab);
-      });
-    });
-  });
-
-  // ---- show_if 联动（依赖字段变化时刷新显示） ----
-  function refreshShowIf() {
-    var getVal = function (key) {
-      var el = document.querySelector('[data-sf-key="' + key + '"]');
-      if (!el) { return null; }
-      var t = el.dataset.sfType;
-      if (t === "checkbox" || t === "switcher") { return el.checked ? "1" : "0"; }
-      if (t === "radio") { return el.checked ? el.value : null; }
-      return el.value;
-    };
-    document.querySelectorAll("[data-show-if-key]").forEach(function (field) {
-      var v = getVal(field.dataset.showIfKey);
-      field.style.display = v === field.dataset.showIfValue ? "" : "none";
-    });
-  }
-  document.querySelectorAll("[data-sf-key]").forEach(function (el) {
-    el.addEventListener("input", refreshShowIf);
-    el.addEventListener("change", refreshShowIf);
-  });
-  refreshShowIf();
-
-  // ---- color：双向同步 + 校验 ----
-  document.querySelectorAll(".admin-sf-color-picker").forEach(function (picker) {
-    var hex = picker.parentElement.querySelector(".admin-sf-hex");
-    picker.addEventListener("input", function () { hex.value = picker.value; });
-    hex.addEventListener("input", function () {
-      if (/^#[0-9a-fA-F]{6}$/.test(hex.value.trim())) { picker.value = hex.value.trim(); }
-    });
-  });
-
-  // ---- image：清除 ----
-  document.querySelectorAll(".admin-sf-image-clear").forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      var key = btn.dataset.target;
-      document.querySelector('[data-sf-key="' + key + '"][data-sf-type="image"]').value = "";
-      refreshShowIf();
-    });
-  });
-
-  // ---- image：本地上传 ----
-  document.querySelectorAll(".admin-sf-upload").forEach(function (btn) {
-    var key = btn.dataset.target;
-    var input = document.getElementById("sf-upload-" + key);
-    if (!input) return;
-    btn.addEventListener("click", function () { input.click(); });
-    input.addEventListener("change", function () {
-      var file = input.files && input.files[0];
-      if (!file) return;
-      var label = btn.textContent;
-      btn.disabled = true;
-      btn.textContent = "上传中…";
-      var fd = new FormData();
-      fd.append("file", file);
-      fd.append("_csrf", CSRF);
-      fetch(pafishApi("/upload"), {
-        method: "POST",
-        body: fd,
-        headers: { "X-Requested-With": "XMLHttpRequest" }
-      }).then(function (r) { return r.json(); }).then(function (j) {
-        if (!j || !j.ok || !j.url) throw new Error((j && j.error) || "上传失败");
-        var target = document.querySelector('[data-sf-key="' + key + '"][data-sf-type="image"]');
-        if (target) target.value = j.url;
-        showMsg("图片上传成功，请保存设置", false);
-      }).catch(function (err) {
-        showMsg(err.message || "上传失败", true);
-      }).finally(function () {
-        btn.disabled = false;
-        btn.textContent = label;
-        input.value = "";
-      });
-    });
-  });
-
-  // ---- 保存 ----
-  var form = document.getElementById("pluginSettingForm");
-  if (form) {
-    form.addEventListener("submit", function (e) {
-      e.preventDefault();
-      // 颜色校验
+  // ---- 字段行为统一交给共享模块 ----
+  // 与主题设置页共用 public/js/admin-schema-form.js：
+  // show_if / 颜色 / 图片 / 滑块 / 间距 / 排版 / repeater / 字段级报错 / 提交收集。
+  // 本页没有分组导航与搜索框，所以不传 searchId（模块会自行跳过）。
+  PafishSchemaForm.init({
+    formId: "pluginSettingForm",
+    saveUrl: "/admin/plugins/save-settings",
+    csrf: CSRF,
+    name: NAME,
+    saveBtnId: "pluginSaveBtn",
+    onMessage: function (text, isError) { showMsg(text, isError); },
+    beforeSubmit: function (warn) {
       var hexInputs = document.querySelectorAll(".admin-sf-hex");
       for (var i = 0; i < hexInputs.length; i++) {
         var hv = hexInputs[i].value.trim();
         if (hv !== "" && !/^#[0-9a-fA-F]{6}$/.test(hv)) {
-          showMsg("颜色值 " + hv + " 不合法（需 #rrggbb）", true);
-          return;
+          warn("颜色值 " + hv + " 不合法（需 #rrggbb）", true);
+          return false;
         }
       }
-      var saveBtn = document.getElementById("pluginSaveBtn");
-      saveBtn.disabled = true;
-      saveBtn.textContent = "保存中…";
-      var fd = new FormData();
-      fd.append("name", NAME);
-      fd.append("_csrf", CSRF);
-      document.querySelectorAll("[data-sf-key]").forEach(function (el) {
-        var t = el.dataset.sfType;
-        if (t === "hex") { return; } // 颜色值从 picker 对应 key 收（hex 本身无独立 key 提交）
-        if (t === "color") {
-          var hex = document.querySelector('.admin-sf-hex[data-sf-key="' + el.dataset.sfKey + '"]');
-          var v = hex ? hex.value.trim() : "";
-          if (v) { fd.append(el.dataset.sfKey, v); }
-          return;
-        }
-        if (t === "checkbox" || t === "switcher") {
-          fd.append(el.dataset.sfKey, el.checked ? "1" : "0");
-          return;
-        }
-        if (t === "radio") {
-          if (el.checked) { fd.append(el.dataset.sfKey, el.value); }
-          return;
-        }
-        fd.append(el.dataset.sfKey, el.value.trim());
-      });
-      post("/admin/plugins/save-settings", fd).then(function () {
-        saveBtn.disabled = false;
-        saveBtn.textContent = "保存";
-        showMsg("✓ 已保存", false);
-      }).catch(function (err) {
-        showMsg(err.message, true);
-        saveBtn.disabled = false;
-        saveBtn.textContent = "保存";
-      });
-    });
-  }
+    }
+  });
 
   // ---- 插件测试通知 ----
   var testNotificationBtn = document.getElementById("pluginTestNotificationBtn");

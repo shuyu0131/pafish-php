@@ -30,6 +30,12 @@ pafish 使用 PHP 与 MySQL，提供浏览器安装向导、完整的内容后�
 
 应用包使用清单文件描述名称、版本、兼容环境和设置项。安装前会校验包结构与 PHP 版本，更新前会创建备份，失败时自动恢复原版本。
 
+## 主题开发
+
+主题采用 PHP 模板优先的方式。把 `header.php`、`footer.php`、`index.php`、`post.php` 等需要覆盖的模板放入 `themes/<主题名>/` 即可；未提供的模板继续使用系统默认模板。`theme.json`、设置 schema、页面模板、组件区域和扩展路由按主题需要声明。主题封面使用根目录的 `preview.jpg`；业务扩展统一写在 `extension.php` 中。
+
+主题和插件统一使用 `extension.php` 入口。入口返回注册闭包，闭包接收 `ExtensionContext`，可调用 `$ctx->on()`、`$ctx->filter()`、`$ctx->route()`、`$ctx->settings()`、`$ctx->inject()` 和 `$ctx->lifecycle()`，并通过 `$ctx->getData()`、`$ctx->setData()`、`$ctx->getSettings()`、`$ctx->setSettings()` 管理自己的数据。路由、设置、前台注入和生命周期会自动接入现有管线。主题目录中的 `index.php`、`theme.php`、`helpers.php` 等文件仅作为模板或由 `extension.php` 显式组织的业务实现，不再作为独立扩展入口自动加载。主题负责展示和主题选项，会员、支付、订单等业务应放在插件中。
+
 ## 环境要求
 
 | 项目 | 要求 |

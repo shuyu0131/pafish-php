@@ -13,7 +13,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
  * 分类管理
- * - 树形列表（depth 缩进 + 文章数）；同级上移/下移（交换 sortOrder）
+ * - 树形列表（depth 缩进 + 文章数）；同级上移/下移（归一化排序值）
  * - 创建时 sortOrder = 同父级最大 + 1；删除时子分类与文章自动置 NULL
  * - 防自引用双保险：前端禁用自身+后代（disabledMap），后端 BFS 校验
  */
@@ -68,42 +68,22 @@ final class CategoriesController extends AdminController
         return $this->redirect($response, '/admin/categories');
     }
 
-    /** 同级上移/下移（交换 sortOrder） */
+    /** 同级上移/下移（归一化排序值） */
     public function move(Request $request, Response $response, array $args): Response
     {
         $this->guardAdmin();
-        $id = (int) ($args['id'] ?? 0);
-        $dir = ($request->getParsedBody()['dir'] ?? '') === 'up' ? 'up' : 'down';
-
-        $cat = DB::fetchOne('SELECT * FROM categories WHERE id = ?', [$id]);
-        if (!$cat) {
-            return $this->json($response, ['error' => '分类不存在'], 404);
+        try {
+            \Pafish\Services\AdminOrdering::move('categories', (int) ($args['id'] ?? 0),
+                ($request->getParsedBody()['dir'] ?? '') === 'up' ? 'up' : 'down');
+        } catch (\InvalidArgumentException $e) {
+            return $this->json($response, ['error' => $e->getMessage()], 400);
         }
-        $parent = $cat['parent_id']; // NULL 或 int
-        $siblings = DB::fetchAll(
-            'SELECT * FROM categories WHERE parent_id <=> ? ORDER BY sort_order ASC, id ASC',
-            [$parent]
-        );
-        $idx = null;
-        foreach ($siblings as $i => $s) {
-            if ((int) $s['id'] === $id) {
-                $idx = $i;
-                break;
-            }
-        }
-        $swapWith = $dir === 'up' ? $idx - 1 : $idx + 1;
-        if ($idx === null || !isset($siblings[$swapWith])) {
-            return $this->json($response, ['ok' => true]); // 边界（已在首/尾）静默
-        }
-        DB::transaction(function () use ($siblings, $idx, $swapWith): void {
-            $ordered = $siblings;
-            [$ordered[$idx], $ordered[$swapWith]] = [$ordered[$swapWith], $ordered[$idx]];
-            foreach ($ordered as $position => $item) {
-                DB::execute('UPDATE categories SET sort_order = ? WHERE id = ?', [$position, (int) $item['id']]);
-            }
-        });
-        Cache::clearPrefix('categories.');
         return $this->json($response, ['ok' => true]);
+    }
+
+    public function reorder(Request $request, Response $response): Response
+    {
+        return $this->reorderList($request, $response, 'categories');
     }
 
     /** 删除：子分类与文章 category_id 置 NULL（双保险，不依赖外键）后硬删除 */

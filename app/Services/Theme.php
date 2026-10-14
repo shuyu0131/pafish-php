@@ -19,11 +19,12 @@ final class Theme
     ];
     private const MAX_ZIP_BYTES = 10 * 1024 * 1024;
     private const BACKUP_FORMAT = 'blogcms-theme-settings';
+    private const DEFAULT_VERSION = '1.0.0';
 
     private static ?array $manifests = [];
-    private static ?array $modules = [];
     private static ?array $contexts = [];
     private static ?array $values = null;
+    private static array $changedCache = [];
     private static ?string $bootedTheme = null;
     private static ?string $schemaBootKey = null;
 
@@ -36,7 +37,7 @@ final class Theme
     public static function active(): string
     {
         $name = (string) Settings::get('active_theme', 'default');
-        return self::isValidName($name) ? $name : 'default';
+        return self::isValidName($name) && self::isThemeDirectory(self::root() . '/' . $name) ? $name : 'default';
     }
 
     /** 加载当前主题的 PHP 扩展入口；每个请求只加载一次。 */
@@ -53,8 +54,9 @@ final class Theme
             }
         }
         if (!$schemaReady) {
+            ExtensionKernel::reset('theme', $name);
             if (self::$bootedTheme !== null) {
-                Hooks::removeByTag('theme:' . self::$bootedTheme);
+                ExtensionKernel::reset('theme', self::$bootedTheme);
             }
             // 允许同一长驻进程在下一次调用时重试失败的迁移。
             self::$bootedTheme = null;
@@ -64,20 +66,10 @@ final class Theme
             return;
         }
         if (self::$bootedTheme !== null) {
-            Hooks::removeByTag('theme:' . self::$bootedTheme);
+            ExtensionKernel::reset('theme', self::$bootedTheme);
         }
         self::$bootedTheme = $name;
-        $file = self::root() . '/' . $name . '/helpers.php';
-        if (is_file($file)) {
-            // 主题 helper 只能影响主题钩子；加载失败时记录日志并继续使用核心页面。
-            // 使用 require 仍支持同一长驻进程内切换主题后重新注册钩子。
-            try {
-                require $file;
-            } catch (\Throwable $e) {
-                \Pafish\Core\Logger::error('[pafish-theme] 加载 ' . $name . ' helpers.php 失败：' . $e->getMessage());
-                Hooks::removeByTag('theme:' . $name);
-            }
-        }
+        ExtensionKernel::boot('theme', $name, self::root(), self::context($name));
         self::registerHooks($name);
     }
 
@@ -162,7 +154,7 @@ final class Theme
         return in_array(strtolower((string) pathinfo($path, PATHINFO_EXTENSION)), self::ASSET_EXTENSIONS, true);
     }
 
-    /** 扫描 themes/ 目录下的主题名。 */
+    /** 扫描 themes/ 目录下的主题名；PHP 模板主题无需 theme.json。 */
     public static function list(): array
     {
         $names = [];
@@ -171,7 +163,7 @@ final class Theme
             if (str_starts_with($name, '.')) {
                 continue;
             }
-            if (self::isValidName($name)) {
+            if (self::isValidName($name) && self::isThemeDirectory($dir)) {
                 $names[] = $name;
             }
         }
@@ -179,7 +171,7 @@ final class Theme
         return $names;
     }
 
-    /** 读取主题 manifest（theme.json）；无效返回 null（仅校验 name 一致性） */
+    /** 读取主题清单；所有主题必须声明统一 extension.php 入口。 */
     public static function manifest(string $name): ?array
     {
         if (!self::isValidName($name)) {
@@ -188,7 +180,14 @@ final class Theme
         if (array_key_exists($name, self::$manifests)) {
             return self::$manifests[$name];
         }
-        $file = self::root() . '/' . $name . '/theme.json';
+        $dir = self::root() . '/' . $name;
+        if (!is_dir($dir) || !self::isThemeDirectory($dir)) {
+            return self::$manifests[$name] = null;
+        }
+        if (!is_file($dir . '/extension.php')) {
+            return self::$manifests[$name] = null;
+        }
+        $file = $dir . '/theme.json';
         if (!is_file($file)) {
             return self::$manifests[$name] = null;
         }
@@ -196,7 +195,7 @@ final class Theme
         if (!is_array($json) || ($json['name'] ?? null) !== $name) {
             return self::$manifests[$name] = null;
         }
-        return self::$manifests[$name] = $json;
+        return self::$manifests[$name] = self::normalizeManifest($json, $name);
     }
 
     /**
@@ -208,7 +207,14 @@ final class Theme
         if (!self::isValidName($name)) {
             return ['manifest' => null, 'error' => '主题名不合法'];
         }
-        $file = self::root() . '/' . $name . '/theme.json';
+        $dir = self::root() . '/' . $name;
+        if (!is_dir($dir) || !self::isThemeDirectory($dir)) {
+            return ['manifest' => null, 'error' => '主题目录不存在或缺少模板文件'];
+        }
+        if (!is_file($dir . '/extension.php')) {
+            return ['manifest' => null, 'error' => '缺少 extension.php'];
+        }
+        $file = $dir . '/theme.json';
         if (!is_file($file)) {
             return ['manifest' => null, 'error' => '缺少 theme.json'];
         }
@@ -220,21 +226,24 @@ final class Theme
         if ($error !== null) {
             return ['manifest' => null, 'error' => $error];
         }
-        return ['manifest' => $json, 'error' => null];
+        return ['manifest' => self::normalizeManifest($json, $name), 'error' => null];
     }
 
     /**
      * 校验 manifest；返回错误消息或 null。
-     * 校验 name 一致、title/version 存在，并过滤 pageTemplates（全非法才报错）
+     * 校验 name 一致，并过滤可选的 pageTemplates（全非法才报错）。
+     * title/version 缺省时由 normalizeManifest() 提供默认值。
      */
     public static function validateManifest(array $json, string $dirName): ?string
     {
         if (($json['name'] ?? null) !== $dirName) {
             return 'name 缺失或与目录名不一致';
         }
-        if (!is_string($json['title'] ?? null) || $json['title'] === ''
-            || !is_string($json['version'] ?? null) || $json['version'] === '') {
-            return '缺少 title 或 version';
+        if (array_key_exists('title', $json) && (!is_string($json['title']) || trim($json['title']) === '')) {
+            return 'title 必须是非空字符串';
+        }
+        if (array_key_exists('version', $json) && (!is_string($json['version']) || trim($json['version']) === '')) {
+            return 'version 必须是非空字符串';
         }
         if (array_key_exists('pageTemplates', $json)) {
             if (!is_array($json['pageTemplates'])) {
@@ -277,26 +286,37 @@ final class Theme
         return null;
     }
 
-    /** 加载主题业务模块；theme.php 可选，主题静态模板不受影响。 */
-    public static function module(string $name): ?array
+    /** 将可选清单补齐为核心内部使用的稳定结构。 */
+    private static function normalizeManifest(array $json, string $name): array
     {
-        if (!self::isValidName($name)) {
-            return null;
+        $json['name'] = $name;
+        $json['title'] = trim((string) ($json['title'] ?? $name)) ?: $name;
+        $json['version'] = trim((string) ($json['version'] ?? self::DEFAULT_VERSION)) ?: self::DEFAULT_VERSION;
+        foreach (['description', 'author', 'authorUrl', 'homepage'] as $key) {
+            if (!isset($json[$key]) || !is_string($json[$key])) {
+                $json[$key] = '';
+            }
         }
-        if (array_key_exists($name, self::$modules)) {
-            return self::$modules[$name];
+        foreach (['settings', 'pageTemplates', 'widgetAreas', 'editorFields'] as $key) {
+            if (!isset($json[$key]) || !is_array($json[$key])) {
+                $json[$key] = [];
+            }
         }
-        $file = self::root() . '/' . $name . '/theme.php';
-        if (!is_file($file)) {
-            return self::$modules[$name] = [];
+        return $json;
+    }
+
+    /** 主题至少提供一个模板或样式/封面文件。 */
+    private static function isThemeDirectory(string $dir): bool
+    {
+        if (!is_dir($dir)) {
+            return false;
         }
-        try {
-            $module = require $file;
-            return self::$modules[$name] = is_array($module) ? $module : [];
-        } catch (\Throwable $e) {
-            \Pafish\Core\Logger::error('[pafish-theme] 加载 ' . $name . ' theme.php 失败：' . $e->getMessage());
-            return self::$modules[$name] = [];
+        foreach (['theme.json', 'extension.php', 'header.php', 'index.php', 'post.php', 'page.php', 'style.css', 'theme.css', 'preview.jpg', 'assets/css/style.css', 'assets/css/theme.css', 'assets/preview.jpg'] as $file) {
+            if (is_file($dir . '/' . $file)) {
+                return true;
+            }
         }
+        return false;
     }
 
     /** 当前主题业务上下文。 */
@@ -314,12 +334,12 @@ final class Theme
     /** 注册主题业务模块的钩子。 */
     private static function registerHooks(string $name): void
     {
-        $module = self::module($name);
-        if ($module === null || !is_callable($module['registerHooks'] ?? null)) {
+        $handler = ExtensionKernel::providerFor('theme', $name, 'registerHooks');
+        if ($handler === null) {
             return;
         }
         try {
-            $module['registerHooks'](self::context($name));
+            $handler(self::context($name));
         } catch (\Throwable $e) {
             \Pafish\Core\Logger::error('[pafish-theme] ' . $name . ' registerHooks 失败：' . $e->getMessage());
         }
@@ -342,6 +362,8 @@ final class Theme
                 ExtensionSchema::sync('theme', $name, $schema);
                 ExtensionSchema::recordFingerprint('theme', $name, $schema);
             }
+            // 版本迁移可能由 extension.php 注册，先加载统一入口再执行 onUpgrade。
+            ExtensionKernel::boot('theme', $name, self::root(), self::context($name));
             self::runUpgrade($name, $fromVersion, $version);
             if ($fromVersion !== $version) {
                 ExtensionSchema::recordVersion('theme', $name, $version);
@@ -356,15 +378,21 @@ final class Theme
     /** 主题业务生命周期回调，异常隔离，不能影响主题和核心页面渲染。 */
     private static function runLifecycle(string $name, string $phase, ?string $fromVersion = null, ?string $toVersion = null): void
     {
-        $module = self::module($name);
-        if ($module === null || !is_callable($module[$phase] ?? null)) {
+        $args = $phase === 'onUpgrade'
+            ? [$fromVersion ?? '', $toVersion ?? '']
+            : [];
+        if (ExtensionKernel::runLifecycle('theme', $name, $phase, $args, $phase === 'onUpgrade')) {
+            return;
+        }
+        $handler = ExtensionKernel::providerFor('theme', $name, $phase);
+        if ($handler === null) {
             return;
         }
         try {
             if ($phase === 'onUpgrade') {
-                $module[$phase](self::context($name), $fromVersion ?? '', $toVersion ?? '');
+                $handler(self::context($name), $fromVersion ?? '', $toVersion ?? '');
             } else {
-                $module[$phase](self::context($name));
+                $handler(self::context($name));
             }
         } catch (\Throwable $e) {
             \Pafish\Core\Logger::error('[pafish-theme] ' . $name . ' ' . $phase . ' 失败：' . $e->getMessage());
@@ -376,12 +404,15 @@ final class Theme
         if ($fromVersion === '' || $fromVersion === $toVersion) {
             return;
         }
-        $module = self::module($name);
-        if ($module === null || !is_callable($module['onUpgrade'] ?? null)) {
+        if (ExtensionKernel::runLifecycle('theme', $name, 'onUpgrade', [$fromVersion, $toVersion], true)) {
+            return;
+        }
+        $handler = ExtensionKernel::providerFor('theme', $name, 'onUpgrade');
+        if ($handler === null) {
             return;
         }
         try {
-            $module['onUpgrade'](self::context($name), $fromVersion, $toVersion);
+            $handler(self::context($name), $fromVersion, $toVersion);
         } catch (\Throwable $e) {
             throw new \RuntimeException('主题升级迁移失败：' . $e->getMessage(), 0, $e);
         }
@@ -408,13 +439,27 @@ final class Theme
     /** 主题上下文保存设置时仅接纳自己的 schema 键。 */
     public static function setExtensionSettings(string $name, array $partial): void
     {
-        $keys = array_flip(self::schemaKeys($name));
+        $prefix = self::settingsPrefix($name);
+        $fields = [];
+        foreach (ExtensionKernel::flattenFields(self::settingsFields($name)) as $field) {
+            if (isset($field['key']) && !ExtensionKernel::isDecorativeType((string) ($field['type'] ?? ''))) {
+                $fields[(string) $field['key']] = $field;
+            }
+        }
+        $pairs = [];
         foreach ($partial as $key => $value) {
-            if (!isset($keys[$key]) || !is_scalar($value)) {
+            $key = (string) $key;
+            if (!isset($fields[$key]) || !is_scalar($value)) {
                 continue;
             }
-            Settings::set('theme:' . $key, (string) $value);
+            $value = (string) $value;
+            $error = ExtensionKernel::validateSettingValue($fields[$key], $value);
+            if ($error !== null) {
+                throw new \InvalidArgumentException($error);
+            }
+            $pairs[$prefix . $key] = $value;
         }
+        Settings::setMany($pairs);
         self::resetValues();
     }
 
@@ -428,17 +473,49 @@ final class Theme
         self::setData($name, $data);
     }
 
-    /** 主题设置的 schema 键清单 */
+    /**
+     * 主题设置的 schema 键清单（真实存库的设置项）。
+     *
+     * 必须展平 `group` 容器：容器自身不存值，里面的子字段才是设置项。
+     * 否则导出会漏掉容器内的设置，卸载主题时也会留下孤儿键。
+     */
     public static function schemaKeys(string $name): array
     {
-        $manifest = self::manifest($name);
         $keys = [];
-        foreach (($manifest['settings'] ?? []) as $field) {
-            if (is_array($field) && isset($field['key'])) {
+        foreach (ExtensionKernel::flattenFields(self::settingsFields($name)) as $field) {
+            if (isset($field['key']) && !ExtensionKernel::isDecorativeType((string) ($field['type'] ?? ''))) {
                 $keys[] = (string) $field['key'];
             }
         }
         return $keys;
+    }
+
+    /**
+     * 主题设置字段（合并 theme.json 声明与运行时 $ctx->settings() 注册）。
+     *
+     * 两条来源都必须经过 ExtensionKernel 规范化：
+     * 否则 theme.json 里声明的 desc / section / maxlength / pattern 等约束会原样透传
+     * （键名不在统一的 rules 结构里），渲染层读不到、保存校验也拿不到——
+     * 表现为"主题里写了校验，但后台既不显示提示也不拦截"。
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public static function settingsFields(string $name): array
+    {
+        $manifest = self::manifest($name);
+        $fields = [];
+        foreach ((array) ($manifest['settings'] ?? []) as $field) {
+            $normalized = ExtensionKernel::describeSetting($field, 'theme');
+            if ($normalized !== null) {
+                $fields[(string) $normalized['key']] = $normalized;
+            }
+        }
+        foreach (ExtensionKernel::settingsFor('theme', $name) as $field) {
+            if (is_array($field) && isset($field['key'])) {
+                $fields[(string) $field['key']] = $field;
+            }
+        }
+        return array_values($fields);
     }
 
     /** 主题专属文章字段；主题未启用时由编辑器隐藏并原样保留。 */
@@ -497,14 +574,26 @@ final class Theme
         return $areas;
     }
 
+    /** 主题样式文件定位：优先 assets/css/ 子目录，根目录位置保留兼容旧主题。 */
+    private static function findAsset(string $name, string $file): ?string
+    {
+        foreach (['assets/css/', ''] as $dir) {
+            $path = self::root() . '/' . $name . '/' . $dir . $file;
+            if (is_file($path)) {
+                return $path;
+            }
+        }
+        return null;
+    }
+
     /** 主题 CSS（theme.css 内容，前台 <style> 注入）；无文件返回 null */
     public static function css(string $name): ?string
     {
         if (!self::isValidName($name)) {
             return null;
         }
-        $file = self::root() . '/' . $name . '/theme.css';
-        return is_file($file) ? (string) file_get_contents($file) : null;
+        $file = self::findAsset($name, 'theme.css');
+        return $file !== null ? (string) file_get_contents($file) : null;
     }
 
     /**
@@ -516,31 +605,333 @@ final class Theme
         if (!self::isValidName($name)) {
             $name = 'default';
         }
-        $file = self::root() . '/' . $name . '/style.css';
-        if (!is_file($file)) {
-            $file = self::root() . '/default/style.css';
-        }
-        return is_file($file) ? (string) file_get_contents($file) : null;
+        $file = self::findAsset($name, 'style.css') ?? self::findAsset('default', 'style.css');
+        return $file !== null ? (string) file_get_contents($file) : null;
     }
 
     /**
-     * 指定主题的设置值：schema 默认值 + 已保存的 theme:{key} 覆盖
+     * 本主题相对 schema 默认值真正被改过的设置项。
+     *
+     * 只认本主题 schema 里声明过的键：值直接透传等于允许往页面上写任意样式
+     * （连 </style> 都能闭合出去），所以一切输出都以这张表为准。
+     * 空值视为「没设置」，不参与输出——默认值本身由 style.css 负责，
+     * 没改过的主题因此不产生任何额外 CSS。
+     */
+    public static function changedOptions(string $name): array
+    {
+        if (isset(self::$changedCache[$name])) {
+            return self::$changedCache[$name];
+        }
+        $defaults = [];
+        foreach (ExtensionKernel::flattenFields(self::settingsFields($name)) as $field) {
+            if (is_array($field) && isset($field['key'])) {
+                $defaults[(string) $field['key']] = (string) ($field['default'] ?? '');
+            }
+        }
+
+        $changed = [];
+        foreach (self::valuesFor($name) as $key => $value) {
+            $key = (string) $key;
+            $value = (string) $value;
+            if ($value !== '' && $value !== ($defaults[$key] ?? '')) {
+                $changed[$key] = $value;
+            }
+        }
+
+        return self::$changedCache[$name] = $changed;
+    }
+
+    /**
+     * 由主题设置值生成的补充样式，追加在主题自带 style.css 之后。
+     *
+     * 正文尺寸落在 .md-content 而不是 body：rem 以根元素为基准，
+     * 改 body 的 font-size 影响不到正文（正文尺寸写死在 .md-content 上）。
+     */
+    public static function optionsCss(string $name): string
+    {
+        $changed = self::changedOptions($name);
+        if ($changed === []) {
+            return '';
+        }
+
+        $num = static function (string $key, float $min, float $max) use ($changed): ?float {
+            $v = $changed[$key] ?? '';
+            if ($v === '' || !is_numeric($v)) {
+                return null;
+            }
+            $f = (float) $v;
+            return ($f >= $min && $f <= $max) ? $f : null;
+        };
+        $fmt = static fn (float $v): string => ($v == (int) $v) ? (string) (int) $v : (string) round($v, 2);
+        $hex = static function (string $key) use ($changed): string {
+            $v = trim($changed[$key] ?? '');
+            if (preg_match('/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/', $v, $m) !== 1) {
+                return '';
+            }
+            $h = $m[1];
+            if (strlen($h) === 3) {
+                $h = $h[0] . $h[0] . $h[1] . $h[1] . $h[2] . $h[2];
+            }
+            return '#' . strtolower($h);
+        };
+        $json = static function (string $key) use ($changed): array {
+            $d = json_decode($changed[$key] ?? '', true);
+            return is_array($d) ? $d : [];
+        };
+        $in = static fn (string $v, array $allowed): string => in_array($v, $allowed, true) ? $v : '';
+
+        $root = [];
+        $dark = [];
+        $body = [];
+        $darkBody = [];
+        $rules = [];
+
+        // 主色：单色值优先于预设，预设只是把常用色填进单色字段。
+        $accent = $hex('accent_color') !== '' ? $hex('accent_color') : $hex('accent_preset');
+        if ($accent !== '') {
+            $rgb = sscanf($accent, '#%02x%02x%02x');
+            $r = (int) ($rgb[0] ?? 0);
+            $g = (int) ($rgb[1] ?? 0);
+            $b = (int) ($rgb[2] ?? 0);
+            $root[] = '--accent:' . $accent;
+            $root[] = sprintf('--accent-soft:rgba(%d,%d,%d,.1)', $r, $g, $b);
+            $lift = static fn (int $c): int => (int) round($c + (255 - $c) * 0.55);
+            $dark[] = sprintf('--accent:#%02x%02x%02x', $lift($r), $lift($g), $lift($b));
+            $dark[] = sprintf('--accent-soft:rgba(%d,%d,%d,.16)', $lift($r), $lift($g), $lift($b));
+        }
+
+        $fontPreset = $in((string) ($changed['font_preset'] ?? ''), ['system', 'serif', 'mono']);
+        $fontStack = [
+            'serif' => 'Georgia,"Songti SC","SimSun",serif',
+            'mono' => '"JetBrains Mono",Consolas,"Courier New",monospace',
+        ][$fontPreset] ?? '';
+        if ($fontStack !== '') {
+            $root[] = '--font-sans:' . $fontStack;
+        }
+
+        $bodySize = $num('body_size', 12, 24);
+        if ($bodySize !== null) {
+            $rules[] = '.md-content{font-size:' . $fmt($bodySize) . 'px}';
+        }
+
+        $width = $num('content_width', 480, 2000);
+        if ($width !== null) {
+            $rules[] = '.container,.app-footer-inner{max-width:' . $fmt($width) . 'px}';
+        }
+
+        // 背景：图片只放行 http(s) 与站内绝对路径，挡掉 javascript: 之类；
+        // 尺寸必须跟位置写在一起，否则 background-size 会被简写整个覆盖掉。
+        $bg = $json('page_bg');
+        if ($bg !== []) {
+            $parts = [];
+            $bgColor = '';
+            $c = trim((string) ($bg['color'] ?? ''));
+            if (preg_match('/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/', $c) === 1) {
+                $hc = ltrim($c, '#');
+                if (strlen($hc) === 3) {
+                    $hc = $hc[0] . $hc[0] . $hc[1] . $hc[1] . $hc[2] . $hc[2];
+                }
+                $bgColor = '#' . strtolower($hc);
+            }
+            $imgUrl = '';
+            $img = trim((string) ($bg['image'] ?? ''));
+            if ($img !== '' && preg_match('~^(https?://|/)[\w\-./%?=&:@!\~+]*$~', $img) === 1) {
+                $imgUrl = $img;
+            }
+            if ($imgUrl !== '') {
+                $parts[] = 'url("' . $imgUrl . '")';
+            }
+            if ($bgColor !== '') {
+                $parts[] = $bgColor;
+            }
+            if ($parts !== []) {
+                if ($imgUrl !== '') {
+                    $repeat = $in((string) ($bg['repeat'] ?? ''), ['no-repeat', 'repeat', 'repeat-x', 'repeat-y']);
+                    $position = $in((string) ($bg['position'] ?? ''), ['left top', 'left center', 'left bottom', 'center top', 'center center', 'center bottom', 'right top', 'right center', 'right bottom']);
+                    $size = $in((string) ($bg['size'] ?? ''), ['auto', 'cover', 'contain']);
+                    $attach = $in((string) ($bg['attachment'] ?? ''), ['scroll', 'fixed']);
+                    $parts[] = $repeat !== '' ? $repeat : 'no-repeat';
+                    $parts[] = ($position !== '' ? $position : 'center center') . '/' . ($size !== '' ? $size : 'auto');
+                    if ($attach !== '') {
+                        $parts[] = $attach;
+                    }
+                }
+                $body[] = 'background:' . implode(' ', $parts);
+                // 深色模式靠 style.css 的 .dark body 底色压住背景，这里补回同样效果。
+                if ($imgUrl === '' && $bgColor !== '') {
+                    $darkBody[] = 'background:var(--bg)';
+                }
+            }
+        }
+
+        $head = $json('heading_type');
+        if ($head !== []) {
+            $h = [];
+            $family = isset($head['family']) ? self::cssFontFamily((string) $head['family']) : '';
+            if ($family !== '') {
+                $h[] = 'font-family:' . $family . ',var(--font-sans)';
+            }
+            $size = isset($head['size']) && is_numeric($head['size']) ? (float) $head['size'] : null;
+            if ($size !== null && $size >= 12 && $size <= 80) {
+                $h[] = 'font-size:' . $fmt($size) . 'px';
+            }
+            $weight = isset($head['weight']) ? (string) $head['weight'] : '';
+            if (preg_match('/^[1-9]00$/', $weight) === 1) {
+                $h[] = 'font-weight:' . $weight;
+            }
+            $lh = isset($head['line_height']) && is_numeric($head['line_height']) ? (float) $head['line_height'] : null;
+            if ($lh !== null && $lh > 0 && $lh <= 4) {
+                $h[] = 'line-height:' . $fmt($lh);
+            }
+            $ls = isset($head['letter_spacing']) && is_numeric($head['letter_spacing']) ? (float) $head['letter_spacing'] : null;
+            if ($ls !== null && abs($ls) <= 20) {
+                $h[] = 'letter-spacing:' . $fmt($ls) . 'px';
+            }
+            if ($h !== []) {
+                $rules[] = '.post-card-title,.post-title{' . implode(';', $h) . '}';
+            }
+        }
+
+        if (($changed['content_align'] ?? '') === 'justify') {
+            $rules[] = '.md-content p,.md-content li{text-align:justify}';
+        }
+
+        // 列表形态走 body 类名，避免与 style.css 里的选择器权重打架。
+        $listStyle = $in((string) ($changed['list_style'] ?? ''), ['list', 'card', 'compact']);
+        if ($listStyle === 'card') {
+            $rules[] = 'body.ts-list-card .post-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(16rem,1fr));gap:1.25rem}';
+            $rules[] = 'body.ts-list-card .post-card{padding-left:1.5rem;padding-right:1.5rem;border:1px solid var(--card-border-color,var(--border));border-radius:var(--card-radius,8px)}';
+            $rules[] = 'body.ts-list-card .post-card-excerpt{-webkit-line-clamp:3}';
+        } elseif ($listStyle === 'compact') {
+            $rules[] = 'body.ts-list-compact .post-card{padding:.875rem 0}';
+            $rules[] = 'body.ts-list-compact .post-card-title{font-size:1.125rem;font-weight:normal}';
+            $rules[] = 'body.ts-list-compact .post-card-excerpt{display:none}';
+        }
+
+        $radius = $num('card_radius', 0, 14);
+        if ($radius !== null) {
+            $root[] = '--card-radius:' . $fmt($radius) . 'px';
+        }
+
+        // 边框同时承担「列表分隔线」与「卡片描边」两种角色；
+        // 宽度为 0 时必须显式关掉，否则列表模式下仍有分隔线残留。
+        $border = $json('card_border');
+        if ($border !== []) {
+            $bw = isset($border['width']) && is_numeric($border['width']) ? (float) $border['width'] : null;
+            $bs = $in((string) ($border['style'] ?? ''), ['solid', 'dashed', 'dotted']);
+            $bc = '';
+            $bcRaw = trim((string) ($border['color'] ?? ''));
+            if (preg_match('/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/', $bcRaw) === 1) {
+                $hb = ltrim($bcRaw, '#');
+                if (strlen($hb) === 3) {
+                    $hb = $hb[0] . $hb[0] . $hb[1] . $hb[1] . $hb[2] . $hb[2];
+                }
+                $bc = '#' . strtolower($hb);
+            }
+            if ($bw !== null && $bw >= 0 && $bw <= 50) {
+                if ($bw == 0) {
+                    $rules[] = '.post-card{border-bottom:0}';
+                    $rules[] = 'body.ts-list-card .post-card{border:0}';
+                } else {
+                    $spec = $fmt($bw) . 'px ' . ($bs !== '' ? $bs : 'solid') . ' ' . ($bc !== '' ? $bc : 'var(--border)');
+                    if ($bc !== '') {
+                        $root[] = '--card-border-color:' . $bc;
+                    }
+                    $rules[] = '.post-card{border-bottom:' . $spec . '}';
+                    $rules[] = 'body.ts-list-card .post-card{border:' . $spec . '}';
+                }
+            }
+        }
+
+        // 间距放最后：要让 .post-list .post-card 压过上面的卡片内边距。
+        $gap = $json('list_gap');
+        if ($gap !== []) {
+            $g = [];
+            $gt = isset($gap['top']) && is_numeric($gap['top']) ? (float) $gap['top'] : null;
+            $gb = isset($gap['bottom']) && is_numeric($gap['bottom']) ? (float) $gap['bottom'] : null;
+            if ($gt !== null && $gt >= 0 && $gt <= 200) {
+                $g[] = 'padding-top:' . $fmt($gt) . 'px';
+            }
+            if ($gb !== null && $gb >= 0 && $gb <= 200) {
+                $g[] = 'padding-bottom:' . $fmt($gb) . 'px';
+            }
+            if ($g !== []) {
+                $rules[] = '.post-list .post-card{' . implode(';', $g) . '}';
+            }
+        }
+
+        $css = '';
+        if ($root !== []) {
+            $css .= ':root{' . implode(';', $root) . "}\n";
+        }
+        if ($dark !== []) {
+            $css .= '.dark{' . implode(';', $dark) . "}\n";
+        }
+        if ($body !== []) {
+            $css .= 'body{' . implode(';', $body) . "}\n";
+        }
+        if ($darkBody !== []) {
+            $css .= '.dark body{' . implode(';', $darkBody) . "}\n";
+        }
+        if ($rules !== []) {
+            $css .= implode("\n", $rules) . "\n";
+        }
+
+        // 自定义 CSS 最后一条，允许覆盖上面全部生成规则。
+        $custom = trim((string) ($changed['custom_css'] ?? ''));
+        if ($custom !== '') {
+            $css .= str_ireplace('</style', '<\\/style', $custom) . "\n";
+        }
+
+        return $css;
+    }
+
+    /** 列表形态对应的 body 类名，供前台模板挂到 <body> 上。 */
+    public static function optionsBodyClass(string $name): string
+    {
+        $style = self::changedOptions($name)['list_style'] ?? '';
+        return match ($style) {
+            'card' => 'ts-list-card',
+            'compact' => 'ts-list-compact',
+            default => '',
+        };
+    }
+
+    /**
+     * 字体名清洗：只留字母、数字、汉字与空格逗号连字符引号，最长 80 字符。
+     * 字体名会直接进 CSS，必须挡掉 } { ; 等能让规则逃逸的字符。
+     */
+    private static function cssFontFamily(string $value): string
+    {
+        $clean = preg_replace('/[^A-Za-z0-9\x{4e00}-\x{9fa5}\s,\-\'"]/u', '', $value) ?? '';
+        return mb_substr(trim($clean), 0, 80);
+    }
+
+    /**
+     * 指定主题的设置值：schema 默认值 + theme_settings:{name}:{key} 覆盖。
+     *
+     * 必须展平 `group` 容器：容器自身不存值，其子字段才是真实设置项。
+     * 只遍历顶层会让容器内的设置**永远读不到**（`theme_value()` 返回默认值、
+     * 导出也漏掉），即使保存接口报告成功。
      */
     public static function valuesFor(string $name): array
     {
-        $manifest = self::manifest($name);
+        if (!self::isValidName($name)) {
+            return [];
+        }
         $values = [];
-        foreach (($manifest['settings'] ?? []) as $field) {
-            if (is_array($field) && isset($field['key'])) {
+        foreach (ExtensionKernel::flattenFields(self::settingsFields($name)) as $field) {
+            if (is_array($field) && isset($field['key']) && !ExtensionKernel::isDecorativeType((string) ($field['type'] ?? ''))) {
                 $type = (string) ($field['type'] ?? '');
                 $values[$field['key']] = (string) ($field['default'] ?? (($type === 'checkbox' || $type === 'switcher') ? '0' : ''));
             }
         }
         // 覆盖已保存值
+        $prefix = self::settingsPrefix($name);
         $all = Settings::all();
         foreach ($all as $key => $value) {
-            if (str_starts_with($key, 'theme:') && isset($values[substr($key, 6)])) {
-                $values[substr($key, 6)] = $value;
+            if (str_starts_with($key, $prefix) && isset($values[substr($key, strlen($prefix))])) {
+                $values[substr($key, strlen($prefix))] = $value;
             }
         }
         return $values;
@@ -627,7 +1018,13 @@ final class Theme
         if ($desc['error'] !== null) {
             throw new \RuntimeException($desc['error'] ?? '主题不存在');
         }
-        ExtensionRoutes::assertCanActivate('theme', $name, $desc['manifest']);
+        ExtensionKernel::boot('theme', $name, self::root(), self::context($name));
+        try {
+            ExtensionRoutes::assertCanActivate('theme', $name, $desc['manifest']);
+        } catch (\Throwable $e) {
+            ExtensionKernel::reset('theme', $name);
+            throw $e;
+        }
         $version = (string) $desc['manifest']['version'];
         $previousVersion = ExtensionSchema::installedVersion('theme', $name);
         $schema = $desc['manifest']['schema'] ?? null;
@@ -643,18 +1040,6 @@ final class Theme
         Settings::set('active_theme', $name);
         self::reset();
         self::boot();
-    }
-
-    /** 显式停用当前主题；系统回退到 default，主题数据保持不变。 */
-    public static function deactivate(string $name): void
-    {
-        if (!self::isValidName($name) || self::active() !== $name) {
-            throw new \RuntimeException('只能停用当前正在使用的主题');
-        }
-        if ($name === 'default') {
-            throw new \RuntimeException('默认主题不能停用');
-        }
-        self::setActive('default');
     }
 
     /** 从 zip 缓冲安装主题；返回 name/title/version/updated。校验失败抛 RuntimeException（已回滚） */
@@ -718,15 +1103,24 @@ final class Theme
             }
             $zip->close();
             $stagedTarget = $stage . '/' . $top;
-            if (!is_file($stagedTarget . '/theme.json')) {
+            if (!is_file($stagedTarget . '/extension.php')) {
                 self::rmDir($stage);
-                throw new \RuntimeException('安装失败：缺少 theme.json（已回滚）');
+                throw new \RuntimeException('安装失败：主题包缺少 extension.php（已回滚）');
             }
-            $json = json_decode((string) file_get_contents($stagedTarget . '/theme.json'), true);
-            $error = is_array($json) ? self::validateManifest($json, (string) $top) : 'theme.json 不是合法 JSON';
-            if ($error !== null) {
+            if (!self::isThemeDirectory($stagedTarget)) {
                 self::rmDir($stage);
-                throw new \RuntimeException('安装失败：' . $error . '（已回滚）');
+                throw new \RuntimeException('安装失败：主题包缺少可识别的 PHP 模板或资源（已回滚）');
+            }
+            if (is_file($stagedTarget . '/theme.json')) {
+                $json = json_decode((string) file_get_contents($stagedTarget . '/theme.json'), true);
+                $error = is_array($json) ? self::validateManifest($json, (string) $top) : 'theme.json 不是合法 JSON';
+                if ($error !== null) {
+                    self::rmDir($stage);
+                    throw new \RuntimeException('安装失败：' . $error . '（已回滚）');
+                }
+                $json = self::normalizeManifest($json, (string) $top);
+            } else {
+                throw new \RuntimeException('安装失败：主题包缺少 theme.json（已回滚）');
             }
             $updated = is_dir($target);
             if ($updated) {
@@ -789,14 +1183,9 @@ final class Theme
             ExtensionSchema::drop('theme', $name, $desc['manifest']['schema'] ?? null);
             Settings::remove('theme_data:' . $name);
             ExtensionSchema::forget('theme', $name);
-            $sharedKeys = array_flip(self::sharedSchemaKeys($name));
-            foreach (self::schemaKeys($name) as $key) {
-                if (!isset($sharedKeys[$key])) {
-                    Settings::remove('theme:' . $key);
-                }
-            }
+            Settings::deletePrefix(self::settingsPrefix($name));
         }
-        Hooks::removeByTag('theme:' . $name);
+        ExtensionKernel::reset('theme', $name);
         if (!@self::rmDir(self::root() . '/' . $name)) {
             throw new \RuntimeException('删除主题目录失败');
         }
@@ -839,47 +1228,64 @@ final class Theme
             throw new \RuntimeException($desc['error'] ?? '主题不存在');
         }
         $keys = array_flip(self::schemaKeys($name));
-        $imported = 0;
+        $pairs = [];
         $total = count($json['values']);
         foreach ($json['values'] as $k => $v) {
             $k = (string) $k;
             if (!isset($keys[$k])) {
                 continue;
             }
-            Settings::set('theme:' . $k, is_scalar($v) ? (string) $v : '');
-            $imported++;
+            $pairs[$k] = is_scalar($v) ? (string) $v : '';
         }
+        self::setExtensionSettings($name, $pairs);
+        return ['imported' => count($pairs), 'total' => $total];
+    }
+
+    /**
+     * 恢复默认设置：清空本主题已保存的设置值，读取时回落到 theme.json 声明的默认值。
+     * 按主题名清理，包含 schema 已删除的旧字段，不影响其他主题。
+     * 返回实际清除的键数。
+     */
+    public static function resetToDefaults(string $name): int
+    {
+        if (!self::isValidName($name)) {
+            throw new \RuntimeException('主题名不合法');
+        }
+        $desc = self::describe($name);
+        if ($desc['error'] !== null) {
+            throw new \RuntimeException($desc['error'] ?? '主题不存在');
+        }
+        $cleared = Settings::deletePrefix(self::settingsPrefix($name));
         self::resetValues();
-        return ['imported' => $imported, 'total' => $total];
+        return $cleared;
     }
 
     /** 清除静态缓存（安装/卸载/激活/保存设置后调用） */
     public static function reset(): void
     {
+        if (self::$bootedTheme !== null) {
+            ExtensionKernel::reset('theme', self::$bootedTheme);
+        }
         self::$manifests = [];
-        self::$modules = [];
         self::$contexts = [];
         self::resetValues();
+        self::$bootedTheme = null;
+        self::$schemaBootKey = null;
     }
 
     public static function resetValues(): void
     {
         self::$values = null;
+        self::$changedCache = [];
     }
 
-    /** 其他主题共用的 schema key 集合（卸载时保护） */
-    private static function sharedSchemaKeys(string $except): array
+    /** 设置与钩子的 theme:{name} 标记分开；末尾冒号隔离名称前缀相同的主题。 */
+    private static function settingsPrefix(string $name): string
     {
-        $shared = [];
-        foreach (self::list() as $name) {
-            if ($name === $except) {
-                continue;
-            }
-            foreach (self::schemaKeys($name) as $key) {
-                $shared[$key] = true;
-            }
+        if (!self::isValidName($name)) {
+            throw new \InvalidArgumentException('主题名不合法');
         }
-        return $shared;
+        return 'theme_settings:' . $name . ':';
     }
 
     /** 递归删除目录（SPL 迭代器：避免 Windows 上 PHP 8.5 中 stat 句柄导致 rmdir「拒绝访问」） */

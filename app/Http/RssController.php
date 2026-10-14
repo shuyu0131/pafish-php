@@ -27,7 +27,8 @@ final class RssController
              LIMIT " . self::FEED_LIMIT
         );
 
-        $siteName = (string) Settings::get('site_name', '纸鱼博客');
+        // 统一走 site_name() 助手：空值时回退与前台一致，避免 RSS 显示空白站名
+        $siteName = site_name();
         $description = (string) Settings::get('site_description', '');
         $homeUrl = \absolute_url('/');
 

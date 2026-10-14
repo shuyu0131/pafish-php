@@ -24,6 +24,12 @@
     if (trigger) trigger.setAttribute("aria-expanded", "false");
     var popup = control._adminPopup;
     if (popup) {
+      if (control._adminReposition) {
+        window.removeEventListener("resize", control._adminReposition);
+        control._adminReposition = null;
+      }
+      window.removeEventListener("scroll", control._adminOutsideScroll, true);
+      control._adminOutsideScroll = null;
       popup.classList.remove("is-portal-open");
       popup.style.position = "";
       popup.style.left = "";
@@ -40,23 +46,33 @@
     var popup = control.querySelector(".admin-control-menu, .admin-date-panel");
     var trigger = control.querySelector(".admin-control-trigger");
     if (!popup || !trigger) return;
-    var rect = trigger.getBoundingClientRect();
-    var minWidth = Math.max(rect.width, 120);
-    var maxWidth = Math.max(120, window.innerWidth - 16);
     popup.classList.add("is-portal-open");
     popup.style.position = "fixed";
-    popup.style.minWidth = Math.min(minWidth, maxWidth) + "px";
-    popup.style.width = (popup.classList.contains("admin-date-panel") ? Math.min(272, maxWidth) : Math.min(minWidth, maxWidth)) + "px";
-    popup.style.maxWidth = maxWidth + "px";
     document.body.appendChild(popup);
-    var popupWidth = popup.offsetWidth || minWidth;
-    var left = Math.max(8, Math.min(rect.left, window.innerWidth - popupWidth - 8));
-    var top = rect.bottom + 6;
-    if (top + popup.offsetHeight > window.innerHeight - 8 && rect.top - popup.offsetHeight - 6 >= 8) {
-      top = rect.top - popup.offsetHeight - 6;
+    function reposition() {
+      var rect = trigger.getBoundingClientRect();
+      var minWidth = popup.classList.contains('admin-date-panel') ? 272 : Math.max(rect.width, 120);
+      var maxWidth = Math.max(120, window.innerWidth - 16);
+      popup.style.minWidth = Math.min(minWidth, maxWidth) + "px";
+      popup.style.width = (popup.classList.contains("admin-date-panel") ? Math.min(272, maxWidth) : Math.min(minWidth, maxWidth)) + "px";
+      popup.style.maxWidth = maxWidth + "px";
+      var popupWidth = popup.offsetWidth || minWidth;
+      var left = Math.max(8, Math.min(rect.left, window.innerWidth - popupWidth - 8));
+      var top = rect.bottom + 6;
+      if (top + popup.offsetHeight > window.innerHeight - 8 && rect.top - popup.offsetHeight - 6 >= 8) {
+        top = rect.top - popup.offsetHeight - 6;
+      }
+      top = Math.max(8, Math.min(top, window.innerHeight - popup.offsetHeight - 8));
+      popup.style.left = left + "px";
+      popup.style.top = top + "px";
     }
-    popup.style.left = left + "px";
-    popup.style.top = top + "px";
+    control._adminReposition = reposition;
+    control._adminOutsideScroll = function (event) {
+      if (!popup.contains(event.target)) close(control);
+    };
+    window.addEventListener("scroll", control._adminOutsideScroll, true);
+    window.addEventListener("resize", reposition);
+    reposition();
     control._adminPopup = popup;
   }
   function toggle(control) {
@@ -90,7 +106,7 @@
     Array.prototype.forEach.call(select.classList, function (name) { if (name !== "input") trigger.classList.add(name); });
     trigger.setAttribute("aria-haspopup", "listbox");
     trigger.setAttribute("aria-expanded", "false");
-    trigger.setAttribute("aria-label", select.getAttribute("aria-label") || "选择");
+    trigger.setAttribute("aria-label", select.getAttribute("aria-label") || (select.labels && select.labels[0] ? select.labels[0].textContent.trim() : "选择"));
     control.appendChild(trigger);
     var menu = document.createElement("div");
     menu.className = "admin-control-menu";
@@ -156,13 +172,20 @@
     Array.prototype.forEach.call(input.classList, function (name) { if (name !== "input") trigger.classList.add(name); });
     trigger.setAttribute("aria-haspopup", "dialog");
     trigger.setAttribute("aria-expanded", "false");
-    trigger.setAttribute("aria-label", input.title || "选择日期");
+    trigger.setAttribute("aria-label", input.getAttribute('aria-label') || input.title || (input.labels && input.labels[0] ? input.labels[0].textContent.trim() : "选择日期"));
     control.appendChild(trigger);
     var panel = document.createElement("div");
     panel.className = "admin-date-panel";
     panel.setAttribute("role", "dialog");
     panel.setAttribute("aria-label", "日期选择");
+    panel.id = "admin-date-panel-" + Math.random().toString(36).slice(2, 10);
+    trigger.setAttribute("aria-controls", panel.id);
     panel.addEventListener("click", function (event) { event.stopPropagation(); });
+    panel.addEventListener("wheel", function (event) {
+      // 日历高度不足以滚动时也不把滚轮传给背景页面。
+      event.preventDefault();
+      panel.scrollTop += event.deltaY;
+    }, { passive: false });
     control.appendChild(panel);
     var view = parseDate(input.value) || new Date();
     view.setDate(1);
@@ -188,16 +211,16 @@
       var viewSelect = document.createElement("span"); viewSelect.className = "admin-date-view";
       var year = document.createElement("select"); year.className = "admin-date-select"; year.setAttribute("aria-label", "选择年份");
       var currentYear = new Date().getFullYear();
-      for (var yearValue = currentYear - 10; yearValue <= currentYear + 10; yearValue++) {
+      for (var yearValue = Math.min(currentYear - 10, view.getFullYear()); yearValue <= Math.max(currentYear + 10, view.getFullYear()); yearValue++) {
         var yearOption = document.createElement("option"); yearOption.value = yearValue; yearOption.textContent = yearValue + "年"; yearOption.selected = yearValue === view.getFullYear(); year.appendChild(yearOption);
       }
       var month = document.createElement("select"); month.className = "admin-date-select"; month.setAttribute("aria-label", "选择月份");
       monthNames.forEach(function (name, monthIndex) { var monthOption = document.createElement("option"); monthOption.value = monthIndex; monthOption.textContent = name; monthOption.selected = monthIndex === view.getMonth(); month.appendChild(monthOption); });
-      year.addEventListener("change", function () { view.setFullYear(Number(year.value)); render(); });
-      month.addEventListener("change", function () { view.setMonth(Number(month.value)); render(); });
+      year.addEventListener("change", function () { view.setFullYear(Number(year.value)); render(); panel.querySelector('[aria-label="选择年份"]').focus({ preventScroll: true }); });
+      month.addEventListener("change", function () { view.setMonth(Number(month.value)); render(); panel.querySelector('[aria-label="选择月份"]').focus({ preventScroll: true }); });
       viewSelect.appendChild(year); viewSelect.appendChild(month);
-      prev.addEventListener("click", function () { view.setMonth(view.getMonth() - 1); render(); });
-      next.addEventListener("click", function () { view.setMonth(view.getMonth() + 1); render(); });
+      prev.addEventListener("click", function () { view.setMonth(view.getMonth() - 1); render(); panel.querySelector('[aria-label="上个月"]').focus({ preventScroll: true }); });
+      next.addEventListener("click", function () { view.setMonth(view.getMonth() + 1); render(); panel.querySelector('[aria-label="下个月"]').focus({ preventScroll: true }); });
       head.appendChild(prev); head.appendChild(viewSelect); head.appendChild(next); panel.appendChild(head);
       var grid = document.createElement("div"); grid.className = "admin-date-grid";
       weekNames.forEach(function (name) { var label = document.createElement("span"); label.className = "admin-date-week"; label.textContent = name; grid.appendChild(label); });
@@ -208,19 +231,35 @@
         if (i < first) { grid.appendChild(document.createElement("span")); continue; }
         var day = i - first + 1;
         var date = new Date(view.getFullYear(), view.getMonth(), day);
+        var selected = input.value.slice(0, 10) === dateText(date);
+        var today = dateText(new Date()) === dateText(date);
         var button = document.createElement("button"); button.type = "button"; button.className = "admin-date-day"; button.textContent = day;
-        if (input.value.slice(0, 10) === dateText(date)) button.classList.add("is-selected");
-        if (dateText(new Date()) === dateText(date)) button.classList.add("is-today");
-        button.addEventListener("click", (function (selected) { return function () { setValue(selected); }; })(date));
+        button.setAttribute("aria-label", date.getFullYear() + "年" + (date.getMonth() + 1) + "月" + day + "日");
+        button.setAttribute("aria-pressed", selected ? "true" : "false");
+        if (today) button.setAttribute("aria-current", "date");
+        if (selected) button.classList.add("is-selected");
+        if (today) button.classList.add("is-today");
+        button.addEventListener("click", (function (selected) { return function () {
+          setValue(selected);
+          if (input.type === "date") { close(control); trigger.focus({ preventScroll: true }); }
+          else { var active = panel.querySelector('.is-selected'); if (active) active.focus({ preventScroll: true }); }
+        }; })(date));
         grid.appendChild(button);
       }
       panel.appendChild(grid);
       if (input.type === "datetime-local") {
         var timeRow = document.createElement("label"); timeRow.className = "admin-date-time"; timeRow.appendChild(document.createTextNode("时间"));
         var time = document.createElement("input"); time.type = "time"; time.className = "input"; time.value = input.value.slice(11, 16) || "00:00";
-        time.addEventListener("change", function () { setValue(parseDate(input.value) || view, time.value); });
+        time.addEventListener("change", function () { setValue(parseDate(input.value) || view, time.value); panel.querySelector('input[type="time"]').focus({ preventScroll: true }); });
         timeRow.appendChild(time); panel.appendChild(timeRow);
       }
+      var actions = document.createElement('div'); actions.className = 'admin-date-actions';
+      var clear = document.createElement('button'); clear.type = 'button'; clear.className = 'btn btn-ghost'; clear.textContent = '清空';
+      clear.disabled = input.required;
+      clear.addEventListener('click', function () { input.value = ''; emit(input); sync(); close(control); trigger.focus({ preventScroll: true }); });
+      var done = document.createElement('button'); done.type = 'button'; done.className = 'btn btn-ghost'; done.textContent = '完成';
+      done.addEventListener('click', function () { close(control); trigger.focus({ preventScroll: true }); });
+      actions.appendChild(clear); actions.appendChild(done); panel.appendChild(actions);
     }
     trigger.addEventListener("click", function () { if (!input.disabled) { view = parseDate(input.value) || new Date(); view.setDate(1); render(); toggle(control); } });
     trigger.addEventListener("keydown", function (event) { if (event.key === "Escape") close(control); });
@@ -240,6 +279,12 @@
     var popup = openControl && openControl._adminPopup;
     if (openControl && !openControl.contains(event.target) && !(popup && popup.contains(event.target))) close(openControl);
   });
-  document.addEventListener("keydown", function (event) { if (event.key === "Escape" && openControl) close(openControl); });
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "Escape" && openControl) {
+      var trigger = openControl.querySelector('.admin-control-trigger');
+      close(openControl);
+      if (trigger) trigger.focus({ preventScroll: true });
+    }
+  });
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function () { init(document); }); else init(document);
 })();

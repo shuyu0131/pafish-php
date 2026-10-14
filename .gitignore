@@ -5,6 +5,7 @@
 !/runtime/.gitkeep
 /public/uploads/*
 !/public/uploads/.gitkeep
+/public/.mimosa/
 /backups/*
 !/backups/.gitkeep
 
@@ -36,9 +37,18 @@ Thumbs.db
 # 本地开发与发布工具不随公开源码分发
 /router.php
 /scripts/
+/tools/
 
 # 文档由独立文档站维护，不进入主程序仓库
 /docs/
+
+# 设计/评审与本机会话产物
+/DESIGN.md
+/enterprise-assets/
+/.design-review/
+/.mimosa/
+/.v2c/
+/.zcode/
 
 # 本地开发资产：不随源码仓库发布
 /deploy_*.sh

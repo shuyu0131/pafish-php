@@ -38,7 +38,8 @@ final class SearchController
         $response->getBody()->write(\render('search', [
             'title' => '搜索', // 页面标题固定，关键词在 h1 中展示
             'description' => $metaDesc,
-            'og' => Listings::og($request, $title, $metaDesc),
+            'og' => Listings::og($request, $title, $metaDesc, ['q', 'page']),
+            'robots' => 'noindex, follow',
             'keyword' => $keyword,
             'posts' => $posts,
             'total' => $total,
@@ -47,6 +48,6 @@ final class SearchController
             // 分页 base 保留 q 参数（pagination 自动按 ?/& 拼接 page）
             'listBaseUrl' => \url_to('/search' . ($keyword !== '' ? '?q=' . rawurlencode($keyword) : '')),
         ]));
-        return $response;
+        return $response->withHeader('X-Robots-Tag', 'noindex, follow');
     }
 }

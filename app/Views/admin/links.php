@@ -13,7 +13,7 @@ foreach ($items as $l) {
     }
 }
 ?>
-<div class="admin-stack">
+<div class="admin-stack admin-detail-page admin-links-page">
   <div class="admin-page-head">
     <div>
       <h1 class="admin-h1">友情链接</h1>
@@ -57,12 +57,12 @@ foreach ($items as $l) {
     <div class="admin-table-wrap admin-order-table-wrap">
       <table class="admin-table admin-order-table">
         <thead><tr><th>名称</th><th>地址</th><th>状态</th><th class="admin-col-ops">操作</th></tr></thead>
-        <tbody>
+        <tbody data-admin-sort="<?= e(url_to('/admin/links/reorder')) ?>" data-sort-csrf="<?= e(csrf_token()) ?>">
       <?php foreach ($items as $i => $l): ?>
         <tr class="admin-list-row" data-id="<?= (int) $l['id'] ?>"
              data-name="<?= e($l['name']) ?>" data-url="<?= e($l['url']) ?>"
              data-description="<?= e($l['description'] ?? '') ?>">
-          <td data-label="名称"><span class="admin-list-name"><?= e($l['name']) ?></span></td>
+          <td data-label="名称"><button type="button" class="admin-icon-btn admin-sort-handle" aria-label="拖动排序" title="拖动排序"><svg width="14" height="18" viewBox="0 0 14 18" aria-hidden="true" fill="currentColor"><circle cx="4" cy="4" r="1.2"/><circle cx="10" cy="4" r="1.2"/><circle cx="4" cy="9" r="1.2"/><circle cx="10" cy="9" r="1.2"/><circle cx="4" cy="14" r="1.2"/><circle cx="10" cy="14" r="1.2"/></svg></button><span class="admin-list-name"><?= e($l['name']) ?></span></td>
           <td data-label="地址"><div class="admin-muted"><?= e($l['url']) ?><?= ($l['description'] ?? '') !== '' ? ' · ' . e($l['description']) : '' ?></div></td>
           <td data-label="状态">
             <?php if ((int) $l['visible'] === 0): ?>
@@ -218,3 +218,5 @@ foreach ($items as $l) {
   });
 })();
 </script>
+
+<script src="<?= e(asset_url('/js/admin-sort.js')) ?>" defer></script>

@@ -19,13 +19,17 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  */
 final class MediaController extends AdminController
 {
-    private const PAGE_SIZE = 48;
+    private const PAGE_SIZES = [24, 48, 96];
 
     /** GET /admin/uploads：媒体库列表 */
     public function index(Request $request, Response $response): Response
     {
         $this->guardCapability('media.manage');
         $page = max(1, (int) ($_GET['page'] ?? 1));
+        $perPage = (int) ($_GET['per'] ?? self::PAGE_SIZES[1]);
+        if (!in_array($perPage, self::PAGE_SIZES, true)) {
+            $perPage = self::PAGE_SIZES[1];
+        }
         $q = trim((string) ($_GET['q'] ?? ''));
         $type = (string) ($_GET['type'] ?? '');
         $date = trim((string) ($_GET['date'] ?? ''));
@@ -56,10 +60,10 @@ final class MediaController extends AdminController
         }
         Upload::refreshUsage();
         $total = (int) DB::value("SELECT COUNT(*) FROM uploads WHERE {$where}", $params);
-        $pages = max(1, (int) ceil($total / self::PAGE_SIZE));
+        $pages = max(1, (int) ceil($total / $perPage));
         $page = min($page, $pages);
         $items = DB::fetchAll(
-            "SELECT * FROM uploads WHERE {$where} ORDER BY id DESC LIMIT " . self::PAGE_SIZE . ' OFFSET ' . (($page - 1) * self::PAGE_SIZE),
+            "SELECT * FROM uploads WHERE {$where} ORDER BY id DESC LIMIT " . $perPage . ' OFFSET ' . (($page - 1) * $perPage),
             $params
         );
 
@@ -68,6 +72,7 @@ final class MediaController extends AdminController
             'total' => $total,
             'page' => $page,
             'pages' => $pages,
+            'per' => $perPage,
             'q' => $q,
             'type' => $type,
             'date' => $date,

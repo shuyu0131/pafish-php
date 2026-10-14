@@ -7,7 +7,9 @@
   function focusables(root) {
     return Array.prototype.slice.call(root.querySelectorAll(
       'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'
-    ));
+    )).filter(function (el) {
+      return el.tabIndex >= 0 && el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden' && !el.classList.contains('admin-native-control');
+    });
   }
 
   function visible(modal) {
@@ -24,13 +26,15 @@
     if (activeModal && !next) {
       activeModal.setAttribute('aria-hidden', 'true');
       document.body.classList.remove('admin-modal-open');
-      if (lastFocus && document.contains(lastFocus)) lastFocus.focus();
+      document.documentElement.classList.remove('admin-modal-open');
+      if (lastFocus && document.contains(lastFocus)) lastFocus.focus({ preventScroll: true });
       lastFocus = null;
     }
     activeModal = next;
     if (!activeModal) return;
     if (!lastFocus) lastFocus = document.activeElement;
     document.body.classList.add('admin-modal-open');
+    document.documentElement.classList.add('admin-modal-open');
     activeModal.setAttribute('aria-hidden', 'false');
     activeModal.setAttribute('role', 'presentation');
     var dialog = activeModal.querySelector('[role="dialog"],.admin-modal');
@@ -39,7 +43,7 @@
       dialog.setAttribute('aria-modal', 'true');
       // 先聚焦对话框本身，避免打开时将关闭按钮渲染成突兀的焦点态。
       var target = dialog;
-      window.setTimeout(function () { if (visible(activeModal)) target.focus(); }, 0);
+      window.setTimeout(function () { if (activeModal && activeModal.contains(target)) target.focus({ preventScroll: true }); }, 0);
     }
   }
 

@@ -5,20 +5,16 @@
  * 操作：设为首页/取消（fetch POST /admin/pages/set-home）、编辑、删除（硬删除，无回收站）
  */
 ?>
-<div class="admin-stack">
+<div class="admin-stack admin-list-page admin-pages-list">
   <div class="admin-page-head">
     <div>
       <h1 class="admin-h1">页面管理</h1>
       <p class="admin-page-sub">共 <?= (int) $total ?> 个页面</p>
     </div>
-    <div class="admin-head-actions">
-      <a class="btn btn-primary" href="<?= e(url_to('/admin/pages/new')) ?>">
-        <?= admin_icon('file-plus', 15) ?>新建页面
-      </a>
-    </div>
+    <div class="admin-head-actions"><a class="btn btn-primary" href="<?= e(url_to('/admin/pages/new')) ?>"><?= admin_icon('file-plus', 15) ?><span>新建页面</span></a></div>
   </div>
 
-  <form class="admin-user-toolbar" action="<?= e(url_to('/admin/pages')) ?>" method="get" role="search">
+  <form class="admin-list-toolbar admin-list-filter-form" action="<?= e(url_to('/admin/pages')) ?>" method="get" role="search">
     <input type="search" class="input" name="q" value="<?= e((string) ($filters['q'] ?? '')) ?>" placeholder="搜索标题或地址" autocomplete="off">
     <select class="input" name="status" aria-label="筛选状态" onchange="this.form.submit()">
       <option value="">全部状态</option>
@@ -30,19 +26,18 @@
   </form>
 
   <div class="admin-table-wrap">
-    <table class="admin-table">
+    <table class="admin-table admin-pages-table">
       <thead>
         <tr>
           <th>标题</th>
-          <th>状态</th>
-          <th>模板</th>
-          <th>更新时间</th>
+          <th class="admin-page-template">模板</th>
+          <th class="admin-list-date">更新时间</th>
           <th class="admin-col-ops">操作</th>
         </tr>
       </thead>
       <tbody>
         <?php if ($items === []): ?>
-          <tr><td colspan="5">
+          <tr><td colspan="4">
             <div class="admin-empty-list">
               <?= admin_icon('file-plus', 32) ?>
               <p>还没有页面</p>
@@ -53,22 +48,18 @@
           <?php foreach ($items as $p): ?>
             <?php $isHome = (string) $p['id'] === $homePageId; ?>
             <tr data-page-row="<?= (int) $p['id'] ?>">
-              <td>
-                <a class="admin-post-title" href="<?= e(url_to('/admin/pages/' . $p['id'] . '/edit')) ?>">
+              <td class="admin-post-title-cell">
+                <div class="admin-post-title-line">
                   <?php if ($isHome): ?><span class="badge badge-accent">首页</span><?php endif; ?>
-                  <span class="admin-post-title-text"><?= e($p['title']) ?></span>
-                </a>
+                  <?php if ($p['status'] !== 'PUBLISHED'): ?><span class="admin-list-status">草稿</span><?php endif; ?>
+                  <a class="admin-post-title" href="<?= e(url_to('/admin/pages/' . $p['id'] . '/edit')) ?>"><span class="admin-post-title-text"><?= e($p['title']) ?></span></a>
+                </div>
                 <div class="admin-post-meta">
                   <span>/<?= e($p['slug']) ?></span>
                 </div>
               </td>
-              <td data-label="状态">
-                <span class="badge <?= $p['status'] === 'PUBLISHED' ? 'badge-success' : '' ?>">
-                  <?= $p['status'] === 'PUBLISHED' ? '已发布' : '草稿' ?>
-                </span>
-              </td>
-              <td class="admin-muted" data-label="模板"><?= e(($templateOptions[$p['template']] ?? $p['template'])) ?></td>
-              <td class="admin-muted" data-label="更新时间"><?= e(format_date($p['updated_at'], 'yyyy-MM-dd HH:mm')) ?></td>
+              <td class="admin-page-template" data-label="模板"><?= e(($templateOptions[$p['template']] ?? $p['template'])) ?></td>
+              <td class="admin-list-date" data-label="更新时间"><?= e(format_date($p['updated_at'], 'yyyy-MM-dd')) ?></td>
               <td class="admin-col-ops" data-label="操作">
                 <div class="admin-row-ops">
                   <?php if ($p['status'] === 'PUBLISHED'): ?>

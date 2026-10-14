@@ -41,7 +41,7 @@ final class PageController
         $response->getBody()->write(\render('page', [
             'title' => $page['title'],
             'description' => $desc,
-            'og' => Listings::og($request, (string) $page['title'], $desc),
+            'og' => Listings::og($request, (string) $page['title'], $desc, []),
             'page' => $page,
             'contentHtml' => \md($content),
         ]));

@@ -397,6 +397,20 @@ final class Upload
                     $child = $next;
                 }
             };
+            // 根节点同样可能携带 onload、href 或 style，不能只清理子元素属性。
+            for ($i = $root->attributes->length - 1; $i >= 0; $i--) {
+                $attribute = $root->attributes->item($i);
+                if (!$attribute) {
+                    continue;
+                }
+                $attrName = strtolower($attribute->name);
+                $value = trim($attribute->value);
+                if (str_starts_with($attrName, 'on')
+                    || (in_array($attrName, ['href', 'xlink:href'], true) && $value !== '' && !str_starts_with($value, '#'))
+                    || ($attrName === 'style' && preg_match('/(?:url|expression|@import)/i', $value) === 1)) {
+                    $root->removeAttributeNode($attribute);
+                }
+            }
             $walk($root);
             $clean = $dom->saveXML($root);
             if (!is_string($clean) || $clean === '') {

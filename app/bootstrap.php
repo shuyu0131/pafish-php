@@ -32,6 +32,10 @@ register_shutdown_function(static function (): void {
             echo '服务器内部错误';
         }
     }
+    // 把本次请求内被去重合并掉的故障次数汇总成一行，避免同一故障刷爆日志
+    if (class_exists(\Pafish\Core\Logger::class)) {
+        \Pafish\Core\Logger::flushSuppressed();
+    }
 });
 
 // 入口路径归一化：支持根目录/子目录、index.php?p=、index.php/路径三种形式。
@@ -297,7 +301,8 @@ $errorMiddleware->setDefaultErrorHandler(
 try {
     \Pafish\Services\Scheduler::maybeRun();
 } catch (\Throwable $e) {
-    // 定时发布兜底失败不影响本次请求
+    // 不影响本次请求，但要留痕：否则"定时文章到点没上线"会毫无线索。
+    \Pafish\Core\Logger::exception('[pafish-scheduler] 定时发布兜底执行失败', $e);
 }
 
 // 8. 路由

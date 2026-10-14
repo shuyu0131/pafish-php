@@ -1,6 +1,6 @@
 /**
  * 页面编辑器交互：Markdown 编辑、媒体插入和自动保存。
- * - Markdown 编辑：Vditor（所见即所得/分屏/源码三模式，中文工具栏，本地化资源）
+ * - Markdown 编辑：轻量源码编辑器，预览按需请求服务端
  * - 拖拽/粘贴图片上传（/api/upload）；非图片文件走 /api/upload 插入下载链接
  * - 媒体弹窗（本地上传 / 媒体库 24/页 + 500ms 防抖搜索），工具栏「插入媒体」按钮打开
  * - 标题 → slug 自动联动（手动改过后不再覆盖）；Ctrl+S 存草稿
@@ -38,16 +38,14 @@
   var errorBox = $(".admin-editor-error");
   var slugTouched = false;
   var pending = null;      // draft | publish
-  var modal = { open: false, tab: "upload", page: 1, q: "", total: 0, loading: false, searchTimer: null };
+  var modal = { open: false, tab: "upload", page: 1, q: "", total: 0, uploading: false, request: 0, searchTimer: null };
 
-  // 编辑器当前值：Vditor input 回调实时同步回 #fContent（表单兜底）
+  // 编辑器当前值实时同步回 #fContent（表单兜底）
   function editorValue() { return content.value; }
 
-  // 光标处插入（媒体弹窗用）：Vditor API
-  var vditor = null;
   function editorInsert(md) {
-    if (vditor && typeof vditor.insertValue === "function") {
-      vditor.insertValue(md);
+    if (window.PAFISH_MARKDOWN_EDITOR && typeof window.PAFISH_MARKDOWN_EDITOR.insert === "function") {
+      window.PAFISH_MARKDOWN_EDITOR.insert(md);
       return;
     }
     content.value += content.value ? "\n\n" + md : md;
@@ -75,10 +73,10 @@
       });
   }
 
-  // ---------- 编辑器（Vditor：所见即所得/分屏/源码三模式） ----------
+  // ---------- 轻量 Markdown 编辑器 ----------
   // 资源缺失兜底：显示原生 textarea 直接编辑
   function editorFallback() {
-    var mount = $("#vditorMount");
+    var mount = $("#markdownMount");
     if (mount) mount.style.display = "none";
     content.hidden = false;
     content.style.height = "520px";
@@ -87,58 +85,37 @@
   }
 
   function initEditor() {
-    var mount = $("#vditorMount");
+    var mount = $("#markdownMount");
     if (!mount) return;
-    if (typeof window.Vditor !== "function") { editorFallback(); return; }
-
-    vditor = new Vditor(mount, {
-      height: 520,
-      mode: "ir",
-      value: content.value || "",
+    if (!window.PAFISH_MARKDOWN_EDITOR || typeof window.PAFISH_MARKDOWN_EDITOR.init !== "function") { editorFallback(); return; }
+    window.__pafishMarkdownEditor = window.PAFISH_MARKDOWN_EDITOR.init({
+      mount: mount,
+      field: content,
       placeholder: "在此输入页面内容（支持 Markdown）…",
-      lang: "zh_CN",
-      cdn: DATA.assetBase + "/vendor/vditor",
-      cache: { enable: false },
-      counter: { enable: true },
-      toolbar: [
-        "headings", "bold", "italic", "strike", "|",
-        "line", "quote", "list", "ordered-list", "check", "|",
-        "code", "inline-code", "|",
-        "upload", "link", "table", "|", "emoji", "|",
-        {
-          name: "insert-media",
-          tip: "插入媒体（本地上传或媒体库）",
-          icon: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>',
-          click: function () { openModal(); },
-        },
-        "|", "undo", "redo", "|", "fullscreen", "edit-mode", "both", "preview", "|",
-        "outline",
-      ],
-      input: function (v) {
-        content.value = v || "";
-      },
-      upload: {
-        url: DATA.uploadUrl,
-        fieldName: "file[]",
-        withCredentials: true,
-        headers: { "X-Requested-With": "XMLHttpRequest", "X-CSRF-Token": CSRF },
-        linkToImgUrl: false,
-        error: function (msg) { showError(typeof msg === "string" ? msg : "上传失败"); },
-      },
-      preview: {
-        hljs: { style: "github", lineNumber: false },
-        math: { engine: "KaTeX" },
-      },
+      previewUrl: DATA.previewUrl,
+      uploadUrl: DATA.uploadUrl,
+      csrf: CSRF,
+      onMedia: openModal,
     });
+    return;
   }
 
   // ---------- 媒体弹窗 ----------
   function openModal() {
+    if (modal.uploading) return;
     modal.open = true;
     modal.tab = "upload";
     modal.page = 1;
     modal.q = "";
     modal.total = 0;
+    $('[data-lib-q]').value = '';
+    var mediaTitle = $('#editorMediaTitle');
+    var coverMode = modal.mode === 'cover';
+    if (mediaTitle) mediaTitle.textContent = coverMode ? '选择封面' : '插入媒体';
+    var mediaFile = $('#mediaFile');
+    mediaFile.dataset.fullAccept = mediaFile.dataset.fullAccept || mediaFile.accept;
+    mediaFile.accept = coverMode ? 'image/*,.svg' : mediaFile.dataset.fullAccept;
+    $('[data-mupload-hint]').textContent = coverMode ? '仅支持图片文件，用作文章封面' : '图片插入为图片，其他文件插入为下载链接';
     var me = $("[data-mupload-error]");
     if (me) { me.hidden = true; me.textContent = ""; }
     $("#mediaModal").hidden = false;
@@ -146,12 +123,15 @@
   }
   function closeModal() {
     modal.open = false;
+    modal.request++;
     $("#mediaModal").hidden = true;
     if (modal.searchTimer) clearTimeout(modal.searchTimer);
   }
   function renderModal() {
     $$("[data-mtab]", $("#mediaModal")).forEach(function (b) {
-      b.classList.toggle("active", b.getAttribute("data-mtab") === modal.tab);
+      var active = b.getAttribute("data-mtab") === modal.tab;
+      b.classList.toggle("active", active);
+      b.setAttribute('aria-pressed', active ? 'true' : 'false');
     });
     $$("[data-mpanel]", $("#mediaModal")).forEach(function (p) {
       p.hidden = p.getAttribute("data-mpanel") !== modal.tab;
@@ -160,8 +140,18 @@
   }
   function handleUpload(files) {
     var f = files && files[0];
-    if (!f || modal.loading) return;
-    modal.loading = true;
+    if (!f || modal.uploading) return;
+    if (modal.mode === 'cover' && !isImage(f.type)) {
+      var error = $('[data-mupload-error]'); error.textContent = '请选择图片作为封面'; error.hidden = false; return;
+    }
+    modal.uploading = true;
+    var panel = $('[data-mpanel="upload"]');
+    panel.setAttribute('aria-busy', 'true');
+    var browse = $('[data-media-browse]');
+    browse.disabled = true;
+    $$("[data-mtab]").forEach(function (tab) { tab.disabled = true; });
+    $('[data-mupload-error]').hidden = true;
+    var help = $('[data-mupload-hint]').textContent;
     var hint = $("[data-mupload-hint]");
     if (hint) hint.textContent = "上传中…";
     uploadFile(f)
@@ -172,21 +162,39 @@
         me.hidden = false;
       })
       .then(function () {
-        modal.loading = false;
-        if (hint) hint.textContent = "";
+        modal.uploading = false;
+        panel.removeAttribute('aria-busy');
+        browse.disabled = false;
+        $$("[data-mtab]").forEach(function (tab) { tab.disabled = false; });
+        if (hint) hint.textContent = help;
         var mf = $("#mediaFile");
         if (mf) mf.value = "";
       });
   }
   function loadLibrary(reset) {
     if (reset) modal.page = 1;
-    modal.loading = true;
+    var request = ++modal.request;
+    var grid = $('[data-lib-grid]'), pager = $('[data-lib-pager]');
+    grid.setAttribute('aria-busy', 'true');
+    grid.innerHTML = '<p class="admin-lib-empty">正在加载媒体…</p>';
+    pager.hidden = true;
     var params = new URLSearchParams({ page: String(modal.page), q: modal.q });
-    fetch(DATA.uploadsUrl + "?" + params.toString(), { headers: { "X-Requested-With": "XMLHttpRequest" } })
-      .then(function (r) { return r.json().catch(function () { return {}; }); })
-      .then(function (d) { renderLibrary(d.items || [], d.total || 0); })
-      .catch(function () { renderLibrary([], 0); })
-      .then(function () { modal.loading = false; });
+    if (modal.mode === 'cover') params.set('type', 'image');
+    fetch(DATA.uploadsUrl + '?' + params.toString(), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      .then(function (r) {
+        if (!r.ok) throw new Error('媒体加载失败');
+        return r.json();
+      })
+      .then(function (d) {
+        if (!Array.isArray(d.items)) throw new Error('媒体数据异常');
+        if (request === modal.request && modal.open) renderLibrary(d.items, d.total || 0);
+      })
+      .catch(function () {
+        if (request !== modal.request || !modal.open) return;
+        grid.innerHTML = '<div class="admin-lib-empty"><p role="alert">媒体加载失败，请重试</p><button type="button" class="btn btn-outline" data-lib-retry>重新加载</button></div>';
+        $('[data-lib-retry]', grid).addEventListener('click', function () { loadLibrary(false); });
+      })
+      .then(function () { if (request === modal.request) grid.removeAttribute('aria-busy'); });
   }
   function esc(s) {
     return String(s).replace(/[&<>"']/g, function (c) {
@@ -267,6 +275,8 @@
       });
   }
 
+  $('[data-media-browse]').addEventListener('click', function () { $('#mediaFile').click(); });
+
   // ---------- 绑定 ----------
   // 标题 → slug 联动（仅新建且未手动改过；对齐文章编辑器行为）
   title.addEventListener("input", function () {
@@ -297,6 +307,8 @@
   modalEl.addEventListener("click", function (e) { if (e.target === modalEl) closeModal(); });
   $$("[data-mtab]", modalEl).forEach(function (b) {
     b.addEventListener("click", function () {
+      if (modal.uploading) return;
+      modal.request++;
       modal.tab = b.getAttribute("data-mtab");
       renderModal();
     });

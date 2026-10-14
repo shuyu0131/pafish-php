@@ -25,15 +25,17 @@ final class SitemapController
         }
 
         $posts = DB::fetchAll(
-            "SELECT slug, published_at FROM posts
+            "SELECT slug, published_at, updated_at FROM posts
              WHERE status = 'PUBLISHED' AND deleted_at IS NULL
                AND (published_at IS NULL OR published_at <= NOW())
-             ORDER BY published_at DESC"
+               AND (password IS NULL OR password = '')
+             ORDER BY published_at DESC LIMIT 49998"
         );
         $categories = DB::fetchAll('SELECT slug FROM categories');
         $tags = DB::fetchAll('SELECT slug FROM tags');
         $pages = DB::fetchAll(
-            "SELECT slug, updated_at FROM pages WHERE status = 'PUBLISHED'"
+            "SELECT slug, updated_at FROM pages WHERE status = 'PUBLISHED'
+               AND (published_at IS NULL OR published_at <= NOW())"
         );
 
         $urls = [
@@ -42,7 +44,7 @@ final class SitemapController
         foreach ($posts as $p) {
             $urls[] = [
                 '/post/' . rawurlencode((string) $p['slug']),
-                $p['published_at'] ? gmdate('Y-m-d\TH:i:s\Z', strtotime((string) $p['published_at'])) : null,
+                ($p['updated_at'] ?? $p['published_at']) ? gmdate('Y-m-d\TH:i:s\Z', strtotime((string) ($p['updated_at'] ?? $p['published_at']))) : null,
                 'weekly',
                 0.8,
             ];
@@ -64,10 +66,10 @@ final class SitemapController
 
         $xml = '<?xml version="1.0" encoding="UTF-8"?>' . "\n" .
             '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n" .
-            "  <url>\n    <loc>" . \absolute_url('/') . "</loc>\n    <changefreq>daily</changefreq>\n    <priority>1</priority>\n  </url>\n";
-        foreach ($urls as [$path, $lastmod, $freq, $priority]) {
+            "  <url>\n    <loc>" . self::escape(\absolute_url('/')) . "</loc>\n    <changefreq>daily</changefreq>\n    <priority>1</priority>\n  </url>\n";
+        foreach (array_slice($urls, 0, 49999) as [$path, $lastmod, $freq, $priority]) {
             $xml .= "  <url>\n" .
-                "    <loc>" . \absolute_url($path) . "</loc>\n" .
+                "    <loc>" . self::escape(\absolute_url($path)) . "</loc>\n" .
                 ($lastmod ? "    <lastmod>{$lastmod}</lastmod>\n" : '') .
                 "    <changefreq>{$freq}</changefreq>\n" .
                 "    <priority>{$priority}</priority>\n" .
@@ -77,5 +79,10 @@ final class SitemapController
 
         $response->getBody()->write($xml);
         return $response->withHeader('Content-Type', 'application/xml; charset=utf-8');
+    }
+
+    private static function escape(string $value): string
+    {
+        return htmlspecialchars($value, ENT_QUOTES | ENT_XML1, 'UTF-8');
     }
 }

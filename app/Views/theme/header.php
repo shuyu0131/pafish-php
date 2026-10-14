@@ -14,14 +14,20 @@ $layoutCss = Theme::layoutCss($activeTheme);
 $showSidebar = theme_value('sidebar_enabled', '1') !== '0';
 $navItems = nav_items();
 $loggedIn = is_logged_in();
-$fullTitle = $pageTitle !== '' && $pageTitle !== '首页' && $pageTitle !== site_name()
-    ? $pageTitle . ' · ' . $siteName
-    : $siteName;
+$titleOrder = (string) settings('seo_title_order', 'page_site');
+$titleSeparator = (string) settings('seo_title_separator', ' · ');
+if (!in_array($titleSeparator, [' · ', ' - ', ' | '], true)) {
+    $titleSeparator = ' · ';
+}
+$hasPageTitle = $pageTitle !== '' && $pageTitle !== '首页' && $pageTitle !== $siteName;
+$fullTitle = !$hasPageTitle
+    ? $siteName
+    : ($titleOrder === 'site_page' ? $siteName . $titleSeparator . $pageTitle : $pageTitle . $titleSeparator . $siteName);
 $frontMeta = apply_filters('frontend_meta', [
     'title' => $fullTitle,
     'description' => $desc,
     'canonical' => is_array($og ?? null) ? (string) ($og['url'] ?? '') : '',
-    'robots' => '',
+    'robots' => is_string($robots ?? null) ? $robots : '',
     'og' => is_array($og ?? null) ? $og : [],
     'twitter' => [],
     'jsonLd' => [],
@@ -109,7 +115,8 @@ window.pafishApi = function (p) {
 
   <?php /* 桌面顶栏 */ ?>
   <header class="app-header">
-    <nav class="app-nav"><?= render_partial('public-nav', ['items' => $navItems]) ?></nav>
+    <?php /* public-nav.php 自身即输出 <nav class="app-nav">，此处不可再包一层，否则 nav landmark 重复 */ ?>
+    <?= render_partial('public-nav', ['items' => $navItems]) ?>
     <div class="app-header-tools">
       <?= render_partial('site-search') ?>
       <?php if ($loggedIn): ?>

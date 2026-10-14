@@ -25,7 +25,7 @@ function settings(?string $key = null, mixed $default = null): mixed
     return $key === null ? Settings::all() : Settings::get($key, $default);
 }
 
-/** 当前激活主题的某个设置值（theme:{key}，缺省取 theme.json 默认值） */
+/** 当前激活主题的设置值（按主题名隔离，缺省取 theme.json 默认值） */
 function theme_value(string $key, string $default = ''): string
 {
     $value = Theme::value($key, $default);
@@ -33,10 +33,16 @@ function theme_value(string $key, string $default = ''): string
     return is_scalar($filtered) ? (string) $filtered : $value;
 }
 
-/** 站点名称 */
+/**
+ * 站点名称（站点名的唯一权威来源）。
+ *
+ * 管理员清空设置时回退到默认名，避免前台标题、RSS、API 出现空白站名。
+ * 其他调用点请一律使用本函数，不要各自写 Settings::get('site_name', ...)。
+ */
 function site_name(): string
 {
-    return (string) (Settings::get('site_name', '') ?: '纸鱼博客');
+    $name = trim((string) Settings::get('site_name', ''));
+    return $name !== '' ? $name : '纸鱼博客';
 }
 
 /** 站内链接（伪静态/查询串自动适配） */
@@ -63,11 +69,10 @@ function api_url(string $path): string
     return Url::api($path);
 }
 
-/** 编辑器页资源（Vditor 样式 + 后台主题适配），经 headExtra 注入 head */
+/** 轻量 Markdown 编辑器不需要额外的全局资源。 */
 function editor_head_extra(): string
 {
-    return '<link rel="stylesheet" href="' . e(asset_url('/vendor/vditor/dist/index.css')) . '">'
-        . '<link rel="stylesheet" href="' . e(asset_url('/css/vditor-theme.css')) . '">';
+    return '';
 }
 
 /** 当前登录用户（数组或 null） */
@@ -195,35 +200,50 @@ function absolute_url(string $path = ''): string
     return Url::absolute($path);
 }
 
+/**
+ * 列表数据缓存：空结果不落缓存。
+ *
+ * 安装向导会在写入种子前先渲染页面，此时列表查询返回空数组；若把空数组缓存 300 秒，
+ * 用户装完站点会看到空导航/空侧栏，误以为系统故障（见 docs/onboarding-audit-evidence.md 证据 4）。
+ * 递归表示「确实没有数据」，每次重查的成本极低，因此空结果一律不缓存。
+ */
+function cache_list(string $key, callable $query): array
+{
+    $cached = \Pafish\Core\Cache::get($key);
+    if (is_array($cached)) return $cached;
+    $rows = $query();
+    if ($rows !== []) {
+        \Pafish\Core\Cache::set($key, $rows, 300);
+    }
+    return $rows;
+}
+
 /** 前台可见导航项（排序升序） */
 function nav_items(): array
 {
-    $cached = \Pafish\Core\Cache::get('nav.visible');
-    if (is_array($cached)) return $cached;
-    $rows = DB::fetchAll("SELECT id, label, url, is_external FROM nav_items WHERE visible = 1 ORDER BY sort_order ASC, id ASC");
-    \Pafish\Core\Cache::set('nav.visible', $rows, 300);
-    return $rows;
+    return cache_list(
+        'nav.visible',
+        static fn (): array => DB::fetchAll("SELECT id, label, url, is_external FROM nav_items WHERE visible = 1 ORDER BY sort_order ASC, id ASC")
+    );
 }
 
 /** 前台可见侧边栏组件（排序升序） */
 function widget_items(string $area = 'sidebar'): array
 {
     $area = preg_match('/^[a-z0-9_-]{1,50}$/', $area) === 1 ? $area : 'sidebar';
-    $cached = \Pafish\Core\Cache::get('widgets.visible.' . $area);
-    if (is_array($cached)) return $cached;
-    $rows = DB::fetchAll("SELECT * FROM widgets WHERE visible = 1 AND area = ? ORDER BY sort_order ASC, id ASC", [$area]);
-    \Pafish\Core\Cache::set('widgets.visible.' . $area, $rows, 300);
-    return $rows;
+    return cache_list(
+        'widgets.visible.' . $area,
+        static fn (): array => DB::fetchAll("SELECT * FROM widgets WHERE visible = 1 AND area = ? ORDER BY sort_order ASC, id ASC", [$area])
+    );
 }
 
 /** 前台可见友情链接（排序升序） */
 function friend_links(): array
 {
-    $cached = \Pafish\Core\Cache::get('links.visible');
-    if (is_array($cached)) return $cached;
-    $rows = DB::fetchAll("SELECT * FROM links WHERE visible = 1 ORDER BY sort_order ASC, id ASC");
-    \Pafish\Core\Cache::set('links.visible', $rows, 300);
-    return $rows;
+    return cache_list(
+        'links.visible',
+        static fn (): array => DB::fetchAll("SELECT * FROM links WHERE visible = 1 ORDER BY sort_order ASC, id ASC")
+    );
 }
 
 /** 渲染主题 header/footer，主题可覆盖 header.php / footer.php。 */

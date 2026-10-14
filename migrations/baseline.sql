@@ -205,7 +205,7 @@ CREATE TABLE IF NOT EXISTS comments (
 
 -- 全站设置（键值表：站点/主题/插件数据都存这里）
 CREATE TABLE IF NOT EXISTS settings (
-  `key`   VARCHAR(100) NOT NULL,
+  `key`   VARCHAR(191) NOT NULL,
   `value` TEXT         NOT NULL,
   PRIMARY KEY (`key`)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;

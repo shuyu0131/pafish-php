@@ -63,7 +63,6 @@ $themeActive = count(array_filter($themes, static fn (array $theme): bool => !em
             <?php if ($t['settingsCount'] > 0): ?>
               <a class="btn btn-primary btn-sm" href="<?= e(url_to('/admin/appearance/' . rawurlencode($t['name']))) ?>">设置</a>
             <?php endif; ?>
-            <?php if ($t['name'] !== 'default'): ?><button type="button" class="btn btn-ghost btn-sm admin-theme-deactivate" data-name="<?= e($t['name']) ?>" data-title="<?= e($t['title']) ?>">停用</button><?php endif; ?>
           <?php else: ?>
             <button type="button" class="btn btn-primary btn-sm admin-theme-activate" data-name="<?= e($t['name']) ?>" data-title="<?= e($t['title']) ?>">启用</button>
             <button type="button" class="btn btn-ghost btn-sm admin-theme-uninstall" data-name="<?= e($t['name']) ?>" data-title="<?= e($t['title']) ?>">卸载</button>
@@ -162,20 +161,6 @@ $themeActive = count(array_filter($themes, static fn (array $theme): bool => !em
       fd.append("name", btn.dataset.name);
       fd.append("_csrf", CSRF);
       run("/admin/appearance/activate", fd, "已启用主题 " + btn.dataset.title);
-    });
-  });
-  document.querySelectorAll(".admin-theme-deactivate").forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      var confirmTask = window.pafishConfirm ? window.pafishConfirm("停用主题“" + btn.dataset.title + "”并切回默认主题？", { title: "停用主题", accept: "停用" }) : Promise.resolve(window.confirm("停用后将切回默认主题，是否继续？"));
-      confirmTask.then(function (ok) {
-        if (!ok) return;
-        btn.disabled = true;
-        btn.textContent = "处理中…";
-        var fd = new FormData();
-        fd.append("name", btn.dataset.name);
-        fd.append("_csrf", CSRF);
-        run("/admin/appearance/deactivate", fd, "已停用主题 " + btn.dataset.title);
-      });
     });
   });
   document.querySelectorAll(".admin-theme-uninstall").forEach(function (btn) {

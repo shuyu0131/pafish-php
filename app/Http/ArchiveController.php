@@ -41,7 +41,7 @@ final class ArchiveController
         $response->getBody()->write(\render('archives', [
             'title' => '文章归档',
             'description' => '按月份归档浏览全部文章',
-            'og' => Listings::og($request, '文章归档', '按月份归档浏览全部文章'),
+            'og' => Listings::og($request, '文章归档', '按月份归档浏览全部文章', []),
             'groups' => $groups,
             'total' => count($posts),
         ]));

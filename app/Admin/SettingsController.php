@@ -13,8 +13,8 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
  * 站点设置：
- * - 7 张卡片表单（站点信息/评论与列表/上传/账号注册/SMTP/邮件通知/开放 API）
- * - 保存：22 键白名单整体 upsert，空串覆盖，无校验
+ * - 分组展示设置，整页表单按白名单整体保存
+ * - 密码与商城令牌不回显，留空保留原值
  * - SMTP 测试：用表单当前值直接发信（未保存也能测），收件人=登录账号邮箱或 notify_email
  * - 开放 API：api_enabled 开关 + api_key 重新生成（32 位 hex，X-API-Key 头鉴权）
  * 权限：仅 ADMIN；CSRF 由 AdminAuthMiddleware 统一校验
@@ -24,6 +24,7 @@ final class SettingsController extends AdminController
     /** 保存白名单（商店地址使用内置官方源） */
     private const ALLOWED_KEYS = [
         'site_name', 'site_subtitle', 'site_description', 'site_icp',
+        'seo_title_order', 'seo_title_separator',
         'comments_enabled', 'comments_need_review', 'comments_captcha_enabled',
         'posts_per_page', 'blocked_ips',
         'md_allow_raw_html',
@@ -54,12 +55,23 @@ final class SettingsController extends AdminController
     {
         $this->guardAdmin();
         $body = $request->getParsedBody() ?? [];
+        // 主机或账号变化时不能把旧密码沿用到新服务。
+        if ((string) Settings::get('smtp_pass', '') !== ''
+            && trim((string) ($body['smtp_pass'] ?? '')) === ''
+            && ((array_key_exists('smtp_host', $body) && (string) $body['smtp_host'] !== (string) Settings::get('smtp_host', ''))
+                || (array_key_exists('smtp_user', $body) && (string) $body['smtp_user'] !== (string) Settings::get('smtp_user', '')))) {
+            if ($this->isAjax($request)) {
+                return $this->json($response, ['error' => '更换 SMTP 主机或账号时，请重新输入密码 / 授权码'], 400);
+            }
+            $this->flash('error', '更换 SMTP 主机或账号时，请重新输入密码 / 授权码');
+            return $this->redirect($response, '/admin/settings#settings-mail');
+        }
         $pairs = [];
         foreach (self::ALLOWED_KEYS as $key) {
             if (array_key_exists($key, $body)) {
                 $value = (string) $body[$key];
-                // 令牌不回显到页面；空值表示保持现有令牌，粘贴新值即可替换。
-                if ($key === 'store_account_token' && trim($value) === '') {
+                // 敏感值不回显到页面；空值表示保持现有值。
+                if (in_array($key, ['store_account_token', 'smtp_pass'], true) && trim($value) === '') {
                     continue;
                 }
                 $pairs[$key] = $value;
@@ -86,6 +98,12 @@ final class SettingsController extends AdminController
             'pass' => (string) ($body['pass'] ?? ''),
             'from' => trim((string) ($body['from'] ?? '')),
         ];
+        // 仅在主机和账号未变更时使用已保存密码，避免误发到新服务器。
+        if ($cfg['pass'] === ''
+            && $cfg['host'] === (string) Settings::get('smtp_host', '')
+            && $cfg['user'] === (string) Settings::get('smtp_user', '')) {
+            $cfg['pass'] = (string) Settings::get('smtp_pass', '');
+        }
         if ($cfg['host'] === '' || $cfg['user'] === '' || $cfg['pass'] === '') {
             return $this->json($response, ['error' => '请先填写 SMTP 主机、账号和密码'], 400);
         }

@@ -23,7 +23,7 @@ try {
 } catch (\Throwable) {
 }
 ?>
-<div class="admin-stack admin-settings-page">
+<div class="admin-stack admin-system-settings-page">
   <div class="admin-page-head">
     <div>
       <h1 class="admin-h1">站点设置</h1>

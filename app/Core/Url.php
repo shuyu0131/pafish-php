@@ -101,7 +101,10 @@ final class Url
         if (!is_file($file)) {
             return $url;
         }
-        return $url . (str_contains($path, '?') ? '&' : '?') . 'v=' . (string) filemtime($file);
+        // 文件时间能覆盖单文件替换；程序版本再提供一次升级级别的缓存边界，
+        // 避免旧站点保留同一时间戳的 CSS/JS 时继续命中旧资源。
+        return $url . (str_contains($path, '?') ? '&' : '?')
+            . 'v=' . rawurlencode(Version::current() . '-' . (string) filemtime($file));
     }
 
     /** 判断 Web 文档根是否直接指向项目的 public/ 目录。 */

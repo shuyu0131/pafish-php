@@ -253,4 +253,4 @@ curl -H "X-API-Key: &lt;你的Key&gt;" "https://你的域名/api/v1/comments?pos
   </form>
 </div>
 
-<script src="<?= e(url_to('/js/admin-settings.js')) ?>" defer></script>
+<script src="<?= e(asset_url('/js/admin-settings.js')) ?>" defer></script>

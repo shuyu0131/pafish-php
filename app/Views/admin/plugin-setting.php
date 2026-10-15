@@ -46,7 +46,7 @@ if ($manifest !== null) {
 $built = $buildGroups($fields);
 $canConfigure = $pluginActive && $manifest !== null && $error === null && $fields !== [];
 ?>
-<div class="admin-stack admin-settings-page">
+<div class="admin-stack admin-plugin-settings-page">
   <nav aria-label="面包屑">
     <ol class="admin-crumb">
       <li><a href="<?= e(url_to('/admin/plugins')) ?>">插件</a></li>

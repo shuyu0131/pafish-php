@@ -5129,6 +5129,7 @@ a.admin-overview-card:hover { border-color: var(--muted); }
   }
 
   .admin-sf-panes {
+    grid-column: 1;
     padding: 0 16px;
   }
 
@@ -6494,13 +6495,6 @@ input[type="radio"] {
   color: var(--danger);
 }
 
-@media (max-width: 959px) {
-  .admin-table-wrap .admin-table { min-width: 700px; }
-  .admin-table-wrap.admin-user-table-wrap .admin-table { min-width: 860px; }
-  .admin-table-wrap.admin-comment-table-wrap .admin-table { min-width: 900px; }
-  .admin-table-wrap.admin-media-table-wrap .admin-table { min-width: 720px; }
-}
-
 /* ---------- 状态徽章优化 ---------- */
 .badge-primary {
   background: var(--accent);
@@ -7179,7 +7173,7 @@ input[type="radio"] {
     overflow-x: auto;
     overflow-y: hidden;
   }
-  .admin-table.admin-table { display: table; width: max-content; min-width: 760px; table-layout: fixed; }
+  .admin-table.admin-table { display: table; width: 100%; min-width: 680px; table-layout: fixed; }
   .admin-table.admin-table thead { display: table-header-group; }
   .admin-table.admin-table tbody { display: table-row-group; }
   .admin-table.admin-table tbody tr { display: table-row; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; }
@@ -7647,7 +7641,7 @@ input[type="radio"] {
   .admin-comment-tabs::-webkit-scrollbar { display: none; }
 }
 
-/* 列表信息精简：标题使用普通字重，固定宽度只留给短信息与操作。 */
+/* 列表保持完整列；容器不足时横向滚动，给标题与用户身份保留可读宽度。 */
 .admin-list-page .admin-h1 { font-size: 24px; font-weight: 400; }
 .admin-list-page .admin-table thead th { font-weight: 400; }
 .dark .admin-list-page .admin-table tbody tr:nth-child(even) { background: color-mix(in srgb, var(--card) 88%, var(--fg) 12%); }
@@ -7658,7 +7652,15 @@ input[type="radio"] {
 .admin-list-page .admin-table tbody td.admin-post-title-cell { min-width: 0; }
 .admin-list-page .admin-table.admin-posts-table,
 .admin-list-page .admin-table.admin-pages-table,
-.admin-list-page .admin-table.admin-user-table { width: 100%; min-width: 0; }
+.admin-list-page .admin-table.admin-user-table { width: 100%; }
+.admin-list-page .admin-table.admin-posts-table { min-width: 1060px; }
+.admin-list-page .admin-table.admin-pages-table { min-width: 700px; }
+.admin-list-page .admin-table.admin-user-table { min-width: 800px; }
+.admin-list-page .admin-comment-table { min-width: 1100px; }
+.admin-list-page .admin-comment-table th:nth-child(3) { width: 190px; }
+.admin-list-page .admin-comment-table th:nth-child(4) { width: 180px; }
+.admin-list-page .admin-comment-table th:nth-child(5) { width: 90px; }
+.admin-list-page .admin-comment-table .admin-col-ops { width: 324px; }
 .admin-list-page .admin-post-title { font-weight: 400; }
 .admin-list-page .admin-table-filter-link { text-decoration: none; }
 .admin-list-page .admin-table-filter-link:hover { text-decoration: underline; }
@@ -7666,7 +7668,6 @@ input[type="radio"] {
 .admin-posts-table .admin-post-author { width: 88px; }
 .admin-posts-table .admin-post-count { width: 58px; }
 .admin-posts-table .admin-post-engagement { width: 82px; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.admin-post-compact-stats { display: none; color: var(--muted); font-size: 12px; margin-top: 3px; }
 .admin-posts-table .admin-post-count { white-space: nowrap; overflow-wrap: normal; }
 .admin-list-page .admin-table .admin-list-date { width: 112px; color: var(--muted); font-size: 12px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .admin-pages-table .admin-page-template { width: 160px; color: var(--muted); }
@@ -7678,50 +7679,6 @@ input[type="radio"] {
 .admin-user-table .admin-user-content-col { width: 72px; font-variant-numeric: tabular-nums; }
 .admin-user-table .admin-user-ops { gap: 6px; min-width: 0; flex-wrap: nowrap; }
 .admin-users-list .admin-user-filter-form input[type="search"] { flex: 1 1 220px; max-width: none; }
-@media (max-width: 1199px) {
-  .admin-list-page .admin-posts-table th.admin-post-author,
-  .admin-list-page .admin-posts-table tbody td.admin-post-author { display: none; }
-  .admin-posts-table .admin-post-category { width: 80px; }
-  .admin-posts-table .admin-post-count { width: 48px; }
-}
-@media (max-width: 959px) {
-  .admin-list-page .admin-table-wrap .admin-posts-table,
-  .admin-list-page .admin-table-wrap .admin-pages-table,
-  .admin-list-page .admin-table-wrap .admin-user-table { min-width: 0; }
-  .admin-pages-table .admin-page-template { width: 110px; }
-  .admin-posts-list .admin-posts-table th.admin-list-date,
-  .admin-posts-list .admin-posts-table tbody td.admin-list-date,
-  .admin-posts-list .admin-posts-table th.admin-post-engagement,
-  .admin-posts-list .admin-posts-table tbody td.admin-post-engagement { display: none; }
-  .admin-post-compact-stats { display: block; }
-  .admin-posts-list .admin-posts-table th[data-stat="views"],
-  .admin-posts-list .admin-posts-table tbody td[data-label="浏览"] { display: none; }
-}
-@media (max-width: 767px) {
-  .admin-list-page .admin-posts-table th.admin-post-category,
-  .admin-list-page .admin-posts-table tbody td.admin-post-category,
-  .admin-list-page .admin-posts-table th.admin-post-count,
-  .admin-list-page .admin-posts-table tbody td.admin-post-count,
-  .admin-list-page .admin-table th.admin-list-date,
-  .admin-list-page .admin-table tbody td.admin-list-date,
-  .admin-list-page .admin-pages-table th.admin-page-template,
-  .admin-list-page .admin-pages-table tbody td.admin-page-template,
-  .admin-list-page .admin-user-table th.admin-user-content-col,
-  .admin-list-page .admin-user-table tbody td.admin-user-content-col { display: none; }
-  .admin-list-page .admin-user-table th.admin-user-role-col,
-  .admin-list-page .admin-user-table tbody td.admin-user-role-col { display: none; }
-  .admin-list-page .admin-table th, .admin-list-page .admin-table td { padding: 10px 8px; }
-  .admin-list-page .admin-table .admin-col-check,
-  .admin-list-page .admin-user-check-col { width: 32px; }
-  .admin-list-page .admin-table .admin-col-ops { width: 112px; }
-  .admin-pages-list .admin-table .admin-col-ops { width: 148px; }
-  .admin-users-list .admin-table .admin-col-ops { width: 132px; }
-  .admin-user-table .admin-user-role-label { display: none; }
-  .admin-user-table .admin-user-avatar-lg { width: 24px; height: 24px; flex: 0 0 auto; }
-  .admin-user-table .admin-current-account { display: none; }
-  .admin-user-table .admin-user-ops { gap: 2px; }
-  .admin-user-table .admin-user-ops .btn { padding: 3px 6px; }
-}
 
 /* 用户管理：身份信息对齐，资料表单与只读信息各占一组。 */
 .admin-user-identity { display: flex; align-items: center; gap: 10px; min-width: 0; }
@@ -7783,52 +7740,22 @@ input[type="radio"] {
 .admin-detail-page .admin-order-table th:first-child { width: 20%; }
 .admin-detail-page .admin-order-table .admin-list-ops { gap: 4px; min-width: 0; }
 .admin-detail-page .admin-cat-layout .admin-table,
-.admin-detail-page .admin-order-table.admin-table { width: 100%; min-width: 0; }
+.admin-detail-page .admin-order-table.admin-table { width: 100%; }
+.admin-detail-page .admin-cat-layout .admin-table { min-width: 600px; }
+.admin-tags-page .admin-cat-layout .admin-table { min-width: 480px; }
+.admin-detail-page .admin-order-table.admin-table { min-width: 780px; }
+.admin-detail-page .admin-resource-list .admin-table { min-width: 800px; }
+.admin-detail-page .admin-media-table { min-width: 880px; }
+.admin-media-table th:nth-child(2) { width: 80px; }
+.admin-media-table th:nth-child(3) { width: 90px; }
+.admin-media-table th:nth-child(4) { width: 170px; }
+.admin-media-table th:nth-child(5) { width: 64px; }
 .admin-detail-page .admin-cat-form { top: 76px; }
-.admin-micro-list .admin-table { width: 100%; min-width: 0; }
+.admin-micro-list .admin-table { width: 100%; min-width: 760px; }
 .admin-micro-list .admin-table th:nth-child(2) { width: 90px; }
 .admin-micro-list .admin-table th:nth-child(3) { width: 90px; }
 .admin-micro-list .admin-table th:nth-child(4) { width: 150px; }
 .admin-micro-list .admin-post-title { margin: 0; }
-@media (max-width: 959px) {
-  .admin-micro-list .admin-table-wrap .admin-table { width: 100%; min-width: 0; }
-  .admin-micro-list .admin-table th:nth-child(3), .admin-micro-list .admin-table tbody td:nth-child(3) { display: none; }
-  .admin-micro-list .admin-table th:nth-child(4) { width: 120px; }
-  .admin-detail-page .admin-resource-list .admin-table { width: 100%; min-width: 0; }
-  .admin-detail-page .admin-resource-list .admin-table th:nth-child(3),
-  .admin-detail-page .admin-resource-list .admin-table tbody td:nth-child(3),
-  .admin-detail-page .admin-resource-list .admin-table th:nth-child(4),
-  .admin-detail-page .admin-resource-list .admin-table tbody td:nth-child(4) { display: none; }
-  .admin-detail-page .admin-resource-list .admin-table th:first-child,
-  .admin-detail-page .admin-resource-list .admin-table tbody td:first-child { width: auto; }
-  .admin-detail-page .admin-resource-list .admin-plugin-info { display: block; width: 100%; overflow: hidden; }
-  .admin-detail-page .admin-resource-list .admin-plugin-title { display: flex; flex-wrap: wrap; gap: 4px; }
-  .admin-detail-page .admin-resource-list .admin-plugin-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
-  .admin-detail-page .admin-resource-list .admin-table .admin-col-md { width: 80px; }
-  .admin-detail-page .admin-resource-list .admin-table .admin-col-ops { width: 190px; }
-}
-@media (max-width: 767px) {
-  .admin-detail-page .admin-cat-layout .admin-table.admin-table,
-  .admin-detail-page .admin-order-table.admin-table { width: 100%; min-width: 0; }
-  .admin-detail-page .admin-order-table th:nth-child(2), .admin-detail-page .admin-order-table tbody td[data-label="地址"],
-  .admin-detail-page .admin-order-table th:nth-child(3), .admin-detail-page .admin-order-table tbody td[data-label="状态"] { display: none; }
-  .admin-detail-page .admin-order-table th:first-child { width: auto; }
-  .admin-detail-page .admin-resource-list .admin-table th:nth-child(2),
-  .admin-detail-page .admin-resource-list .admin-table tbody td:nth-child(2) { display: none; }
-  .admin-detail-page .admin-resource-list .admin-table .admin-col-ops { width: 162px; }
-  .admin-detail-page .admin-resource-list .admin-table tbody td.admin-col-ops .admin-row-ops { flex-wrap: wrap; white-space: normal; min-width: 0; gap: 2px; }
-  .admin-detail-page .admin-resource-list .admin-row-ops { gap: 2px; flex-wrap: wrap; white-space: normal; }
-  .admin-detail-page .admin-resource-list .admin-plugin-cell { gap: 6px; }
-  .admin-detail-page .admin-resource-list .admin-plugin-icon { display: none; }
-  .admin-detail-page .admin-order-table .admin-col-ops { width: 184px; }
-  .admin-detail-page .admin-cat-layout .admin-col-ops { width: 160px; }
-  .admin-tags-page .admin-cat-layout .admin-col-ops { width: 92px; }
-  .admin-detail-page .admin-cat-layout .admin-table .admin-col-sm { width: 48px; }
-  .admin-detail-page .admin-table th, .admin-detail-page .admin-table tbody td { padding: 10px 8px; }
-  .admin-micro-list .admin-table.admin-table { width: 100%; min-width: 0; }
-  .admin-micro-list .admin-table th:nth-child(2), .admin-micro-list .admin-table tbody td:nth-child(2),
-  .admin-micro-list .admin-table th:nth-child(4), .admin-micro-list .admin-table tbody td:nth-child(4) { display: none; }
-}
 
 /* Shared same-level ordering controls. */
 .admin-sort-handle { cursor: grab; touch-action: none; margin-right: 6px; flex-shrink: 0; vertical-align: middle; }

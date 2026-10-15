@@ -133,7 +133,6 @@ $canEdit = in_array($role ?? '', ['ADMIN', 'EDITOR'], true);
                 <?php if ($p['status'] !== 'PUBLISHED' && !$isTrash): ?><span class="admin-list-status"><?= e($statusLabel[$p['status']] ?? $p['status']) ?></span><?php endif; ?>
                 <a class="admin-post-title" title="<?= e($p['title']) ?>" href="<?= e(url_to('/admin/posts/' . $p['id'] . '/edit')) ?>"><span class="admin-post-title-text"><?= e($p['title']) ?></span></a>
               </div>
-              <div class="admin-post-compact-stats">赞 <?= number_format((int) $p['like_count']) ?> · 收藏 <?= number_format((int) $p['favorite_count']) ?></div>
             </td>
             <td class="admin-post-category" data-label="分类">
               <?php if ($p['category_name']): ?>

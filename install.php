@@ -527,72 +527,75 @@ function inst_layout(string $title, string $inner, string $extra = ''): string
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{$title} · pafish 安装向导</title>
 <style>
-  :root { --page:#f9fafb; --surface:#ffffff; --soft:#f9fafb; --ink:#111827; --muted:#6b7280; --line:#e5e7eb; --ok:#166534; --bad:#b42318; --warn:#8a5a12; }
+  :root { --page:#f6f7f8; --surface:#fff; --soft:#f8f9fa; --ink:#252a31; --muted:#737b86; --line:#e4e7eb; --accent:#1683d8; --accent-soft:#eef7ff; --ok:#2d8a58; --ok-soft:#eff9f3; --bad:#b42318; --warn:#a66b16; --warn-soft:#fff8e9; }
   * { box-sizing:border-box; }
-  body { margin:0; min-height:100vh; padding:32px 16px; background:var(--page); color:var(--ink); font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif; font-size:14px; line-height:1.55; }
-  .wrap { width:100%; max-width:672px; margin:0 auto; }
-  .install-shell { overflow:hidden; background:var(--surface); border:1px solid #e5e7eb; border-radius:12px; box-shadow:0 1px 2px rgba(17,24,39,.04); }
-  .install-head { padding:28px 32px 24px; background:#f9fafb; border-bottom:1px solid var(--line); }
-  .brandline { display:block; }
-  .brandmark, .head-meta, .rail-kicker { display:none; }
-  h1 { margin:0; color:#111827; font-size:20px; line-height:1.35; font-weight:600; letter-spacing:0; }
-  .sub { margin-top:4px; color:#6b7280; font-size:14px; }
-  .rail { margin-top:28px; }
-  .steps { display:flex; align-items:flex-start; justify-content:space-between; margin:0; padding:0; list-style:none; position:relative; }
-  .steps::before { content:""; position:absolute; top:20px; left:0; right:0; height:2px; background:#e5e7eb; }
-  .step { display:flex; flex:1 1 0; flex-direction:column; align-items:center; position:relative; color:#9ca3af; text-align:center; }
-  .step-no { display:grid; place-items:center; width:40px; height:40px; border:2px solid #e5e7eb; border-radius:50%; background:#fff; color:#9ca3af; font-size:14px; font-weight:500; z-index:1; }
-  .step.is-active, .step.is-done { color:#111827; }
-  .step.is-active .step-no, .step.is-done .step-no { border-color:#111827; background:#111827; color:#fff; box-shadow:0 0 0 4px #f3f4f6; }
-  .step strong { display:block; margin-top:8px; font-size:12px; font-weight:500; }
-  .step small { display:none; }
-  .content-area { min-width:0; padding:30px 32px 0; }
+  body { margin:0; min-height:100vh; padding:24px 16px 36px; background:var(--page); color:var(--ink); font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif; font-size:14px; line-height:1.6; }
+  .wrap { width:100%; max-width:760px; margin:0 auto; }
+  .install-shell { overflow:hidden; background:var(--surface); border:1px solid var(--line); border-radius:8px; }
+  .install-head { padding:25px 30px 0; background:var(--surface); }
+  .brandline { display:flex; align-items:center; gap:11px; }
+  .brandline img { display:block; width:38px; height:38px; border-radius:8px; }
+  h1 { margin:0; font-size:18px; line-height:1.3; font-weight:600; }
+  .sub { margin-top:2px; color:var(--muted); font-size:12px; }
+  .rail { margin-top:20px; }
+  .steps { display:grid; grid-template-columns:repeat(3,1fr); margin:0; padding:0; list-style:none; border-top:1px solid var(--line); }
+  .step { position:relative; padding:14px 10px 13px 0; color:#a0a7b0; font-size:13px; }
+  .step + .step { padding-left:18px; }
+  .step.is-active { color:var(--accent); font-weight:600; }
+  .step.is-done { color:var(--ok); }
+  .step.is-active::after, .step.is-done::after { content:""; position:absolute; right:0; bottom:-1px; left:0; height:2px; background:currentColor; }
+  .step-no { display:inline-grid; place-items:center; width:20px; height:20px; margin-right:6px; border:1px solid currentColor; border-radius:50%; font-size:11px; vertical-align:-2px; }
+  .step.is-done .step-no { font-size:0; }
+  .step.is-done .step-no::before { content:"✓"; font-size:12px; }
+  .step strong { font-weight:inherit; }
+  .content-area { min-width:0; padding:28px 30px 30px; border-top:1px solid var(--line); }
   .card { padding:0 0 28px; }
-  .card + .card { margin-top:28px !important; padding-top:28px; border-top:1px solid #f0f1f3; }
-  .card h2 { display:flex; align-items:center; min-height:24px; margin:0 0 22px; color:#1f2937; font-size:16px; font-weight:500; line-height:1.5; }
-  .row { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:12px 0; border-bottom:1px solid #f3f4f6; color:#374151; }
+  .card + .card { margin-top:27px !important; padding-top:25px; border-top:1px solid var(--line); }
+  .card h2 { margin:0 0 16px; color:var(--ink); font-size:17px; font-weight:600; line-height:1.4; }
+  .row { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:12px; padding:14px 0; border-bottom:1px solid var(--line); color:var(--ink); }
   .row:last-child { border-bottom:0; }
   .ok { color:var(--ok); font-weight:500; }
   .bad { color:var(--bad); font-weight:500; }
-  .detail { color:#9ca3af; font-size:12px; }
-  label { display:block; margin:18px 0 6px; color:#374151; font-size:13px; font-weight:500; }
-  input[type=text], input[type=password], input[type=email], input[type=number] { width:100%; min-height:42px; padding:9px 12px; border:1px solid #d1d5db; border-radius:6px; outline:0; background:#fff; color:#111827; font:inherit; transition:border-color .2s ease, box-shadow .2s ease; }
-  input:hover { border-color:#9ca3af; }
-  input:focus { border-color:#374151; box-shadow:0 0 0 3px #f3f4f6; }
-  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:0 18px; }
-  .btn { display:inline-flex; align-items:center; justify-content:center; min-height:42px; margin-top:24px; padding:0 20px; border:1px solid #111827; border-radius:6px; background:#111827; color:#fff; cursor:pointer; font:500 14px inherit; text-decoration:none; transition:background .2s ease, transform .2s ease; }
+  .detail { color:var(--muted); font-size:12px; }
+  label { display:block; margin:17px 0 5px; color:var(--ink); font-size:12px; font-weight:500; }
+  input[type=text], input[type=password], input[type=email], input[type=number] { width:100%; min-height:39px; padding:8px 10px; border:1px solid #cdd3da; border-radius:4px; outline:0; background:#fff; color:var(--ink); font:inherit; }
+  input:hover { border-color:#b4bec9; }
+  input:focus { border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-soft); }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:0 20px; }
+  .btn { display:inline-flex; align-items:center; justify-content:center; min-height:38px; margin-top:24px; padding:0 16px; border:1px solid #cdd3da; border-radius:4px; background:#fff; color:var(--ink); cursor:pointer; font:500 13px inherit; text-decoration:none; }
   form > .btn, .card > .btn { display:flex; width:max-content; margin-left:auto; }
-  .btn:hover { background:#374151; }
+  .btn:hover { background:var(--soft); }
   .btn:active { transform:translateY(1px); }
-  .btn:focus-visible { outline:3px solid #d1d5db; outline-offset:2px; }
+  .btn:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
   .btn:disabled { opacity:.45; cursor:not-allowed; }
-  .err, .warn { margin:0 0 20px; padding:12px 14px; border:1px solid; border-radius:6px; font-size:13px; line-height:1.65; }
-  .err { border-color:#fecaca; background:#fef2f2; color:#991b1b; }
-  .warn { border-color:#fde68a; background:#fffbeb; color:var(--warn); white-space:pre-line; }
-  .row .warn { display:inline; margin:0; padding:0; border:0; background:none; font-size:13px; }
-  .done { padding-bottom:34px; text-align:center; }
-  .done .big { display:grid; place-items:center; width:52px; height:52px; margin:0 auto 12px; border-radius:50%; background:#f0fdf4; color:var(--ok); font-size:25px; }
-  .done h2 { justify-content:center; margin-bottom:14px; }
+  form > .btn, .done .btn:first-of-type { border-color:var(--accent); background:var(--accent); color:#fff; }
+  form > .btn:hover, .done .btn:first-of-type:hover { background:#0f74c1; }
+  .err, .warn { margin:0 0 20px; padding:12px 14px; border:1px solid; border-radius:4px; font-size:13px; line-height:1.65; }
+  .err { border-color:#f0c7c0; background:#fff1ee; color:#943d2e; }
+  .warn { border-color:#ead9ae; background:var(--warn-soft); color:#7b5b20; white-space:pre-line; }
+  .row .warn { display:inline; margin:0; padding:0; border:0; background:none; font-size:12px; }
+  .done { padding:4px 0 6px; text-align:center; }
+  .done .big { display:grid; place-items:center; width:46px; height:46px; margin:0 auto 14px; border-radius:50%; background:var(--ok-soft); color:var(--ok); font-size:23px; }
+  .done h2 { margin-bottom:10px; text-align:center; }
   .done .btn { display:inline-flex; width:auto; margin-left:0; }
-  .info { color:#4b5563; font-size:14px; line-height:1.85; }
-  .info b { color:#111827; }
-  /* 安装完成后的「接下来做什么」清单：把"去后台配置"变成可执行的 4 步 */
-  .next-steps { margin:20px 0 4px; padding:16px 18px; border:1px solid #e5e7eb; border-radius:8px; background:#f9fafb; text-align:left; }
-  .next-title { margin:0 0 10px; color:#111827; font-size:14px; }
-  .next-list { margin:0; padding-left:20px; color:#4b5563; font-size:13px; line-height:1.9; }
-  .next-list b { color:#111827; }
-  .next-tip { margin:12px 0 0; color:#6b7280; font-size:12px; line-height:1.7; }
-  .checkbox { display:flex; align-items:flex-start; gap:8px; margin-top:18px; color:#4b5563; font-size:13px; line-height:1.55; }
-  .checkbox label { margin:0; font-weight:400; }
-  .checkbox input { margin-top:4px; accent-color:#111827; }
-  .footer { margin:0; padding:12px 20px; background:#f9fafb; border-top:1px solid var(--line); color:#6b7280; font-size:12px; text-align:center; }
-  a { color:#111827; text-underline-offset:2px; }
-  @media (max-width:620px) { body { padding:16px 12px; } .install-head { padding:24px 20px 20px; } .content-area { padding:24px 20px 0; } }
-  @media (max-width:430px) { .install-head { padding:20px 16px 18px; } .content-area { padding:22px 16px 0; } .step strong { max-width:78px; font-size:11px; } .grid2 { grid-template-columns:1fr; } .row { align-items:flex-start; flex-direction:column; gap:4px; } form > .btn, .card > .btn { width:100%; } .done .btn { width:100%; margin-left:0; } .done .btn + .btn { margin-top:10px; } }
+  .info { color:var(--muted); font-size:14px; line-height:1.8; }
+  .info b { color:var(--ink); }
+  .next-steps { margin:20px 0 4px; padding:15px 18px; border:1px solid var(--line); border-radius:4px; background:var(--soft); text-align:left; }
+  .next-title { margin:0 0 8px; color:var(--ink); font-size:13px; }
+  .next-list { margin:0; padding-left:20px; color:var(--muted); font-size:12px; line-height:1.8; }
+  .next-list b { color:var(--ink); }
+  .next-tip { margin:12px 0 0; color:var(--muted); font-size:12px; line-height:1.7; }
+  .checkbox { display:flex; align-items:flex-start; gap:8px; margin-top:18px; color:var(--muted); font-size:12px; line-height:1.55; }
+  .checkbox label { margin:0; color:var(--muted); font-weight:400; }
+  .checkbox input { width:auto; min-height:0; margin-top:4px; accent-color:var(--accent); }
+  .footer { padding:14px 20px; border-top:1px solid var(--line); background:var(--soft); color:var(--muted); font-size:11px; text-align:center; }
+  a { color:var(--ink); text-underline-offset:2px; }
+  @media (max-width:620px) { body { padding:16px 12px 24px; } .install-head { padding:22px 18px 0; } .content-area { padding:24px 18px 25px; } }
+  @media (max-width:430px) { .step + .step { padding-left:8px; } .step { font-size:12px; } .grid2 { grid-template-columns:1fr; } .row { align-items:flex-start; grid-template-columns:1fr; gap:4px; } form > .btn, .card > .btn { width:100%; } .done .btn { width:100%; margin-left:0; } .done .btn + .btn { margin-top:8px; } }
 </style>
 </head>
 <body><div class="wrap"><div class="install-shell">
-<header class="install-head"><div class="brandline"><h1>纸鱼博客安装</h1><div class="sub">欢迎使用，请按照步骤完成初始配置。</div></div>
+<header class="install-head"><div class="brandline"><img src="public/favicon.svg" alt="pafish"><div><h1>纸鱼博客</h1><div class="sub">安装向导</div></div></div>
   <nav class="rail" aria-label="安装进度"><ol class="steps">
     <li class="step {$stepClass(1)}"><span class="step-no">1</span><strong>环境检查</strong></li>
     <li class="step {$stepClass(2)}"><span class="step-no">2</span><strong>填写配置</strong></li>
@@ -600,7 +603,7 @@ function inst_layout(string $title, string $inner, string $extra = ''): string
   </ol></nav>
 </header>
 <main class="content-area">{$extra}{$inner}</main>
-<footer class="footer">pafish 安装向导 · 安装完成后请删除 install.php</footer>
+<footer class="footer">pafish 安装向导</footer>
 </div></div></body></html>
 HTML;
 }

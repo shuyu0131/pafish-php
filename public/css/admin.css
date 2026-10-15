@@ -291,7 +291,9 @@ select.input:hover:not(:disabled) {
 }
 .admin-field > .admin-control,
 .admin-form-grid .admin-control,
-.admin-settings-page .admin-control {
+.admin-system-settings-page .admin-control,
+.admin-theme-settings .admin-control,
+.admin-plugin-settings-page .admin-control {
   width: 100%;
 }
 .admin-control.is-enhanced > .admin-native-control {
@@ -3408,28 +3410,10 @@ a.admin-pg-btn:hover {
   line-height: 1.7;
   overflow-x: auto;
 }
-.admin-settings-form:not(.admin-system-settings-form) .card + .card {
-  margin-top: 0;
-  border-top: 0;
-  border-radius: 0;
-}
-.admin-settings-form:not(.admin-system-settings-form) .card:first-of-type {
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-}
-.admin-settings-form:not(.admin-system-settings-form) .card:nth-last-of-type(1) {
-  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
-}
-.admin-settings-form .card {
-  border-bottom-color: var(--border);
-}
-.admin-settings-form .admin-card-title {
-  margin-bottom: 16px;
-}
-
 /* ---------- 系统设置分组 ---------- */
-.admin-settings-page { gap: 20px; }
-.admin-settings-page > .admin-page-head { margin-bottom: 0; }
-.admin-settings-page > .admin-page-head .admin-h1 { font-size: 24px; font-weight: 400; }
+.admin-system-settings-page { gap: 20px; }
+.admin-system-settings-page > .admin-page-head { margin-bottom: 0; }
+.admin-system-settings-page > .admin-page-head .admin-h1 { font-size: 24px; font-weight: 400; }
 .admin-settings-tabs {
   display: flex;
   flex-wrap: wrap;
@@ -6576,8 +6560,7 @@ input[type="radio"] {
 
 /* ---------- 资源管理页统一覆盖（主题、插件、应用商店） ---------- */
 .admin-extension-page,
-.admin-store-page,
-.admin-settings-page {
+.admin-store-page {
   gap: 20px;
 }
 
@@ -6754,28 +6737,28 @@ input[type="radio"] {
 .admin-topbar-account { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; color: var(--fg); font-size: 13px; }
 .admin-topbar-account:hover { color: var(--accent); }
 
-.admin-settings-page { max-width: 820px; }
-.admin-settings-page .admin-back-link { align-self: flex-start; }
-.admin-settings-page .admin-page-sub {
+.admin-theme-settings { gap: 20px; }
+.admin-plugin-settings-page { gap: 20px; max-width: 820px; }
+.admin-system-settings-page {
+  width: 100%;
+  max-width: none;
+}
+.admin-system-settings-page > .admin-settings-form {
+  width: 100%;
+  max-width: 1180px;
+}
+.admin-theme-settings .admin-back-link,
+.admin-plugin-settings-page .admin-back-link { align-self: flex-start; }
+.admin-theme-settings .admin-page-sub,
+.admin-plugin-settings-page .admin-page-sub {
   max-width: 68ch;
   line-height: 1.6;
 }
-.admin-settings-page .admin-schema-form,
-.admin-settings-page .admin-settings-backup { padding: 22px 24px; }
-.admin-settings-page .admin-sf-tabs {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  margin: -22px -24px 22px;
-  padding: 8px 24px 0;
-  background: var(--card);
-}
-.admin-settings-page .admin-sf-field {
-  max-width: 680px;
-  margin-bottom: 20px;
-}
-.admin-settings-page .admin-sf-label { margin-bottom: 7px; }
-.admin-settings-page .admin-sf-actions {
+.admin-plugin-settings-page .admin-plain-form { padding: 22px 24px; }
+.admin-theme-settings .admin-sf-label,
+.admin-plugin-settings-page .admin-sf-label { margin-bottom: 7px; }
+.admin-theme-settings .admin-sf-actions,
+.admin-plugin-settings-page .admin-sf-actions {
   padding-top: 12px;
   border-top: 1px solid var(--border);
 }
@@ -6957,20 +6940,8 @@ input[type="radio"] {
   .admin-install-panel .admin-theme-install-row,
   .admin-store-page .admin-store-toolbar { grid-template-columns: minmax(0, 1fr) minmax(120px, 150px); }
   .admin-store-page .admin-theme-grid { grid-template-columns: 1fr; }
-  .admin-settings-page { max-width: none; }
-  .admin-settings-page .admin-schema-form,
-  .admin-settings-page .admin-settings-backup { padding: 18px 16px; }
-  .admin-settings-page .admin-sf-tabs {
-    top: 51px;
-    margin: -18px -16px 18px;
-    padding: 8px 16px 0;
-    overflow-x: auto;
-    flex-wrap: nowrap;
-  }
-  .admin-settings-page .admin-sf-tab {
-    flex: 0 0 auto;
-    white-space: nowrap;
-  }
+  .admin-plugin-settings-page { max-width: none; }
+  .admin-plugin-settings-page .admin-plain-form { padding: 18px 16px; }
   .admin-store-page .admin-theme-ops { align-items: stretch; }
   .admin-store-page .admin-theme-ops .btn {
     max-width: 100%;
@@ -7425,10 +7396,8 @@ input[type="radio"] {
 .admin-sf-backup-msg { margin: 12px 0 0; }
 
 /* ============================================================================
-   朴素表单：压住后台通用设置页那几条限宽/分隔规则（必须落在文件末尾）
+   朴素表单：让插件字段与操作区共用完整宽度
    ----------------------------------------------------------------------------
-   通用规则写在更后面（.admin-settings-page …）。只靠前面 .admin-plain-form
-   那几条同特异度的规则盖不住，会被它们按源序反压回来。
    ============================================================================ */
 /* 字段不限宽 680px：单栏表单里字段与末尾操作区共用同一条右边界 */
 .admin-plain-form .admin-sf-field { max-width: none; }
@@ -7441,7 +7410,7 @@ input[type="radio"] {
 /* ============================================================================
    主题设置页：CSF 两栏面板的容器尺寸（必须落在文件末尾）
    ----------------------------------------------------------------------------
-   .admin-settings-page 那几条限宽/内边距是旧的「横向 Tab」版留下的，两栏面板用不了：
+   旧的通用设置页样式已移除，主题设置继续使用独立的两栏面板布局：
      1) 限宽 820px，减去 200px 分组导航只剩 620px；标签列再占 200px + 20px 列距，
         控件列被压到 300px 出头，文本框、图片行、textarea 全挤在一起；
      2) 内边距 22/24 会把左侧导航从卡片边缘推进来，看起来是"卡片里又套了一层"，
@@ -7532,16 +7501,21 @@ input[type="radio"] {
   line-height: 1.7;
 }
 .admin-theme-settings .admin-sf-group-title + .admin-sf-deco { border-top: 0; }
-.admin-settings-page .input { border-color: var(--input-border); }
-.admin-settings-page .input:hover:not(:disabled):not([readonly]) {
+.admin-theme-settings .input,
+.admin-plugin-settings-page .input { border-color: var(--input-border); }
+.admin-theme-settings .input:hover:not(:disabled):not([readonly]),
+.admin-plugin-settings-page .input:hover:not(:disabled):not([readonly]) {
   border-color: color-mix(in srgb, var(--accent) 58%, var(--border));
 }
-.admin-settings-page .input:focus { border-color: var(--accent); }
-.admin-settings-page .btn.btn-outline {
+.admin-theme-settings .input:focus,
+.admin-plugin-settings-page .input:focus { border-color: var(--accent); }
+.admin-theme-settings .btn.btn-outline,
+.admin-plugin-settings-page .btn.btn-outline {
   color: var(--fg);
   border-color: var(--input-border);
 }
-.admin-settings-page .btn.btn-outline:hover {
+.admin-theme-settings .btn.btn-outline:hover,
+.admin-plugin-settings-page .btn.btn-outline:hover {
   color: var(--accent);
   border-color: var(--accent);
 }

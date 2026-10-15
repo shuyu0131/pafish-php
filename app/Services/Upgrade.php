@@ -142,11 +142,11 @@ final class Upgrade
                 throw new \RuntimeException('更新失败：站点备份不完整（备份保留在 ' . $bak . '）');
             }
             $backupReady = true;
-            // 4. 清空非保留项
+            // 4. 直接覆盖核心文件，不预先清空站点目录。
+            // 这和 Emlog 的升级方式一致：不会触碰 .well-known、上传目录、主题插件
+            // 或站点自行创建的目录，因此证书挑战文件不会阻塞正常升级。
+            // 旧文件如确实需要移除，应由发行包内 upgrade.php 显式处理。
             self::writeState($root, 'replacing_files', ['database_backup' => $dbBackup]);
-            if (!self::clearRoot($root)) {
-                throw new \RuntimeException('更新失败：无法清理旧文件' . self::deleteFailureSuffix());
-            }
             try {
                 // 5. 解压覆盖（剥掉 pafish/ 顶层）
                 self::extractPackage($tmpZip, $root);
@@ -380,6 +380,13 @@ final class Upgrade
                         throw new \RuntimeException('更新包包含非法路径：' . $entryName);
                     }
                 }
+                $relative = implode('/', array_slice($parts, 1));
+                foreach (['.well-known', 'runtime', 'backups', 'public/uploads'] as $protected) {
+                    if (($relative === $protected || str_starts_with($relative, $protected . '/'))
+                        && $relative !== $protected . '/.gitkeep') {
+                        throw new \RuntimeException('更新包不得覆盖受保护目录：' . $entryName);
+                    }
+                }
                 if ($trimmed === 'pafish/index.php') {
                     $hasIndex = true;
                 }
@@ -474,7 +481,7 @@ final class Upgrade
             if ($name === 'config.php') {
                 continue;
             }
-            if (in_array($name, self::PRESERVE_ROOT_DIRS, true)) {
+            if (self::isPreservedRoot($name)) {
                 continue;
             }
             if ($preserveApps && in_array($name, self::APP_DIRS, true)) {
@@ -609,6 +616,11 @@ final class Upgrade
     /** 递归删除（scandir 快照 + rename 换名再删，Windows 兼容，同 Plugin::rmRemove） */
     private static function rmDir(string $dir): bool
     {
+        // 清理入口之外再做一次保护，避免未来新增调用路径时误触运行期目录。
+        // .well-known 常由 ACME/证书服务写入，任何更新阶段都不能删除其中的挑战文件。
+        if (self::isProtectedPath($dir)) {
+            return true;
+        }
         if (is_link($dir)) {
             return self::rmRemove($dir, false);
         }
@@ -715,6 +727,28 @@ final class Upgrade
     private static function deleteFailureSuffix(): string
     {
         return self::$deleteFailure !== '' ? '：' . self::$deleteFailure : '';
+    }
+
+    private static function isPreservedRoot(string $name): bool
+    {
+        foreach (self::PRESERVE_ROOT_DIRS as $preserved) {
+            if (strcasecmp($name, $preserved) === 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static function isProtectedPath(string $path): bool
+    {
+        $normalized = str_replace('\\', '/', rtrim($path, '/\\'));
+        // 这里只保护可能被外部证书服务占用的目录。runtime 下的升级备份仍需允许清理。
+        $needle = '/.well-known/';
+        $haystack = '/' . strtolower($normalized) . '/';
+        if (str_contains($haystack, $needle)) {
+            return true;
+        }
+        return false;
     }
 
     /** 数字分段版本比较（统一走 Version::compare） */

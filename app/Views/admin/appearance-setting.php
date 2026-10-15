@@ -64,7 +64,7 @@ $built = $buildGroups($fields);
 // 只要主题可用且已启用，表单就存在——即便一个设置项都没声明，也还有备份/恢复这一组
 $canConfigure = $manifest !== null && $active;
 ?>
-<div class="admin-stack admin-settings-page admin-theme-settings">
+<div class="admin-stack admin-theme-settings">
   <nav aria-label="面包屑">
     <ol class="admin-crumb">
       <li><a href="<?= e(url_to('/admin/appearance')) ?>">主题</a></li>

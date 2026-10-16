@@ -24,6 +24,7 @@ final class Plugin
     private const MAX_LOGS = 50;
     private const ADMIN_MENU_GROUPS = ['content', 'interaction', 'appearance', 'system'];
     private const ADMIN_ICON_PATTERN = '/^[a-z0-9-]{1,30}$/';
+    private const EDITOR_SCOPES = ['post', 'page', 'micro'];
     private static ?array $manifests = [];
     private static ?array $contexts = [];
     private static ?array $activeCache = null;
@@ -161,6 +162,20 @@ final class Plugin
                 return 'apiVersion 不受支持';
             }
         }
+        $dependencyError = ExtensionDependencies::validate($json['requires'] ?? null);
+        if ($dependencyError !== null) {
+            return $dependencyError;
+        }
+        $metaError = EntityMetaSchema::validate($json['meta'] ?? null);
+        if ($metaError !== null) return $metaError;
+        if (array_key_exists('editorScopes', $json)) {
+            if (($json['category'] ?? '') !== 'editor' || !is_array($json['editorScopes'])) {
+                return 'editorScopes 仅适用于 editor 插件且必须是数组';
+            }
+            if ($json['editorScopes'] === [] || array_filter($json['editorScopes'], static fn ($scope): bool => !is_string($scope) || !in_array($scope, self::EDITOR_SCOPES, true)) !== []) {
+                return 'editorScopes 只能包含 post、page、micro';
+            }
+        }
         if (array_key_exists('pageTemplates', $json)) {
             if (!is_array($json['pageTemplates'])) {
                 return 'pageTemplates 必须是数组';
@@ -277,11 +292,15 @@ final class Plugin
             'apiVersion' => is_int($json['apiVersion'] ?? null) ? $json['apiVersion'] : 1,
             'description' => is_string($json['description'] ?? null) ? $json['description'] : '',
             'category' => is_string($json['category'] ?? null) ? $json['category'] : '',
+            'editorScopes' => (($json['category'] ?? '') === 'editor' && is_array($json['editorScopes'] ?? null))
+                ? array_values(array_unique(array_intersect(self::EDITOR_SCOPES, $json['editorScopes'])))
+                : (($json['category'] ?? '') === 'editor' ? self::EDITOR_SCOPES : []),
             'author' => is_string($json['author'] ?? null) ? $json['author'] : '',
             'authorUrl' => self::manifestUrl($json, 'authorUrl'),
             'homepage' => self::manifestUrl($json, 'homepage'),
-            'requires' => is_array($json['requires'] ?? null) ? $json['requires'] : [],
+            'requires' => ExtensionDependencies::normalize($json['requires'] ?? null),
             'settings' => $settings,
+            'meta' => EntityMetaSchema::normalize($json['meta'] ?? null),
             'injects' => $injects,
             'pageTemplates' => $pageTemplates,
             'routes' => $routes,
@@ -414,7 +433,14 @@ final class Plugin
     public static function setData(string $name, array $data): void
     {
         $name = (string) $name;
-        Settings::set('plugin_data:' . $name, json_encode($data, JSON_UNESCAPED_UNICODE));
+        ExtensionStorage::updateJson('plugin_data:' . $name, static function (array $current) use ($data): array {
+            if (is_array($current['logs'] ?? null)) {
+                $data['logs'] = $current['logs'];
+            } else {
+                unset($data['logs']);
+            }
+            return $data;
+        });
     }
 
     /** 插件设置（plugin_settings:{name}） */
@@ -568,46 +594,77 @@ final class Plugin
     /** 启用插件。 */
     public static function activate(string $name): void
     {
+        $previousActive = self::activeNames();
         $desc = self::describe($name);
         if ($desc['error'] !== null) {
             throw new \RuntimeException('插件"' . $name . '"不可用：' . $desc['error']);
         }
-        ExtensionKernel::boot('plugin', $name, self::root(), self::context($name));
+        ExtensionDependencies::assertSatisfied('plugin', $name, $desc['manifest']['requires'] ?? []);
+        if (!ExtensionKernel::boot('plugin', $name, self::root(), self::context($name))) {
+            throw new \RuntimeException('插件入口加载失败');
+        }
         try {
             ExtensionRoutes::assertCanActivate('plugin', $name, $desc['manifest']);
-        } catch (\Throwable $e) {
-            ExtensionKernel::reset('plugin', $name);
-            throw $e;
-        }
-        $version = (string) $desc['manifest']['version'];
-        $previousVersion = ExtensionSchema::installedVersion('plugin', $name);
-        $schema = $desc['manifest']['schema'] ?? null;
-        ExtensionSchema::sync('plugin', $name, $schema);
-        ExtensionSchema::recordFingerprint('plugin', $name, $schema);
-        self::runUpgrade($name, $previousVersion, $version);
-        ExtensionSchema::recordVersion('plugin', $name, $version);
-        // 编辑器是全站唯一能力。启用新的编辑器插件时自动停用已启用的同类插件，
-        // 让“启用即接管”保持确定性，不再额外增加站点级选择配置。
-        if (($desc['manifest']['category'] ?? '') === 'editor') {
-            foreach (self::activeNames() as $active) {
-                if ($active === $name) {
-                    continue;
-                }
-                $activeManifest = self::manifest($active);
-                if (($activeManifest['category'] ?? '') === 'editor') {
-                    self::deactivate($active);
+            $version = (string) $desc['manifest']['version'];
+            $previousVersion = ExtensionSchema::installedVersion('plugin', $name);
+            $schema = $desc['manifest']['schema'] ?? null;
+            ExtensionSchema::sync('plugin', $name, $schema);
+            ExtensionSchema::recordFingerprint('plugin', $name, $schema);
+            self::runUpgrade($name, $previousVersion, $version);
+            ExtensionSchema::recordVersion('plugin', $name, $version);
+            // 编辑器是全站唯一能力。启用新的编辑器插件时自动停用已启用的同类插件，
+            // 让“启用即接管”保持确定性，不再额外增加站点级选择配置。
+            $list = self::activeNames();
+            $wasActive = in_array($name, $list, true);
+            $replacedEditors = [];
+            if (($desc['manifest']['category'] ?? '') === 'editor') {
+                foreach ($list as $active) {
+                    if ($active === $name) {
+                        continue;
+                    }
+                    $activeManifest = self::manifest($active);
+                    if (($activeManifest['category'] ?? '') === 'editor') {
+                        $replacedEditors[] = $active;
+                        $list = array_values(array_filter($list, static fn (string $item): bool => $item !== $active));
+                    }
                 }
             }
-        }
-        $list = self::activeNames();
-        $wasActive = in_array($name, $list, true);
-        if (!$wasActive) {
-            $list[] = $name;
-            self::setActivePlugins($list);
-        }
-        if (!$wasActive) {
-            self::registerHooks($name);
-            self::runLifecycle($name, 'onActivate');
+            if (!$wasActive) {
+                $list[] = $name;
+            }
+            if (!$wasActive || $replacedEditors !== []) {
+                self::setActivePlugins($list);
+            }
+            foreach ($replacedEditors as $active) {
+                self::unregisterHooks($active);
+                unset(self::$registeredHooks[$active]);
+                self::runLifecycle($active, 'onDeactivate');
+                ExtensionKernel::reset('plugin', $active);
+            }
+            if (!$wasActive) {
+                self::registerHooks($name);
+                self::runLifecycle($name, 'onActivate');
+            }
+        } catch (\Throwable $e) {
+            // 启用失败不能留下新插件的路由、provider、设置声明或生命周期回调。
+            ExtensionKernel::reset('plugin', $name);
+            // 编辑器切换是一个整体操作：新插件任一步失败都恢复原激活列表，
+            // 并重新启动之前的编辑器，避免站点进入“无编辑器”状态。
+            try {
+                self::setActivePlugins($previousActive);
+                foreach ($previousActive as $active) {
+                    $manifest = self::manifest($active);
+                    if (($manifest['category'] ?? '') !== 'editor') {
+                        continue;
+                    }
+                    if (ExtensionKernel::boot('plugin', $active, self::root(), self::context($active))) {
+                        self::registerHooks($active);
+                    }
+                }
+            } catch (\Throwable $restoreError) {
+                \Pafish\Core\Logger::error('[pafish-plugin] 恢复激活插件失败：' . $restoreError->getMessage());
+            }
+            throw $e;
         }
     }
 
@@ -629,6 +686,9 @@ final class Plugin
     public static function uninstall(string $name, bool $deleteData = false): void
     {
         $desc = self::describe($name);
+        if (($desc['error'] ?? null) === '缺少 extension.php') {
+            $desc = self::describeForUninstall($name);
+        }
         if ($desc['error'] !== null) {
             throw new \RuntimeException('无法卸载：' . $desc['error']);
         }
@@ -639,16 +699,33 @@ final class Plugin
             self::deactivate($name);
         }
         self::runLifecycle($name, 'onUninstall');
+        // 先删除代码目录；目录权限失败时保留设置和业务表，避免半卸载造成不可恢复的数据损失。
+        if (!self::rmDir(self::root() . '/' . $name)) {
+            throw new \RuntimeException('删除插件目录失败');
+        }
         if ($deleteData) {
+            EntityMeta::deleteOwner('plugin', $name);
             ExtensionSchema::drop('plugin', $name, $desc['manifest']['schema'] ?? null);
             Settings::remove('plugin_settings:' . $name);
             Settings::remove('plugin_data:' . $name);
             ExtensionSchema::forget('plugin', $name);
         }
-        if (!self::rmDir(self::root() . '/' . $name)) {
-            throw new \RuntimeException('删除插件目录失败');
-        }
         unset(self::$manifests[$name], self::$contexts[$name], self::$registeredHooks[$name]);
+    }
+
+    /** A valid manifest is sufficient to safely remove an orphaned code directory. */
+    private static function describeForUninstall(string $name): array
+    {
+        if (preg_match(self::NAME_PATTERN, $name) !== 1) return ['manifest' => null, 'error' => '插件名不合法'];
+        $dir = self::root() . '/' . $name;
+        if (!is_dir($dir)) return ['manifest' => null, 'error' => '插件目录不存在'];
+        $file = $dir . '/plugin.json';
+        if (!is_file($file)) return ['manifest' => null, 'error' => '缺少 plugin.json'];
+        $json = json_decode((string) file_get_contents($file), true);
+        if (!is_array($json)) return ['manifest' => null, 'error' => 'plugin.json 不是合法 JSON'];
+        $error = self::validateManifest($json, $name);
+        if ($error !== null) return ['manifest' => null, 'error' => $error];
+        return ['manifest' => self::normalize($json), 'error' => null];
     }
 
     /**
@@ -941,13 +1018,26 @@ final class Plugin
                 return $prev;
             }, 10, 'core');
             foreach (self::activeNames() as $name) {
-                // 每次请求做廉价版本/schema 指纹检查；只有变化时才访问 INFORMATION_SCHEMA 并执行 DDL。
-                if (self::syncActiveSchema($name)) {
-                    ExtensionKernel::boot('plugin', $name, self::root(), self::context($name));
-                    self::registerHooks($name);
-                } else {
-                    // schema/迁移失败的插件不能把本次请求里提前注册的能力留在运行时。
+                try {
+                    $manifest = self::manifest($name);
+                    if ($manifest === null) {
+                        throw new \RuntimeException('插件清单不可用');
+                    }
+                    ExtensionDependencies::assertSatisfied('plugin', $name, $manifest['requires'] ?? []);
+                    // 每次请求做廉价版本/schema 指纹检查；只有变化时才访问 INFORMATION_SCHEMA 并执行 DDL。
+                    if (self::syncActiveSchema($name)) {
+                        if (!ExtensionKernel::boot('plugin', $name, self::root(), self::context($name))) {
+                            throw new \RuntimeException('插件入口加载失败');
+                        }
+                        self::registerHooks($name);
+                    } else {
+                        // schema/迁移失败的插件不能把本次请求里提前注册的能力留在运行时。
+                        ExtensionKernel::reset('plugin', $name);
+                    }
+                } catch (\Throwable $e) {
+                    // 单个扩展损坏不能阻断其他插件和核心请求；清掉它可能已经注册的钩子、路由和 provider。
                     ExtensionKernel::reset('plugin', $name);
+                    \Pafish\Core\Logger::error('[pafish-plugin] ' . $name . ' 启动失败：' . $e->getMessage());
                 }
             }
         } catch (\Throwable $e) {
@@ -973,7 +1063,9 @@ final class Plugin
                 ExtensionSchema::recordFingerprint('plugin', $name, $schema);
             }
             // 版本迁移可能由 extension.php 注册，先加载统一入口再执行 onUpgrade。
-            ExtensionKernel::boot('plugin', $name, self::root(), self::context($name));
+            if (!ExtensionKernel::boot('plugin', $name, self::root(), self::context($name))) {
+                throw new \RuntimeException('插件入口加载失败');
+            }
             self::runUpgrade($name, $fromVersion, $version);
             if ($fromVersion !== $version) {
                 ExtensionSchema::recordVersion('plugin', $name, $version);

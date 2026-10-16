@@ -35,6 +35,11 @@ final class Editor
             if ($label === '' || !in_array($plugin, Plugin::activeNames(), true)) {
                 continue;
             }
+            $manifest = Plugin::manifest($plugin);
+            if (!is_array($manifest) || ($manifest['category'] ?? '') !== 'editor'
+                || !in_array($type, (array) ($manifest['editorScopes'] ?? []), true)) {
+                continue;
+            }
             $assets = ['scripts' => [], 'styles' => []];
             foreach ($assets as $kind => $_) {
                 foreach ((array) ($provider[$kind] ?? []) as $path) {

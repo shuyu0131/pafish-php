@@ -152,6 +152,7 @@ final class PagesController extends AdminController
             if ((string) Settings::get('home_page_id', '') === (string) $id) {
                 Settings::remove('home_page_id');
             }
+            if ($id > 0) \Pafish\Services\EntityMeta::deleteSubject('page', $id);
             DB::execute('DELETE FROM pages WHERE id = ?', [$id]);
             if ($id > 0) \Pafish\Services\MediaReferences::forget('page', $id);
         });

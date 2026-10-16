@@ -34,15 +34,15 @@ pafish 使用 PHP 与 MySQL，提供浏览器安装向导、完整的内容后�
 
 ## 主题开发
 
-主题采用 PHP 模板优先的方式。把 `header.php`、`footer.php`、`index.php`、`post.php` 等需要覆盖的模板放入 `themes/<主题名>/` 即可；未提供的模板继续使用系统默认模板。`theme.json`、设置 schema、页面模板、组件区域和扩展路由按主题需要声明。主题封面使用根目录的 `preview.jpg`；业务扩展统一写在 `extension.php` 中。
+主题采用 PHP 模板优先的方式。把 `header.php`、`footer.php`、`index.php`、`post.php` 等需要覆盖的模板放入 `themes/<主题名>/` 即可；未提供的模板继续使用系统默认模板，但可选展示项只在主题清单明确声明后开启。主题可以额外提供 `user.php`，通过 `/user/{route}` 自定义用户中心；没有该模板时该入口返回 404。系统默认账户中心统一使用 `/admin`，核心不提供固定的前台个人中心。`theme.json`、设置 schema、页面模板、组件区域和扩展路由按主题需要声明。主题封面使用根目录的 `preview.jpg`；需要钩子、注入或业务路由时再提供 `extension.php`。
 
-主题和插件统一使用 `extension.php` 入口。入口返回注册闭包，闭包接收 `ExtensionContext`，可调用 `$ctx->on()`、`$ctx->filter()`、`$ctx->route()`、`$ctx->settings()`、`$ctx->inject()` 和 `$ctx->lifecycle()`，并通过 `$ctx->getData()`、`$ctx->setData()`、`$ctx->getSettings()`、`$ctx->setSettings()` 管理自己的数据。路由、设置、前台注入和生命周期会自动接入现有管线。主题目录中的 `index.php`、`theme.php`、`helpers.php` 等文件仅作为模板或由 `extension.php` 显式组织的业务实现，不再作为独立扩展入口自动加载。主题负责展示和主题选项，会员、支付、订单等业务应放在插件中。
+插件使用 `extension.php` 入口；主题只有在需要动态业务时才提供该入口。入口返回注册闭包，闭包接收 `ExtensionContext`，可调用 `$ctx->on()`、`$ctx->filter()`、`$ctx->route()`、`$ctx->settings()`、`$ctx->inject()` 和 `$ctx->lifecycle()`，并通过 `$ctx->getData()`、`$ctx->setData()`、`$ctx->getSettings()`、`$ctx->setSettings()` 管理自己的数据。路由、设置、前台注入和生命周期会自动接入现有管线。主题目录中的 `index.php`、`theme.php`、`helpers.php` 等文件仅作为模板或由 `extension.php` 显式组织的业务实现，不再作为独立扩展入口自动加载。主题负责展示和主题选项，会员、支付、订单等业务应放在插件中。
 
 ## 环境要求
 
 | 项目 | 要求 |
 | --- | --- |
-| PHP | 8.1+，启用 `pdo_mysql`、`gd`、`zip`、`mbstring`、`openssl`、`json`、`fileinfo` |
+| PHP | 8.1+，启用 `pdo`、`pdo_mysql`、`gd`、`zip`、`mbstring`、`openssl`、`json`、`fileinfo` |
 | MySQL | 5.7.6+，推荐 MySQL 8.0 |
 | Web 服务 | Nginx 或 Apache |
 | 上传限制 | 建议 `post_max_size >= 16M`、`upload_max_filesize >= 12M` |

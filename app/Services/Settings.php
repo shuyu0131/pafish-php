@@ -40,7 +40,12 @@ final class Settings
     {
         $address = ExtensionStorage::legacyAddress($key);
         if ($address !== null) {
-            $value = ExtensionStorage::get(...$address);
+            try {
+                $value = ExtensionStorage::get(...$address);
+            } catch (\PDOException $e) {
+                if ((int) ($e->errorInfo[1] ?? 0) !== 1146) throw $e;
+                $value = null;
+            }
             // 只为未迁移/冲突保留的旧键兜底，不让旧值覆盖新的独立存储。
             return $value ?? DB::value('SELECT `value` FROM settings WHERE `key` = ?', [$key]) ?? $default;
         }

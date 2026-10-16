@@ -21,6 +21,7 @@ final class MediaReferences
         'widget' => ['widgets', ['content', 'title']],
         'setting' => ['settings', ['value']],
         'extension' => ['extension_storage', ['value']],
+        'entity_meta' => ['entity_meta', ['meta_value']],
     ];
     private const STATE = "extension_type = 'system' AND extension_name = 'media_references' AND data_key = 'state'";
 
@@ -129,7 +130,11 @@ final class MediaReferences
                     $columns = $type === 'setting' ? 'key' : ($type === 'extension' ? 'extension_type, extension_name, data_key' : 'id');
                     // settings.key needs quoting (KEY is reserved).
                     $columnsSql = $type === 'setting' ? '`key`' : $columns;
-                    $where = $type === 'extension' ? " WHERE extension_type IN ('plugin', 'theme')" : '';
+                    $where = match ($type) {
+                        'extension' => " WHERE extension_type IN ('plugin', 'theme')",
+                        'entity_meta' => " WHERE scope <> 'core:custom_fields'",
+                        default => '',
+                    };
                     $rows = DB::fetchAll('SELECT ' . $columnsSql . ', ' . implode(', ', $fields) . ' FROM ' . $table . $where
                         . ' ORDER BY ' . $columnsSql . ' LIMIT 200 OFFSET ' . $offset);
                     foreach ($rows as $row) {

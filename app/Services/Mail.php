@@ -7,7 +7,7 @@ namespace Pafish\Services;
 /**
  * 邮件发送（纯 PHP 零依赖）：
  * - 465 SSL / 587 STARTTLS 直连 SMTP（stream_socket_client）
- * - 配置优先级：settings 表（后台可配）> 运行配置 smtp > PHP mail() 兜底
+ * - 配置优先级：settings 表（后台可配）> PHP mail() 兜底
  * - 失败抛 RuntimeException，由调用方决定提示
  */
 final class Mail
@@ -40,7 +40,7 @@ final class Mail
         self::smtpSend($cfg, $to, $subject, $text);
     }
 
-    /** 读取 SMTP 配置（settings 表优先，运行配置兜底）；未配置返回 null */
+    /** 读取 SMTP 配置（只读 settings 表）；未配置返回 null */
     public static function config(): ?array
     {
         $host = (string) Settings::get('smtp_host', '');

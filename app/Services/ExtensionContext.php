@@ -26,7 +26,12 @@ final class ExtensionContext
         return Hooks::addFilter($hook, $fn, $priority, $this->kind . ':' . $this->name);
     }
 
-    /** 注册统一扩展路由；handler 可直接传闭包，也可传旧模块入口中的方法名。 */
+    /**
+     * 注册统一扩展路由。
+     *
+     * 仅保留给 API v1 旧扩展兼容；API v2 应在 manifest 声明 path/options，
+     * 再用同名 provider() 提供处理器，避免把路由元数据和运行时实现重复维护。
+     */
     public function route(
         string $method,
         string $path,
@@ -78,6 +83,23 @@ final class ExtensionContext
     public function updateData(callable $update): array
     {
         return ExtensionStorage::updateJson($this->kind . '_data:' . $this->name, $update);
+    }
+
+    /** Read one field attached to a core entity from this extension's private namespace. */
+    public function getEntityMeta(string $subjectType, int $subjectId, string $key, mixed $default = null): mixed
+    {
+        return EntityMeta::getForExtension($this->kind, $this->name, $subjectType, $subjectId, $key, $default);
+    }
+
+    /** Write one field attached to a core entity without replacing other owners' fields. */
+    public function setEntityMeta(string $subjectType, int $subjectId, string $key, string $value): void
+    {
+        EntityMeta::setForExtension($this->kind, $this->name, $subjectType, $subjectId, $key, $value);
+    }
+
+    public function deleteEntityMeta(string $subjectType, int $subjectId, string $key): void
+    {
+        EntityMeta::deleteForExtension($this->kind, $this->name, $subjectType, $subjectId, $key);
     }
 
     public function getSettings(): array

@@ -10,6 +10,7 @@ use Pafish\Core\Session;
 use Pafish\Core\RateLimiter;
 use Pafish\Http\Responses;
 use Pafish\Services\Settings;
+use Pafish\Services\Content;
 use Pafish\Services\PostReactions;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -31,12 +32,14 @@ final class PostController
         if ($post === null) {
             return $this->notFound($response);
         }
+        $post['cover_url'] = Content::safeImageUrl($post['cover_url'] ?? null);
 
         // 评论分页参数（cpage），非法值回退第 1 页
         $commentPage = max(1, (int) ($request->getQueryParams()['cpage'] ?? 1));
         $settings = Settings::core();
-        $showCustomFields = \theme_value('show_custom_fields', '1') !== '0';
-        $showRelated = \theme_value('show_related_posts', '1') !== '0';
+        // 可选展示由主题自己声明；未声明的主题不应因系统兜底默认值被动开启。
+        $showCustomFields = \theme_value('show_custom_fields', '0') !== '0';
+        $showRelated = \theme_value('show_related_posts', '0') !== '0';
 
         // ---- 密码门 ----
         if (!empty($post['password'])) {
@@ -91,7 +94,7 @@ final class PostController
 
         // ---- 自定义字段解析（坏数据容错为空） ----
         // 字段由当前主题或插件自行声明和消费，核心只负责传递原始数据。
-        $customFields = $this->parseCustomFields($post['custom_fields'] ?? null);
+        $customFields = \Pafish\Services\EntityMeta::postCustomFields((int) $post['id'], $post['custom_fields'] ?? null);
 
         // ---- 评论区数据（评论功能关闭时整块隐藏） ----
         $commentsEnabled = (string) Settings::get('comments_enabled', 'true') !== 'false';
@@ -297,15 +300,6 @@ final class PostController
         }
         $sql .= ' AND (' . implode(' OR ', $or) . ') ORDER BY p.published_at DESC LIMIT 3';
         return DB::fetchAll($sql, $params);
-    }
-
-    private function parseCustomFields(mixed $raw): array
-    {
-        if (!$raw) {
-            return [];
-        }
-        $parsed = json_decode((string) $raw, true);
-        return is_array($parsed) ? $parsed : [];
     }
 
     private function verifyPassword(string $input, string $hash): bool

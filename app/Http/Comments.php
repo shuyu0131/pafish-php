@@ -131,7 +131,11 @@ final class Comments
     {
         $avatarUrl = trim((string) $avatarUrl);
         if ($avatarUrl !== '') {
-            return $avatarUrl;
+            try {
+                return (string) \Pafish\Services\Content::imageUrl($avatarUrl);
+            } catch (\RuntimeException) {
+                // Invalid saved values must not turn into paths relative to the current page.
+            }
         }
         return Url::asset('/images/default-avatar.svg');
     }

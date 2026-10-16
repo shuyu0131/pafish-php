@@ -29,14 +29,7 @@ return [
     // 仅填写实际连接 PHP 的代理地址，不要照抄整个内网或任意来源。
     'trusted_proxies' => [],
 
-    // ---- 邮件 SMTP（可选：后台"站点设置 → 邮件服务"优先，此处仅兜底） ----
-    // 'smtp' => [
-    //     'host' => 'smtp.qq.com',
-    //     'port' => 465,
-    //     'user' => 'your-account@qq.com',
-    //     'pass' => 'your-smtp-auth-code',
-    //     'from' => '纸鱼博客 <your-account@qq.com>',
-    // ],
+    // ---- 邮件 SMTP 请在后台“站点设置 → 邮件服务”中配置；本文件不读取 SMTP 键 ----
 
     // ---- 调试模式（生产环境请保持 false） ----
     'debug' => false,

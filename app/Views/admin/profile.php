@@ -5,7 +5,8 @@
  * 变量：$me
  */
 $me = $me ?? [];
-$avatar = !empty($me['avatar_url']) ? $me['avatar_url'] : admin_gravatar((string) ($me['email'] ?? ''));
+$appTokens = $appTokens ?? [];
+$avatar = \Pafish\Http\Comments::avatarUrl($me['avatar_url'] ?? null, (string) ($me['email'] ?? ''));
 ?>
 <div class="admin-stack">
   <div class="admin-page-head">
@@ -25,11 +26,11 @@ $avatar = !empty($me['avatar_url']) ? $me['avatar_url'] : admin_gravatar((string
         <div class="admin-avatar-edit">
           <img class="admin-avatar-preview" id="avatarPreview" src="<?= e($avatar) ?>" alt="" width="64" height="64">
           <div class="admin-avatar-edit-actions">
-            <input type="file" id="avatarFile" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml,.svg" hidden>
+            <input type="file" id="avatarFile" accept="image/png,image/jpeg,image/gif,image/webp" hidden>
             <button type="button" id="avatarUploadBtn" class="btn btn-outline btn-sm">上传头像</button>
           </div>
         </div>
-        <input class="input" type="text" id="avatarUrl" name="avatar_url" value="<?= e((string) ($me['avatar_url'] ?? '')) ?>"
+        <input class="input" type="text" id="avatarUrl" name="avatar_url" autocomplete="off" value="<?= e((string) ($me['avatar_url'] ?? '')) ?>"
                placeholder="或粘贴图片地址（/uploads/… 或 https://…）" maxlength="500">
         <p class="admin-field-hint">留空使用默认头像。</p>
       </div>
@@ -78,6 +79,37 @@ $avatar = !empty($me['avatar_url']) ? $me['avatar_url'] : admin_gravatar((string
       </div>
     </form>
   </div>
+
+  <div class="card admin-form-card">
+    <h2 class="admin-card-title">手机应用设备</h2>
+    <?php if ($appTokens === []): ?>
+      <p class="admin-muted">尚无手机应用设备授权</p>
+    <?php else: ?>
+      <div class="admin-table-wrap" role="region" aria-label="手机应用设备授权">
+        <table class="admin-table">
+          <thead><tr><th>设备</th><th>最近使用</th><th>到期时间</th><th>状态</th><th class="admin-col-ops">操作</th></tr></thead>
+          <tbody>
+            <?php foreach ($appTokens as $token): ?>
+              <?php $expired = strtotime((string) $token['expires_at']) <= time(); $revoked = !empty($token['revoked_at']); ?>
+              <tr>
+                <td><?= e((string) $token['device_name']) ?><span class="admin-muted"> · <?= e(date('Y-m-d', strtotime((string) $token['created_at']))) ?></span></td>
+                <td><?= $token['last_used_at'] ? e(date('Y-m-d H:i', strtotime((string) $token['last_used_at']))) : '尚未使用' ?></td>
+                <td><?= e(date('Y-m-d H:i', strtotime((string) $token['expires_at']))) ?></td>
+                <td><?= $revoked ? '已撤销' : ($expired ? '已过期' : '有效') ?></td>
+                <td>
+                  <?php if (!$revoked && !$expired): ?>
+                    <button type="button" class="btn btn-ghost btn-sm" data-app-token-revoke="<?= (int) $token['id'] ?>" data-device-name="<?= e((string) $token['device_name']) ?>">撤销</button>
+                  <?php else: ?>
+                    <span class="admin-muted">—</span>
+                  <?php endif; ?>
+                </td>
+              </tr>
+            <?php endforeach; ?>
+          </tbody>
+        </table>
+      </div>
+    <?php endif; ?>
+  </div>
 </div>
 
 <?php $profileCsrf = csrf_token(); ?>
@@ -85,7 +117,6 @@ $avatar = !empty($me['avatar_url']) ? $me['avatar_url'] : admin_gravatar((string
 (function () {
   "use strict";
   var CSRF = <?= json_encode($profileCsrf) ?>;
-  var base = <?= json_encode(url_to('/admin/profile')) ?>;
 
   function post(url, fd, onOk) {
     return fetch(url, {
@@ -153,11 +184,12 @@ $avatar = !empty($me['avatar_url']) ? $me['avatar_url'] : admin_gravatar((string
     });
   });
 
-  // 头像上传：复用 /api/upload，成功后回填地址并预览
+  // Avatar-only endpoint also serves ordinary members; saving the form commits the address.
   var fileInput = document.getElementById("avatarFile");
   var urlInput = document.getElementById("avatarUrl");
   var preview = document.getElementById("avatarPreview");
-  document.getElementById("avatarUploadBtn").addEventListener("click", function () {
+  var uploadButton = document.getElementById("avatarUploadBtn");
+  uploadButton.addEventListener("click", function () {
     fileInput.click();
   });
   fileInput.addEventListener("change", function () {
@@ -165,17 +197,41 @@ $avatar = !empty($me['avatar_url']) ? $me['avatar_url'] : admin_gravatar((string
     var fd = new FormData();
     fd.append("file", fileInput.files[0]);
     fd.append("_csrf", CSRF);
-    post(pafishApi("/upload"), fd, function (j) {
+    uploadButton.disabled = true;
+    uploadButton.textContent = "上传中…";
+    post(<?= json_encode(url_to('/admin/profile/avatar')) ?>, fd, function (j) {
       urlInput.value = j.url;
       preview.src = j.url;
       fileInput.value = "";
     }).catch(function (err) {
       pafishNotify(err.message || "上传失败", true);
       fileInput.value = "";
+    }).finally(function () {
+      uploadButton.disabled = false;
+      uploadButton.textContent = "上传头像";
     });
   });
   urlInput.addEventListener("input", function () {
-    preview.src = urlInput.value || <?= json_encode($avatar) ?>;
+    var value = urlInput.value.trim();
+    preview.src = /^(?:\/(?!\/)|https?:\/\/)/i.test(value) && !/[\x00-\x20\x7f\\]/.test(value) ? value : <?= json_encode(admin_gravatar((string) ($me['email'] ?? ''))) ?>;
+  });
+
+  document.querySelectorAll("[data-app-token-revoke]").forEach(function (button) {
+    button.addEventListener("click", function () {
+      var label = button.dataset.deviceName || "该设备";
+      var confirmAction = window.pafishConfirm
+        ? window.pafishConfirm("撤销“" + label + "”的手机应用授权？", { title: "撤销设备", accept: "撤销" })
+        : Promise.resolve(window.confirm("撤销“" + label + "”的手机应用授权？"));
+      confirmAction.then(function (ok) {
+        if (!ok) return;
+        var fd = new FormData();
+        fd.append("_csrf", CSRF);
+        post(<?= json_encode(url_to('/admin/profile/app-token/')) ?> + encodeURIComponent(button.dataset.appTokenRevoke) + "/revoke", fd, function () {
+          if (typeof window.pafishToastReload === "function") window.pafishToastReload("设备授权已撤销", "success");
+          else location.reload();
+        }).catch(function (err) { pafishNotify(err.message || "撤销失败", true); });
+      });
+    });
   });
 })();
 </script>

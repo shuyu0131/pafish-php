@@ -98,15 +98,15 @@ final class ExtensionKernel
     private static int $handlerSequence = 0;
 
     /** 加载扩展的统一 PHP 入口；每个请求和扩展只执行一次。 */
-    public static function boot(string $kind, string $name, string $root, ExtensionContext $context): void
+    public static function boot(string $kind, string $name, string $root, ExtensionContext $context): bool
     {
         $key = self::key($kind, $name);
         if (isset(self::$booted[$key])) {
-            return;
+            return true;
         }
         $file = rtrim($root, '/\\') . '/' . $name . '/extension.php';
         if (!is_file($file)) {
-            return;
+            return false;
         }
 
         try {
@@ -121,9 +121,11 @@ final class ExtensionKernel
             }
             $register($context);
             self::$booted[$key] = true;
+            return true;
         } catch (\Throwable $e) {
             Logger::error('[pafish-extension] 加载 ' . $key . ' 失败：' . $e->getMessage());
             self::reset($kind, $name);
+            return false;
         }
     }
 
@@ -165,7 +167,15 @@ final class ExtensionKernel
             foreach (ExtensionRoutes::fromManifest($manifest, $kind, $name) as $existing) {
                 if ($existing['method'] === $normalized['method']
                     && $existing['fullPath'] === $normalized['fullPath']) {
-                    throw new \InvalidArgumentException('扩展路由与清单重复：' . $method . ' ' . $path);
+                    // manifest 描述路由元数据，extension.php 绑定实际处理器；
+                    // 两处声明同一路径是统一入口的正常用法，不应被当成重复路由。
+                    if ($existing['handler'] !== $normalized['handler'] && !is_callable($handler)) {
+                        throw new \InvalidArgumentException('扩展路由处理器与清单不一致：' . $method . ' ' . $path);
+                    }
+                    if (is_callable($handler)) {
+                        self::$handlers[self::key($kind, $name)][$existing['handler']] = $handler;
+                    }
+                    return $existing['handler'];
                 }
             }
         }
@@ -281,7 +291,18 @@ final class ExtensionKernel
         if (preg_match('/^[A-Za-z][A-Za-z0-9_]{0,63}$/', $key) !== 1) {
             throw new \InvalidArgumentException('扩展能力名不合法：' . $key);
         }
-        self::$providers[self::key($kind, $name)][$key] = $handler;
+        $extensionKey = self::key($kind, $name);
+        self::$providers[$extensionKey][$key] = $handler;
+
+        // 清单负责路由元数据，入口只提供同名实现。
+        // API v2 以 manifest 维护路由元数据，provider 只绑定同名 handler；
+        // API v1 仍兼容 ctx->route()，但不会再生成第二套路由声明。
+        $manifest = $kind === 'plugin' ? Plugin::manifest($name) : Theme::manifest($name);
+        foreach (is_array($manifest) ? ExtensionRoutes::fromManifest($manifest, $kind, $name) : [] as $route) {
+            if (($route['handler'] ?? '') === $key) {
+                self::$handlers[$extensionKey][$key] = $handler;
+            }
+        }
     }
 
     public static function providerFor(string $kind, string $name, string $key): ?callable
@@ -340,6 +361,14 @@ final class ExtensionKernel
         foreach (['default', 'placeholder', 'group', 'desc', 'help'] as $key) {
             if (is_scalar($field[$key] ?? null)) {
                 $out[$key] = (string) $field[$key];
+            }
+        }
+        // 早期插件清单使用 description 表达字段说明；保留它作为 desc 的兼容别名，
+        // 这样旧扩展不会在统一 schema 规范化时静默丢失帮助文案。
+        if (!isset($out['desc']) && is_scalar($field['description'] ?? null)) {
+            $description = trim((string) $field['description']);
+            if ($description !== '') {
+                $out['desc'] = $description;
             }
         }
         // nav_icon：设置页左侧导航的分组图标，取自组内首个声明它的字段。

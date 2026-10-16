@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pafish\Admin;
 
 use Pafish\Core\Session;
+use Pafish\Core\Auth;
 use Pafish\Services\MicroStatuses;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -23,7 +24,7 @@ final class MicroController extends AdminController
         if (!in_array($perPage, [20, 50, 100], true)) {
             $perPage = 20;
         }
-        $data = MicroStatuses::adminPage(max(1, (int) ($query['page'] ?? 1)), $perPage, $status, $q);
+        $data = MicroStatuses::adminPage(max(1, (int) ($query['page'] ?? 1)), $perPage, $status, $q, Auth::isAdmin() ? null : (int) Auth::id());
         $response->getBody()->write($this->render('micro', [
             'mode' => 'list',
             'items' => $data['items'],
@@ -47,7 +48,7 @@ final class MicroController extends AdminController
     public function editEditor(Request $request, Response $response, array $args): Response
     {
         $this->guardCanManage();
-        $micro = MicroStatuses::find((int) ($args['id'] ?? 0));
+        $micro = $this->managedMicro((int) ($args['id'] ?? 0));
         if ($micro === null) {
             $this->flash('error', '微语不存在');
             return $this->redirect($response, '/admin/micro');
@@ -62,6 +63,9 @@ final class MicroController extends AdminController
         // 其余键（扩展注入的字段）会通过 before_micro_save / after_micro_save 的 input 传给扩展。
         $body = $request->getParsedBody() ?? [];
         $id = isset($args['id']) ? (int) $args['id'] : 0;
+        if ($id > 0 && $this->managedMicro($id) === null) {
+            return $this->json($response, ['error' => '微语不存在'], 404);
+        }
         $requestToken = trim((string) ($body['_idempotency'] ?? ''));
         try {
             // 网络重试或双击可能重复发送同一 POST；同一令牌只执行一次写入。
@@ -97,12 +101,22 @@ final class MicroController extends AdminController
     public function delete(Request $request, Response $response, array $args): Response
     {
         $this->guardCanManage();
-        $ok = MicroStatuses::delete((int) ($args['id'] ?? 0));
+        $id = (int) ($args['id'] ?? 0);
+        if ($this->managedMicro($id) === null) {
+            return $this->json($response, ['error' => '微语不存在'], 404);
+        }
+        $ok = MicroStatuses::delete($id);
         if ($this->isAjax($request)) {
             return $this->json($response, ['ok' => $ok], $ok ? 200 : 404);
         }
         $this->flash($ok ? 'success' : 'error', $ok ? '微语已删除' : '微语不存在');
         return $this->redirect($response, '/admin/micro');
+    }
+
+    private function managedMicro(int $id): ?array
+    {
+        $micro = MicroStatuses::find($id);
+        return $micro !== null && (Auth::isAdmin() || (int) $micro['author_id'] === (int) Auth::id()) ? $micro : null;
     }
 
     private function editorResponse(Response $response, ?array $micro): Response

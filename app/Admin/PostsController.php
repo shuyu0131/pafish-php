@@ -270,6 +270,7 @@ final class PostsController extends AdminController
                         $rows = DB::fetchAll("SELECT id FROM posts WHERE id IN ({$in}) AND deleted_at IS NOT NULL ORDER BY id FOR UPDATE", $ids);
                         foreach ($rows as $row) {
                             array_push($events, ...\Pafish\Services\Comments::deleteForPost((int) $row['id']));
+                            \Pafish\Services\EntityMeta::deleteSubject('post', (int) $row['id']);
                             DB::execute('DELETE FROM posts WHERE id = ?', [$row['id']]);
                             \Pafish\Services\MediaReferences::forget('post', (int) $row['id']);
                         }
@@ -374,18 +375,20 @@ final class PostsController extends AdminController
 
         // 摘要和封面仅在为空时自动补全。
         $excerpt = trim((string) ($body['excerpt'] ?? ''));
-        $coverUrl = trim((string) ($body['cover_url'] ?? ''));
+        $coverUrl = (string) \Pafish\Services\Content::imageUrl($body['cover_url'] ?? '');
         if ($excerpt === '') {
             $excerpt = self::extractSummary($content, 180, $contentFormat);
         }
         if ($coverUrl === '') {
-            $coverUrl = (string) self::extractCover($content, $contentFormat);
+            try {
+                $coverUrl = (string) \Pafish\Services\Content::imageUrl((string) self::extractCover($content, $contentFormat));
+            } catch (\RuntimeException) {
+                // A relative image in the body must not create a cover relative to the admin URL.
+                $coverUrl = '';
+            }
         }
         if (mb_strlen($excerpt) > 500) {
             $excerpt = mb_substr($excerpt, 0, 500);
-        }
-        if (mb_strlen($coverUrl) > 500) {
-            $coverUrl = '';
         }
 
         // 分类：newCategory 优先于 categoryId
@@ -447,6 +450,11 @@ final class PostsController extends AdminController
 
         // 自定义字段（JSON 数组 [{key,value}]）
         $customFields = self::parseCustomFields((string) ($body['custom_fields'] ?? ''));
+        $extensionMeta = null;
+        if (array_key_exists('extension_meta', $body)) {
+            $extensionMeta = is_array($body['extension_meta']) ? $body['extension_meta'] : json_decode((string) $body['extension_meta'], true);
+            if (!is_array($extensionMeta)) throw new \RuntimeException('扩展字段数据格式无效');
+        }
 
         $authorId = \Pafish\Core\Auth::id();
         $now = date('Y-m-d H:i:s');
@@ -520,6 +528,9 @@ final class PostsController extends AdminController
                 $authorId, $categoryId, $now, $now,
             ]);
             $id = (int) $pdo->lastInsertId();
+            \Pafish\Services\EntityMeta::replace('post', $id, \Pafish\Services\EntityMeta::POST_FIELDS_SCOPE,
+                is_array($decodedFields = json_decode((string) $customFields, true)) ? $decodedFields : []);
+            if ($extensionMeta !== null) \Pafish\Services\EntityMeta::saveEditorFields('post', $id, $extensionMeta);
             DB::execute('UPDATE posts SET allow_comments=?,seo_title=?,meta_description=? WHERE id=?',
                 [(int) (bool) $allowComments,$seo['seo_title'],$seo['meta_description'],$id]);
             self::replaceTags($id, $tagIds);
@@ -558,6 +569,9 @@ final class PostsController extends AdminController
             );
             DB::execute('UPDATE posts SET allow_comments=?,seo_title=?,meta_description=? WHERE id=?',
                 [(int) (bool) $allowComments,$seo['seo_title'],$seo['meta_description'],$id]);
+            \Pafish\Services\EntityMeta::replace('post', $id, \Pafish\Services\EntityMeta::POST_FIELDS_SCOPE,
+                is_array($decodedFields = json_decode((string) $customFields, true)) ? $decodedFields : []);
+            if ($extensionMeta !== null) \Pafish\Services\EntityMeta::saveEditorFields('post', $id, $extensionMeta);
             self::replaceTags($id, $tagIds);
             \Pafish\Services\MediaReferences::sync('post', $id);
             $payload = self::postPayload($id, $title, $slug, $status, $publishedAt, $categoryId, $externalUrl, $isPinned, $categoryPinned, $action, $previousStatus, $seo + ['allow_comments' => $allowComments]);
@@ -587,13 +601,7 @@ final class PostsController extends AdminController
             'status' => 'DRAFT', 'is_pinned' => 0, 'category_pinned' => 0,
             'password' => null, 'external_url' => null, 'category_id' => null,
         ];
-        $customFields = [];
-        if ($post && $post['custom_fields']) {
-            $parsed = json_decode($post['custom_fields'], true);
-            if (is_array($parsed)) {
-                $customFields = $parsed;
-            }
-        }
+        $customFields = $post ? \Pafish\Services\EntityMeta::postCustomFields((int) $post['id'], $post['custom_fields'] ?? null) : [];
 
         // 已选标签 id 集
         $tagIds = [];
@@ -646,6 +654,7 @@ final class PostsController extends AdminController
                     $commentEvents = \Pafish\Services\MediaReferences::transaction(static function () use ($id): array {
                         if (DB::fetchOne('SELECT id FROM posts WHERE id = ? AND deleted_at IS NOT NULL FOR UPDATE', [$id])) {
                             $events = \Pafish\Services\Comments::deleteForPost($id);
+                            \Pafish\Services\EntityMeta::deleteSubject('post', $id);
                             DB::execute('DELETE FROM posts WHERE id = ?', [$id]);
                             \Pafish\Services\MediaReferences::forget('post', $id);
                             return $events;

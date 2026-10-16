@@ -4,6 +4,7 @@
  * 正文为主，发布设置分组；保存操作在桌面头部、手机正文之后。
  * 变量：$post $isEdit $postId $catTree $tags $tagIds $customFields $hasPassword $isScheduled $statusLabel
  */
+$extensionMetaFields = \Pafish\Services\EntityMeta::editorFields('post', (int) ($post['id'] ?? 0));
 $editorData = [
     'initial' => [
         'title' => (string) $post['title'],
@@ -21,6 +22,10 @@ $editorData = [
         'seoTitle' => (string) ($post['seo_title'] ?? ''),
         'metaDescription' => (string) ($post['meta_description'] ?? ''),
         'customFields' => $customFields !== [] ? $customFields : [['key' => '', 'value' => '']],
+        'extensionMeta' => array_reduce($extensionMetaFields, static function (array $values, array $field): array {
+            $values[$field['scope']][$field['key']] = (string) ($field['value'] ?? '');
+            return $values;
+        }, []),
     ],
     'isEdit' => $isEdit,
     'postId' => $postId,
@@ -95,6 +100,33 @@ $editorData = [
             <datalist id="postCustomFieldKeys"></datalist>
           </section>
         </details>
+        <?php if ($extensionMetaFields !== []): ?>
+        <details class="card admin-advanced admin-editor-fields" id="extensionMetaDetails">
+          <summary><?= admin_icon('chevron-right', 14) ?><span>扩展字段</span></summary>
+          <section class="admin-advanced-body admin-extension-meta-fields">
+            <?php foreach ($extensionMetaFields as $index => $field): ?>
+              <?php $fieldId = 'extension-meta-' . $index; $value = (string) ($field['value'] ?? ''); ?>
+              <div class="admin-field">
+                <label class="label" for="<?= e($fieldId) ?>"><?= e($field['label']) ?> <span class="admin-field-hint">· <?= e($field['owner']) ?></span></label>
+                <?php if ($field['type'] === 'textarea'): ?>
+                  <textarea class="input" id="<?= e($fieldId) ?>" data-extension-meta data-meta-scope="<?= e($field['scope']) ?>" data-meta-key="<?= e($field['key']) ?>" maxlength="<?= (int) ($field['maxLength'] ?? 10000) ?>" <?= !empty($field['required']) ? 'required' : '' ?>><?= e($value) ?></textarea>
+                <?php elseif (in_array($field['type'], ['select', 'checkbox'], true)): ?>
+                  <select class="input" id="<?= e($fieldId) ?>" data-extension-meta data-meta-scope="<?= e($field['scope']) ?>" data-meta-key="<?= e($field['key']) ?>">
+                    <?php if ($field['type'] === 'checkbox'): ?>
+                      <option value="0" <?= $value === '0' ? 'selected' : '' ?>>关闭</option>
+                      <option value="1" <?= $value === '1' ? 'selected' : '' ?>>开启</option>
+                    <?php else: ?>
+                      <?php foreach ((array) $field['options'] as $option => $label): ?><option value="<?= e((string) $option) ?>" <?= $value === (string) $option ? 'selected' : '' ?>><?= e((string) $label) ?></option><?php endforeach; ?>
+                    <?php endif; ?>
+                  </select>
+                <?php else: ?>
+                  <input class="input" type="<?= $field['type'] === 'number' ? 'number' : 'text' ?>" id="<?= e($fieldId) ?>" data-extension-meta data-meta-scope="<?= e($field['scope']) ?>" data-meta-key="<?= e($field['key']) ?>" value="<?= e($value) ?>" maxlength="<?= (int) ($field['maxLength'] ?? 10000) ?>" <?= !empty($field['required']) ? 'required' : '' ?>>
+                <?php endif; ?>
+              </div>
+            <?php endforeach; ?>
+          </section>
+        </details>
+        <?php endif; ?>
       </div>
 
       <!-- 右列 -->
@@ -131,7 +163,7 @@ $editorData = [
             <details class="admin-cover-address">
               <summary>使用图片地址</summary>
               <label for="fCoverUrl">封面图片地址</label>
-              <input class="input" id="fCoverUrl" name="cover_url" value="<?= e($post['cover_url'] ?? '') ?>" placeholder="图片 URL" maxlength="500">
+              <input class="input" id="fCoverUrl" name="cover_url" value="<?= e($post['cover_url'] ?? '') ?>" placeholder="/uploads/… 或 https://…" maxlength="500" autocomplete="off" spellcheck="false">
             </details>
             <button type="button" class="btn btn-ghost btn-sm" id="btnCoverClear" hidden>移除</button>
           </div>

@@ -19,9 +19,10 @@ final class DashboardController extends AdminController
 {
     public function dashboard(Request $request, Response $response): Response
     {
+        Auth::requireLogin();
         $user = Auth::user();
         if (!Auth::isAdmin() && !Auth::isEditor()) {
-            return $this->userDashboard($response, $user ?? []);
+            return (new AccountController())->index($request, $response);
         }
         if (Auth::isEditor()) {
             return $this->editorDashboard($response, $user ?? []);
@@ -59,64 +60,20 @@ final class DashboardController extends AdminController
         return $response;
     }
 
-    /** 普通用户工作台：复用后台公共布局，只展示自己的内容与互动。 */
-    private function userDashboard(Response $response, array $user): Response
-    {
-        $userId = (int) ($user['id'] ?? 0);
-        $stats = [
-            ['label' => '我的文章', 'value' => (int) DB::value('SELECT COUNT(*) FROM posts WHERE author_id = ? AND deleted_at IS NULL', [$userId]), 'icon' => 'file-text', 'color' => '#4786d6'],
-            ['label' => '文章浏览', 'value' => (int) DB::value('SELECT COALESCE(SUM(view_count), 0) FROM posts WHERE author_id = ? AND deleted_at IS NULL', [$userId]), 'icon' => 'eye', 'color' => '#2f9e63'],
-            ['label' => '我的评论', 'value' => (int) DB::value('SELECT COUNT(*) FROM comments WHERE user_id = ? AND status <> \'SPAM\'', [$userId]), 'icon' => 'message', 'color' => '#ca8a04'],
-            ['label' => '点赞收藏', 'value' => (int) DB::value('SELECT COUNT(*) FROM post_reactions WHERE user_id = ?', [$userId]), 'icon' => 'heart', 'color' => '#8b5cf6'],
-        ];
-        $latest = DB::fetchAll(
-            "SELECT id, title, status, published_at, updated_at FROM posts WHERE author_id = ? AND deleted_at IS NULL ORDER BY updated_at DESC LIMIT 8",
-            [$userId]
-        );
-        $comments = DB::fetchAll(
-            "SELECT c.content, c.status, c.created_at, p.title AS post_title, p.slug AS post_slug
-             FROM comments c JOIN posts p ON p.id = c.post_id
-             WHERE c.user_id = ? AND p.deleted_at IS NULL ORDER BY c.created_at DESC LIMIT 5",
-            [$userId]
-        );
-        $response->getBody()->write($this->render('user-dashboard', [
-            'username' => (string) ($user['username'] ?? ''),
-            'stats' => $stats,
-            'latest' => $latest,
-            'comments' => $comments,
-        ], '我的工作台'));
-        return $response;
-    }
-
-    /** 编辑写作台：仅汇总本人内容、互动和待处理评论。 */
+    /** Editors share the current dashboard components; all counts stay author-scoped. */
     private function editorDashboard(Response $response, array $user): Response
     {
         $userId = (int) ($user['id'] ?? 0);
         $stats = [
-            ['label' => '我的文章', 'value' => (int) DB::value('SELECT COUNT(*) FROM posts WHERE author_id = ? AND deleted_at IS NULL', [$userId]), 'icon' => 'file-text', 'color' => '#4786d6'],
-            ['label' => '已发布', 'value' => (int) DB::value("SELECT COUNT(*) FROM posts WHERE author_id = ? AND status = 'PUBLISHED' AND deleted_at IS NULL", [$userId]), 'icon' => 'eye', 'color' => '#2f9e63'],
-            ['label' => '草稿与定时', 'value' => (int) DB::value("SELECT COUNT(*) FROM posts WHERE author_id = ? AND status IN ('DRAFT', 'SCHEDULED') AND deleted_at IS NULL", [$userId]), 'icon' => 'pen', 'color' => '#d9822b'],
-            ['label' => '待审评论', 'value' => (int) DB::value("SELECT COUNT(*) FROM comments c JOIN posts p ON p.id = c.post_id WHERE p.author_id = ? AND p.deleted_at IS NULL AND c.status = 'PENDING'", [$userId]), 'icon' => 'message', 'color' => '#ca8a04'],
-            ['label' => '总浏览量', 'value' => (int) DB::value('SELECT COALESCE(SUM(view_count), 0) FROM posts WHERE author_id = ? AND deleted_at IS NULL', [$userId]), 'icon' => 'trend', 'color' => '#0891b2'],
-            ['label' => '收到互动', 'value' => (int) DB::value('SELECT COALESCE(SUM(like_count + favorite_count), 0) FROM posts WHERE author_id = ? AND deleted_at IS NULL', [$userId]), 'icon' => 'heart', 'color' => '#8b5cf6'],
+            ['label' => '我的文章', 'value' => (int) DB::value('SELECT COUNT(*) FROM posts WHERE author_id = ? AND deleted_at IS NULL', [$userId]), 'icon' => 'file-text', 'url' => '/admin/posts'],
+            ['label' => '草稿', 'value' => (int) DB::value("SELECT COUNT(*) FROM posts WHERE author_id = ? AND status = 'DRAFT' AND deleted_at IS NULL", [$userId]), 'icon' => 'pen', 'url' => '/admin/posts'],
+            ['label' => '待审评论', 'value' => (int) DB::value("SELECT COUNT(*) FROM comments c JOIN posts p ON p.id=c.post_id WHERE p.author_id=? AND p.deleted_at IS NULL AND c.status='PENDING'", [$userId]), 'icon' => 'message', 'url' => '/admin/comments'],
+            ['label' => '文章浏览', 'value' => (int) DB::value('SELECT COALESCE(SUM(view_count), 0) FROM posts WHERE author_id = ? AND deleted_at IS NULL', [$userId]), 'icon' => 'eye', 'url' => null],
         ];
-        $latest = DB::fetchAll(
-            'SELECT id, title, status, published_at, updated_at FROM posts WHERE author_id = ? AND deleted_at IS NULL ORDER BY updated_at DESC LIMIT 8',
-            [$userId]
-        );
-        $pendingComments = DB::fetchAll(
-            "SELECT c.id, c.author_name, c.content, c.created_at, p.title AS post_title
-             FROM comments c JOIN posts p ON p.id = c.post_id
-             WHERE p.author_id = ? AND p.deleted_at IS NULL AND c.status = 'PENDING'
-             ORDER BY c.created_at DESC LIMIT 5",
-            [$userId]
-        );
         $response->getBody()->write($this->render('editor-dashboard', [
-            'username' => (string) ($user['username'] ?? ''),
+            'username' => (string) ($user['nickname'] ?: $user['username']),
             'stats' => $stats,
-            'latest' => $latest,
-            'pendingComments' => $pendingComments,
-        ], '写作台'));
+        ], '工作台'));
         return $response;
     }
 }

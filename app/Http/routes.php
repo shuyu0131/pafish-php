@@ -14,9 +14,10 @@ use Pafish\Http\SitemapController;
 use Pafish\Http\RobotsController;
 use Pafish\Http\AuthPageController;
 use Pafish\Http\AuthApiController;
+use Pafish\Http\AppAuthController;
 use Pafish\Http\CommentApiController;
 use Pafish\Http\ExtensionController;
-use Pafish\Http\ProfileController as PublicProfileController;
+use Pafish\Http\UserController;
 use Pafish\Admin\AdminAuthMiddleware;
 use Pafish\Admin\DashboardController;
 use Pafish\Admin\PostsController;
@@ -62,9 +63,8 @@ $app->get('/category/{slug}', [CategoryController::class, 'show']);
 $app->get('/tag/{slug}', [TagController::class, 'show']);
 $app->get('/archives', [ArchiveController::class, 'index']);
 $app->get('/search', [SearchController::class, 'index']);
-$app->get('/profile', [PublicProfileController::class, 'index']);
-$app->post('/profile/save', [\Pafish\Admin\ProfileController::class, 'save']);
-$app->post('/profile/password', [\Pafish\Admin\ProfileController::class, 'changePassword']);
+$app->get('/user', [UserController::class, 'index']);
+$app->get('/user/{route:[a-z0-9_-]{1,50}}', [UserController::class, 'index']);
 
 // 独立页面和站点订阅
 $app->get('/pages/{slug}', [PageController::class, 'show']);
@@ -211,7 +211,9 @@ $app->group('/admin', function ($group) {
     // 个人资料（任何登录用户）
     $group->get('/profile', [ProfileController::class, 'index']);
     $group->post('/profile/save', [ProfileController::class, 'save']);
+    $group->post('/profile/avatar', [ProfileController::class, 'uploadAvatar']);
     $group->post('/profile/password', [ProfileController::class, 'changePassword']);
+    $group->post('/profile/app-token/{id:[0-9]+}/revoke', [ProfileController::class, 'revokeAppToken']);
 
     // 数据备份（仅 ADMIN：创建/上传/下载/恢复/删除）
     $group->get('/backup', [BackupController::class, 'index']);
@@ -270,6 +272,13 @@ $app->post('/api/md-preview', [ApiController::class, 'mdPreview']);
 $app->post('/api/import-markdown', [ApiController::class, 'importMarkdown']);
 
 // 开放 API v1（X-API-Key 鉴权）
+$app->post('/api/app/auth/login', [AppAuthController::class, 'login']);
+$app->get('/api/app/auth/me', [AppAuthController::class, 'me']);
+$app->get('/api/app/auth/tokens', [AppAuthController::class, 'tokens']);
+$app->post('/api/app/auth/tokens/{id:[0-9]+}/revoke', [AppAuthController::class, 'revoke']);
+$app->post('/api/app/auth/logout', [AppAuthController::class, 'logout']);
+
+// 公开只读 API v1（X-API-Key 鉴权）
 $app->get('/api/v1/posts', [V1Controller::class, 'posts']);
 $app->get('/api/v1/posts/{slug}', [V1Controller::class, 'postDetail']);
 $app->get('/api/v1/categories', [V1Controller::class, 'categories']);

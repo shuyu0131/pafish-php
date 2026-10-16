@@ -37,7 +37,6 @@ try {
       <a href="#settings-basic" data-settings-group="basic">基本设置</a>
       <a href="#settings-seo" data-settings-group="seo">SEO</a>
       <a href="#settings-content" data-settings-group="content">内容与评论</a>
-      <a href="#settings-accounts" data-settings-group="accounts">账号与权限</a>
       <a href="#settings-media" data-settings-group="media">上传与媒体</a>
       <a href="#settings-mail" data-settings-group="mail">邮件服务</a>
       <a href="#settings-extensions" data-settings-group="extensions">扩展服务</a>
@@ -72,6 +71,17 @@ try {
         </select>
       </div>
       <p class="admin-field-hint">原有 /post/文章别名地址始终保留，切换后新链接会按所选结构生成。</p>
+    </div>
+    <div class="card admin-form-card">
+      <h2 class="admin-card-title">后台账号与注册</h2>
+      <label class="admin-check-row">
+        <input type="checkbox" name="allow_registration" value="true" <?= $boolVal('allow_registration', 'true') ? 'checked' : '' ?>>
+        <span>开放注册（关闭后注册页不可用）</span>
+      </label>
+      <label class="admin-check-row">
+        <input type="checkbox" name="require_email_verify" value="true" <?= $boolVal('require_email_verify', 'true') ? 'checked' : '' ?>>
+        <span>注册需邮箱验证码（需配置邮件服务）</span>
+      </label>
     </div>
     </section>
     <section id="settings-seo" data-settings-panel="seo" aria-label="SEO">
@@ -134,26 +144,6 @@ try {
         <span>允许文章中的原始 HTML</span>
       </label>
       <p class="admin-field-hint">开启后文章可直接运行 HTML 与脚本，请仅允许可信作者使用。</p>
-    </div>
-    </section>
-    <section id="settings-accounts" data-settings-panel="accounts" aria-label="账号与权限">
-    <div class="card admin-form-card">
-      <h2 class="admin-card-title">账号与注册</h2>
-      <label class="admin-check-row">
-        <input type="checkbox" name="allow_registration" value="true" <?= $boolVal('allow_registration', 'true') ? 'checked' : '' ?>>
-        <span>开放注册（关闭后注册页不可用）</span>
-      </label>
-      <label class="admin-check-row">
-        <input type="checkbox" name="require_email_verify" value="true" <?= $boolVal('require_email_verify', 'true') ? 'checked' : '' ?>>
-        <span>注册需邮箱验证码（需配置邮件服务）</span>
-      </label>
-    </div>
-    <div class="card admin-form-card">
-      <h2 class="admin-card-title">角色权限</h2>
-      <div class="admin-field"><label class="label" for="setting-role_capabilities">角色能力 JSON</label>
-        <textarea class="input admin-input-block" id="setting-role_capabilities" name="role_capabilities" rows="8" spellcheck="false"><?= e(json_encode($roleCapabilities, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)) ?></textarea>
-        <p class="admin-field-hint">只填写系统提供的能力标识；ADMIN 永远拥有全部能力。错误 JSON 会被忽略并使用默认权限。</p>
-      </div>
     </div>
     </section>
     <section id="settings-media" data-settings-panel="media" aria-label="上传与媒体">

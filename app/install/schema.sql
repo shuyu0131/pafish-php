@@ -32,6 +32,23 @@ CREATE TABLE IF NOT EXISTS users (
   KEY idx_users_last_active (last_active_at)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT='用户账号、资料、角色与登录状态';
 
+-- 原生管理客户端的逐用户、逐设备访问凭证；只保存不可逆哈希。
+CREATE TABLE IF NOT EXISTS app_tokens (
+  id           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '设备令牌主键',
+  user_id      BIGINT UNSIGNED NOT NULL COMMENT '令牌所属用户；权限始终从用户当前角色读取',
+  token_hash   CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT '随机 Bearer Token 的 SHA-256 哈希',
+  device_name  VARCHAR(100) NOT NULL COMMENT '用户提供的设备标签',
+  created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '签发时间',
+  expires_at   DATETIME NOT NULL COMMENT '过期时间',
+  last_used_at DATETIME NULL COMMENT '最近使用时间',
+  revoked_at   DATETIME NULL COMMENT '撤销时间',
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_app_tokens_hash (token_hash),
+  KEY idx_app_tokens_user_created (user_id, created_at, id),
+  KEY idx_app_tokens_user_status (user_id, revoked_at, expires_at),
+  CONSTRAINT fk_app_tokens_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT='原生客户端逐设备访问令牌';
+
 -- 文章
 CREATE TABLE IF NOT EXISTS posts (
   id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '记录主键',
@@ -125,6 +142,7 @@ CREATE TABLE IF NOT EXISTS pages (
   status       VARCHAR(20)     NOT NULL DEFAULT 'DRAFT' COMMENT '所属业务状态',
   template     VARCHAR(50)     NOT NULL DEFAULT 'default' COMMENT '页面模板标识',
   published_at DATETIME        NULL COMMENT '发布时间；公开查询允许为空、未来时间不公开',
+  deleted_at   DATETIME        NULL COMMENT '软删除时间；为空表示未删除',
   created_at   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   updated_at   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最近修改时间',
   PRIMARY KEY (id),
@@ -306,4 +324,22 @@ CREATE TABLE IF NOT EXISTS media_references (
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT='媒体引用关系：按来源记录和字段保护附件';
 
 
-INSERT INTO extension_storage (extension_type, extension_name, data_key, value) VALUES ('system', 'media_references', 'state', 'pending') ON DUPLICATE KEY UPDATE data_key = VALUES(data_key);
+INSERT INTO extension_storage (extension_type, extension_name, data_key, value) VALUES ('system', 'media_references', 'state', 'ready') ON DUPLICATE KEY UPDATE data_key = VALUES(data_key);
+
+-- 核心实体与扩展命名空间的通用字段；多态关系由 EntityMeta 生命周期服务维护。
+CREATE TABLE IF NOT EXISTS entity_meta (
+  id           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '记录主键',
+  subject_type VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT 'post/page/user/comment/micro/category/tag 等核心实体类型',
+  subject_id   BIGINT UNSIGNED NOT NULL COMMENT '所属实体 ID；由应用层校验存在并在删除时清理',
+  scope        VARCHAR(80) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT 'core 或 plugin:name / theme:name 命名空间',
+  meta_key     VARCHAR(191) NOT NULL COMMENT '字段键；允许同一键以 position 保留历史重复项',
+  key_hash     BINARY(32) NOT NULL COMMENT 'meta_key SHA-256，用于紧凑复合索引',
+  position     SMALLINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '同键值顺序，支持旧文章自定义字段重复键',
+  meta_value   MEDIUMTEXT NOT NULL COMMENT '字段值；数值范围查询需由声明类型和专用索引另行定义',
+  created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  updated_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最近修改时间',
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_entity_meta_slot (subject_type, subject_id, scope, key_hash, position),
+  KEY idx_entity_meta_lookup (subject_type, scope, key_hash, subject_id),
+  KEY idx_entity_meta_owner (scope, subject_type, subject_id)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT='核心实体扩展字段与字段归属';

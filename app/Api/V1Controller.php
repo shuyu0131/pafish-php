@@ -223,13 +223,7 @@ final class V1Controller
         }
 
         // 自定义字段 JSON 解析（坏数据容错为空数组）
-        $customFields = [];
-        if ($p['custom_fields'] !== null && $p['custom_fields'] !== '') {
-            $parsed = json_decode($p['custom_fields'], true);
-            if (is_array($parsed)) {
-                $customFields = $parsed;
-            }
-        }
+        $customFields = \Pafish\Services\EntityMeta::postCustomFields((int) $p['id'], $p['custom_fields'] ?? null);
 
         $item = $this->postListItem($p);
         $item['content'] = $p['content'];
@@ -367,7 +361,7 @@ final class V1Controller
     public function pages(Request $request, Response $response): Response
     {
         $fail = ApiKey::check($request); if ($fail !== null) return $this->authError($response, $fail);
-        $rows = DB::fetchAll("SELECT id,title,slug,content,content_format,status,published_at,updated_at,seo_title,meta_description FROM pages WHERE status='PUBLISHED' AND (published_at IS NULL OR published_at <= NOW()) ORDER BY published_at DESC, id DESC");
+        $rows = \Pafish\Services\ContentRepository::publishedPages();
         return $this->json($response, ['pages' => array_map(fn(array $p): array => ['id'=>(string)$p['id'],'title'=>$p['title'],'slug'=>$p['slug'],'content'=>$p['content'],'contentFormat'=>$p['content_format'],'publishedAt'=>$this->iso($p['published_at']),'updatedAt'=>$this->iso($p['updated_at']),'seoTitle'=>$p['seo_title'],'metaDescription'=>$p['meta_description']], $rows)]);
     }
 

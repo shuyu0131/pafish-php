@@ -126,6 +126,7 @@ final class Comments
             $leaves = array_diff_key($selected, $parents);
             if ($leaves === []) throw new \DomainException('评论回复关系异常', 409);
             foreach ($leaves as $id => $_) {
+                EntityMeta::deleteSubject('comment', (int) $id);
                 DB::execute('DELETE FROM comments WHERE id=?', [$id]);
                 $events[] = ['hook'=>'after_comment_delete','data'=>[
                     'id'=>(string) $id, 'postId'=>(string) $rows[$id]['post_id'], 'authorName'=>$rows[$id]['author_name'],

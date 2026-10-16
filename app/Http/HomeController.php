@@ -7,6 +7,7 @@ namespace Pafish\Http;
 use Pafish\Core\DB;
 use Pafish\Services\Settings;
 use Pafish\Services\Theme;
+use Pafish\Services\ContentRepository;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -20,10 +21,7 @@ final class HomeController
         // 后台"页面管理 → 设为首页"优先
         $homePageId = (string) Settings::get('home_page_id', '');
         if (ctype_digit($homePageId)) {
-            $page = DB::fetchOne(
-                "SELECT * FROM pages WHERE id = ? AND status = 'PUBLISHED' AND (published_at IS NULL OR published_at <= NOW())",
-                [(int) $homePageId]
-            );
+            $page = ContentRepository::publishedPageById((int) $homePageId);
             if ($page) {
                 $pageId = (string) ($page['id'] ?? '');
                 $content = \apply_content_filters((string) ($page['content'] ?? ''), [

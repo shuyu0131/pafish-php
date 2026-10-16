@@ -57,6 +57,7 @@
       return { key: key, value: initial.customFields[key] == null ? "" : String(initial.customFields[key]) };
     });
   }
+  if (!initial.extensionMeta || typeof initial.extensionMeta !== "object" || Array.isArray(initial.extensionMeta)) initial.extensionMeta = {};
   var isEdit = !!DATA.isEdit;
   var categories = DATA.categories || [];
   var allTags = DATA.tags || [];
@@ -161,6 +162,17 @@
     });
     return other.concat(preservedCustomFields);
   }
+  function collectExtensionMeta() {
+    var values = {};
+    $$('[data-extension-meta]').forEach(function (input) {
+      var scope = input.getAttribute("data-meta-scope");
+      var key = input.getAttribute("data-meta-key");
+      if (!scope || !key) return;
+      if (!values[scope]) values[scope] = {};
+      values[scope][key] = input.value;
+    });
+    return values;
+  }
   function isDirty() {
     if (autosavedPayload !== null) return buildPayload("auto").toString() !== autosavedPayload;
     return els.title.value !== (initial.title || "") ||
@@ -181,7 +193,8 @@
       els.allowComments.checked !== (initial.allowComments !== false) ||
       els.seoTitle.value !== (initial.seoTitle || "") ||
       els.metaDescription.value !== (initial.metaDescription || "") ||
-      JSON.stringify(collectCustomFields()) !== JSON.stringify(initial.customFields || [{ key: "", value: "" }]);
+      JSON.stringify(collectCustomFields()) !== JSON.stringify(initial.customFields || [{ key: "", value: "" }]) ||
+      JSON.stringify(collectExtensionMeta()) !== JSON.stringify(initial.extensionMeta || {});
   }
 
   // ---------- 提示 ----------
@@ -241,6 +254,7 @@
     p.set("seo_title", els.seoTitle.value.trim());
     p.set("meta_description", els.metaDescription.value.trim());
     p.set("custom_fields", JSON.stringify(collectCustomFields()));
+    p.set("extension_meta", JSON.stringify(collectExtensionMeta()));
     if (action === "schedule") p.set("scheduled_at", els.scheduledAt.value);
     return p;
   }
@@ -454,10 +468,18 @@
   }
   function renderCoverPreview() {
     var v = els.coverUrl.value.trim();
-    $("[data-cover-empty]").hidden = !!v;
+    // Plain text (including browser-autofilled usernames) must not become a relative image request.
+    var valid = /^(?:\/(?!\/)|https?:\/\/)/i.test(v) && !/[\x00-\x20\x7f\\]/.test(v);
+    if (valid && v.charAt(0) !== "/") {
+      try {
+        var parsed = new URL(v);
+        valid = !!parsed.hostname && !parsed.username && !parsed.password;
+      } catch (error) { valid = false; }
+    }
+    $("[data-cover-empty]").hidden = valid;
     $("#btnCoverClear").hidden = !v;
-    if (v) {
-      els.coverImg.src = v;
+    if (valid) {
+      if (els.coverImg.getAttribute("src") !== v) els.coverImg.src = v;
       els.coverPreview.hidden = false;
     } else {
       els.coverPreview.hidden = true;
@@ -693,6 +715,7 @@
       if (extension && typeof extension.init === "function") extension.init({ initial: initial, data: DATA, elements: els });
     });
     renderCustomFields();
+    initial.extensionMeta = collectExtensionMeta();
     // 以实际控件值为基线，避免打开旧文章就被标记为“未保存”。
     initial.customFields = collectCustomFields();
 

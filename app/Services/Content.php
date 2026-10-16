@@ -41,10 +41,20 @@ final class Content
         return $value;
     }
 
+    /** Historical rows may contain an invalid cover address; omit it at render time. */
+    public static function safeImageUrl(mixed $value): ?string
+    {
+        try {
+            return self::imageUrl($value);
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
     public static function format(mixed $format): string
     {
         if (!is_string($format) || !in_array($format, ['markdown', 'html'], true)) {
-            throw new \InvalidArgumentException('正文格式无效');
+            throw new \RuntimeException('正文格式无效');
         }
         return $format;
     }
@@ -67,7 +77,7 @@ final class Content
 
     public static function render(string $content, string $format = 'markdown'): string
     {
-        if (self::format($format) === 'markdown') {
+        if ($format !== 'html') {
             return Markdown::render($content);
         }
         $html = self::sanitize($content);

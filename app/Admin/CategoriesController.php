@@ -99,6 +99,7 @@ final class CategoriesController extends AdminController
             \Pafish\Services\MediaReferences::transaction(static function () use ($id): void {
                 DB::execute('UPDATE categories SET parent_id = NULL WHERE parent_id = ?', [$id]);
                 DB::execute('UPDATE posts SET category_id = NULL WHERE category_id = ?', [$id]);
+                if ($id > 0) \Pafish\Services\EntityMeta::deleteSubject('category', $id);
                 DB::execute('DELETE FROM categories WHERE id = ?', [$id]);
                 if ($id > 0) \Pafish\Services\MediaReferences::forget('category', $id);
             });

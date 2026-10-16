@@ -11,7 +11,8 @@ $subtitle = (string) settings('site_subtitle', '');
 $activeTheme = Theme::active();
 $themeCss = Theme::css($activeTheme);
 $layoutCss = Theme::layoutCss($activeTheme);
-$showSidebar = theme_value('sidebar_enabled', '1') !== '0';
+// 侧栏属于主题布局选择；系统兜底模板仅在主题明确声明时开启。
+$showSidebar = theme_value('sidebar_enabled', '0') !== '0';
 $navItems = nav_items();
 $loggedIn = is_logged_in();
 $titleOrder = (string) settings('seo_title_order', 'page_site');

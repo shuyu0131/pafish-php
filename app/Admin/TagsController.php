@@ -61,7 +61,10 @@ final class TagsController extends AdminController
     {
         $this->guardAdmin();
         $id = (int) ($args['id'] ?? 0);
-        DB::execute('DELETE FROM tags WHERE id = ?', [$id]);
+        \Pafish\Services\MediaReferences::transaction(static function () use ($id): void {
+            if ($id > 0) \Pafish\Services\EntityMeta::deleteSubject('tag', $id);
+            DB::execute('DELETE FROM tags WHERE id = ?', [$id]);
+        });
         if ($this->isAjax($request)) {
             return $this->json($response, ['ok' => true]);
         }

@@ -20,7 +20,10 @@ $fmtSize = static function (int $bytes): string {
   <div class="admin-page-head">
     <div>
       <h1 class="admin-h1">数据备份</h1>
-      <p class="admin-page-sub">备份内容为完整数据库（文章、页面、分类、评论、设置等），文件保存在服务器 backups 目录</p>
+      <p class="admin-page-sub">备份本站核心及已登记或声明的扩展数据表，文件保存在服务器 backups 目录</p>
+    </div>
+    <div class="admin-head-actions">
+      <a class="btn btn-outline" href="<?= e(url_to('/admin/extensions/data')) ?>">扩展数据表</a>
     </div>
   </div>
 
@@ -52,7 +55,7 @@ $fmtSize = static function (int $bytes): string {
                     <?= $isUpload ? 'disabled' : '' ?>>删除</button>
           </div>
           <div class="admin-backup-restore-box" hidden>
-            <p class="admin-backup-restore-tip">恢复将覆盖当前全部数据。系统会先自动创建一份安全备份。请输入备份文件名以确认：</p>
+            <p class="admin-backup-restore-tip">恢复会执行 SQL 文件并覆盖其中的数据表。系统会先自动创建一份安全备份。请输入备份文件名以确认：</p>
             <div class="admin-backup-restore-form">
               <input type="text" class="input admin-backup-confirm" placeholder="<?= e($b['file']) ?>" autocomplete="off">
               <button type="button" class="btn btn-danger btn-sm admin-backup-restore-ok" disabled>确认恢复</button>
@@ -69,9 +72,10 @@ $fmtSize = static function (int $bytes): string {
     <ul class="admin-backup-help">
       <li>点击「立即备份」生成当前数据库快照，建议定期手动备份（部署后可用计划任务自动化）</li>
       <li>恢复前系统会自动先创建一份安全备份，防止误操作无法回退</li>
-      <li>恢复会覆盖当前全部数据，需输入备份文件名二次确认</li>
+      <li>恢复会覆盖 SQL 文件中的数据表，结构语句不能整体回滚；失败时请保留安全备份</li>
       <li>上传的 .sql 文件会保存为 upload-* 并在列表展示，恢复完成后请手动清理</li>
-      <li>备份文件包含数据库凭据之外的全部数据，注意保管，勿公开目录</li>
+      <li>未声明且未登记的插件私有表、上传文件和程序配置不在此备份范围；共库的其他应用表不会导出</li>
+      <li>备份可能包含账号、扩展密钥等敏感数据，请妥善保管；备份期间不要安装扩展或执行表结构变更</li>
     </ul>
   </div>
 </div>

@@ -21,7 +21,7 @@ final class HomeController
         $homePageId = (string) Settings::get('home_page_id', '');
         if (ctype_digit($homePageId)) {
             $page = DB::fetchOne(
-                "SELECT * FROM pages WHERE id = ? AND status = 'PUBLISHED'",
+                "SELECT * FROM pages WHERE id = ? AND status = 'PUBLISHED' AND (published_at IS NULL OR published_at <= NOW())",
                 [(int) $homePageId]
             );
             if ($page) {
@@ -34,9 +34,10 @@ final class HomeController
                     'pageId' => $pageId,
                     'page' => $page,
                 ]);
-                $description = (string) Settings::get('site_description', '');
+                $description = $page['meta_description'] ?: (string) Settings::get('site_description', '');
                 $response->getBody()->write(render('page', [
                     'title' => $page['title'],
+                    'seoTitle' => $page['seo_title'] ?: $page['title'],
                     'description' => $description,
                     'og' => [
                         'type' => 'website',
@@ -44,7 +45,7 @@ final class HomeController
                         'url' => \absolute_url('/'),
                     ],
                     'page' => $page,
-                    'contentHtml' => \md($content),
+                    'contentHtml' => \content_html($content, (string) ($page['content_format'] ?? 'markdown')),
                 ]));
                 return $response;
             }
@@ -55,54 +56,8 @@ final class HomeController
         $perPage = $themeLimit > 0
             ? min(30, max(1, $themeLimit))
             : min(50, max(1, (int) Settings::get('posts_per_page', '10')));
-        $pageNum = max(1, (int) ($request->getQueryParams()['page'] ?? 1));
-        $offset = ($pageNum - 1) * $perPage;
-
-        $where = "p.status = 'PUBLISHED' AND p.deleted_at IS NULL AND (p.published_at IS NULL OR p.published_at <= NOW())";
-        $total = (int) DB::value("SELECT COUNT(*) FROM posts p WHERE {$where}");
+        [$posts, $total, $perPage, $pageNum] = Listings::published('', [], $request, perPage: $perPage);
         $totalPages = max(1, (int) ceil($total / $perPage));
-
-        $posts = DB::fetchAll(
-            "SELECT p.id, p.title, p.slug, p.excerpt, p.content, p.cover_url, p.custom_fields, p.published_at, p.author_id,
-                    p.is_pinned, p.category_pinned, p.password, p.external_url, p.view_count,
-                    p.like_count, p.favorite_count,
-                    (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id AND c.status = 'APPROVED') AS comment_count,
-                    COALESCE(NULLIF(u.nickname, ''), u.username) AS author_name, u.avatar_url AS author_avatar,
-                    c.name AS category_name, c.slug AS category_slug
-             FROM posts p
-             LEFT JOIN users u ON u.id = p.author_id
-             LEFT JOIN categories c ON c.id = p.category_id
-             WHERE {$where}
-             ORDER BY p.is_pinned DESC, p.published_at DESC
-             LIMIT {$perPage} OFFSET {$offset}",
-        );
-
-        // 批量取标签（避免 N+1）
-        $posts = self::attachTags($posts);
-        if ($posts !== []) {
-            $ids = array_map(static fn (array $post): int => (int) $post['id'], $posts);
-            $placeholders = implode(',', array_fill(0, count($ids), '?'));
-            $rows = DB::fetchAll(
-                "SELECT c.post_id, c.author_name, c.content, c.created_at
-                 FROM comments c WHERE c.post_id IN ({$placeholders})
-                 AND c.status = 'APPROVED' AND c.parent_id IS NULL
-                 ORDER BY c.created_at DESC",
-                $ids
-            );
-            $recent = [];
-            foreach ($rows as $row) {
-                $postId = (int) $row['post_id'];
-                if (isset($recent[$postId]) && count($recent[$postId]) >= 6) continue;
-                $recent[$postId][] = [
-                    'author_name' => (string) $row['author_name'],
-                    'content' => (string) $row['content'],
-                    'created_at' => (string) $row['created_at'],
-                ];
-            }
-            foreach ($posts as $index => $post) {
-                $posts[$index]['recent_comments'] = $recent[(int) $post['id']] ?? [];
-            }
-        }
 
         $response->getBody()->write(render('index', [
             'title' => '首页',

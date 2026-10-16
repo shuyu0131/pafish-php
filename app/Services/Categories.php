@@ -16,9 +16,12 @@ final class Categories
     /** 全部分类扁平树（含 depth）；可传排除 id（防自引用时隐藏子树） */
     public static function tree(int $excludeId = 0): array
     {
-        $cacheKey = 'categories.tree.' . $excludeId;
-        $cached = Cache::get($cacheKey);
-        if (is_array($cached)) return $cached;
+        return Cache::remember('categories.tree.' . $excludeId,
+            static fn(): array => self::buildTree($excludeId), 300);
+    }
+
+    private static function buildTree(int $excludeId): array
+    {
         $rows = DB::fetchAll('SELECT * FROM categories ORDER BY sort_order ASC, id ASC');
         $byParent = [];
         foreach ($rows as $row) {
@@ -41,7 +44,6 @@ final class Categories
             }
         };
         $walk(0, 0);
-        Cache::set($cacheKey, $flat, 300);
         return $flat;
     }
 

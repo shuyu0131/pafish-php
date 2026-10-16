@@ -31,12 +31,8 @@ final class ApiKey
         }
         $limit = max(0, (int) Settings::get('api_rate_limit', '120'));
         if ($limit > 0) {
-            $bucket = 'api-rate:' . sha1($provided . '|' . ($request->getServerParams()['REMOTE_ADDR'] ?? '')) . ':' . date('YmdHi');
-            $used = (int) Cache::get($bucket, 0);
-            if ($used >= $limit) {
-                return [429, 'API 请求过于频繁，请稍后再试'];
-            }
-            Cache::set($bucket, $used + 1, 120);
+            $identity = hash('sha256', $provided) . '|' . ClientIp::fromRequest($request);
+            if (!RateLimiter::allow('api-request', $identity, $limit, 60)) return [429, 'API 请求过于频繁，请稍后再试'];
         }
         return null;
     }

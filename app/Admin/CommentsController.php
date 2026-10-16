@@ -92,31 +92,13 @@ final class CommentsController extends AdminController
     public function status(Request $request, Response $response, array $args): Response
     {
         $this->guardCapability('comments.manage');
-        $id = (int) ($args['id'] ?? 0);
-        $body = $request->getParsedBody() ?? [];
-        $next = strtoupper((string) ($body['status'] ?? ''));
-        if (!in_array($next, self::STATUSES, true)) {
-            return $this->json($response, ['error' => '无效的状态'], 400);
+        try {
+            $events = \Pafish\Services\Comments::moderate([(int) ($args['id'] ?? 0)], strtoupper((string) ($request->getParsedBody()['status'] ?? '')));
+            \Pafish\Services\Comments::emit($events);
+        } catch (\DomainException $e) {
+            return $this->json($response, ['error'=>$e->getMessage()], $e->getCode());
         }
-        $row = $this->findVisibleComment($id, 'c.id, c.post_id, c.status');
-        if ($row === null) {
-            return $this->json($response, ['error' => '评论不存在'], 400);
-        }
-        $from = (string) $row['status'];
-        if ($from === $next) {
-            return $this->json($response, ['ok' => true]);
-        }
-        DB::execute('UPDATE comments SET status = ? WHERE id = ?', [$next, $id]);
-
-        // 钩子：评论状态流转
-        \do_action('after_comment_status', [
-            'id' => (string) $id,
-            'postId' => (string) $row['post_id'],
-            'from' => $from,
-            'to' => $next,
-        ]);
-
-        return $this->json($response, ['ok' => true]);
+        return $this->json($response, ['ok'=>true]);
     }
 
     /** POST /admin/comments/batch：批量审核或删除当前用户有权管理的评论。 */
@@ -144,156 +126,59 @@ final class CommentsController extends AdminController
             $ids[] = (int) $id;
         }
         $ids = array_values(array_unique($ids));
-        $placeholders = implode(',', array_fill(0, count($ids), '?'));
-        $scope = $this->editorScope();
-        $rows = DB::fetchAll(
-            'SELECT c.id, c.post_id, c.parent_id, c.author_name, c.status FROM comments c JOIN posts scope_post ON scope_post.id = c.post_id WHERE c.id IN (' . $placeholders . ')' . $scope['sql'],
-            array_merge($ids, $scope['params'])
-        );
-        if (count($rows) !== count($ids)) {
-            return $this->json($response, ['error' => '所选评论不存在或无权管理'], 403);
+        try {
+            $events = $operation === 'delete'
+                ? \Pafish\Services\Comments::delete($ids)
+                : \Pafish\Services\Comments::moderate($ids, $operation === 'approve' ? 'APPROVED' : 'SPAM');
+            \Pafish\Services\Comments::emit($events);
+        } catch (\DomainException $e) {
+            return $this->json($response, ['error'=>$e->getMessage()], $e->getCode());
         }
-        if ($operation === 'delete') {
-            $parentById = [];
-            foreach ($rows as $row) {
-                $parentById[(int) $row['id']] = (int) ($row['parent_id'] ?? 0);
-            }
-            $depth = static function (int $id) use (&$depth, $parentById): int {
-                $parent = $parentById[$id] ?? 0;
-                return $parent !== 0 && isset($parentById[$parent]) ? 1 + $depth($parent) : 0;
-            };
-            usort($rows, static fn (array $a, array $b): int => $depth((int) $b['id']) <=> $depth((int) $a['id']));
-        }
-
-        $changed = 0;
-        foreach ($rows as $row) {
-            $id = (int) $row['id'];
-            if ($operation === 'delete') {
-                if (DB::execute('DELETE FROM comments WHERE id = ?', [$id]) > 0) {
-                    $changed++;
-                    \do_action('after_comment_delete', [
-                        'id' => (string) $id,
-                        'authorName' => (string) $row['author_name'],
-                    ]);
-                }
-                continue;
-            }
-
-            $next = $operation === 'approve' ? 'APPROVED' : 'SPAM';
-            $from = (string) $row['status'];
-            if ($from === $next) {
-                continue;
-            }
-            if (DB::execute('UPDATE comments SET status = ? WHERE id = ?', [$next, $id]) > 0) {
-                $changed++;
-                \do_action('after_comment_status', [
-                    'id' => (string) $id,
-                    'postId' => (string) $row['post_id'],
-                    'from' => $from,
-                    'to' => $next,
-                ]);
-            }
-        }
-
-        return $this->json($response, ['ok' => true, 'changed' => $changed]);
+        return $this->json($response, ['ok'=>true, 'changed'=>count($events)]);
     }
 
     /** POST /admin/comments/{id}/reply：以管理员身份回复（创建 APPROVED 子评论，前台直接显示） */
     public function reply(Request $request, Response $response, array $args): Response
     {
         $this->guardCapability('comments.manage');
-        $id = (int) ($args['id'] ?? 0);
-        $parent = $this->findVisibleComment($id, 'c.*');
-        if ($parent === null) {
-            return $this->json($response, ['error' => '评论不存在'], 400);
+        try {
+            $events = \Pafish\Services\Comments::reply((int) ($args['id'] ?? 0), mb_substr(trim((string) ($request->getParsedBody()['content'] ?? '')), 0, 2000));
+            \Pafish\Services\Comments::emit($events);
+        } catch (\DomainException $e) {
+            return $this->json($response, ['error'=>$e->getMessage()], $e->getCode());
         }
-        $content = mb_substr(trim((string) ($request->getParsedBody()['content'] ?? '')), 0, 2000);
-        if ($content === '') {
-            return $this->json($response, ['error' => '回复内容不能为空'], 400);
-        }
-
-        $user = Auth::user();
-        DB::execute(
-            'INSERT INTO comments (post_id, author_name, author_email, user_id, content, status, parent_id, ip)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-            [
-                (int) $parent['post_id'],
-                (string) $user['username'],
-                '',
-                (int) $user['id'],
-                $content,
-                'APPROVED',
-                $id,
-                null,
-            ]
-        );
-        $commentId = (int) DB::lastInsertId();
-
-        // 钩子：管理员回复
-        \do_action('after_comment_reply', [
-            'id' => (string) $commentId,
-            'postId' => (string) $parent['post_id'],
-            'parentId' => (string) $id,
-            'content' => $content,
-            'author' => (string) $user['username'],
-        ]);
-
-        return $this->json($response, ['ok' => true]);
+        return $this->json($response, ['ok'=>true]);
     }
 
     /** POST /admin/comments/{id}/pin：置顶 / 取消置顶 */
     public function pin(Request $request, Response $response, array $args): Response
     {
         $this->guardCapability('comments.manage');
-        $id = (int) ($args['id'] ?? 0);
-        $row = $this->findVisibleComment($id, 'c.id, c.is_pinned');
-        if ($row === null) {
-            return $this->json($response, ['error' => '评论不存在'], 400);
-        }
-        $next = (int) $row['is_pinned'] === 1 ? 0 : 1;
-        DB::execute('UPDATE comments SET is_pinned = ? WHERE id = ?', [$next, $id]);
-        return $this->json($response, ['ok' => true, 'pinned' => $next === 1]);
+        try { \Pafish\Services\Comments::pin((int) ($args['id'] ?? 0)); }
+        catch (\DomainException $e) { return $this->json($response, ['error'=>$e->getMessage()], $e->getCode()); }
+        return $this->json($response, ['ok'=>true]);
     }
 
-    /** POST /admin/comments/{id}/delete。 */
     public function delete(Request $request, Response $response, array $args): Response
     {
         $this->guardCapability('comments.manage');
-        $id = (int) ($args['id'] ?? 0);
-        $row = $this->findVisibleComment($id, 'c.id, c.author_name');
-        if ($row === null) {
-            return $this->json($response, ['error' => '评论不存在'], 400);
-        }
-        DB::execute('DELETE FROM comments WHERE id = ?', [$id]);
-
-        // 钩子：评论删除
-        \do_action('after_comment_delete', [
-            'id' => (string) $id,
-            'authorName' => (string) $row['author_name'],
-        ]);
-
-        return $this->json($response, ['ok' => true]);
+        try { \Pafish\Services\Comments::emit(\Pafish\Services\Comments::delete([(int) ($args['id'] ?? 0)])); }
+        catch (\DomainException $e) { return $this->json($response, ['error'=>$e->getMessage()], $e->getCode()); }
+        return $this->json($response, ['ok'=>true]);
     }
 
-    /** POST /admin/comments/delete-by-ip：按 IP 删除全部评论，返回删除条数 */
     public function deleteByIp(Request $request, Response $response): Response
     {
         $this->guardCapability('comments.manage');
         $ip = trim((string) ($request->getParsedBody()['ip'] ?? ''));
-        if ($ip === '') {
-            return $this->json($response, ['error' => '参数错误'], 400);
-        }
+        if ($ip === '') return $this->json($response, ['error'=>'参数错误'], 400);
         $scope = $this->editorScope();
-        if ($scope['sql'] === '') {
-            $deleted = DB::execute('DELETE FROM comments WHERE ip = ?', [$ip]);
-        } else {
-            $ids = DB::fetchAll('SELECT comments.id FROM comments JOIN posts scope_post ON scope_post.id = comments.post_id WHERE comments.ip = ?' . $scope['sql'], array_merge([$ip], $scope['params']));
-            $deleted = 0;
-            foreach ($ids as $item) {
-                $deleted += DB::execute('DELETE FROM comments WHERE id = ?', [(int) $item['id']]);
-            }
-        }
-        return $this->json($response, ['ok' => true, 'deleted' => $deleted]);
+        $ids = DB::fetchAll('SELECT comments.id FROM comments JOIN posts scope_post ON scope_post.id=comments.post_id WHERE comments.ip=?' . $scope['sql'], array_merge([$ip], $scope['params']));
+        try {
+            $events = $ids === [] ? [] : \Pafish\Services\Comments::delete(array_column($ids, 'id'));
+            \Pafish\Services\Comments::emit($events);
+        } catch (\DomainException $e) { return $this->json($response, ['error'=>$e->getMessage()], $e->getCode()); }
+        return $this->json($response, ['ok'=>true,'deleted'=>count($events)]);
     }
 
     /** POST /admin/comments/block-ip：拉黑 IP（settings blocked_ips JSON 数组，去重追加；不删已有评论） */
@@ -311,9 +196,7 @@ final class CommentsController extends AdminController
         }
         if (!in_array($ip, $list, true)) {
             $list[] = $ip;
-            DB::execute('INSERT INTO settings (`key`, `value`) VALUES (?, ?) ON DUPLICATE KEY UPDATE `value` = ?', [
-                'blocked_ips', json_encode($list, JSON_UNESCAPED_UNICODE), json_encode($list, JSON_UNESCAPED_UNICODE),
-            ]);
+            Settings::set('blocked_ips', json_encode($list, JSON_UNESCAPED_UNICODE));
         }
         return $this->json($response, ['ok' => true]);
     }
@@ -344,9 +227,4 @@ final class CommentsController extends AdminController
         return ['sql' => ' AND scope_post.author_id = ?', 'params' => [(int) Auth::id()]];
     }
 
-    private function findVisibleComment(int $id, string $columns): ?array
-    {
-        $scope = $this->editorScope();
-        return DB::fetchOne('SELECT ' . $columns . ' FROM comments c JOIN posts scope_post ON scope_post.id = c.post_id WHERE c.id = ?' . $scope['sql'], array_merge([$id], $scope['params']));
-    }
 }

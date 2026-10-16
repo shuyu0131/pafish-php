@@ -17,6 +17,14 @@ final class Auth
     private static ?array $user = null;
     private static bool $activityTouched = false;
 
+    public const PASSWORD_RULE = '密码至少6个字符，且不超过72字节';
+
+    /** 所有新账号密码共用 bcrypt 的字节上限，避免多字节密码被静默截断。 */
+    public static function validPassword(string $password): bool
+    {
+        return mb_strlen($password, 'UTF-8') >= 6 && strlen($password) <= 72 && !str_contains($password, "\0");
+    }
+
     public const CAPABILITIES = [
         'dashboard.view', 'posts.manage', 'pages.manage', 'taxonomy.manage',
         'media.manage', 'comments.manage', 'links.manage', 'appearance.manage',

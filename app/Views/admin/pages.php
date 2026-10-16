@@ -30,8 +30,8 @@
       <thead>
         <tr>
           <th>标题</th>
-          <th class="admin-page-template">模板</th>
-          <th class="admin-list-date">更新时间</th>
+          <th class="admin-page-template admin-table-secondary">模板</th>
+          <th class="admin-list-date admin-table-secondary">更新时间</th>
           <th class="admin-col-ops">操作</th>
         </tr>
       </thead>
@@ -57,9 +57,13 @@
                 <div class="admin-post-meta">
                   <span>/<?= e($p['slug']) ?></span>
                 </div>
+                <div class="admin-table-mobile-meta">
+                  <span><?= e(($templateOptions[$p['template']] ?? $p['template'])) ?></span>
+                  <time title="更新时间" datetime="<?= e((string) $p['updated_at']) ?>"><?= e(format_date($p['updated_at'], 'yyyy-MM-dd')) ?></time>
+                </div>
               </td>
-              <td class="admin-page-template" data-label="模板"><?= e(($templateOptions[$p['template']] ?? $p['template'])) ?></td>
-              <td class="admin-list-date" data-label="更新时间"><?= e(format_date($p['updated_at'], 'yyyy-MM-dd')) ?></td>
+              <td class="admin-page-template admin-table-secondary" data-label="模板"><?= e(($templateOptions[$p['template']] ?? $p['template'])) ?></td>
+              <td class="admin-list-date admin-table-secondary" data-label="更新时间"><?= e(format_date($p['updated_at'], 'yyyy-MM-dd')) ?></td>
               <td class="admin-col-ops" data-label="操作">
                 <div class="admin-row-ops">
                   <?php if ($p['status'] === 'PUBLISHED'): ?>

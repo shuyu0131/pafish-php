@@ -46,13 +46,17 @@ final class NavController extends AdminController
                 throw new \RuntimeException('内容超出长度限制');
             }
 
-            if ($id > 0) {
-                // 编辑：不动 visible / sort_order
-                DB::execute('UPDATE nav_items SET label = ?, url = ?, is_external = ? WHERE id = ?', [$label, $url, $isExternal, $id]);
-            } else {
-                $sort = (int) DB::value('SELECT COALESCE(MAX(sort_order), 0) + 1 FROM nav_items');
-                DB::execute('INSERT INTO nav_items (label, url, sort_order, is_external) VALUES (?, ?, ?, ?)', [$label, $url, $sort, $isExternal]);
-            }
+            \Pafish\Services\MediaReferences::transaction(function () use (&$id, $label, $url, $isExternal): void {
+                if ($id > 0) {
+                    // 编辑：不动 visible / sort_order
+                    DB::execute('UPDATE nav_items SET label = ?, url = ?, is_external = ? WHERE id = ?', [$label, $url, $isExternal, $id]);
+                } else {
+                    $sort = (int) DB::value('SELECT COALESCE(MAX(sort_order), 0) + 1 FROM nav_items');
+                    DB::execute('INSERT INTO nav_items (label, url, sort_order, is_external) VALUES (?, ?, ?, ?)', [$label, $url, $sort, $isExternal]);
+                    $id = DB::lastInsertId();
+                }
+                \Pafish\Services\MediaReferences::sync('nav', $id);
+            });
         } catch (\RuntimeException $e) {
             if ($this->isAjax($request)) {
                 return $this->json($response, ['error' => $e->getMessage()], 400);
@@ -74,7 +78,11 @@ final class NavController extends AdminController
     public function delete(Request $request, Response $response, array $args): Response
     {
         $this->guardAdmin();
-        DB::execute('DELETE FROM nav_items WHERE id = ?', [(int) ($args['id'] ?? 0)]);
+        $id = (int) ($args['id'] ?? 0);
+        \Pafish\Services\MediaReferences::transaction(static function () use ($id): void {
+            DB::execute('DELETE FROM nav_items WHERE id = ?', [$id]);
+            if ($id > 0) \Pafish\Services\MediaReferences::forget('nav', $id);
+        });
         Cache::clearPrefix('nav.');
         return $this->json($response, ['ok' => true]);
     }

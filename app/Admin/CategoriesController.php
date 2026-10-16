@@ -51,7 +51,11 @@ final class CategoriesController extends AdminController
         $id = isset($args['id']) ? (int) $args['id'] : 0;
 
         try {
-            $result = $this->saveCategory($body, $id > 0 ? $id : null);
+            $result = \Pafish\Services\MediaReferences::transaction(function () use ($body, $id): array {
+                $result = $this->saveCategory($body, $id > 0 ? $id : null);
+                \Pafish\Services\MediaReferences::sync('category', $result['id']);
+                return $result;
+            });
         } catch (\RuntimeException $e) {
             if ($this->isAjax($request)) {
                 return $this->json($response, ['error' => $e->getMessage()], 400);
@@ -91,16 +95,15 @@ final class CategoriesController extends AdminController
     {
         $this->guardAdmin();
         $id = (int) ($args['id'] ?? 0);
-        $db = DB::pdo();
-        $db->beginTransaction();
         try {
-            DB::execute('UPDATE categories SET parent_id = NULL WHERE parent_id = ?', [$id]);
-            DB::execute('UPDATE posts SET category_id = NULL WHERE category_id = ?', [$id]);
-            DB::execute('DELETE FROM categories WHERE id = ?', [$id]);
+            \Pafish\Services\MediaReferences::transaction(static function () use ($id): void {
+                DB::execute('UPDATE categories SET parent_id = NULL WHERE parent_id = ?', [$id]);
+                DB::execute('UPDATE posts SET category_id = NULL WHERE category_id = ?', [$id]);
+                DB::execute('DELETE FROM categories WHERE id = ?', [$id]);
+                if ($id > 0) \Pafish\Services\MediaReferences::forget('category', $id);
+            });
             Cache::clearPrefix('categories.');
-            $db->commit();
         } catch (\Throwable $e) {
-            $db->rollBack();
             if ($this->isAjax($request)) {
                 return $this->json($response, ['error' => '删除失败'], 500);
             }
@@ -117,6 +120,10 @@ final class CategoriesController extends AdminController
     /** 保存逻辑：校验 + slug 去冲突 + 父级防自引用 + sortOrder */
     private function saveCategory(array $body, ?int $id = null): array
     {
+        $stored = $id !== null ? DB::fetchOne('SELECT * FROM categories WHERE id=? FOR UPDATE', [$id]) : null;
+        if ($id !== null && $stored === null) throw new \RuntimeException('分类不存在');
+        $seo = \Pafish\Services\Content::seoFields($body, $stored ?? []);
+        $cover = \Pafish\Services\Content::imageUrl($body['cover_url'] ?? $stored['cover_url'] ?? '');
         $name = trim((string) ($body['name'] ?? ''));
         if ($name === '') {
             throw new \RuntimeException('分类名称不能为空');
@@ -168,8 +175,8 @@ final class CategoriesController extends AdminController
 
         if ($id !== null) {
             DB::execute(
-                'UPDATE categories SET name = ?, slug = ?, description = ?, parent_id = ? WHERE id = ?',
-                [$name, $slug, $description, $parentId, $id]
+                'UPDATE categories SET name = ?, slug = ?, description = ?, parent_id = ?, seo_title=?, meta_description=?, cover_url=? WHERE id = ?',
+                [$name, $slug, $description, $parentId, $seo['seo_title'], $seo['meta_description'], $cover, $id]
             );
             return ['id' => $id, 'created' => false];
         }
@@ -180,9 +187,9 @@ final class CategoriesController extends AdminController
             [$parentId]
         );
         DB::execute(
-            'INSERT INTO categories (name, slug, description, parent_id, sort_order, created_at)
-             VALUES (?, ?, ?, ?, ?, NOW())',
-            [$name, $slug, $description, $parentId, $sortOrder]
+            'INSERT INTO categories (name, slug, description, parent_id, sort_order, seo_title, meta_description, cover_url, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())',
+            [$name, $slug, $description, $parentId, $sortOrder, $seo['seo_title'], $seo['meta_description'], $cover]
         );
         return ['id' => (int) DB::pdo()->lastInsertId(), 'created' => true];
     }

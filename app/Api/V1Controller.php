@@ -7,6 +7,7 @@ namespace Pafish\Api;
 use Pafish\Core\ApiKey;
 use Pafish\Core\Config;
 use Pafish\Core\DB;
+use Pafish\Http\Responses;
 use Pafish\Services\Settings;
 use Pafish\Services\MicroStatuses;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -30,7 +31,7 @@ final class V1Controller
     /** 输出 JSON；$status 默认 200 */
     private function json(Response $response, array $data, int $status = 200): Response
     {
-        $response->getBody()->write((string) json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        $response = Responses::json($response, $data, $status);
         $cors = trim((string) Settings::get('api_cors', ''));
         if ($cors !== '') {
             $origin = (string) ($_SERVER['HTTP_ORIGIN'] ?? '');
@@ -40,9 +41,7 @@ final class V1Controller
                 $response = $response->withHeader('Vary', 'Origin');
             }
         }
-        return $response
-            ->withHeader('Content-Type', 'application/json; charset=utf-8')
-            ->withStatus($status);
+        return $response;
     }
 
     /** 鉴权失败响应 */
@@ -66,9 +65,9 @@ final class V1Controller
     }
 
     /** 文章基础 SELECT 片段（列表与详情共用列） */
-    private const POST_COLS = 'p.id, p.title, p.slug, p.excerpt, p.cover_url, p.published_at,
+    private const POST_COLS = 'p.content_format, p.id, p.title, p.slug, p.excerpt, p.cover_url, p.published_at,
         p.view_count, p.like_count, p.favorite_count, p.is_pinned, p.category_pinned,
-        p.password, p.external_url, p.status, p.updated_at, p.custom_fields';
+        p.password, p.external_url, p.status, p.updated_at, p.custom_fields, p.allow_comments, p.seo_title, p.meta_description';
 
     /** 行 → 开放 API 输出结构（列表版，无正文/自定义字段） */
     private function postListItem(array $p): array
@@ -87,6 +86,7 @@ final class V1Controller
             'isPinned' => (bool) $p['is_pinned'],
             'categoryPinned' => (bool) $p['category_pinned'],
             'hasPassword' => $hasPassword,
+            'commentsEnabled' => \Pafish\Services\Posts::commentsOpen($p),
             'externalUrl' => $p['external_url'],
             'category' => $p['category_name'] !== null ? ['name' => $p['category_name'], 'slug' => $p['category_slug']] : null,
             'tags' => $p['tags'],
@@ -133,7 +133,7 @@ final class V1Controller
         $tagSlug = trim((string) ($sp['tag'] ?? ''));
         $q = trim((string) ($sp['q'] ?? ''));
 
-        $where = "p.status = 'PUBLISHED' AND p.deleted_at IS NULL AND (p.published_at IS NULL OR p.published_at <= NOW())";
+        $where = \Pafish\Services\Posts::publicWhere('p');
         $params = [];
 
         if ($categorySlug !== '') {
@@ -142,14 +142,9 @@ final class V1Controller
                 return $this->json($response, ['error' => '分类不存在'], 404);
             }
             // 与前台一致：包含子分类的文章
-            $ids = [(int) $cat['id']];
-            $frontier = $ids;
-            while ($frontier !== []) {
-                $ph = implode(',', array_fill(0, count($frontier), '?'));
-                $kids = DB::fetchAll("SELECT id FROM categories WHERE parent_id IN ({$ph})", $frontier);
-                $frontier = array_map(static fn (array $k): int => (int) $k['id'], $kids);
-                $ids = array_merge($ids, $frontier);
-            }
+            $ids = array_keys(\Pafish\Services\Categories::descendants(
+                DB::fetchAll('SELECT id,parent_id FROM categories'), (int) $cat['id']
+            ));
             $where .= ' AND p.category_id IN (' . implode(',', $ids) . ')';
         }
         if ($tagSlug !== '') {
@@ -165,6 +160,10 @@ final class V1Controller
 
         $total = (int) DB::value("SELECT COUNT(*) FROM posts p WHERE {$where}", $params);
         $offset = ($page - 1) * $perPage;
+        // Match website lists: category pinning applies only to a category listing.
+        $order = $categorySlug !== ''
+            ? 'p.is_pinned DESC, p.category_pinned DESC, p.published_at DESC, p.id DESC'
+            : 'p.is_pinned DESC, p.published_at DESC, p.id DESC';
         $rows = DB::fetchAll(
             "SELECT " . self::POST_COLS . ",
                     u.username AS author_name,
@@ -173,7 +172,7 @@ final class V1Controller
              LEFT JOIN users u ON u.id = p.author_id
              LEFT JOIN categories c ON c.id = p.category_id
              WHERE {$where}
-             ORDER BY p.is_pinned DESC, p.category_pinned DESC, p.published_at DESC
+             ORDER BY {$order}
              LIMIT {$perPage} OFFSET {$offset}",
             $params
         );
@@ -210,10 +209,7 @@ final class V1Controller
         }
 
         $p = $this->fetchPostBySlug((string) ($args['slug'] ?? ''));
-        $isPublic = $p !== null
-            && $p['status'] === 'PUBLISHED'
-            && $p['published_at'] !== null
-            && $p['published_at'] <= date('Y-m-d H:i:s');
+        $isPublic = \Pafish\Services\Posts::isPublic($p);
         if (!$isPublic) {
             return $this->json($response, ['error' => '文章不存在'], 404);
         }
@@ -237,6 +233,9 @@ final class V1Controller
 
         $item = $this->postListItem($p);
         $item['content'] = $p['content'];
+        $item['contentFormat'] = $p['content_format'] ?? 'markdown';
+        $item['seoTitle'] = $p['seo_title'];
+        $item['metaDescription'] = $p['meta_description'];
         $item['updatedAt'] = $this->iso($p['updated_at']);
         $item['customFields'] = $customFields;
 
@@ -251,9 +250,10 @@ final class V1Controller
             return $this->authError($response, $fail);
         }
 
+        $publicWhere = \Pafish\Services\Posts::publicWhere('p');
         $rows = DB::fetchAll(
-            "SELECT c.id, c.name, c.slug, c.description, c.parent_id,
-                    (SELECT COUNT(*) FROM posts p WHERE p.category_id = c.id AND p.status = 'PUBLISHED' AND p.deleted_at IS NULL) AS post_count
+            "SELECT c.id, c.name, c.slug, c.description, c.parent_id, c.cover_url, c.seo_title, c.meta_description,
+                    (SELECT COUNT(*) FROM posts p WHERE p.category_id = c.id AND {$publicWhere}) AS post_count
              FROM categories c
              ORDER BY c.parent_id ASC, c.sort_order ASC, c.id ASC"
         );
@@ -262,6 +262,9 @@ final class V1Controller
             'name' => $c['name'],
             'slug' => $c['slug'],
             'description' => $c['description'],
+            'coverUrl' => $c['cover_url'],
+            'seoTitle' => $c['seo_title'],
+            'metaDescription' => $c['meta_description'],
             'parentId' => $c['parent_id'] !== null ? (string) $c['parent_id'] : null,
             'postCount' => (int) $c['post_count'],
         ], $rows);
@@ -277,10 +280,11 @@ final class V1Controller
             return $this->authError($response, $fail);
         }
 
+        $publicWhere = \Pafish\Services\Posts::publicWhere('p');
         $rows = DB::fetchAll(
-            "SELECT t.id, t.name, t.slug,
+            "SELECT t.id, t.name, t.slug, t.description, t.seo_title, t.meta_description,
                     (SELECT COUNT(*) FROM post_tags pt JOIN posts p ON p.id = pt.post_id
-                     WHERE pt.tag_id = t.id AND p.status = 'PUBLISHED' AND p.deleted_at IS NULL) AS post_count
+                     WHERE pt.tag_id = t.id AND {$publicWhere}) AS post_count
              FROM tags t
              ORDER BY t.name ASC"
         );
@@ -288,6 +292,9 @@ final class V1Controller
             'id' => (string) $t['id'],
             'name' => $t['name'],
             'slug' => $t['slug'],
+            'description' => $t['description'],
+            'seoTitle' => $t['seo_title'],
+            'metaDescription' => $t['meta_description'],
             'postCount' => (int) $t['post_count'],
         ], $rows);
 
@@ -311,9 +318,10 @@ final class V1Controller
         $page = max(1, (int) ($sp['page'] ?? 1));
         $perPage = min(self::COMMENTS_MAX_PER_PAGE, max(1, (int) ($sp['perPage'] ?? 50)));
 
-        $post = DB::fetchOne("SELECT id, status FROM posts WHERE id = ? AND deleted_at IS NULL", [$postId]);
-        if ($post === null || $post['status'] !== 'PUBLISHED') {
-            return $this->json($response, ['error' => '文章不存在'], 404);
+        try {
+            \Pafish\Services\Posts::findReadable($postId);
+        } catch (\DomainException $e) {
+            return $this->json($response, ['error' => $e->getMessage()], $e->getCode());
         }
 
         $where = 'post_id = ? AND status = ?';
@@ -359,15 +367,15 @@ final class V1Controller
     public function pages(Request $request, Response $response): Response
     {
         $fail = ApiKey::check($request); if ($fail !== null) return $this->authError($response, $fail);
-        $rows = DB::fetchAll("SELECT id,title,slug,content,status,published_at,updated_at FROM pages WHERE status='PUBLISHED' ORDER BY published_at DESC, id DESC");
-        return $this->json($response, ['pages' => array_map(fn(array $p): array => ['id'=>(string)$p['id'],'title'=>$p['title'],'slug'=>$p['slug'],'content'=>$p['content'],'publishedAt'=>$this->iso($p['published_at']),'updatedAt'=>$this->iso($p['updated_at'])], $rows)]);
+        $rows = DB::fetchAll("SELECT id,title,slug,content,content_format,status,published_at,updated_at,seo_title,meta_description FROM pages WHERE status='PUBLISHED' AND (published_at IS NULL OR published_at <= NOW()) ORDER BY published_at DESC, id DESC");
+        return $this->json($response, ['pages' => array_map(fn(array $p): array => ['id'=>(string)$p['id'],'title'=>$p['title'],'slug'=>$p['slug'],'content'=>$p['content'],'contentFormat'=>$p['content_format'],'publishedAt'=>$this->iso($p['published_at']),'updatedAt'=>$this->iso($p['updated_at']),'seoTitle'=>$p['seo_title'],'metaDescription'=>$p['meta_description']], $rows)]);
     }
 
     public function links(Request $request, Response $response): Response
     {
         $fail = ApiKey::check($request); if ($fail !== null) return $this->authError($response, $fail);
-        $rows = DB::fetchAll('SELECT id,name,url,description FROM links WHERE visible=1 ORDER BY sort_order,id');
-        return $this->json($response, ['links' => array_map(static fn(array $r): array => ['id'=>(string)$r['id'],'name'=>$r['name'],'url'=>$r['url'],'description'=>$r['description']], $rows)]);
+        $rows = DB::fetchAll('SELECT id,name,url,description,icon_url FROM links WHERE visible=1 ORDER BY sort_order,id');
+        return $this->json($response, ['links' => array_map(static fn(array $r): array => ['id'=>(string)$r['id'],'name'=>$r['name'],'url'=>$r['url'],'description'=>$r['description'],'iconUrl'=>$r['icon_url']], $rows)]);
     }
 
     public function menus(Request $request, Response $response): Response

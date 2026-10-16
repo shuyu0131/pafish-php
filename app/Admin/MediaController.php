@@ -7,6 +7,7 @@ namespace Pafish\Admin;
 use Pafish\Core\Auth;
 use Pafish\Core\DB;
 use Pafish\Services\Upload;
+use Pafish\Services\MediaReferences;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -58,7 +59,6 @@ final class MediaController extends AdminController
         } else {
             $date = '';
         }
-        Upload::refreshUsage();
         $total = (int) DB::value("SELECT COUNT(*) FROM uploads WHERE {$where}", $params);
         $pages = max(1, (int) ceil($total / $perPage));
         $page = min($page, $pages);
@@ -68,6 +68,8 @@ final class MediaController extends AdminController
         );
 
         $response->getBody()->write($this->render('uploads', [
+            'referencesReady' => MediaReferences::ready(),
+            'canRebuildReferences' => Auth::isAdmin(),
             'items' => $items,
             'total' => $total,
             'page' => $page,
@@ -80,39 +82,46 @@ final class MediaController extends AdminController
         return $response;
     }
 
-    /** POST /admin/uploads/{id}/delete：先删库再删文件 */
-    public function delete(Request $request, Response $response): Response
+    /** POST /admin/uploads/rebuild-references: explicit administrator maintenance. */
+    public function rebuildReferences(Request $request, Response $response): Response
+    {
+        $this->guardAdmin();
+        try {
+            $result = MediaReferences::rebuild();
+        } catch (\Throwable $e) {
+            \Pafish\Core\Logger::error('[media-rebuild] ' . $e->getMessage());
+            return $this->json($response, ['error' => '媒体引用重建失败，请检查日志后重试'], 500);
+        }
+        return $this->json($response, ['ok' => true] + $result);
+    }
+
+    /** Check and delete the record in one transaction, then remove its physical file. */
+    public function delete(Request $request, Response $response, array $args = []): Response
     {
         $this->guardCapability('media.manage');
-        $id = (int) ($request->getAttribute('id') ?? 0);
-        $row = DB::fetchOne('SELECT * FROM uploads WHERE id = ?' . (Auth::isAdmin() ? '' : ' AND uploader_id = ?'), Auth::isAdmin() ? [$id] : [$id, (int) Auth::id()]);
-        if ($row === null) {
-            return $this->json($response, ['error' => '媒体不存在或已删除'], 400);
+        $id = (int) ($args['id'] ?? $request->getAttribute('id') ?? 0);
+        try {
+            $row = MediaReferences::deleteUpload($id, Auth::isAdmin() ? null : (int) Auth::id(),
+                (string) ($request->getParsedBody()['force'] ?? '') === '1');
+        } catch (\RuntimeException $e) {
+            $status = in_array($e->getCode(), [404, 409], true) ? $e->getCode() : 400;
+            $owner = Auth::isAdmin() ? '' : ' AND uploader_id = ?';
+            return $this->json($response, ['error' => $e->getMessage(),
+                'usageCount' => $status === 409 && MediaReferences::ready()
+                    ? (int) DB::value('SELECT usage_count FROM uploads WHERE id = ?' . $owner, Auth::isAdmin() ? [$id] : [$id, (int) Auth::id()]) : 0], $status);
         }
-        Upload::refreshUsage();
-        $row = DB::fetchOne(
-            'SELECT * FROM uploads WHERE id = ?' . (Auth::isAdmin() ? '' : ' AND uploader_id = ?'),
-            Auth::isAdmin() ? [$id] : [$id, (int) Auth::id()]
-        ) ?: $row;
-        if ((int) ($row['usage_count'] ?? 0) > 0 && (string) (($request->getParsedBody()['force'] ?? '')) !== '1') {
-            return $this->json($response, ['error' => '媒体仍被内容引用，请确认后强制删除', 'usageCount' => (int) $row['usage_count']], 409);
-        }
-        DB::execute('DELETE FROM uploads WHERE id = ?', [$id]);
-
+        if ($row['keep_file']) return $this->json($response, ['ok' => true]);
         $url = (string) $row['url'];
-        if (preg_match('/^https?:\/\//i', $url) === 1) {
-            // 云端文件（完整 http(s) URL，云存储插件托管）→ 调插件删除
-            apply_filters('upload_delete_from_cloud', null, ['url' => $url]);
-        } else {
-            // 本地：base 子路径校验防路径穿越后删除（失败忽略）
+        $resource = MediaReferences::normalizeUrl($url);
+        if ($resource !== null && str_starts_with($resource, 'local:/uploads/')) {
             $base = realpath(dirname(__DIR__, 2) . '/public/uploads');
             if ($base !== false) {
-                $path = parse_url($url, PHP_URL_PATH) ?? $url;
-                $candidate = realpath($base . DIRECTORY_SEPARATOR . basename((string) $path));
-                if ($candidate !== false && str_starts_with($candidate, $base . DIRECTORY_SEPARATOR)) {
-                    @unlink($candidate);
-                }
+                $candidate = realpath($base . DIRECTORY_SEPARATOR . substr($resource, strlen('local:/uploads/')));
+                if ($candidate !== false && str_starts_with($candidate, $base . DIRECTORY_SEPARATOR)) @unlink($candidate);
             }
+        } elseif (preg_match('/^https?:\/\//i', $url) === 1) {
+            // 云端文件（完整 http(s) URL，云存储插件托管）→ 调插件删除
+            apply_filters('upload_delete_from_cloud', null, ['url' => $url]);
         }
         return $this->json($response, ['ok' => true]);
     }
@@ -141,12 +150,15 @@ final class MediaController extends AdminController
 
         $ext = strtolower(pathinfo(parse_url($url, PHP_URL_PATH) ?? '', PATHINFO_EXTENSION));
         $mime = Upload::MIME_MAP[$ext] ?? 'application/octet-stream';
-        DB::execute(
-            'INSERT INTO uploads (original_name, url, mime, size, width, height, uploader_id) VALUES (?, ?, ?, 0, NULL, NULL, ?)',
-            [$name, $url, $mime, Auth::id()]
-        );
-        $id = (int) DB::lastInsertId();
-
+        $id = MediaReferences::catalogTransaction(static function () use ($name, $url, $mime): int {
+            DB::execute(
+                'INSERT INTO uploads (original_name, url, mime, size, width, height, uploader_id) VALUES (?, ?, ?, 0, NULL, NULL, ?)',
+                [$name, $url, $mime, Auth::id()]
+            );
+            $id = DB::lastInsertId();
+            MediaReferences::register($id, $url);
+            return $id;
+        });
         return $this->json($response, ['ok' => true, 'id' => (string) $id, 'url' => $url, 'originalName' => $name]);
     }
 }

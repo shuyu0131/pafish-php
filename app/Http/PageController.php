@@ -18,7 +18,7 @@ final class PageController
     {
         $slug = rawurldecode((string) ($args['slug'] ?? ''));
         $page = DB::fetchOne(
-            "SELECT * FROM pages WHERE slug = ? AND status = 'PUBLISHED'",
+            "SELECT * FROM pages WHERE slug = ? AND status = 'PUBLISHED' AND (published_at IS NULL OR published_at <= NOW())",
             [$slug]
         );
         if (!$page) {
@@ -26,8 +26,9 @@ final class PageController
         }
 
         // meta description：正文去 Markdown 标记取前 120 字
-        $plain = preg_replace('/[#*`>\[\]()!\-]/', '', (string) ($page['content'] ?? ''));
-        $desc = mb_substr(trim((string) $plain), 0, 120);
+        $plain = \Pafish\Services\Content::plain((string) ($page['content'] ?? ''), (string) ($page['content_format'] ?? 'markdown'));
+        $desc = $page['meta_description'] ?: mb_substr(trim((string) $plain), 0, 120);
+        $seoTitle = $page['seo_title'] ?: $page['title'];
 
         $pageId = (string) ($page['id'] ?? '');
         $content = \apply_content_filters((string) ($page['content'] ?? ''), [
@@ -40,10 +41,11 @@ final class PageController
         ]);
         $response->getBody()->write(\render('page', [
             'title' => $page['title'],
+            'seoTitle' => $seoTitle,
             'description' => $desc,
-            'og' => Listings::og($request, (string) $page['title'], $desc, []),
+            'og' => Listings::og($request, $seoTitle, $desc, []),
             'page' => $page,
-            'contentHtml' => \md($content),
+            'contentHtml' => \content_html($content, (string) ($page['content_format'] ?? 'markdown')),
         ]));
         return $response;
     }

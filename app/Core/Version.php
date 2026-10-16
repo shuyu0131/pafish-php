@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Pafish\Core;
 
-/** 系统版本号和数字分段比较。 */
+/** 系统版本号和统一的版本比较规则。 */
 final class Version
 {
     /** 当前版本。 */
@@ -16,34 +16,20 @@ final class Version
         return self::VERSION;
     }
 
-    /** 数字分段版本比较（"0.1.2" vs "0.1.10"，返回 -1/0/1） */
+    /** 支持 v 前缀、预发布版本；构建元数据不参与排序，返回 -1/0/1。 */
     public static function compare(string $a, string $b): int
     {
-        $pa = self::parts($a);
-        $pb = self::parts($b);
-        $n = max(count($pa), count($pb));
-        for ($i = 0; $i < $n; $i++) {
-            $x = $pa[$i] ?? 0;
-            $y = $pb[$i] ?? 0;
-            if ($x < $y) {
-                return -1;
-            }
-            if ($x > $y) {
-                return 1;
-            }
-        }
-        return 0;
+        return version_compare(self::normalize($a), self::normalize($b));
     }
 
-    private static function parts(string $v): array
+    private static function normalize(string $version): string
     {
-        $parts = preg_split('/[^\d]+/', $v);
-        $out = [];
-        foreach (is_array($parts) ? $parts : [] as $p) {
-            if ($p !== '') {
-                $out[] = (int) $p;
-            }
+        $version = explode('+', ltrim(trim($version), 'vV'), 2)[0];
+        if (preg_match('/^(\d+(?:\.\d+)*)(.*)$/D', $version, $matches) === 1) {
+            $parts = array_map(static fn (string $part): string => ltrim($part, '0') ?: '0', explode('.', $matches[1]));
+            // 保持旧规则：1.1 与 1.1.0 相同。
+            return implode('.', array_pad($parts, 3, '0')) . $matches[2];
         }
-        return $out;
+        return $version;
     }
 }

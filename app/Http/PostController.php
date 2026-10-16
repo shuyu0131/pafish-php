@@ -7,14 +7,16 @@ namespace Pafish\Http;
 use Pafish\Core\DB;
 use Pafish\Core\Auth;
 use Pafish\Core\Session;
-use Pafish\Services\Markdown;
+use Pafish\Core\RateLimiter;
+use Pafish\Http\Responses;
 use Pafish\Services\Settings;
+use Pafish\Services\PostReactions;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
  * 前台文章详情：
- * 密码门（会话解锁 24h）/ 浏览量（cookie 7 天去重）/ 点赞收藏（cookie 列表 + DB 计数）
+ * 密码门（会话解锁 24h）/ 浏览量（cookie 7 天去重）/ 点赞收藏（服务端状态 + DB 计数）
  * 上下篇 / 相关推荐 / 自定义字段 / 面包屑 / JSON-LD / OG
  */
 final class PostController
@@ -32,7 +34,7 @@ final class PostController
 
         // 评论分页参数（cpage），非法值回退第 1 页
         $commentPage = max(1, (int) ($request->getQueryParams()['cpage'] ?? 1));
-        $settings = Settings::all();
+        $settings = Settings::core();
         $showCustomFields = \theme_value('show_custom_fields', '1') !== '0';
         $showRelated = \theme_value('show_related_posts', '1') !== '0';
 
@@ -81,15 +83,11 @@ final class PostController
             setcookie($viewCookie, '1', time() + self::VIEW_TTL, '/', '', false, false);
         }
 
-        // ---- 点赞/收藏初始状态（登录用户使用持久记录，匿名沿用 cookie） ----
-        $postKey = (string) $post['id'];
+        // 登录用户使用持久记录，匿名状态只信任服务端会话。
         $userId = Auth::id();
-        $liked = $userId !== null
-            ? DB::fetchOne('SELECT 1 FROM post_reactions WHERE user_id = ? AND post_id = ? AND kind = ?', [$userId, (int) $post['id'], 'like']) !== null
-            : in_array($postKey, $this->cookieIds('liked_posts'), true);
-        $favorited = $userId !== null
-            ? DB::fetchOne('SELECT 1 FROM post_reactions WHERE user_id = ? AND post_id = ? AND kind = ?', [$userId, (int) $post['id'], 'favorite']) !== null
-            : in_array($postKey, $this->cookieIds('favorited_posts'), true);
+        $reactionState = PostReactions::state((int) $post['id'], $userId);
+        $liked = $reactionState['like'];
+        $favorited = $reactionState['favorite'];
 
         // ---- 自定义字段解析（坏数据容错为空） ----
         // 字段由当前主题或插件自行声明和消费，核心只负责传递原始数据。
@@ -119,6 +117,7 @@ final class PostController
             'nextPost' => $neighbors[1],
             'related' => $related,
             'commentsEnabled' => $commentsEnabled,
+            'commentsOpen' => \Pafish\Services\Posts::commentsOpen($post),
             'needReview' => $needReview,
             'commentRoots' => $comments['roots'],
             'commentTotal' => $comments['total'],
@@ -126,7 +125,7 @@ final class PostController
         ], $neighbors);
     }
 
-    /** 点赞/收藏切换（POST JSON，cookie 列表幂等切换 + DB 计数增减） */
+    /** 点赞/收藏：会话 CSRF、组合限流；指定 active 时可幂等重试。 */
     public function toggle(Request $request, Response $response, array $args): Response
     {
         $id = (int) ($args['id'] ?? 0);
@@ -134,50 +133,37 @@ final class PostController
         if (!in_array($kind, ['like', 'favorite'], true)) {
             return $this->json($response, ['error' => '参数错误'], 400);
         }
-        // 收藏需要登录后才可使用，点赞保持匿名
-        if ($kind === 'favorite' && !\is_logged_in()) {
+        $userId = Auth::id();
+        if ($kind === 'favorite' && $userId === null) {
             return $this->json($response, ['error' => '请先登录后再收藏', 'login_url' => \url_to('/login')], 401);
         }
-        $post = DB::fetchOne("SELECT id FROM posts WHERE id = ? AND status = 'PUBLISHED' AND deleted_at IS NULL", [$id]);
-        if (!$post) {
-            return $this->json($response, ['error' => 'Not Found'], 404);
+        $body = $request->getParsedBody();
+        $body = is_array($body) ? $body : [];
+        $token = $body['_csrf'] ?? $request->getHeaderLine('X-CSRF-Token');
+        if (!is_string($token) || !Session::verifyCsrf($token)) {
+            return $this->json($response, ['error' => '会话已过期，请刷新页面重试'], 419);
         }
-
-        $userId = Auth::id();
-        if ($userId !== null) {
-            $existing = DB::fetchOne('SELECT 1 FROM post_reactions WHERE user_id = ? AND post_id = ? AND kind = ?', [$userId, $id, $kind]);
-            $active = $existing === null;
-            DB::transaction(function () use ($existing, $userId, $id, $kind): void {
-                if ($existing !== null) {
-                    DB::execute('DELETE FROM post_reactions WHERE user_id = ? AND post_id = ? AND kind = ?', [$userId, $id, $kind]);
-                    DB::execute("UPDATE posts SET {$kind}_count = GREATEST({$kind}_count - 1, 0) WHERE id = ?", [$id]);
-                } else {
-                    DB::execute('INSERT INTO post_reactions (user_id, post_id, kind) VALUES (?, ?, ?)', [$userId, $id, $kind]);
-                    DB::execute("UPDATE posts SET {$kind}_count = {$kind}_count + 1 WHERE id = ?", [$id]);
-                }
-            });
-            $count = (int) DB::value("SELECT {$kind}_count FROM posts WHERE id = ?", [$id]);
-            $this->fireReactionHooks($id, $kind, $active, $count, $userId);
-            return $this->json($response, ['ok' => true, 'active' => $active, 'count' => $count]);
+        $active = null;
+        if (array_key_exists('active', $body)) {
+            if (!in_array($body['active'], [true, false, 1, 0, '1', '0'], true)) {
+                return $this->json($response, ['error' => '互动状态无效'], 400);
+            }
+            $active = in_array($body['active'], [true, 1, '1'], true);
         }
-
-        $cookieName = $kind === 'like' ? 'liked_posts' : 'favorited_posts';
-        $ids = $this->cookieIds($cookieName);
-        $key = (string) $id;
-        $nowLiked = in_array($key, $ids, true);
-
-        if ($nowLiked) {
-            $ids = array_values(array_diff($ids, [$key]));
-            DB::execute("UPDATE posts SET {$kind}_count = GREATEST({$kind}_count - 1, 0) WHERE id = ?", [$id]);
-        } else {
-            $ids[] = $key;
-            DB::execute("UPDATE posts SET {$kind}_count = {$kind}_count + 1 WHERE id = ?", [$id]);
+        $ip = \Pafish\Core\ClientIp::fromRequest($request);
+        if (!RateLimiter::allow('post-reaction-ip', $ip, 60, 60)
+            || ($userId !== null && !RateLimiter::allow('post-reaction-user', (string) $userId, 30, 60))) {
+            return $this->json($response, ['error' => '操作过于频繁，请稍后再试'], 429);
         }
-
-        setcookie($cookieName, implode(',', $ids), time() + 31536000, '/', '', false, false);
-        $count = (int) DB::value("SELECT {$kind}_count FROM posts WHERE id = ?", [$id]);
-        $this->fireReactionHooks($id, $kind, !$nowLiked, $count, null);
-        return $this->json($response, ['ok' => true, 'active' => !$nowLiked, 'count' => $count]);
+        try {
+            $result = PostReactions::change($id, $kind, $userId, $active);
+        } catch (\InvalidArgumentException|\DomainException $e) {
+            return $this->json($response, ['error' => $e->getMessage()], (int) $e->getCode());
+        }
+        if ($result['changed']) {
+            $this->fireReactionHooks($id, $kind, $result['active'], $result['count'], $userId);
+        }
+        return $this->json($response, $result);
     }
 
     /** 互动事件契约：点赞/收藏成功切换后触发；匿名用户 userId 为 null。 */
@@ -203,16 +189,19 @@ final class PostController
         if (!empty($extra['locked'])) {
             $excerpt = '本文章已加密，请输入密码后查看';
         } elseif ($excerpt === '') {
-            $plain = trim((string) preg_replace('/\s+/u', ' ', strip_tags(\md((string) ($post['content'] ?? '')))));
+            $plain = trim((string) preg_replace('/\s+/u', ' ', strip_tags(\content_html((string) ($post['content'] ?? ''), (string) ($post['content_format'] ?? 'markdown')))));
             $excerpt = mb_substr($plain, 0, 160);
         }
+        if (empty($extra['locked']) && !empty($post['meta_description'])) $excerpt = $post['meta_description'];
+        $seoTitle = $post['seo_title'] ?: $post['title'];
         $data = array_merge($extra, [
             'post' => $post,
             'title' => $post['title'],
+            'seoTitle' => $seoTitle,
             'description' => $excerpt, // meta description 用摘要
             'og' => [
                 'type' => 'article',
-                'title' => $post['title'],
+                'title' => $seoTitle,
                 'description' => $excerpt,
                 'url' => \absolute_url('/post/' . rawurlencode((string) $post['slug'])),
                 'image' => $post['cover_url'] ? \absolute_url((string) $post['cover_url']) : '',
@@ -221,6 +210,7 @@ final class PostController
         // 仅在已解锁分支渲染正文，避免锁定页面把文章内容交给主题或插件。
         if (!empty($extra['locked'])) {
             unset($data['post']['content']);
+            unset($data['post']['meta_description']);
             $data['contentHtml'] = '';
             $response->getBody()->write(\render('post', $data));
             return $response;
@@ -236,7 +226,7 @@ final class PostController
             'postId' => $postId,
             'post' => $post,
         ]);
-        $data['contentHtml'] = Markdown::render($markdown);
+        $data['contentHtml'] = \content_html($markdown, (string) ($post['content_format'] ?? 'markdown'));
         $response->getBody()->write(\render('post', $data));
         return $response;
     }
@@ -252,13 +242,7 @@ final class PostController
              WHERE p.slug = ? AND p.deleted_at IS NULL",
             [$slug]
         );
-        if (!$post || $post['status'] !== 'PUBLISHED') {
-            return null;
-        }
-        $publishedAt = $post['published_at'];
-        if ($publishedAt !== null && strtotime((string) $publishedAt) > time()) {
-            return null; // 定时文章未到发布时间
-        }
+        if (!\Pafish\Services\Posts::isPublic($post)) return null;
         // 标签
         $tags = DB::fetchAll(
             "SELECT t.name, t.slug FROM post_tags pt JOIN tags t ON t.id = pt.tag_id WHERE pt.post_id = ? ORDER BY t.id ASC",
@@ -324,16 +308,11 @@ final class PostController
         return is_array($parsed) ? $parsed : [];
     }
 
-    private function cookieIds(string $name): array
-    {
-        $value = $_COOKIE[$name] ?? '';
-        return array_values(array_filter(array_map('trim', explode(',', (string) $value))));
-    }
-
     private function verifyPassword(string $input, string $hash): bool
     {
-        // bcrypt（password_hash 生成）或明文比对（老数据兜底）
-        if (str_starts_with($hash, '$2')) {
+        // 按 PHP 支持的算法验证；bcrypt/Argon2 格式即使损坏也不能把哈希字符串当密码。
+        if ((password_get_info($hash)['algoName'] ?? 'unknown') !== 'unknown'
+            || str_starts_with($hash, '$2') || str_starts_with($hash, '$argon2')) {
             return password_verify($input, $hash);
         }
         return hash_equals($hash, $input);
@@ -351,7 +330,6 @@ final class PostController
 
     private function json(Response $response, array $data, int $status = 200): Response
     {
-        $response->getBody()->write(json_encode($data, JSON_UNESCAPED_UNICODE));
-        return $response->withStatus($status)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Responses::json($response, $data, $status);
     }
 }

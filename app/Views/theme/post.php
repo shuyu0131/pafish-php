@@ -1,7 +1,7 @@
 <?php
 /**
  * 文章详情页（系统默认模板；主题可覆盖 themes/{active}/post.php）
- * 可用数据：$post（含 author_name/category_name/tags[]/content）、$contentHtml（Markdown 渲染结果）、
+ * 可用数据：$post（含 author_name/category_name/tags[]/content/content_format）、$contentHtml（正文渲染结果）、
  *           $locked、$passwordError、$liked、$favorited、$customFields、$prevPost、$nextPost、
  *           $related、$showCustomFields、$showRelated、$settings、$commentPage
  * 文章详情布局
@@ -80,7 +80,7 @@ get_header();
     <?php endif; ?>
 
     <?php /* 正文（Markdown 已在控制器渲染） */ ?>
-    <div class="md-content"><?= $contentHtml ?></div>
+    <div class="md-content pafish-content"><?= $contentHtml ?></div>
 
     <?php /* 上下篇 */ ?>
     <?php if (!empty($prevPost) || !empty($nextPost)): ?>
@@ -116,6 +116,7 @@ get_header();
           'commentTotal' => $commentTotal ?? 0,
           'commentTotalPages' => $commentTotalPages ?? 1,
           'needReview' => $needReview ?? true,
+          'commentsOpen' => $commentsOpen ?? true,
           'captchaEnabled' => (string) settings('comments_captcha_enabled', 'true') !== 'false',
           'user' => current_user(),
           'post' => $post,
@@ -141,7 +142,7 @@ get_header();
     ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>
     </script>
 
-    <?php /* 点赞/收藏：cookie 幂等切换 + DB 计数（图标随激活态在描边/实心间切换） */ ?>
+    <?php /* 点赞/收藏：明确提交目标状态，避免双击和网络重试反向切换。 */ ?>
     <script>
     (function () {
       var icons = {
@@ -151,8 +152,13 @@ get_header();
       var btns = document.querySelectorAll('.post-action');
       btns.forEach(function (btn) {
         btn.addEventListener('click', function () {
+          if (btn.disabled) return;
           var action = btn.dataset.action, id = btn.dataset.id, active = btn.dataset.active === '1';
-          fetch(pafishApi('/post/' + id + '/' + action), { method: 'POST' })
+          var body = new URLSearchParams();
+          body.set('_csrf', <?= json_encode(\Pafish\Core\Session::csrfToken()) ?>);
+          body.set('active', active ? '0' : '1');
+          btn.disabled = true;
+          fetch(pafishApi('/post/' + id + '/' + action), { method: 'POST', body: body, credentials: 'same-origin' })
             .then(function (r) { return r.json().then(function (d) { return { status: r.status, body: d }; }); })
             .then(function (res) {
               if (res.status === 401) {
@@ -162,13 +168,17 @@ get_header();
                 window.location.href = loginUrl + '?from=' + back;
                 return;
               }
-              if (!res.body.ok) return;
+              if (!res.body.ok) {
+                alert(res.body.error || '操作失败，请稍后重试');
+                return;
+              }
               var active = res.body.active;
               btn.dataset.active = active ? '1' : '0';
               btn.querySelector('.post-action-icon').innerHTML = icons[action][active ? 'on' : 'off'];
               btn.querySelector('.post-action-count').textContent = res.body.count;
             })
-            .catch(function () {});
+            .catch(function () { alert('网络异常，请稍后重试'); })
+            .finally(function () { btn.disabled = false; });
         });
       });
     })();

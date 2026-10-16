@@ -40,13 +40,42 @@ final class Migrator
 
     /**
      * 运行 migrations/ 下未应用的迁移，返回 ['applied' => [版本...]]。
-     * 目录不存在视为无迁移；失败抛 RuntimeException（本迁移未记录，下次可重试）。
+     * DML 分段事务，DDL 单独执行；DDL 无法回滚，迁移本身必须支持中断重试。
+     * 不得在业务事务内运行；同一个数据库的迁移由连接级锁串行执行。
      */
     public static function run(\PDO $pdo, string $migrationsDir): array
     {
         if (!is_dir($migrationsDir)) {
             return ['applied' => []];
         }
+        if ($pdo->inTransaction()) {
+            throw new \RuntimeException('不能在业务事务中执行数据库迁移');
+        }
+        $database = (string) $pdo->query('SELECT DATABASE()')->fetchColumn();
+        $lock = 'pafish:migrate:' . substr(hash('sha256', $database), 0, 40);
+        $stmt = $pdo->prepare('SELECT GET_LOCK(?, 10)');
+        $stmt->execute([$lock]);
+        if ((int) $stmt->fetchColumn() !== 1) {
+            throw new \RuntimeException('另一进程正在执行数据库迁移，请稍后重试');
+        }
+        $foreignKeys = null;
+        try {
+            $foreignKeys = (int) $pdo->query('SELECT @@SESSION.FOREIGN_KEY_CHECKS')->fetchColumn();
+            return self::runLocked($pdo, $migrationsDir);
+        } finally {
+            try {
+                if ($foreignKeys !== null) {
+                    $pdo->query('SET FOREIGN_KEY_CHECKS = ' . $foreignKeys);
+                }
+            } finally {
+                $release = $pdo->prepare('SELECT RELEASE_LOCK(?)');
+                $release->execute([$lock]);
+            }
+        }
+    }
+
+    private static function runLocked(\PDO $pdo, string $migrationsDir): array
+    {
         self::ensureTable($pdo);
 
         // 存量库（已有业务表且缺少 baseline 记录）→ baseline 视为已应用基线。
@@ -73,9 +102,26 @@ final class Migrator
                 $recorded[] = $version;
                 continue;
             }
-            $pdo->beginTransaction();
+            $sql = file_get_contents($file);
+            if ($sql === false) {
+                throw new \RuntimeException('无法读取迁移：' . $version);
+            }
+            // 整个文件先解析，再写入；语法不完整时不能先执行前半部分。
+            $modes = explode(',', strtoupper((string) $pdo->query('SELECT @@SESSION.sql_mode')->fetchColumn()));
+            $statements = self::splitStatements($sql, in_array('NO_BACKSLASH_ESCAPES', $modes, true), in_array('ANSI_QUOTES', $modes, true));
+            foreach ($statements as $stmt) {
+                if (preg_match('/^(?:CREATE\s+(?:TABLE|(?:UNIQUE\s+)?INDEX)|ALTER\s+TABLE|DROP\s+(?:TABLE|INDEX)|TRUNCATE\s+TABLE|RENAME\s+TABLE|SET\s|INSERT\s|UPDATE\s|DELETE\s|REPLACE\s|SELECT\s|START\s+TRANSACTION\s*$|BEGIN\s*$|COMMIT\s*$)/i', $stmt) !== 1) {
+                    throw new \RuntimeException('迁移 ' . $version . ' 包含不支持的语句；只支持表结构和普通数据迁移');
+                }
+            }
             try {
-                foreach (self::splitStatements((string) file_get_contents($file)) as $stmt) {
+                foreach ($statements as $stmt) {
+                    // 验证码已转为会话存储；保留历史迁移文件，不在新安装重建退役表。
+                    if ($version === 'zzzz_core_comments' && preg_match('/^ALTER\s+TABLE\s+`?email_codes`?\s/i', $stmt) === 1) continue;
+                    // 旧 SQL 文件中的事务标记由执行器统一接管。
+                    if (preg_match('/^(?:START\s+TRANSACTION|BEGIN|COMMIT)\s*$/i', $stmt) === 1) {
+                        continue;
+                    }
                     // ALTER TABLE 新增列在 MySQL DDL 隐式提交后不可整体回滚；逐条检查列，
                     // 使中断重试和部分完成的迁移保持幂等。
                     if (preg_match('/^ALTER\s+TABLE\s+`?([a-zA-Z0-9_]+)`?\s+ADD\s+COLUMN\s+`?([a-zA-Z0-9_]+)`?/i', $stmt, $m) === 1
@@ -90,18 +136,25 @@ final class Migrator
                         && self::foreignKeyExists($pdo, (string)$m[1], (string)$m[2])) {
                         continue;
                     }
+                    $ddl = preg_match('/^(?:CREATE|ALTER|DROP|TRUNCATE|RENAME|SET)\b/i', $stmt) === 1;
+                    if ($ddl && $pdo->inTransaction()) {
+                        $pdo->commit();
+                    } elseif (!$ddl && !$pdo->inTransaction()) {
+                        $pdo->beginTransaction();
+                    }
                     $pdo->query($stmt);
                 }
-                $pdo->prepare('INSERT INTO ' . self::TABLE . ' (version) VALUES (?)')->execute([$version]);
-                if ($pdo->inTransaction()) {
-                    $pdo->commit();
+                if (!$pdo->inTransaction()) {
+                    $pdo->beginTransaction();
                 }
+                $pdo->prepare('INSERT INTO ' . self::TABLE . ' (version) VALUES (?)')->execute([$version]);
+                $pdo->commit();
                 $applied[] = $version;
             } catch (\Throwable $e) {
                 if ($pdo->inTransaction()) {
                     $pdo->rollBack();
                 }
-                throw new \RuntimeException("迁移 {$version} 失败：{$e->getMessage()}");
+                throw new \RuntimeException("迁移 {$version} 失败；已完成的 DDL 不能回滚，修复后可重试：{$e->getMessage()}", 0, $e);
             }
         }
         return ['applied' => $applied];
@@ -133,6 +186,14 @@ final class Migrator
     private static function migrationTargetExists(\PDO $pdo, string $version): bool
     {
         return match ($version) {
+            'category_query_index' => self::categoryQueryIndexReady($pdo),
+            'query_indexes' => self::queryIndexesReady($pdo),
+            'content_format' => self::tableHasColumns($pdo, 'posts', ['content_format'])
+                && self::tableHasColumns($pdo, 'pages', ['content_format']),
+            'micro_statuses_content_format' => self::tableHasColumns($pdo, 'micro_statuses', ['content_format']),
+            'micro_statuses_content_capacity' => in_array(self::columnType($pdo, 'micro_statuses', 'content'), ['mediumtext', 'longtext'], true),
+            'email_code_security' => true, // 退役迁移；最后由 zzzzz_email_codes_session 清理旧表。
+            'zzzzz_email_codes_session' => !self::tableExists($pdo, 'email_codes'),
             'media_capabilities' => self::tableHasColumns($pdo, 'uploads', ['usage_count', 'last_used_at']),
             'widget_areas' => self::tableHasColumns($pdo, 'widgets', ['area']),
             'post_reactions' => self::tableHasColumns($pdo, 'post_reactions', ['user_id', 'post_id', 'kind']),
@@ -142,6 +203,48 @@ final class Migrator
                 && self::indexExists($pdo, 'users', 'idx_users_last_active'),
             default => false,
         };
+    }
+
+    private static function columnType(\PDO $pdo, string $table, string $column): ?string
+    {
+        $stmt = $pdo->prepare('SELECT DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?');
+        $stmt->execute([$table, $column]);
+        $type = $stmt->fetchColumn();
+        return $type === false ? null : strtolower((string) $type);
+    }
+
+    private static function indexColumns(\PDO $pdo, string $table, string $index): array
+    {
+        $stmt = $pdo->prepare('SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND INDEX_NAME=? ORDER BY SEQ_IN_INDEX');
+        $stmt->execute([$table, $index]);
+        return $stmt->fetchAll(\PDO::FETCH_COLUMN);
+    }
+
+    private static function categoryQueryIndexReady(\PDO $pdo): bool
+    {
+        $actual = self::indexColumns($pdo, 'posts', 'idx_posts_category');
+        if ($actual === ['category_id', 'status', 'deleted_at', 'is_pinned', 'category_pinned', 'published_at', 'id']) return true;
+        if ($actual === ['category_id']) return false;
+        throw new \RuntimeException('索引 posts.idx_posts_category 与已知结构不同，请先核查；未自动替换未知索引');
+    }
+
+    private static function queryIndexesReady(\PDO $pdo): bool
+    {
+        $ready = true;
+        foreach ([
+            ['posts', 'idx_posts_public', ['status', 'deleted_at', 'is_pinned', 'published_at', 'id']],
+            ['posts', 'idx_posts_list', ['deleted_at', 'published_at', 'id']],
+            ['comments', 'idx_comments_post_status', ['post_id', 'status', 'parent_id', 'created_at', 'id']],
+        ] as [$table, $index, $expected]) {
+            $actual = self::indexColumns($pdo, $table, $index);
+            if ($actual === $expected) continue;
+            if (($table === 'posts' && $actual === []) || ($table === 'comments' && $actual === ['post_id', 'status'])) {
+                $ready = false;
+                continue;
+            }
+            throw new \RuntimeException('索引 ' . $table . '.' . $index . ' 与已知结构不同，请先核查；未自动替换未知索引');
+        }
+        return $ready;
     }
 
     /** @param list<string> $columns */
@@ -180,24 +283,9 @@ final class Migrator
         }
     }
 
-    /** SQL 内容 → 语句数组（去掉 -- 行注释，按分号拆分；无存储过程，安全） */
-    private static function splitStatements(string $sql): array
+    /** 普通 MySQL 脚本分句；保留引号内容，不支持存储程序或自定义分隔符。 */
+    private static function splitStatements(string $sql, bool $noBackslashEscapes = false, bool $ansiQuotes = false): array
     {
-        $lines = [];
-        foreach (preg_split('/\r?\n/', $sql) ?: [] as $line) {
-            $trimmed = ltrim($line);
-            if ($trimmed === '' || str_starts_with($trimmed, '--')) {
-                continue;
-            }
-            $lines[] = $line;
-        }
-        $stmts = [];
-        foreach (explode(';', implode("\n", $lines)) as $stmt) {
-            $stmt = trim($stmt);
-            if ($stmt !== '') {
-                $stmts[] = $stmt;
-            }
-        }
-        return $stmts;
+        return \Pafish\Core\SqlScript::split($sql, $noBackslashEscapes, $ansiQuotes);
     }
 }

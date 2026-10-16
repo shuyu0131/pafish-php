@@ -1,13 +1,5 @@
 <?php
-/**
- * 评论审核：
- * - 5 Tab（全部/待审核/已通过/垃圾/已删除）+ 徽标计数，可选每页条数，created_at 倒序
- * - 每条评论：作者、置顶徽标、回复 @父作者、时间「评论于」、文章链接（新窗口）、
- *   内容、邮箱 + IP（等宽）、当前状态、操作行
- * - 操作：回复（展开输入框，以管理员身份直接通过）、通过、垃圾、置顶/取消、
- *   按 IP 删除（提示删除条数）、拉黑 IP、删除（确认弹窗）
- * 变量：$items $status $total $page $pages $statusCounts $postId $postTitle
- */
+/** 评论审核：常用操作直接显示，来源与低频操作放入详情。 */
 $tabs = ['ALL' => '全部', 'PENDING' => '待审核', 'APPROVED' => '已通过', 'SPAM' => '垃圾', 'TRASH' => '已删除'];
 $postId = (int) ($postId ?? 0);
 $per = (int) ($per ?? 20);
@@ -15,24 +7,35 @@ $postTitle = (string) ($postTitle ?? '');
 $querySuffix = ($postId > 0 ? '&post_id=' . $postId : '') . ($per !== 20 ? '&per=' . $per : '');
 $listUrl = url_to('/admin/comments') . '?status=' . $status . $querySuffix;
 ?>
-<div class="admin-stack admin-list-page">
+<div class="admin-stack admin-list-page admin-comments-page">
   <div class="admin-page-head">
     <div>
       <h1 class="admin-h1">评论审核</h1>
-      <p class="admin-page-sub"><?= $total ?> 条<?= $tabs[$status] ?>评论<?= $postTitle !== '' ? ' · 《' . e($postTitle) . '》' : '' ?></p>
+      <p class="admin-page-sub"><?= $total ?> 条评论<?= $status !== 'ALL' ? ' · ' . e($tabs[$status]) : '' ?><?= $postTitle !== '' ? ' · 《' . e($postTitle) . '》' : '' ?></p>
     </div>
   </div>
 
-  <!-- 状态 Tab + 徽标 -->
   <div class="admin-list-toolbar">
-  <div class="admin-comment-tabs" role="tablist">
-    <?php foreach ($tabs as $s => $label): ?>
-      <a class="admin-comment-tab<?= $s === $status ? ' active' : '' ?>"
-         href="<?= e(url_to('/admin/comments') . '?status=' . $s . $querySuffix) ?>">
-        <?= $label ?><?php if ($s !== 'ALL'): ?><span class="badge"><?= (int) $statusCounts[$s] ?></span><?php endif; ?>
-      </a>
-    <?php endforeach; ?>
-  </div>
+    <nav class="admin-comment-tabs" aria-label="评论状态">
+      <?php foreach (['ALL', 'PENDING'] as $s): ?>
+        <a class="admin-comment-tab<?= $s === $status ? ' active' : '' ?>"
+           <?= $s === $status ? 'aria-current="page"' : '' ?>
+           href="<?= e(url_to('/admin/comments') . '?status=' . $s . $querySuffix) ?>">
+          <?= $tabs[$s] ?><?php if ($s === 'PENDING'): ?><span class="badge"><?= (int) $statusCounts[$s] ?></span><?php endif; ?>
+        </a>
+      <?php endforeach; ?>
+    </nav>
+    <form action="<?= e(url_to('/admin/comments')) ?>" method="get" class="admin-list-filter-form">
+      <?php if ($postId > 0): ?><input type="hidden" name="post_id" value="<?= $postId ?>"><?php endif; ?>
+      <?php if ($per !== 20): ?><input type="hidden" name="per" value="<?= $per ?>"><?php endif; ?>
+      <select name="status" class="input admin-filter-select" aria-label="更多评论状态" onchange="this.form.submit()">
+        <option value="" disabled<?= in_array($status, ['ALL', 'PENDING'], true) ? ' selected' : '' ?>>更多状态</option>
+        <?php foreach (['APPROVED', 'SPAM', 'TRASH'] as $s): ?>
+          <option value="<?= $s ?>"<?= $status === $s ? ' selected' : '' ?>><?= $tabs[$s] ?></option>
+        <?php endforeach; ?>
+      </select>
+      <noscript><button class="btn btn-outline" type="submit">筛选</button></noscript>
+    </form>
   </div>
 
   <?php if ($items !== []): ?>
@@ -59,7 +62,7 @@ $listUrl = url_to('/admin/comments') . '?status=' . $status . $querySuffix;
     <div class="admin-table-wrap admin-comment-table-wrap">
       <table class="admin-table admin-comment-table">
         <thead>
-          <tr><th class="admin-col-check"><input type="checkbox" id="commentCheckAll" aria-label="选择本页全部评论"></th><th>评论</th><th>文章</th><th>来源</th><th>状态</th><th class="admin-col-ops">操作</th></tr>
+          <tr><th class="admin-col-check"><input type="checkbox" id="commentCheckAll" aria-label="选择本页全部评论"></th><th>评论</th><th class="admin-table-secondary">文章</th><th class="admin-table-secondary">时间</th><th class="admin-col-ops">操作</th></tr>
         </thead>
         <tbody>
           <?php foreach ($items as $c): ?>
@@ -68,32 +71,44 @@ $listUrl = url_to('/admin/comments') . '?status=' . $status . $querySuffix;
               <td data-label="评论">
                 <div class="admin-comment-head">
                   <span class="admin-comment-author"><?= e($c['author_name']) ?></span>
+                  <?php if ($c['status'] !== 'APPROVED'): ?><span class="admin-comment-state"><?= e($tabs[$c['status']]) ?></span><?php endif; ?>
                   <?php if ((int) $c['is_pinned'] === 1): ?><span class="admin-comment-badge"><?= admin_icon('pin', 11) ?> 置顶</span><?php endif; ?>
-                  <?php if ($c['parent_name'] !== null): ?><span class="admin-comment-badge"><?= admin_icon('corner-down-right', 11) ?> 回复 <?= e($c['parent_name']) ?></span><?php endif; ?>
+                  <?php if ($c['parent_name'] !== null): ?><span class="admin-comment-parent">回复 <?= e($c['parent_name']) ?></span><?php endif; ?>
                 </div>
                 <div class="admin-comment-content"><?= e($c['content']) ?></div>
-                <div class="admin-muted admin-comment-time"><?= e(format_date($c['created_at'], 'yyyy-MM-dd HH:mm')) ?></div>
+                <div class="admin-table-mobile-meta admin-comment-mobile-meta">
+                  <a href="<?= e(url_to('/post/' . $c['post_slug'])) ?>" target="_blank" rel="noopener"><?= e($c['post_title']) ?></a>
+                  <time><?= e(format_date($c['created_at'], 'yyyy-MM-dd HH:mm')) ?></time>
+                </div>
+                <details class="admin-comment-details">
+                  <summary>详情</summary>
+                  <div class="admin-comment-source">
+                    <?php if ($c['author_email'] !== ''): ?><span><?= e($c['author_email']) ?></span><?php endif; ?>
+                    <?php if (($c['ip'] ?? '') !== ''): ?><span>IP <?= e($c['ip']) ?></span><?php endif; ?>
+                  </div>
+                  <div class="admin-comment-detail-actions">
+                    <button type="button" class="btn btn-sm btn-ghost" data-pin="<?= (int) $c['id'] ?>"><?= (int) $c['is_pinned'] === 1 ? '取消置顶' : '置顶' ?></button>
+                    <?php if ($c['status'] !== 'SPAM'): ?><button type="button" class="btn btn-sm btn-ghost" data-status="<?= (int) $c['id'] ?>" data-next="SPAM">标记为垃圾</button><?php endif; ?>
+                    <?php if (($c['ip'] ?? '') !== ''): ?>
+                      <button type="button" class="btn btn-sm btn-ghost admin-icon-danger" data-delete-ip="<?= e($c['ip']) ?>">按 IP 删除</button>
+                      <button type="button" class="btn btn-sm btn-ghost" data-block-ip="<?= e($c['ip']) ?>">拉黑 IP</button>
+                    <?php endif; ?>
+                  </div>
+                </details>
+                <div class="admin-comment-replybox" hidden>
+                  <textarea class="admin-comment-reply-input" rows="3" maxlength="2000" aria-label="回复评论" placeholder="回复评论…"></textarea>
+                  <div class="admin-comment-reply-actions"><button type="button" class="btn btn-sm btn-primary" data-reply-submit="<?= (int) $c['id'] ?>">回复</button><button type="button" class="btn btn-sm btn-ghost" data-reply-cancel>取消</button></div>
+                </div>
               </td>
-              <td data-label="文章" class="admin-comment-post">
-                <?= admin_icon('link', 12) ?> <a href="<?= e(url_to('/post/' . $c['post_slug'])) ?>" target="_blank" rel="noopener"><?= e($c['post_title']) ?></a>
+              <td data-label="文章" class="admin-comment-post admin-table-secondary">
+                <a href="<?= e(url_to('/post/' . $c['post_slug'])) ?>" target="_blank" rel="noopener"><?= e($c['post_title']) ?></a>
               </td>
-              <td data-label="来源">
-                <code class="admin-comment-code"><?= e($c['author_email'] ?: '—') ?></code>
-                <code class="admin-comment-code">IP <?= e($c['ip'] ?? '—') ?></code>
-              </td>
-              <td data-label="状态"><span class="admin-comment-status"><?= $tabs[$c['status']] ?></span></td>
+              <td data-label="时间" class="admin-table-secondary admin-comment-time"><?= e(format_date($c['created_at'], 'yyyy-MM-dd HH:mm')) ?></td>
               <td data-label="操作" class="admin-col-ops">
                 <div class="admin-comment-ops">
-                  <button type="button" class="btn btn-sm btn-ghost" data-reply="<?= (int) $c['id'] ?>"><?= admin_icon('corner-down-right', 13) ?> 回复</button>
-                  <?php if ($status !== 'APPROVED'): ?><button type="button" class="btn btn-sm btn-ghost" data-status="<?= (int) $c['id'] ?>" data-next="APPROVED"><?= admin_icon('check', 13) ?> 通过</button><?php endif; ?>
-                  <?php if ($status !== 'SPAM'): ?><button type="button" class="btn btn-sm btn-ghost" data-status="<?= (int) $c['id'] ?>" data-next="SPAM"><?= admin_icon('trash', 13) ?> 垃圾</button><?php endif; ?>
-                  <button type="button" class="btn btn-sm btn-ghost" data-pin="<?= (int) $c['id'] ?>"><?= admin_icon('pin', 13) ?> <?= (int) $c['is_pinned'] === 1 ? '取消置顶' : '置顶' ?></button>
-                  <?php if (($c['ip'] ?? '') !== ''): ?><button type="button" class="btn btn-sm btn-ghost" data-delete-ip="<?= e($c['ip']) ?>"><?= admin_icon('globe', 13) ?> 按 IP 删除</button><button type="button" class="btn btn-sm btn-ghost" data-block-ip="<?= e($c['ip']) ?>"><?= admin_icon('shield-ban', 13) ?> 拉黑 IP</button><?php endif; ?>
-                  <button type="button" class="btn btn-sm btn-ghost admin-icon-danger" data-delete="<?= (int) $c['id'] ?>"><?= admin_icon('trash', 13) ?> 删除</button>
-                </div>
-                <div class="admin-comment-replybox" hidden>
-                  <textarea class="admin-comment-reply-input" rows="2" maxlength="2000" placeholder="以管理员身份回复，回复将直接显示在前台…"></textarea>
-                  <div class="admin-comment-reply-actions"><button type="button" class="btn btn-sm btn-primary" data-reply-submit="<?= (int) $c['id'] ?>">回复</button><button type="button" class="btn btn-sm btn-ghost" data-reply-cancel>取消</button></div>
+                  <button type="button" class="btn btn-sm btn-ghost" data-reply="<?= (int) $c['id'] ?>">回复</button>
+                  <?php if ($c['status'] !== 'APPROVED'): ?><button type="button" class="btn btn-sm btn-ghost" data-status="<?= (int) $c['id'] ?>" data-next="APPROVED">通过</button><?php endif; ?>
+                  <button type="button" class="btn btn-sm btn-ghost admin-icon-danger" data-delete="<?= (int) $c['id'] ?>">删除</button>
                 </div>
               </td>
             </tr>

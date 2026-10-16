@@ -236,7 +236,15 @@ final class ApiController extends AdminController
             return $this->json($response, ['error' => '会话已过期，请刷新页面重试'], 419);
         }
         $content = (string) ($body['content'] ?? '');
-        return $this->json($response, ['html' => Markdown::render($content)]);
+        if (strlen($content) > 16000000) {
+            return $this->json($response, ['error' => '内容过长'], 413);
+        }
+        try {
+            $format = \Pafish\Services\Content::format($body['content_format'] ?? 'markdown');
+        } catch (\InvalidArgumentException $e) {
+            return $this->json($response, ['error' => $e->getMessage()], 400);
+        }
+        return $this->json($response, ['html' => \Pafish\Services\Content::render($content, $format)]);
     }
 
     /**
@@ -298,6 +306,13 @@ final class ApiController extends AdminController
 
     /** 解析单个文件并创建文章 */
     private function importOne(string $name, string $buffer, string $status): void
+    {
+        \Pafish\Services\MediaReferences::transaction(function () use ($name, $buffer, $status): void {
+            $this->persistImport($name, $buffer, $status);
+        });
+    }
+
+    private function persistImport(string $name, string $buffer, string $status): void
     {
         $meta = self::parseFrontmatter($buffer);
         $content = $meta['content'];
@@ -377,6 +392,7 @@ final class ApiController extends AdminController
         );
         $stmt->execute([$title, $slug, $excerpt, $content, $externalUrl !== '' ? $externalUrl : null, $status, $publishedAt, $authorId, $now, $now]);
         $postId = (int) $pdo->lastInsertId();
+        \Pafish\Services\MediaReferences::sync('post', $postId);
         if ($tagIds !== []) {
             PostsController::replaceTags($postId, $tagIds);
         }

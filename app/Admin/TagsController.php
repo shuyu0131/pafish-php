@@ -72,6 +72,12 @@ final class TagsController extends AdminController
     /** 保存逻辑：校验 + slug 去冲突（排除自身） */
     private function saveTag(array $body, ?int $id = null): array
     {
+        $stored = $id !== null ? DB::fetchOne('SELECT * FROM tags WHERE id=?', [$id]) : null;
+        if ($id !== null && $stored === null) throw new \RuntimeException('标签不存在');
+        $seo = \Pafish\Services\Content::seoFields($body, $stored ?? []);
+        $description = $body['description'] ?? $stored['description'] ?? '';
+        if (!is_string($description) || mb_strlen($description) > 500) throw new \RuntimeException('标签描述不能超过 500 字');
+        $description = trim($description);
         $name = trim((string) ($body['name'] ?? ''));
         if ($name === '') {
             throw new \RuntimeException('标签名称不能为空');
@@ -101,10 +107,12 @@ final class TagsController extends AdminController
         });
 
         if ($id !== null) {
-            DB::execute('UPDATE tags SET name = ?, slug = ? WHERE id = ?', [$name, $slug, $id]);
+            DB::execute('UPDATE tags SET name = ?, slug = ?, description=?, seo_title=?, meta_description=? WHERE id = ?',
+                [$name, $slug, $description, $seo['seo_title'], $seo['meta_description'], $id]);
             return ['id' => $id, 'created' => false];
         }
-        DB::execute('INSERT INTO tags (name, slug, created_at) VALUES (?, ?, NOW())', [$name, $slug]);
+        DB::execute('INSERT INTO tags (name, slug, description, seo_title, meta_description, created_at) VALUES (?, ?, ?, ?, ?, NOW())',
+            [$name, $slug, $description, $seo['seo_title'], $seo['meta_description']]);
         return ['id' => (int) DB::pdo()->lastInsertId(), 'created' => true];
     }
 }

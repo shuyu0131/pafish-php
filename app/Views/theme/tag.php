@@ -14,6 +14,9 @@ get_header();
   <header class="listing-head">
     <p class="eyebrow">标签</p>
     <h1 class="editorial listing-title"><?= e((string) ($tag['name'] ?? '')) ?></h1>
+    <?php if (!empty($tag['description'])): ?>
+      <p class="listing-desc"><?= e($tag['description']) ?></p>
+    <?php endif; ?>
     <p class="listing-count">共 <?= $total ?> 篇文章</p>
   </header>
 

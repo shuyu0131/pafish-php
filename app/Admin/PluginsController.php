@@ -6,6 +6,7 @@ namespace Pafish\Admin;
 
 use Pafish\Services\Plugin;
 use Pafish\Services\PluginSettingException;
+use Pafish\Services\ExtensionLinks;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Psr\Http\Message\UploadedFileInterface;
@@ -27,8 +28,8 @@ final class PluginsController extends AdminController
                 'apiVersion' => $m['apiVersion'] ?? 1,
                 'description' => $m['description'] ?? '',
                 'author' => $m['author'] ?? '',
-                'authorUrl' => self::manifestUrl($m, 'authorUrl'),
-                'homepage' => self::manifestUrl($m, 'homepage'),
+                'authorUrl' => ExtensionLinks::manifestUrl($m, 'authorUrl'),
+                'homepage' => ExtensionLinks::manifestUrl($m, 'homepage'),
                 'frontendUrl' => (string) ($m['frontendUrl'] ?? ''),
                 'error' => $desc['error'],
                 // 插件可以通过 plugin_setting 注入自己的完整设置页，即使没有声明式 schema 字段。
@@ -41,13 +42,6 @@ final class PluginsController extends AdminController
             'plugins' => $plugins,
         ], '插件管理'));
         return $response;
-    }
-
-    private static function manifestUrl(?array $manifest, string $key): string
-    {
-        if (!is_array($manifest)) return '';
-        $value = $manifest[$key] ?? ($key === 'homepage' ? ($manifest['url'] ?? '') : ($manifest['author_url'] ?? ''));
-        return is_string($value) && preg_match('/^https?:\\/\\//i', $value) === 1 ? $value : '';
     }
 
     public function settings(Request $request, Response $response, array $args): Response

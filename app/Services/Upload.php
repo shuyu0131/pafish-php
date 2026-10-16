@@ -71,38 +71,10 @@ final class Upload
         return '(' . implode(' OR ', $conds) . ')';
     }
 
-    /** Recalculate references from content and settings, then persist counters. */
+    /** Explicit compatibility entry; ordinary media reads never call this. */
     public static function refreshUsage(): void
     {
-        $sources = [];
-        foreach ([
-            'SELECT content, cover_url, custom_fields FROM posts',
-            'SELECT content FROM pages',
-            'SELECT value FROM settings',
-            'SELECT avatar_url FROM users',
-            'SELECT url, description FROM links',
-            'SELECT url, label FROM nav_items',
-            'SELECT content, title FROM widgets',
-        ] as $sql) {
-            foreach (DB::fetchAll($sql) as $row) {
-                foreach ($row as $value) {
-                    if ($value !== null && $value !== '') {
-                        $sources[] = (string) $value;
-                    }
-                }
-            }
-        }
-        $haystack = implode("\n", $sources);
-        foreach (DB::fetchAll('SELECT id, url FROM uploads') as $upload) {
-            $url = (string) $upload['url'];
-            $path = (string) (parse_url($url, PHP_URL_PATH) ?? $url);
-            $needle = basename($path);
-            $count = substr_count($haystack, $url);
-            if ($needle !== '') {
-                $count = max($count, substr_count($haystack, $needle));
-            }
-            DB::execute('UPDATE uploads SET usage_count = ?, last_used_at = ? WHERE id = ?', [$count, $count > 0 ? date('Y-m-d H:i:s') : null, (int) $upload['id']]);
-        }
+        MediaReferences::rebuild();
     }
 
     /**
@@ -153,10 +125,7 @@ final class Upload
         }
         $mime = self::MIME_MAP[$ext] ?? 'application/octet-stream';
         $url = self::storeLocalFromPath($path, $ext);
-        DB::execute(
-            'INSERT INTO uploads (original_name, url, mime, size, width, height, uploader_id) VALUES (?, ?, ?, ?, NULL, NULL, ?)',
-            [trim($origName), $url, $mime, $size, \Pafish\Core\Auth::id()]
-        );
+        self::record(trim($origName), $url, $mime, $size, null, null);
         return ['url' => $url, 'mime' => $mime, 'size' => $size, 'width' => null, 'height' => null];
     }
 
@@ -226,12 +195,18 @@ final class Upload
             $url = self::storeLocal($buffer, $ext, $mime);
         }
 
-        DB::execute(
-            'INSERT INTO uploads (original_name, url, mime, size, width, height, uploader_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [$origName, $url, $mime, strlen($buffer), $width, $height, \Pafish\Core\Auth::id()]
-        );
-
+        self::record($origName, $url, $mime, strlen($buffer), $width, $height);
         return ['url' => $url, 'mime' => $mime, 'size' => strlen($buffer), 'width' => $width, 'height' => $height];
+    }
+
+    /** File processing/storage finishes before taking any database locks. */
+    private static function record(string $name, string $url, string $mime, int $size, ?int $width, ?int $height): void
+    {
+        MediaReferences::transaction(static function () use ($name, $url, $mime, $size, $width, $height): void {
+            DB::execute('INSERT INTO uploads (original_name, url, mime, size, width, height, uploader_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                [$name, $url, $mime, $size, $width, $height, \Pafish\Core\Auth::id()]);
+            MediaReferences::register(DB::lastInsertId(), $url);
+        });
     }
 
     /** 本地存储：public/uploads/{随机}.{ext}（目录自动创建） */

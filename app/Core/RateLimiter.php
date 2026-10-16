@@ -47,6 +47,7 @@ final class RateLimiter
             $written = @file_put_contents($path, json_encode([
                 'started' => $started,
                 'count' => $count,
+                'expires' => $started + $window,
             ], JSON_UNESCAPED_SLASHES), LOCK_EX);
             if ($written !== false && mt_rand(1, 100) === 1) {
                 self::cleanup($dir, $now - 86400);
@@ -62,7 +63,10 @@ final class RateLimiter
     {
         $root = defined('PAFISH_ROOT') ? PAFISH_ROOT : dirname(__DIR__, 2);
         $path = $root . '/runtime/rate/rl_' . hash('sha256', $bucket . "\0" . $key) . '.json';
-        @unlink($path);
+        $lock = @fopen($path . '.lock', 'c');
+        if ($lock === false) return;
+        try { if (flock($lock, LOCK_EX)) @unlink($path); }
+        finally { flock($lock, LOCK_UN); fclose($lock); }
     }
 
     private static function cleanup(string $dir, int $cutoff): void
@@ -73,12 +77,19 @@ final class RateLimiter
         }
         $removed = 0;
         foreach ($files as $file) {
-            $raw = @file_get_contents($file);
-            $state = is_string($raw) ? json_decode($raw, true) : null;
-            if (is_array($state) && (int) ($state['started'] ?? 0) < $cutoff && @unlink($file)) {
-                @unlink($file . '.lock');
-                $removed++;
-            }
+            $lock = @fopen($file . '.lock', 'c');
+            if ($lock === false) continue;
+            try {
+                if (!flock($lock, LOCK_EX | LOCK_NB)) continue;
+                // Re-read only after acquiring the writer's lock; a request may have refreshed it.
+                $raw = @file_get_contents($file);
+                $state = is_string($raw) ? json_decode($raw, true) : null;
+                if (is_array($state) && (int) ($state['started'] ?? 0) < $cutoff
+                    && (int) ($state['expires'] ?? 0) <= time() && @unlink($file)) {
+                    $removed++;
+                }
+                // Keep the lock inode: deleting it can split concurrent writers across two locks.
+            } finally { flock($lock, LOCK_UN); fclose($lock); }
             if ($removed >= 200) {
                 break;
             }

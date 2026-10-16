@@ -69,6 +69,7 @@
   var autoRequestToken = null;
   var lastSavedAt = null;      // 'HH:mm'
   var autosaveFailed = false;
+  var autosavedPayload = null;
   var currentCategory = String(initial.categoryId || "");
   var modal = { open: false, mode: "insert", tab: "upload", page: 1, q: "", total: 0, uploading: false, request: 0, searchTimer: null };
   var catOpen = false;
@@ -88,7 +89,6 @@
     coverUrl: $("#fCoverUrl"),
     coverPreview: $("[data-cover-preview]"),
     coverImg: $("[data-cover-preview] img"),
-    coverFile: $("#coverFile"),
     newCatWrap: $("[data-new-cat-wrap]"),
     newCatInput: $("#fNewCategory"),
     catSelect: $("#catSelect"),
@@ -104,6 +104,9 @@
     password: $("#fPassword"),
     removePassword: $("#fRemovePassword"),
     externalUrl: $("#fExternalUrl"),
+    allowComments: $("#fAllowComments"),
+    seoTitle: $("#postSeoTitle"),
+    metaDescription: $("#postMetaDescription"),
     modalEl: $("#mediaModal"),
     modalError: $("[data-mupload-error]"),
     libGrid: $("[data-lib-grid]"),
@@ -115,14 +118,7 @@
   // ---------- 轻量 Markdown 编辑器 ----------
   // 编辑器当前值实时同步回 #fContent（原生表单兜底 / FormData 读取）
   function editorValue() {
-    return els.content.value;
-  }
-  function editorInsert(md) {
-    if (window.PAFISH_MARKDOWN_EDITOR && typeof window.PAFISH_MARKDOWN_EDITOR.insert === "function") {
-      window.PAFISH_MARKDOWN_EDITOR.insert(md);
-      return;
-    }
-    els.content.value += els.content.value ? "\n\n" + md : md;
+    return window.__pafishEditor ? window.__pafishEditor.getValue() : els.content.value;
   }
 
   // 资源缺失兜底：显示原生 textarea 直接编辑
@@ -138,15 +134,16 @@
   function initEditor() {
     var mount = $("#markdownMount");
     if (!mount) return;
-    if (!window.PAFISH_MARKDOWN_EDITOR || typeof window.PAFISH_MARKDOWN_EDITOR.init !== "function") { editorFallback(); return; }
-    window.__pafishMarkdownEditor = window.PAFISH_MARKDOWN_EDITOR.init({
+    if (!window.PafishEditors) { editorFallback(); return; }
+    window.__pafishEditor = window.PafishEditors.init({
+      type: "post",
       mount: mount,
       field: els.content,
       placeholder: "开始写作…（支持拖拽/粘贴图片上传）",
       previewUrl: DATA.previewUrl,
       uploadUrl: DATA.uploadUrl,
       csrf: CSRF,
-      onMedia: function () { openModal("insert"); },
+      onMedia: function (request) { openModal("insert", request); },
       onChange: function () { autoRequestToken = null; },
     });
     return;
@@ -165,10 +162,12 @@
     return other.concat(preservedCustomFields);
   }
   function isDirty() {
+    if (autosavedPayload !== null) return buildPayload("auto").toString() !== autosavedPayload;
     return els.title.value !== (initial.title || "") ||
       els.slug.value !== (initial.slug || "") ||
       els.excerpt.value !== (initial.excerpt || "") ||
       editorValue() !== (initial.content || "") ||
+      document.getElementById('fContentFormat').value !== (initial.contentFormat || 'markdown') ||
       els.coverUrl.value !== (initial.coverUrl || "") ||
       currentCategory !== (initial.categoryId || "") ||
       JSON.stringify(tagIds) !== JSON.stringify(initial.tagIds || []) ||
@@ -179,6 +178,9 @@
       !!(els.removePassword && els.removePassword.checked) ||
       els.externalUrl.value !== (initial.externalUrl || "") ||
       els.catPinned.checked !== !!initial.categoryPinned ||
+      els.allowComments.checked !== (initial.allowComments !== false) ||
+      els.seoTitle.value !== (initial.seoTitle || "") ||
+      els.metaDescription.value !== (initial.metaDescription || "") ||
       JSON.stringify(collectCustomFields()) !== JSON.stringify(initial.customFields || [{ key: "", value: "" }]);
   }
 
@@ -211,7 +213,7 @@
     } else if (lastSavedAt !== null) {
       els.autosave.textContent = "已自动保存 " + lastSavedAt + (isDirty() ? "（还有未保存更改）" : "");
     } else {
-      els.autosave.textContent = "内容将每 60 秒自动保存，防止意外丢失";
+      els.autosave.textContent = "每 60 秒自动保存";
     }
   }
 
@@ -224,6 +226,7 @@
     p.set("slug", els.slug.value.trim());
     p.set("excerpt", els.excerpt.value.trim());
     p.set("content", editorValue());
+    p.set("content_format", $("#fContentFormat").value);
     p.set("cover_url", els.coverUrl.value.trim());
     p.set("category_id", currentCategory !== "" && currentCategory !== "__new__" ? currentCategory : "");
     p.set("new_category", currentCategory === "__new__" ? els.newCatInput.value.trim() : "");
@@ -234,6 +237,9 @@
     p.set("password", els.password.value);
     p.set("remove_password", els.removePassword && els.removePassword.checked ? "1" : "");
     p.set("external_url", els.externalUrl.value.trim());
+    p.set("allow_comments", els.allowComments.checked ? "1" : "0");
+    p.set("seo_title", els.seoTitle.value.trim());
+    p.set("meta_description", els.metaDescription.value.trim());
     p.set("custom_fields", JSON.stringify(collectCustomFields()));
     if (action === "schedule") p.set("scheduled_at", els.scheduledAt.value);
     return p;
@@ -241,6 +247,7 @@
 
   function submit(action) {
     if (pending) return;
+    if (window.__pafishEditor && !window.__pafishEditor.isReady()) { showError("编辑器正在加载或上传，请稍候"); return; }
     clearError();
     if (!els.title.value.trim()) { showError("请填写标题"); return; }
     // 纯外链条目（导航站/书签站）没有自己的正文，填了外链就放行；
@@ -276,16 +283,19 @@
 
   // 自动保存：仅编辑模式，每 60 秒（dirty 且标题非空、且正文或外链至少有一项时）
   function checkAutosave() {
-    if (!isEdit || pending) return;
+    if (!isEdit || pending || (window.__pafishEditor && !window.__pafishEditor.isReady())) return;
     if (!isDirty() || !els.title.value.trim()) return;
     if (!editorValue().trim() && !els.externalUrl.value.trim()) return;
     pending = "auto";
     autoRequestToken = autoRequestToken || requestToken();
+    var savedPayload = buildPayload("auto");
+    var requestPayload = new URLSearchParams(savedPayload);
+    requestPayload.set("_idempotency", autoRequestToken);
     updateAutosave();
     fetch(DATA.saveUrl, {
       method: "POST",
       headers: { "X-Requested-With": "XMLHttpRequest" },
-      body: (function () { var p = buildPayload("auto"); p.set("_idempotency", autoRequestToken); return p; }()),
+      body: requestPayload,
     })
       .then(function (r) { return r.json().catch(function () { return {}; }); })
       .then(function (d) {
@@ -293,6 +303,8 @@
         lastSavedAt = nowTime();
         autosaveFailed = false;
         autoRequestToken = null;
+        // 基线取发送时的快照；请求期间继续输入的内容仍视为未保存。
+        autosavedPayload = savedPayload.toString();
       })
       .catch(function () {
         if (!autosaveFailed) {
@@ -438,15 +450,18 @@
   // ---------- 封面 ----------
   function setCover(url) {
     els.coverUrl.value = url;
-    renderCoverPreview();
+    els.coverUrl.dispatchEvent(new Event("input", { bubbles: true }));
   }
   function renderCoverPreview() {
     var v = els.coverUrl.value.trim();
+    $("[data-cover-empty]").hidden = !!v;
+    $("#btnCoverClear").hidden = !v;
     if (v) {
       els.coverImg.src = v;
       els.coverPreview.hidden = false;
     } else {
       els.coverPreview.hidden = true;
+      els.coverImg.removeAttribute("src");
     }
   }
   function uploadFile(file) {
@@ -500,30 +515,34 @@
     suggestions.innerHTML = Array.from(new Set(rows.map(function (f) { return f.key; }).filter(Boolean)))
       .map(function (key) { return '<option value="' + esc(key) + '"></option>'; }).join("");
     rows.forEach(function (f) { addFieldRow(f.key, f.value); });
+    var details = $("#customFieldsDetails");
+    if (details) details.open = rows.length > 0;
   }
 
   // ---------- 媒体弹窗 ----------
-  function openModal(mode2) {
+  function openModal(mode2, request) {
     if (modal.uploading) return;
     modal.open = true;
     modal.mode = mode2 || "insert";
-    modal.tab = "upload";
+    modal.imagesOnly = modal.mode === 'cover' || !!(request && request.imagesOnly);
+    modal.tab = modal.imagesOnly ? "library" : "upload";
     modal.page = 1;
     modal.q = "";
     modal.total = 0;
     $('[data-lib-q]').value = '';
     var mediaTitle = $('#editorMediaTitle');
-    var coverMode = modal.mode === 'cover';
-    if (mediaTitle) mediaTitle.textContent = coverMode ? '选择封面' : '插入媒体';
+    var coverMode = modal.imagesOnly;
+    if (mediaTitle) mediaTitle.textContent = request && request.title || (modal.mode === 'cover' ? '选择封面' : '插入媒体');
     var mediaFile = $('#mediaFile');
     mediaFile.dataset.fullAccept = mediaFile.dataset.fullAccept || mediaFile.accept;
     mediaFile.accept = coverMode ? 'image/*,.svg' : mediaFile.dataset.fullAccept;
-    $('[data-mupload-hint]').textContent = coverMode ? '仅支持图片文件，用作文章封面' : '图片插入为图片，其他文件插入为下载链接';
+    $('[data-mupload-hint]').textContent = coverMode ? '请选择图片文件' : '图片插入为图片，其他文件插入为下载链接';
     modalErrorHidden();
     els.modalEl.hidden = false;
     renderModal();
   }
   function closeModal() {
+    if (window.__pafishEditor) window.__pafishEditor.cancelMedia();
     modal.open = false;
     modal.request++;
     els.modalEl.hidden = true;
@@ -547,8 +566,8 @@
   function handleUpload(files) {
     var f = files && files[0];
     if (!f || modal.uploading) return;
-    if (modal.mode === 'cover' && !isImage(f.type)) {
-      var error = $('[data-mupload-error]'); error.textContent = '请选择图片作为封面'; error.hidden = false; return;
+    if (modal.imagesOnly && !isImage(f.type)) {
+      var error = $('[data-mupload-error]'); error.textContent = '请选择图片文件'; error.hidden = false; return;
     }
     modal.uploading = true;
     var panel = $('[data-mpanel="upload"]');
@@ -586,8 +605,8 @@
     grid.innerHTML = '<p class="admin-lib-empty">正在加载媒体…</p>';
     pager.hidden = true;
     var params = new URLSearchParams({ page: String(modal.page), q: modal.q });
-    if (modal.mode === 'cover') params.set('type', 'image');
-    fetch(DATA.uploadsUrl + '?' + params.toString(), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+    if (modal.imagesOnly) params.set('type', 'image');
+    fetch(window.PafishEditors.query(DATA.uploadsUrl, params), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
       .then(function (r) {
         if (!r.ok) throw new Error('媒体加载失败');
         return r.json();
@@ -649,9 +668,8 @@
       closeModal();
       return;
     }
-    var label = String(name || "").replace(/\.[^.]+$/, "") || "媒体";
-    var md = isImage(mime) ? "![" + label + "](" + url + ")" : "[" + label + "](" + url + ")";
-    editorInsert(md);
+    if (modal.imagesOnly && !isImage(mime)) return;
+    if (window.__pafishEditor && window.__pafishEditor.insertMedia(url, mime, name) === false) return;
     closeModal();
   }
 
@@ -713,17 +731,14 @@
 
     // 封面
     els.coverUrl.addEventListener("input", renderCoverPreview);
-    els.coverImg.addEventListener("error", function () { els.coverPreview.hidden = true; });
-    $("#btnCoverUpload").addEventListener("click", function () { els.coverFile.click(); });
-    els.coverFile.addEventListener("change", function () {
-      var f = els.coverFile.files && els.coverFile.files[0];
-      if (!f) return;
-      uploadFile(f)
-        .then(function (j) { setCover(j.url); })
-        .catch(function (e) { showError(e.message || "上传失败"); })
-        .then(function () { els.coverFile.value = ""; });
+    els.coverImg.addEventListener("error", function () {
+      els.coverPreview.hidden = true;
+      $("[data-cover-empty]").hidden = false;
     });
     $("#btnCoverPicker").addEventListener("click", function () { openModal("cover"); });
+    $("#btnCoverClear").addEventListener("click", function () {
+      setCover("");
+    });
 
     // 自定义字段
     $("#btnAddField").addEventListener("click", function () { $("[data-cf-key]", addFieldRow("", "")).focus(); });

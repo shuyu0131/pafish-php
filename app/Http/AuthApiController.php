@@ -12,6 +12,7 @@ use Pafish\Core\Url;
 use Pafish\Services\EmailCode;
 use Pafish\Services\Notify;
 use Pafish\Services\Settings;
+use Pafish\Http\Responses;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -135,9 +136,8 @@ final class AuthApiController
         if (!preg_match('/^[^@\s]+@[^@\s]+\.[^@\s]+$/', $email)) {
             return $this->json($response, ['error' => '邮箱格式不正确'], 400);
         }
-        $len = mb_strlen($password);
-        if ($len < 6 || $len > 72) {
-            return $this->json($response, ['error' => '密码长度需 6-72 位'], 400);
+        if (!Auth::validPassword($password)) {
+            return $this->json($response, ['error' => Auth::PASSWORD_RULE], 400);
         }
 
         $registerDecision = \apply_decision_filters('before_register', [
@@ -196,7 +196,7 @@ final class AuthApiController
         $email = strtolower(trim((string) ($body['email'] ?? '')));
         $purpose = (string) ($body['purpose'] ?? '');
 
-        if (!preg_match('/^[^@\s]+@[^@\s]+\.[^@\s]+$/', $email)) {
+        if (strlen($email) > 255 || filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
             return $this->json($response, ['error' => '邮箱格式不正确'], 400);
         }
         if ($purpose !== 'register' && $purpose !== 'reset') {
@@ -211,7 +211,7 @@ final class AuthApiController
             return $this->json($response, ['error' => '请求过于频繁，请稍后再试'], 429);
         }
 
-        // 注册场景：邮箱已注册则直接提示（防止用验证码探测）；忘记密码场景统一响应防枚举
+        // 注册场景直接提示邮箱已注册；忘记密码场景统一响应。
         if ($purpose === 'register') {
             $exists = DB::fetchOne('SELECT id FROM users WHERE email = ?', [$email]);
             if ($exists) {
@@ -235,6 +235,7 @@ final class AuthApiController
         try {
             Notify::sendEmailCode($email, $code, $purpose);
         } catch (\Throwable) {
+            EmailCode::forget($purpose);
             return $this->json($response, ['error' => '邮件服务未配置或发送失败，请联系管理员'], 400);
         }
 
@@ -251,9 +252,8 @@ final class AuthApiController
         if (!preg_match('/^[^@\s]+@[^@\s]+\.[^@\s]+$/', $email)) {
             return $this->json($response, ['error' => '邮箱格式不正确'], 400);
         }
-        $len = mb_strlen($newPassword);
-        if ($len < 6 || $len > 72) {
-            return $this->json($response, ['error' => '密码长度需 6-72 位'], 400);
+        if (!Auth::validPassword($newPassword)) {
+            return $this->json($response, ['error' => Auth::PASSWORD_RULE], 400);
         }
 
         $user = DB::fetchOne('SELECT id, disabled FROM users WHERE email = ?', [$email]);
@@ -269,10 +269,11 @@ final class AuthApiController
         }
         RateLimiter::clear('auth-code-verify', $verifyKey);
 
-        DB::execute(
-            'UPDATE users SET password_hash = ?, reset_token = NULL, reset_token_expires = NULL WHERE id = ?',
-            [password_hash($newPassword, PASSWORD_BCRYPT, ['cost' => 10]), (int) $user['id']]
+        $changed = DB::execute(
+            'UPDATE users SET password_hash = ?, reset_token = NULL, reset_token_expires = NULL WHERE id = ? AND disabled = 0 AND email = ?',
+            [password_hash($newPassword, PASSWORD_BCRYPT, ['cost' => 10]), (int) $user['id'], $email]
         );
+        if ($changed !== 1) return $this->json($response, ['error' => '验证码错误或已过期'], 400);
 
         return $this->json($response, ['ok' => true]);
     }
@@ -307,8 +308,8 @@ final class AuthApiController
         $resetUrl = Url::trustedAbsolute('/reset-password?token=' . rawurlencode($token));
         if ($resetUrl === null) {
             DB::execute(
-                'UPDATE users SET reset_token = NULL, reset_token_expires = NULL WHERE id = ?',
-                [(int) $user['id']]
+                'UPDATE users SET reset_token = NULL, reset_token_expires = NULL WHERE id = ? AND reset_token = ?',
+                [(int) $user['id'], $token]
             );
             return $this->json($response, ['ok' => true, 'sent' => false]);
         }
@@ -318,8 +319,8 @@ final class AuthApiController
             $mailed = true;
         } catch (\Throwable) {
             DB::execute(
-                'UPDATE users SET reset_token = NULL, reset_token_expires = NULL WHERE id = ?',
-                [(int) $user['id']]
+                'UPDATE users SET reset_token = NULL, reset_token_expires = NULL WHERE id = ? AND reset_token = ?',
+                [(int) $user['id'], $token]
             );
             return $this->json($response, ['ok' => true, 'sent' => false]);
         }
@@ -333,10 +334,10 @@ final class AuthApiController
         $token = (string) ($body['token'] ?? '');
         $password = (string) ($body['password'] ?? '');
 
-        $len = mb_strlen($password);
-        if ($len < 6 || $len > 72) {
-            return $this->json($response, ['error' => '密码长度需 6-72 位'], 400);
+        if (!Auth::validPassword($password)) {
+            return $this->json($response, ['error' => Auth::PASSWORD_RULE], 400);
         }
+        if (preg_match('/^[a-f0-9]{64}$/D', $token) !== 1) return $this->json($response, ['error' => '重置链接无效或已过期'], 400);
 
         $user = DB::fetchOne(
             'SELECT id, disabled FROM users WHERE reset_token = ? AND reset_token_expires > NOW()',
@@ -349,20 +350,20 @@ final class AuthApiController
             return $this->json($response, ['error' => '账号已被禁用，请联系管理员'], 403);
         }
 
-        DB::execute(
-            'UPDATE users SET password_hash = ?, reset_token = NULL, reset_token_expires = NULL WHERE id = ?',
-            [password_hash($password, PASSWORD_BCRYPT, ['cost' => 10]), (int) $user['id']]
+        // 条件更新同时消费令牌；两个请求即使都完成了上面的读取，也只允许一个成功。
+        $changed = DB::execute(
+            'UPDATE users SET password_hash = ?, reset_token = NULL, reset_token_expires = NULL
+             WHERE id = ? AND reset_token = ? AND reset_token_expires > NOW() AND disabled = 0',
+            [password_hash($password, PASSWORD_BCRYPT, ['cost' => 10]), (int) $user['id'], $token]
         );
+        if ($changed !== 1) return $this->json($response, ['error' => '重置链接无效或已过期'], 400);
 
         return $this->json($response, ['ok' => true]);
     }
 
     private function json(Response $response, array $data, int $status = 200): Response
     {
-        $response->getBody()->write(json_encode($data, JSON_UNESCAPED_UNICODE));
-        return $response
-            ->withStatus($status)
-            ->withHeader('Content-Type', 'application/json');
+        return Responses::json($response, $data, $status);
     }
 
     private function remoteIp(Request $request): string

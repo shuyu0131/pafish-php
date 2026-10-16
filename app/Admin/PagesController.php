@@ -148,10 +148,13 @@ final class PagesController extends AdminController
     {
         $this->guardAdmin();
         $id = (int) ($args['id'] ?? 0);
-        if ((string) Settings::get('home_page_id', '') === (string) $id) {
-            DB::execute("DELETE FROM settings WHERE `key` = 'home_page_id'");
-        }
-        DB::execute('DELETE FROM pages WHERE id = ?', [$id]);
+        \Pafish\Services\MediaReferences::transaction(static function () use ($id): void {
+            if ((string) Settings::get('home_page_id', '') === (string) $id) {
+                Settings::remove('home_page_id');
+            }
+            DB::execute('DELETE FROM pages WHERE id = ?', [$id]);
+            if ($id > 0) \Pafish\Services\MediaReferences::forget('page', $id);
+        });
         if ($this->isAjax($request)) {
             return $this->json($response, ['ok' => true]);
         }
@@ -174,7 +177,7 @@ final class PagesController extends AdminController
             }
             Settings::set('home_page_id', (string) $id);
         } else {
-            DB::execute("DELETE FROM settings WHERE `key` = 'home_page_id'");
+            Settings::remove('home_page_id');
         }
         return $this->json($response, ['ok' => true]);
     }
@@ -182,6 +185,17 @@ final class PagesController extends AdminController
     /** 保存逻辑：校验 + slug 去冲突 + 写入 */
     private function savePage(array $body, ?int $id = null): array
     {
+        return \Pafish\Services\MediaReferences::transaction(function () use ($body, $id): array {
+            $result = $this->persistPage($body, $id);
+            \Pafish\Services\MediaReferences::sync('page', $result['id']);
+            return $result;
+        });
+    }
+    private function persistPage(array $body, ?int $id = null): array
+    {
+        $stored = $id !== null ? DB::fetchOne('SELECT * FROM pages WHERE id=? FOR UPDATE', [$id]) : null;
+        if ($id !== null && $stored === null) throw new \RuntimeException('页面不存在');
+        $seo = \Pafish\Services\Content::seoFields($body, $stored ?? []);
         $title = trim((string) ($body['title'] ?? ''));
         if ($title === '') {
             throw new \RuntimeException('标题不能为空');
@@ -216,12 +230,15 @@ final class PagesController extends AdminController
             throw new \RuntimeException('模板名称只能包含小写字母、数字和连字符');
         }
 
+        $contentFormat = \Pafish\Services\Content::format($body['content_format'] ?? ($id !== null ? (DB::value('SELECT content_format FROM pages WHERE id = ?', [$id]) ?: 'markdown') : 'markdown'));
         $content = (string) ($body['content'] ?? '');
+        if (mb_strlen($content) > 16000000) throw new \RuntimeException('内容过长');
+        if ($contentFormat === 'html') $content = \Pafish\Services\Content::sanitize($content);
 
         if ($id !== null) {
             DB::execute(
-                'UPDATE pages SET title = ?, slug = ?, content = ?, status = ?, template = ?, updated_at = NOW() WHERE id = ?',
-                [$title, $slug, $content, $status, $template, $id]
+                'UPDATE pages SET title = ?, slug = ?, content = ?, content_format = ?, status = ?, template = ?, seo_title=?, meta_description=?, updated_at = NOW() WHERE id = ?',
+                [$title, $slug, $content, $contentFormat, $status, $template, $seo['seo_title'], $seo['meta_description'], $id]
             );
             return ['id' => $id, 'created' => false];
         }
@@ -229,9 +246,9 @@ final class PagesController extends AdminController
         // 新建：发布时记录 published_at
         $publishedAt = $status === 'PUBLISHED' ? date('Y-m-d H:i:s') : null;
         DB::execute(
-            'INSERT INTO pages (title, slug, content, status, template, published_at, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())',
-            [$title, $slug, $content, $status, $template, $publishedAt]
+            'INSERT INTO pages (title, slug, content, content_format, status, template, published_at, seo_title, meta_description, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())',
+            [$title, $slug, $content, $contentFormat, $status, $template, $publishedAt, $seo['seo_title'], $seo['meta_description']]
         );
         return ['id' => (int) DB::pdo()->lastInsertId(), 'created' => true];
     }

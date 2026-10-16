@@ -43,6 +43,7 @@ class ParsedownExtra extends Parsedown
 
     function text($text)
     {
+        $this->footnoteCount = 0;
         $markup = parent::text($text);
 
         # merge consecutive dl elements
@@ -340,7 +341,9 @@ class ParsedownExtra extends Parsedown
             {
                 $pattern = '/\b'.preg_quote($abbreviation, '/').'\b/';
 
-                $text = preg_replace($pattern, '<abbr title="'.$meaning.'">'.$abbreviation.'</abbr>', $text);
+                $text = preg_replace_callback($pattern, function () use ($meaning, $abbreviation) {
+                    return '<abbr title="'.self::escape($meaning).'">'.self::escape($abbreviation).'</abbr>';
+                }, $text);
             }
         }
 
@@ -394,7 +397,7 @@ class ParsedownExtra extends Parsedown
             ),
         );
 
-        uasort($this->DefinitionData['Footnote'], 'self::sortFootnotes');
+        uasort($this->DefinitionData['Footnote'], array($this, 'sortFootnotes'));
 
         foreach ($this->DefinitionData['Footnote'] as $definitionId => $DefinitionData)
         {
@@ -413,7 +416,7 @@ class ParsedownExtra extends Parsedown
 
             foreach ($numbers as $number)
             {
-                $backLinksMarkup .= ' <a href="#fnref'.$number.':'.$definitionId.'" rev="footnote" class="footnote-backref">&#8617;</a>';
+                $backLinksMarkup .= ' <a href="#fnref'.$number.':'.self::escape($definitionId).'" rev="footnote" class="footnote-backref">&#8617;</a>';
             }
 
             $backLinksMarkup = substr($backLinksMarkup, 1);
@@ -433,6 +436,8 @@ class ParsedownExtra extends Parsedown
                 'name' => 'li',
                 'attributes' => array('id' => 'fn:'.$definitionId),
                 'rawHtml' => "\n".$text."\n",
+                // This HTML was parsed above under the current safe mode; labels are escaped.
+                'allowRawHtmlInSafeMode' => true,
             );
         }
 

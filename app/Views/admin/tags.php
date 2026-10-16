@@ -1,7 +1,7 @@
 <?php
 /**
  * 标签管理：
- * 左侧列表（name ASC + 文章数 + 编辑/删除），右侧新建/编辑表单
+ * 标签列表；新建与编辑复用弹窗
  * 变量：$tags $role
  */
 ?>
@@ -11,9 +11,10 @@
       <h1 class="admin-h1">标签管理</h1>
       <p class="admin-page-sub">共 <?= count($tags) ?> 个标签 · 按名称排序</p>
     </div>
+    <button type="button" class="btn btn-primary" data-entity-new="tagsModal"><?= admin_icon('plus', 15) ?>新建标签</button>
   </div>
 
-  <div class="admin-cat-layout">
+  <div class="admin-category-list">
     <!-- 左：列表 -->
     <div class="admin-cat-tree">
       <div class="admin-table-wrap">
@@ -30,7 +31,7 @@
               <tr><td colspan="3">
                 <div class="admin-empty-list">
                   <?= admin_icon('tags', 32) ?>
-                  <p>还没有标签，在右侧创建第一个</p>
+                  <p>还没有标签</p>
                 </div>
               </td></tr>
             <?php else: ?>
@@ -38,7 +39,10 @@
                 <tr data-tag-row="<?= (int) $t['id'] ?>"
                     data-id="<?= (int) $t['id'] ?>"
                     data-name="<?= e($t['name']) ?>"
-                    data-slug="<?= e($t['slug']) ?>">
+                    data-slug="<?= e($t['slug']) ?>"
+                    data-desc="<?= e($t['description'] ?? '') ?>"
+                    data-seo-title="<?= e($t['seo_title'] ?? '') ?>"
+                    data-meta-description="<?= e($t['meta_description'] ?? '') ?>">
                   <td>
                     <span class="admin-cat-name-text"><?= e($t['name']) ?></span>
                     <span class="admin-muted">/<?= e($t['slug']) ?></span>
@@ -46,7 +50,7 @@
                   <td class="admin-col-sm"><span class="badge"><?= (int) $t['post_count'] ?></span></td>
                   <td class="admin-col-ops">
                     <div class="admin-row-ops">
-                      <button type="button" class="admin-icon-btn" data-edit-tag="<?= (int) $t['id'] ?>" title="编辑"><?= admin_icon('edit', 15) ?></button>
+                      <button type="button" class="admin-icon-btn" data-entity-edit="tagsModal" title="编辑"><?= admin_icon('edit', 15) ?></button>
                       <button type="button" class="admin-icon-btn admin-icon-danger" data-delete-tag="<?= (int) $t['id'] ?>"
                               data-name="<?= e($t['name']) ?>" title="删除"><?= admin_icon('trash', 15) ?></button>
                     </div>
@@ -59,94 +63,45 @@
       </div>
     </div>
 
-    <!-- 右：新建/编辑表单 -->
-    <div class="admin-cat-form card admin-form-card">
-      <h2 class="admin-card-title" id="tagFormTitle">新建标签</h2>
-      <form id="tagForm" method="post" action="<?= e(url_to('/admin/tags/save')) ?>" novalidate>
-        <?= csrf_field() ?>
-        <input type="hidden" name="id" id="fTagId" value="">
-        <div class="admin-field">
-          <span class="label">名称 *</span>
-          <input class="input" type="text" id="fTagName" name="name" placeholder="标签名称" maxlength="100">
-        </div>
-        <div class="admin-field">
-          <span class="label">地址</span>
-          <input class="input" type="text" id="fTagSlug" name="slug" placeholder="自动根据名称生成" maxlength="100">
-        </div>
-        <div class="admin-cat-form-actions">
-          <button type="submit" class="btn btn-primary">创建标签</button>
-          <button type="button" class="btn btn-ghost" id="tagFormCancel" hidden>取消</button>
-        </div>
-        <div class="admin-editor-error" hidden></div>
-      </form>
-    </div>
   </div>
 </div>
+
+<?php ob_start(); ?>
+
+        <div class="admin-field">
+          <label class="label" for="fTagName">名称 *</label>
+          <input class="input" type="text" id="fTagName" name="name" placeholder="标签名称" maxlength="100" required>
+        </div>
+        <div class="admin-field">
+          <label class="label" for="fTagSlug">地址</label>
+          <input class="input" type="text" id="fTagSlug" name="slug" placeholder="自动根据名称生成" maxlength="100">
+        </div>
+        <div class="admin-field">
+          <label class="label" for="tagDescription">描述</label>
+          <textarea class="input" id="tagDescription" name="description" rows="2" maxlength="500"></textarea>
+        </div>
+        <?php $seoValues = []; $seoPrefix = 'tag'; require __DIR__ . '/partials/seo-fields.php'; ?>
+<?php
+$entityFields = (string) ob_get_clean();
+$entityModalId = 'tagsModal';
+$entityFormId = 'tagForm';
+$entityConfig = ['createTitle'=>'新建标签', 'editTitle'=>'编辑标签', 'savedMessage'=>'标签已保存',
+    'savePath'=>'/admin/tags/save', 'basePath'=>'/admin/tags', 'fields'=>['name'=>'name','slug'=>'slug','description'=>'desc','seo_title'=>'seo-title','meta_description'=>'meta-description']];
+require __DIR__ . '/partials/entity-modal.php';
+?>
+<script src="<?= e(asset_url('/js/admin-entity-forms.js')) ?>" defer></script>
 
 <?php $tagCsrf = csrf_token(); ?>
 <script>
 (function () {
   "use strict";
   var CSRF = <?= json_encode($tagCsrf) ?>;
-  var form = document.getElementById("tagForm");
-  var fId = document.getElementById("fTagId");
-  var fName = document.getElementById("fTagName");
-  var fSlug = document.getElementById("fTagSlug");
-  var titleEl = document.getElementById("tagFormTitle");
-  var cancelBtn = document.getElementById("tagFormCancel");
-  var errorBox = document.querySelector(".admin-editor-error");
-  var submitBtn = document.querySelector("#tagForm .btn-primary");
-
-  function showError(message) {
-    errorBox.textContent = message;
-    errorBox.hidden = false;
-  }
-
   function post(url, body) {
     var fd = new FormData();
     Object.keys(body || {}).forEach(function (k) { fd.append(k, body[k]); });
     fd.append("_csrf", CSRF);
     return fetch(url, { method: "POST", body: fd, headers: { "X-Requested-With": "XMLHttpRequest" } });
   }
-
-  document.querySelectorAll("[data-edit-tag]").forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      var row = btn.closest("[data-tag-row]");
-      fId.value = row.getAttribute("data-id");
-      fName.value = row.getAttribute("data-name");
-      fSlug.value = row.getAttribute("data-slug");
-      form.action = <?= json_encode(url_to('/admin/tags')) ?> + "/" + fId.value + "/save";
-      titleEl.textContent = "编辑标签";
-      submitBtn.textContent = "保存修改";
-      cancelBtn.hidden = false;
-      form.scrollIntoView({ behavior: "smooth", block: "center" });
-    });
-  });
-
-  cancelBtn.addEventListener("click", function () {
-    form.reset();
-    fId.value = "";
-    form.action = <?= json_encode(url_to('/admin/tags/save')) ?>;
-    titleEl.textContent = "新建标签";
-    submitBtn.textContent = "创建标签";
-    cancelBtn.hidden = true;
-  });
-
-  form.addEventListener("submit", function (e) {
-    e.preventDefault();
-    errorBox.hidden = true;
-    if (!fName.value.trim()) { showError("请填写标签名称"); return; }
-    var fd = new FormData(form);
-    fd.set("_csrf", CSRF);
-    fetch(form.action, { method: "POST", body: fd, headers: { "X-Requested-With": "XMLHttpRequest" } })
-      .then(function (r) { return r.json(); })
-      .then(function (j) {
-        if (j && j.ok) {
-          pafishToastReload(fId.value ? "标签已更新" : "标签已创建", "success");
-        } else { showError((j && j.error) || "保存失败"); }
-      })
-      .catch(function () { showError("网络错误"); });
-  });
 
   document.querySelectorAll("[data-delete-tag]").forEach(function (btn) {
     btn.addEventListener("click", function () {

@@ -42,7 +42,7 @@ final class SettingsController extends AdminController
     public function index(Request $request, Response $response): Response
     {
         $this->guardAdmin();
-        $all = Settings::all();
+        $all = Settings::core();
         $response->getBody()->write($this->render('settings', [
             'all' => $all,
             'roleCapabilities' => Auth::roleCapabilities(),

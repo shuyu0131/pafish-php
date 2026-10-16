@@ -224,6 +224,7 @@ final class UsersController extends AdminController
                     'UPDATE users SET username = ?, nickname = ?, email = ?, avatar_url = ?, description = ?, role = ?, password_hash = ?, reset_token = NULL, reset_token_expires = NULL WHERE id = ?',
                     [$username, $nickname !== '' ? $nickname : null, strtolower($email), $avatarUrl !== '' ? $avatarUrl : null, $description !== '' ? $description : null, $role, password_hash($password, PASSWORD_BCRYPT, ['cost' => 10]), $id]
                 );
+                \Pafish\Services\AppTokens::revokeAll($id);
             } else {
                 DB::execute(
                     'UPDATE users SET username = ?, nickname = ?, email = ?, avatar_url = ?, description = ?, role = ? WHERE id = ?',
@@ -358,10 +359,13 @@ final class UsersController extends AdminController
         if (!Auth::validPassword($new)) {
             return $this->json($response, ['error' => Auth::PASSWORD_RULE], 400);
         }
-        DB::execute(
-            'UPDATE users SET password_hash = ?, reset_token = NULL, reset_token_expires = NULL WHERE id = ?',
-            [password_hash($new, PASSWORD_BCRYPT, ['cost' => 10]), (int) $user['id']]
-        );
+        DB::transaction(static function () use ($new, $user): void {
+            DB::execute(
+                'UPDATE users SET password_hash = ?, reset_token = NULL, reset_token_expires = NULL WHERE id = ?',
+                [password_hash($new, PASSWORD_BCRYPT, ['cost' => 10]), (int) $user['id']]
+            );
+            \Pafish\Services\AppTokens::revokeAll((int) $user['id']);
+        });
         return $this->json($response, ['ok' => true]);
     }
 
@@ -435,6 +439,7 @@ final class UsersController extends AdminController
                 ) r ON r.post_id = p.id
                 SET p.like_count = GREATEST(p.like_count - r.likes, 0),
                     p.favorite_count = GREATEST(p.favorite_count - r.favorites, 0)", [$id]);
+                \Pafish\Services\EntityMeta::deleteSubject('user', $id);
                 DB::execute('DELETE FROM users WHERE id = ?', [$id]);
                 \Pafish\Services\MediaReferences::forget('user', $id);
                 \Pafish\Core\Cache::clearPrefix('micro.latest.');

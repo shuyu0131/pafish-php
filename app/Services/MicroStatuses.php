@@ -77,11 +77,15 @@ final class MicroStatuses
     }
 
     /** @return array{items:array,total:int,page:int,totalPages:int,perPage:int} */
-    public static function adminPage(int $page = 1, int $perPage = 20, string $status = '', string $q = ''): array
+    public static function adminPage(int $page = 1, int $perPage = 20, string $status = '', string $q = '', ?int $authorId = null): array
     {
         $perPage = min(100, max(1, $perPage));
         $where = ['m.deleted_at IS NULL'];
         $params = [];
+        if ($authorId !== null) {
+            $where[] = 'm.author_id = ?';
+            $params[] = $authorId;
+        }
         if (in_array($status, self::STATUSES, true)) {
             $where[] = 'm.status = ?';
             $params[] = $status;

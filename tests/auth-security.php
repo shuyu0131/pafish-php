@@ -86,8 +86,11 @@ try {
     $check('Failed email delivery revokes the new session challenge',$response->getStatusCode()===400 && Session::get('email_code:reset')===null);
     $check('Failed delivery retains send throttling',EmailCode::create($emails[1],'reset')[1]);
     $clearSend($emails[0],'reset'); [$resetCode]=EmailCode::create($emails[0],'reset');
+    $codeResetToken=\Pafish\Services\AppTokens::issue(1,'code-reset-test');
     $response=$call('resetByCode',['email'=>$emails[0],'code'=>$resetCode,'newPassword'=>'changed-password']);
     $check('Real password reset accepts its bound session challenge',$response->getStatusCode()===200 && password_verify('changed-password',(string)DB::value('SELECT password_hash FROM users WHERE id=1')));
+    $revokedCodeToken=DB::value('SELECT revoked_at FROM app_tokens WHERE id=?',[$codeResetToken['id']]);
+    $check('Email-code password reset revokes all app devices',$revokedCodeToken !== null);
     $check('Real code reset rejects replay',$call('resetByCode',['email'=>$emails[0],'code'=>$resetCode,'newPassword'=>'replayed-password'])->getStatusCode()===400);
     $check('Too-long multibyte reset password is rejected before changing credentials',$call('resetByCode',['email'=>$emails[0],'code'=>'123456','newPassword'=>str_repeat('鱼',25)])->getStatusCode()===400);
 
@@ -122,9 +125,11 @@ try {
     $check('Disabled account cannot use a reset link',$call('reset',['token'=>$expired,'password'=>'new-password'])->getStatusCode()===403);
     DB::execute('UPDATE users SET disabled=0 WHERE id=1');
     Session::set('user_id',1); (new ReflectionProperty(Auth::class,'user'))->setValue(null,null);
+    $profileToken=\Pafish\Services\AppTokens::issue(1,'profile-password-test');
     $response=(new Pafish\Admin\ProfileController())->changePassword($factory->createServerRequest('POST','/admin/profile/password')->withParsedBody([
         '_csrf'=>Session::csrfToken(),'current_password'=>'parallel-password','new_password'=>'profile-password']),new Response());
     $check('Profile password change also revokes previously issued reset links',$response->getStatusCode()===200 && DB::value('SELECT reset_token FROM users WHERE id=1')===null);
+    $check('Profile password change revokes app devices atomically',(int)DB::value('SELECT revoked_at IS NOT NULL FROM app_tokens WHERE id=?',[$profileToken['id']])===1);
     Settings::set('blocked_ips','[]');
     Settings::get('blocked_ips');
     (new ReflectionProperty(Auth::class,'user'))->setValue(null,null);

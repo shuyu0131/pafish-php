@@ -6,6 +6,7 @@ namespace Pafish\Http;
 
 use Pafish\Core\DB;
 use Pafish\Services\Plugin;
+use Pafish\Services\ContentRepository;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -33,10 +34,7 @@ final class SitemapController
         );
         $categories = DB::fetchAll('SELECT slug FROM categories');
         $tags = DB::fetchAll('SELECT slug FROM tags');
-        $pages = DB::fetchAll(
-            "SELECT slug, updated_at FROM pages WHERE status = 'PUBLISHED'
-               AND (published_at IS NULL OR published_at <= NOW())"
-        );
+        $pages = array_map(static fn (array $page): array => ['slug' => $page['slug'], 'updated_at' => $page['updated_at']], ContentRepository::publishedPages());
 
         $urls = [
             ['/archives', null, 'daily', 0.8],

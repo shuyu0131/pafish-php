@@ -241,7 +241,7 @@ final class ApiController extends AdminController
         }
         try {
             $format = \Pafish\Services\Content::format($body['content_format'] ?? 'markdown');
-        } catch (\InvalidArgumentException $e) {
+        } catch (\RuntimeException|\InvalidArgumentException $e) {
             return $this->json($response, ['error' => $e->getMessage()], 400);
         }
         return $this->json($response, ['html' => \Pafish\Services\Content::render($content, $format)]);

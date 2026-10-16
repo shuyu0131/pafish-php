@@ -71,11 +71,19 @@ try{
     $tag=$result['id']??0;
     $check('Tag saves description and independent SEO',$status===200&&DB::value('SELECT description FROM tags WHERE id=?',[$tag])==='标签介绍');
     $posts=new Pafish\Admin\PostsController();
+    $check('Article form reports invalid content format as a client error', $call($posts,['title'=>'格式测试','slug'=>'invalid-format-post','content'=>'body','content_format'=>'invalid'])[0]===400);
+    $check('Historical invalid content format renders as Markdown', Content::render('**fallback**','invalid')===Content::render('**fallback**','markdown'));
     $observed=[];
     $off=Hooks::addAction('after_post_save',static function(array $payload)use(&$observed):void{$observed=$payload['post'];});
     $body=['title'=>'文章原名','slug'=>'controls-post','content'=>'**正文**','action'=>'publish',
         'allow_comments'=>'0','category_id'=>(string)$category,'tag_ids'=>[$tag]]+$seo;
     $post=$posts->savePost($body)['id'];
+    $check('Article rejects a username accidentally saved as its cover',$reject(fn()=>$posts->savePost(array_replace($body,['cover_url'=>'admin']),$post)));
+    $check('Article accepts a root-relative image cover',(bool)$posts->savePost(array_replace($body,['cover_url'=>'/uploads/controls.png']),$post));
+    $check('Article accepts an HTTPS image cover',(bool)$posts->savePost(array_replace($body,['cover_url'=>'https://example.invalid/cover.png']),$post));
+    $posts->savePost(array_replace($body,['cover_url'=>'','content'=>'![relative](admin)']),$post);
+    $check('Relative body images do not become editor-relative covers',!DB::value('SELECT cover_url FROM posts WHERE id=?',[$post]));
+    $posts->savePost($body,$post);
     $off();
     $check('Save events include final comment and SEO controls',$observed['allowComments']===false&&$observed['seoTitle']===$seo['seo_title']);
     $check('New article persists disabled comments',DB::value('SELECT allow_comments FROM posts WHERE id=?',[$post])===0);
@@ -88,6 +96,7 @@ try{
         &&DB::value('SELECT meta_description FROM posts WHERE id=?',[$post])===$seo['meta_description']);
     $check('Malformed comment flags are rejected',$reject(fn()=>$posts->savePost(array_replace($body,['allow_comments'=>'false']),$post)));
     $pages=new Pafish\Admin\PagesController();
+    $check('Page form reports invalid content format as a client error', $call($pages,['title'=>'格式测试','slug'=>'invalid-format-page','content'=>'body','content_format'=>'invalid'])[0]===400);
     [$status,$result]=$call($pages,['title'=>'页面原名','slug'=>'controls-page','content'=>'页面正文','status'=>'PUBLISHED','template'=>'default']+$seo);
     $page=$result['id']??0;
     $check('Page editor saves SEO without changing visible title',$status===200&&DB::value('SELECT title FROM pages WHERE id=?',[$page])==='页面原名');
@@ -178,6 +187,7 @@ try{
     foreach(['data:image/svg+xml,test','//example.invalid/a.png','https://user:pass@example.invalid/a','/\\example.invalid/a']as$url){
         $check('Unsafe image address is rejected: '.substr($url,0,20),$reject(fn()=>Content::imageUrl($url)));
     }
+    $check('Historical invalid cover addresses are omitted when rendered', Content::safeImageUrl('admin') === null);
 }finally{
     $pdo->cleanup();$connection->setValue(null,null);Settings::reset();
     Session::remove('user_id');(new ReflectionProperty(Auth::class,'user'))->setValue(null,null);

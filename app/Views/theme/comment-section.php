@@ -58,6 +58,8 @@ $sep = str_contains($baseUrl, '?') ? '&' : '?';
  * 验证码获取/刷新、提交、点赞乐观更新、回复展开收起 */
 (function () {
   'use strict';
+  if (window.__pafishCommentSectionBound) return;
+  window.__pafishCommentSectionBound = true;
 
   function postJSON(url, body) {
     return fetch(url, {
@@ -83,20 +85,28 @@ $sep = str_contains($baseUrl, '?') ? '&' : '?';
     return form.dataset.loggedIn !== '1' && form.querySelector('[data-captcha-refresh]') !== null;
   }
   function fetchCaptcha(form, then) {
+    if (!document.body.contains(form) || form.dataset.captchaLoading === '1' || form.dataset.captchaRetryTimer) return;
     var box = form.querySelector('.comment-captcha-svg');
     var status = form.querySelector('[data-captcha-status]');
     var input = form.querySelector('[name="captchaAnswer"]');
     var refreshButtons = form.querySelectorAll('[data-captcha-refresh]');
-    if (box) {
+    var hasCaptcha = !!form.dataset.captchaToken;
+    form.dataset.captchaLoading = '1';
+    if (box && !hasCaptcha) {
       box.setAttribute('aria-busy', 'true');
       box.textContent = '加载中…';
     }
-    if (status) { status.hidden = true; status.textContent = ''; }
+    if (status && !hasCaptcha) { status.hidden = true; status.textContent = ''; }
     refreshButtons.forEach(function (button) { button.disabled = true; });
     return fetch(pafishApi('/captcha'))
       .then(function (r) {
         return r.json().catch(function () { return {}; }).then(function (d) {
-          if (!r.ok) throw new Error((d && d.error) || '验证码加载失败，请稍后重试');
+          if (!r.ok) {
+            var error = new Error((d && d.error) || '验证码加载失败，请稍后重试');
+            error.status = r.status;
+            error.retryAfter = Number((d && d.retryAfter) || r.headers.get('Retry-After') || 1);
+            throw error;
+          }
           return d;
         });
       })
@@ -110,10 +120,19 @@ $sep = str_contains($baseUrl, '?') ? '&' : '?';
         }
       })
       .catch(function (err) {
+        if (err.status === 429 && document.body.contains(form)) {
+          var delay = Math.max(1, err.retryAfter || 1) * 1000 + 100;
+          form.dataset.captchaRetryTimer = String(window.setTimeout(function () {
+            delete form.dataset.captchaRetryTimer;
+            fetchCaptcha(form);
+          }, delay));
+          return;
+        }
         if (box) box.textContent = '验证码暂不可用';
         if (status) { status.textContent = err.message || '验证码加载失败，请点击换一张'; status.hidden = false; }
       })
       .finally(function () {
+        delete form.dataset.captchaLoading;
         if (box) box.setAttribute('aria-busy', 'false');
         refreshButtons.forEach(function (button) { button.disabled = false; });
       });
@@ -187,6 +206,9 @@ $sep = str_contains($baseUrl, '?') ? '&' : '?';
     fetchCaptcha(form);
   }
   document.querySelectorAll('[data-comment-form]').forEach(initCaptcha);
+  document.addEventListener('pafish:pjax:after', function () {
+    document.querySelectorAll('[data-comment-form]').forEach(initCaptcha);
+  });
   document.addEventListener('click', function (e) {
     var btn = e.target.closest('[data-captcha-refresh]');
     if (btn) {

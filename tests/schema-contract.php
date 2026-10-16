@@ -32,7 +32,7 @@ try {
     foreach (SqlScript::split($schema) as $sql) $fixture->query($sql);
     Migrator::ensureTable($fixture);
     $expected = SchemaSnapshot::read($fixture, $tables, $fixture->prefix);
-    $check('Core contract contains 18 core tables plus migration metadata', count($expected) === 19);
+    $check('Core contract contains 20 core tables plus migration metadata', count($expected) === 21);
     Migrator::run($fixture, PAFISH_ROOT . '/migrations');
     $upgraded = SchemaSnapshot::read($fixture, $tables, $fixture->prefix);
     $freshDrift = SchemaSnapshot::diff($expected, $upgraded);
@@ -41,7 +41,9 @@ try {
         count(array_filter($upgraded, static fn($t) => $t['table']['comment'] === '')) === 0);
     $undocumented = 0;
     foreach ($upgraded as $table) foreach ($table['columns'] as $column) if ($column['comment'] === '') $undocumented++;
-    $check('All 159 core and migration columns have database documentation', $undocumented === 0);
+    $check('All core and migration columns have database documentation', $undocumented === 0);
+    $check('Entity metadata contract exposes the indexed owner and field address',
+        isset($expected['entity_meta']['columns']['subject_type'], $expected['entity_meta']['columns']['scope'], $expected['entity_meta']['columns']['key_hash']));
     $check('Contract includes exact binary hash types', $expected['uploads']['columns']['url_hash']['type'] === 'binary(32)');
     $check('Contract includes unique index column order',
         array_column($expected['point_transactions']['indexes']['uk_point_transactions_reference'], 'column_name') === ['user_id','reference_type','reference_id']);

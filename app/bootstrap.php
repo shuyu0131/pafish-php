@@ -3,7 +3,6 @@
 declare(strict_types=1);
 
 use Pafish\Core\Config;
-use Pafish\Core\ErrorHandler;
 use Pafish\Core\Session;
 use Pafish\Core\Url;
 use Slim\Factory\AppFactory;
@@ -18,6 +17,7 @@ define('PAFISH_ROOT', dirname(__DIR__));
 // 入口阶段也必须保持生产环境不回显 PHP 路径、配置和数据库错误。
 ini_set('display_errors', '0');
 require_once __DIR__ . '/Core/Logger.php';
+require_once __DIR__ . '/Core/RequestPath.php';
 register_shutdown_function(static function (): void {
     $last = error_get_last();
     if (is_array($last) && in_array((int) ($last['type'] ?? 0), [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
@@ -46,43 +46,13 @@ $__base = '';
 if (preg_match('#^(.*?)/index\\.php(?:/.*)?$#i', $__scriptPath, $__scriptMatch) === 1) {
     $__base = rtrim((string) ($__scriptMatch[1] ?? ''), '/');
 }
-$__normalizePath = static function (string $path, ?string $queryPath = null) use ($__base): array {
-    $path = rawurldecode(parse_url($path, PHP_URL_PATH) ?: '/');
-    $path = '/' . ltrim($path, '/');
-
-    $relative = $path;
-    if ($__base !== '' && ($relative === $__base || str_starts_with($relative, $__base . '/'))) {
-        $relative = substr($relative, strlen($__base));
-        $relative = $relative === '' ? '/' : $relative;
-    }
-    $relative = '/' . ltrim($relative, '/');
-    $frontController = $relative === '/' || $relative === '/index.php';
-
-    if ($relative === '/index.php') {
-        $pathInfo = $_SERVER['PATH_INFO'] ?? $_SERVER['ORIG_PATH_INFO'] ?? '';
-        if (is_string($pathInfo) && $pathInfo !== '' && $pathInfo !== '/index.php') {
-            $pathInfo = rawurldecode(parse_url($pathInfo, PHP_URL_PATH) ?: '');
-            $relative = str_starts_with($pathInfo, '/index.php/')
-                ? substr($pathInfo, strlen('/index.php'))
-                : '/' . ltrim($pathInfo, '/');
-            $relative = $relative === '' ? '/' : $relative;
-            $frontController = false;
-        } else {
-            $relative = '/';
-        }
-    } elseif (str_starts_with($relative, '/index.php/')) {
-        $relative = substr($relative, strlen('/index.php')) ?: '/';
-        $frontController = false;
-    }
-
-    if ($frontController && is_string($queryPath) && $queryPath !== '') {
-        $relative = '/' . ltrim(rawurldecode($queryPath), '/');
-        $relative = $relative === '' ? '/' : $relative;
-    }
-
-    $canonical = $__base . ($relative === '/' ? '/' : $relative);
-    return [$canonical === '' ? '/' : $canonical, $relative];
-};
+$__normalizePath = static fn (string $path, ?string $queryPath = null): array =>
+    \Pafish\Core\RequestPath::normalize(
+        $path,
+        $__base,
+        $queryPath,
+        (string) ($_SERVER['PATH_INFO'] ?? $_SERVER['ORIG_PATH_INFO'] ?? '')
+    );
 
 // 静态资源在框架启动前直出；子目录部署时匹配已去掉站点前缀。
 $__requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
@@ -263,34 +233,8 @@ AppFactory::setContainer($container);
 $app = AppFactory::create();
 $app->setBasePath(Url::base());
 
-// 6. 中间件：请求体解析 + 入口路径归一化
-$app->addBodyParsingMiddleware();
-$app->add(function ($request, $handler) use ($__normalizePath) {
-    $uri = $request->getUri();
-    [$canonical] = $__normalizePath(
-        $uri->getPath(),
-        is_string($_GET['p'] ?? null) ? $_GET['p'] : null
-    );
-    if ($canonical !== $uri->getPath()) {
-        $request = $request->withUri($uri->withPath($canonical));
-    }
-    return $handler->handle($request);
-});
-
-// 6.5 站内 302：守卫抛 RedirectException，统一在此转为响应（位于错误中间件内侧）
-$app->add(function ($request, $handler) {
-    try {
-        return $handler->handle($request);
-    } catch (\Pafish\Core\RedirectException $e) {
-        return (new \Slim\Psr7\Response(302))->withHeader('Location', $e->target);
-    }
-});
-
-// 7. 错误处理：自定义 404/500（不输出异常详情，规避 Slim 默认 HtmlErrorRenderer）
-$errorMiddleware = $app->addErrorMiddleware((bool) Config::get('debug', false), true, true);
-$errorMiddleware->setDefaultErrorHandler(
-    new ErrorHandler($app->getCallableResolver(), $app->getResponseFactory())
-);
+// 6. 中间件：共享请求体解析、路径归一化、站内重定向与错误处理栈。
+\Pafish\Core\HttpMiddleware::install($app, $__normalizePath, (bool) Config::get('debug', false));
 
 // 7.5 插件系统启动：注册激活插件的钩子 + 系统注入渲染器 + 云存储管线
 // 定时任务失败不阻断前台请求。

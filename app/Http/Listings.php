@@ -71,6 +71,10 @@ final class Listings
             $params
         );
         $posts = HomeController::attachTags($posts);
+        foreach ($posts as &$post) {
+            $post['cover_url'] = \Pafish\Services\Content::safeImageUrl($post['cover_url'] ?? null);
+        }
+        unset($post);
 
         if ($posts !== []) {
             $recent = \Pafish\Services\Comments::recentForPosts(array_column($posts, 'id'));

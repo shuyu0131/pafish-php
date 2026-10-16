@@ -21,6 +21,7 @@ final class ContentTransfer
         }
         foreach ($posts as &$post) {
             $post['tags'] = $tagMap[(int) ($post['id'] ?? 0)] ?? [];
+            $post['custom_fields'] = EntityMeta::postCustomFields((int) $post['id'], $post['custom_fields'] ?? null);
         }
         unset($post);
         return ['format' => 'pafish-content', 'version' => 1, 'exportedAt' => date(DATE_ATOM), 'categories' => $categories, 'tags' => $tags, 'pages' => $pages, 'posts' => $posts];
@@ -145,6 +146,9 @@ final class ContentTransfer
         DB::execute('UPDATE posts SET content_format = ? WHERE id = ?', [$contentFormat, $postId]);
         DB::execute('UPDATE posts SET allow_comments=?,seo_title=?,meta_description=? WHERE id=?',
             [(int)(bool)$allowComments,$seo['seo_title'],$seo['meta_description'],$postId]);
+        $customFields = $row['custom_fields'] ?? [];
+        if (is_string($customFields)) $customFields = json_decode($customFields, true) ?? [];
+        EntityMeta::replace('post', $postId, EntityMeta::POST_FIELDS_SCOPE, is_array($customFields) ? $customFields : []);
         MediaReferences::sync('post', $postId);
         DB::execute('DELETE FROM post_tags WHERE post_id = ?', [$postId]);
         foreach (($row['tags'] ?? []) as $tag) { $slugTag = is_array($tag) ? (string) ($tag['slug'] ?? '') : (string) $tag; if (isset($tagIds[$slugTag])) DB::execute('INSERT IGNORE INTO post_tags (post_id, tag_id) VALUES (?, ?)', [$postId, $tagIds[$slugTag]]); }

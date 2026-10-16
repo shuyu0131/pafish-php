@@ -6,14 +6,37 @@
  * 变量：$title $siteName $user $nav $currentPath $content
  */
 
-function admin_nav_active(array $item, string $currentPath): bool
-{
-    if (!empty($item['exact'])) {
-        return $currentPath === $item['href'];
-    }
-    return $currentPath === $item['href']
-        || str_starts_with($currentPath, rtrim($item['href'], '/') . '/');
+$currentQuery = is_array($_GET ?? null) ? $_GET : [];
+$requestQuery = parse_url((string) ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_QUERY);
+if (is_string($requestQuery) && $requestQuery !== '') {
+    parse_str($requestQuery, $requestQueryValues);
+    $currentQuery = array_replace($requestQueryValues, $currentQuery);
 }
+$navHref = static function (array $item): string {
+    $href = url_to((string) $item['href']);
+    $query = is_array($item['query'] ?? null) ? $item['query'] : [];
+    return $query === [] ? $href : $href . (str_contains($href, '?') ? '&' : '?') . http_build_query($query);
+};
+$navActive = static function (array $item, string $currentPath) use ($currentQuery): bool {
+    $itemPath = (string) ($item['href'] ?? '');
+    $normalizedPath = $currentPath === '/' ? '/' : rtrim($currentPath, '/');
+    $normalizedItemPath = $itemPath === '/' ? '/' : rtrim($itemPath, '/');
+    if (!empty($item['exact'])) {
+        if ($normalizedPath !== $normalizedItemPath) {
+            return false;
+        }
+    } elseif ($normalizedPath !== $normalizedItemPath && !str_starts_with($normalizedPath, $normalizedItemPath . '/')) {
+        return false;
+    }
+    $query = is_array($item['query'] ?? null) ? $item['query'] : [];
+    foreach ($query as $key => $value) {
+        $current = $currentQuery[$key] ?? null;
+        if ((string) $current !== (string) $value && !($value === 'overview' && ($current === null || $current === ''))) {
+            return false;
+        }
+    }
+    return true;
+};
 ?>
 <!doctype html>
 <html lang="zh-CN">
@@ -47,7 +70,7 @@ window.pafishApi = function (p) {
     <div class="admin-topbar-actions">
       <a class="admin-topbar-front" href="<?= e(url_to('/')) ?>" target="_blank" rel="noopener"><?= admin_icon('external-link', 15) ?><span>查看网站</span></a>
       <a class="admin-topbar-account" href="<?= e(url_to('/admin/profile')) ?>" aria-label="个人资料" title="个人资料">
-        <img class="admin-avatar-sm" src="<?= e($user['avatar_url'] ?: admin_gravatar((string) $user['email'])) ?>" alt="" width="28" height="28">
+        <img class="admin-avatar-sm" src="<?= e(\Pafish\Http\Comments::avatarUrl($user['avatar_url'] ?? null, (string) $user['email'])) ?>" alt="" width="28" height="28">
         <span><?= e($user['nickname'] ?: $user['username']) ?></span>
       </a>
       <form class="admin-topbar-logout" method="post" action="<?= e(url_to('/api/auth/logout')) ?>">
@@ -62,8 +85,8 @@ window.pafishApi = function (p) {
   <aside class="admin-sidebar" id="adminSidebar">
     <nav class="admin-nav">
       <?php foreach ($nav['top'] as $item): ?>
-        <a class="admin-nav-item<?= admin_nav_active($item, $currentPath) ? ' active' : '' ?>"
-           href="<?= e(url_to($item['href'])) ?>">
+        <a class="admin-nav-item<?= $navActive($item, $currentPath) ? ' active' : '' ?>"
+           href="<?= e($navHref($item)) ?>">
           <?= admin_icon($item['icon']) ?>
           <span><?= e($item['label']) ?></span>
           <?php if (!empty($item['badge'])): ?><span class="admin-nav-badge"><?= (int) $item['badge'] > 99 ? '99+' : (int) $item['badge'] ?></span><?php endif; ?>
@@ -77,8 +100,8 @@ window.pafishApi = function (p) {
           </p>
             <div class="admin-nav-group-items">
             <?php foreach ($group['items'] as $item): ?>
-              <a class="admin-nav-item<?= admin_nav_active($item, $currentPath) ? ' active' : '' ?>"
-                 href="<?= e(url_to($item['href'])) ?>">
+              <a class="admin-nav-item<?= $navActive($item, $currentPath) ? ' active' : '' ?>"
+                 href="<?= e($navHref($item)) ?>">
                 <?= admin_icon($item['icon']) ?>
                 <span><?= e($item['label']) ?></span>
                  <?php if (!empty($item['badge'])): ?><span class="admin-nav-badge"><?= (int) $item['badge'] > 99 ? '99+' : (int) $item['badge'] ?></span><?php endif; ?>

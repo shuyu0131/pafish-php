@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Pafish\Http;
 
-use Pafish\Core\DB;
+use Pafish\Services\ContentRepository;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -17,10 +17,7 @@ final class PageController
     public function show(Request $request, Response $response, array $args): Response
     {
         $slug = rawurldecode((string) ($args['slug'] ?? ''));
-        $page = DB::fetchOne(
-            "SELECT * FROM pages WHERE slug = ? AND status = 'PUBLISHED' AND (published_at IS NULL OR published_at <= NOW())",
-            [$slug]
-        );
+        $page = ContentRepository::publishedPageBySlug($slug);
         if (!$page) {
             return Listings::notFound($response, '页面不存在');
         }

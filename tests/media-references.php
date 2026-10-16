@@ -14,11 +14,14 @@ use Pafish\Core\Config;
 use Pafish\Core\DB;
 use Pafish\Core\Session;
 use Pafish\Services\ContentTransfer;
+use Pafish\Services\EntityMeta;
 use Pafish\Services\ExtensionStorage;
 use Pafish\Services\MediaReferences as Media;
 use Pafish\Services\MicroStatuses;
 use Pafish\Services\Migrator;
+use Pafish\Services\Plugin;
 use Pafish\Services\Settings;
+use Pafish\Services\Theme;
 use Pafish\Tests\MySql;
 use Slim\Psr7\Factory\ServerRequestFactory;
 use Slim\Psr7\Response;
@@ -61,13 +64,24 @@ $finish = static function (array $worker): mixed {
     return json_decode($raw, true, 512, JSON_THROW_ON_ERROR)['result'];
 };
 try {
+    $legacyAddresses = [
+        'plugin_data:qa_media' => ['plugin', 'qa_media', 'data'],
+        'theme_data:qa_media' => ['theme', 'qa_media', 'data'],
+        'plugin_settings:qa_media' => ['plugin', 'qa_media', 'settings'],
+        'theme_settings:qa_media:logo' => ['theme', 'qa_media', 'setting:logo'],
+        'extension_version:plugin:qa_media' => ['plugin', 'qa_media', 'version'],
+        'extension_schema_fingerprint:theme:qa_media' => ['theme', 'qa_media', 'schema_fingerprint'],
+    ];
+    $check('All legacy extension storage addresses normalize correctly', count(array_filter($legacyAddresses,
+        static fn (array $address, string $key): bool => ExtensionStorage::legacyAddress($key) === $address,
+        ARRAY_FILTER_USE_BOTH)) === count($legacyAddresses));
     $split = new ReflectionMethod(Migrator::class, 'splitStatements');
     foreach ($split->invoke(null, file_get_contents(PAFISH_ROOT . '/app/install/schema.sql')) as $sql) $pdo->query($sql);
     Migrator::run($pdo, PAFISH_ROOT . '/migrations');
-    $check('New media index requires explicit initialization', !Media::ready());
-    $check('Pending index blocks even forced deletion', $throws(fn () => Media::deleteUpload(1, null, true)));
-    Media::rebuild();
-    $check('Empty installation can initialize', Media::ready());
+    $check('Fresh installation starts with an initialized empty media index', Media::ready());
+    $freshUpload = $add('/uploads/fresh-empty.png');
+    Media::deleteUpload($freshUpload, null);
+    $check('Fresh installation can delete an unused upload without rebuilding', DB::value('SELECT id FROM uploads WHERE id=?', [$freshUpload]) === null);
     $site = rtrim(Config::get('site_url'), '/');
     $check('Local absolute public path equals canonical path', Media::normalizeUrl($site . '/public/uploads/a.png?v=1#x') === Media::normalizeUrl('/uploads/a.png'));
     $check('Query routing upload URLs normalize', Media::normalizeUrl('/index.php?p=uploads/a.png') === Media::normalizeUrl('/uploads/a.png'));
@@ -89,6 +103,81 @@ try {
     $saved = $posts->savePost(['title' => 'Media fixture', 'slug' => 'media-fixture', 'content' => '![x](/uploads/a.png) ![again](/public/uploads/a.png)', 'cover_url' => '/uploads/a.png', 'custom_fields' => json_encode([['key' => 'image', 'value' => '/uploads/a.png']])]);
     $id = $saved['id'];
     $check('Repeated body references count once per role', $count($a) === 3);
+    $check('Legacy custom fields are stored in ordered entity metadata', EntityMeta::all('post', $id, EntityMeta::POST_FIELDS_SCOPE) === [['key' => 'image', 'value' => '/uploads/a.png']]);
+    EntityMeta::replace('post', $id, EntityMeta::POST_FIELDS_SCOPE, [
+        ['key' => 'duplicate', 'value' => 'first'], ['key' => 'duplicate', 'value' => 'second'],
+    ]);
+    $check('Entity metadata preserves repeated keys and caller order', EntityMeta::all('post', $id, EntityMeta::POST_FIELDS_SCOPE) === [
+        ['key' => 'duplicate', 'value' => 'first'], ['key' => 'duplicate', 'value' => 'second'],
+    ]);
+    EntityMeta::set('post', $id, 'plugin:qa_media', 'image', '/uploads/a.png');
+    $check('Extension metadata is isolated from core fields and indexed once', EntityMeta::get('post', $id, 'plugin:qa_media', 'image') === '/uploads/a.png'
+        && EntityMeta::all('post', $id, EntityMeta::POST_FIELDS_SCOPE)[0]['key'] === 'duplicate' && $count($a) === 4);
+    $fixtureName = 'qa_meta_' . bin2hex(random_bytes(4));
+    $fixtureDir = Plugin::root() . '/' . $fixtureName;
+    if (!mkdir($fixtureDir, 0755, true)) throw new RuntimeException('Cannot create entity metadata plugin fixture');
+    $activeCache = new ReflectionProperty(Plugin::class, 'activeCache');
+    $manifestCache = new ReflectionProperty(Plugin::class, 'manifests');
+    $previousActiveCache = $activeCache->getValue();
+    $previousManifestCache = $manifestCache->getValue();
+    try {
+        file_put_contents($fixtureDir . '/plugin.json', json_encode([
+            'name' => $fixtureName,
+            'title' => 'Entity metadata fixture',
+            'version' => '1.0.0',
+            'meta' => ['post' => [
+                ['key' => 'subtitle', 'label' => '副标题', 'type' => 'text', 'maxLength' => 100],
+                ['key' => 'layout', 'label' => '布局', 'type' => 'select', 'options' => ['wide' => '宽版', 'compact' => '紧凑'], 'default' => 'wide'],
+            ]],
+        ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE));
+        file_put_contents($fixtureDir . '/extension.php', "<?php\nreturn static function (\\Pafish\\Services\\ExtensionContext \$ctx): void {};\n");
+        $activeCache->setValue(null, [$fixtureName]);
+        $manifestCache->setValue(null, []);
+        $scope = EntityMeta::scope('plugin', $fixtureName);
+        EntityMeta::setForExtension('plugin', $fixtureName, 'post', $id, 'subtitle', '声明字段');
+        EntityMeta::setForExtension('plugin', $fixtureName, 'post', $id, 'layout', 'compact');
+        $check('Declared extension fields can be read through the extension API',
+            EntityMeta::getForExtension('plugin', $fixtureName, 'post', $id, 'subtitle') === '声明字段'
+            && EntityMeta::getForExtension('plugin', $fixtureName, 'post', $id, 'layout') === 'compact');
+        $check('Extension API rejects undeclared entity keys', $throws(fn () => EntityMeta::setForExtension('plugin', $fixtureName, 'post', $id, 'unlisted', 'x')));
+        EntityMeta::saveEditorFields('post', $id, [$scope => ['subtitle' => '编辑器更新']]);
+        $check('Editor save updates declared fields and preserves omitted values',
+            EntityMeta::getForExtension('plugin', $fixtureName, 'post', $id, 'subtitle') === '编辑器更新'
+            && EntityMeta::getForExtension('plugin', $fixtureName, 'post', $id, 'layout') === 'compact');
+        $check('Editor save rejects values outside a select declaration',
+            $throws(fn () => EntityMeta::saveEditorFields('post', $id, [$scope => ['layout' => 'unknown']]))
+            && EntityMeta::getForExtension('plugin', $fixtureName, 'post', $id, 'layout') === 'compact');
+        $check('Editor fields are enumerated from active extension declarations',
+            count(array_filter(EntityMeta::editorFields('post', $id), static fn (array $field): bool => ($field['scope'] ?? '') === $scope)) === 2);
+    } finally {
+        $activeCache->setValue(null, $previousActiveCache);
+        $manifestCache->setValue(null, $previousManifestCache);
+        @unlink($fixtureDir . '/extension.php');
+        @unlink($fixtureDir . '/plugin.json');
+        @rmdir($fixtureDir);
+    }
+    EntityMeta::set('post', $id, 'plugin:qa_media', 'image', '/uploads/b.png');
+    $check('Updating extension metadata replaces its media reference', $count($a) === 3 && $count($b) === 1);
+    EntityMeta::delete('post', $id, 'plugin:qa_media', 'image');
+    $check('Deleting extension metadata removes its media reference', $count($b) === 0);
+    EntityMeta::set('post', $id, 'plugin:qa_media', 'owner_cleanup', '/uploads/a.png');
+    EntityMeta::deleteOwner('plugin', 'qa_media');
+    $check('Deleting extension-owned metadata releases its references', EntityMeta::get('post', $id, 'plugin:qa_media', 'owner_cleanup') === null && $count($a) === 3);
+    $check('Unknown metadata subjects are rejected', $throws(fn () => EntityMeta::set('unknown', $id, 'plugin:qa_media', 'x', 'y')));
+
+    $legacy = json_encode([['key' => 'legacy', 'value' => 'one'], ['key' => 'legacy', 'value' => 'two']], JSON_THROW_ON_ERROR);
+    DB::execute('UPDATE posts SET custom_fields=? WHERE id=?', [$legacy, $id]);
+    DB::execute('DELETE FROM entity_meta WHERE subject_type=? AND subject_id=? AND scope=?', ['post', $id, EntityMeta::POST_FIELDS_SCOPE]);
+    DB::execute('INSERT INTO entity_meta (subject_type,subject_id,scope,meta_key,key_hash,position,meta_value) VALUES (?,?,?,?,?,?,?)',
+        ['post', $id, EntityMeta::POST_FIELDS_SCOPE, 'legacy', hash('sha256', 'legacy', true), 0, 'one']);
+    $backfill = require PAFISH_ROOT . '/migrations/entity_meta_backfill.php';
+    $backfill($pdo);
+    $backfill($pdo);
+    $check('Legacy backfill repairs a partial import and is idempotent', EntityMeta::all('post', $id, EntityMeta::POST_FIELDS_SCOPE) === [
+        ['key' => 'legacy', 'value' => 'one'], ['key' => 'legacy', 'value' => 'two'],
+    ] && (int) DB::value('SELECT COUNT(*) FROM entity_meta WHERE subject_type=? AND subject_id=? AND scope=?', ['post', $id, EntityMeta::POST_FIELDS_SCOPE]) === 2);
+    EntityMeta::replace('post', $id, EntityMeta::POST_FIELDS_SCOPE, [['key' => 'image', 'value' => '/uploads/a.png']]);
+    $check('Core custom-field references are not counted twice during backfill rollout', $count($a) === 3);
     $check('Draft content protects its media', DB::value('SELECT status FROM posts WHERE id=?', [$id]) === 'DRAFT' && $count($a) > 0);
     $check('Reference deletion is rejected', $throws(fn () => Media::deleteUpload($a, null)));
     $posts->savePost(['title' => 'Media fixture', 'slug' => 'media-fixture', 'content' => '<p><img src="/uploads/b.png"></p>', 'content_format' => 'html'], $id);
@@ -110,6 +199,28 @@ try {
     ExtensionStorage::set('theme', 'qa_media', 'setting:logo', '/uploads/a.png');
     ExtensionStorage::setMany([['plugin', 'qa_media', 'data', json_encode(['url' => '/uploads/b.png'])]]);
     $check('Theme and plugin shared storage index media', $count($a) === 2 && $count($b) === 3);
+    DB::execute('INSERT INTO settings (`key`,`value`) VALUES (?,?)', ['plugin_data:qa_media', json_encode(['url' => 'legacy'])]);
+    $check('New extension storage value takes precedence over legacy settings',
+        json_decode((string) Settings::get('plugin_data:qa_media'), true)['url'] === '/uploads/b.png');
+    DB::execute('INSERT INTO settings (`key`,`value`) VALUES (?,?)', ['plugin_data:qa_legacy', json_encode(['url' => 'fallback'])]);
+    $pluginSnapshot = Plugin::data('qa_media');
+    Plugin::log('qa_media', 'after snapshot');
+    Plugin::setData('qa_media', $pluginSnapshot);
+    $check('Plugin setData preserves logs from an earlier snapshot', count(Plugin::data('qa_media')['logs'] ?? []) === 1);
+    $themeSnapshot = Theme::data('qa_media');
+    Theme::log('qa_media', 'after snapshot');
+    Theme::setData('qa_media', $themeSnapshot);
+    $check('Theme setData preserves logs from an earlier snapshot', count(Theme::data('qa_media')['logs'] ?? []) === 1);
+
+    Plugin::setData('qa_media', ['marker' => -1]);
+    $setWorker = $start(['extension_set_data', '30']);
+    $logWorker = $start(['extension_log', '30']);
+    $finish($setWorker);
+    $finish($logWorker);
+    $raceData = Plugin::data('qa_media');
+    $raceLogs = array_values(array_filter($raceData['logs'] ?? [], static fn (array $entry): bool => str_starts_with((string) ($entry['message'] ?? ''), 'concurrent-')));
+    $check('Concurrent setData and log preserve every serialized write', (int) ($raceData['marker'] ?? -1) === 29 && count($raceLogs) === 30);
+
     ExtensionStorage::updateJson('plugin_data:qa_media', static fn ($data) => ['url' => '/uploads/a.png']);
     $check('Atomic extension JSON moves references', $count($a) === 3 && $count($b) === 2);
     Settings::setMany(['fixture_one' => '/uploads/a.png', 'fixture_two' => '/uploads/a.png']);
@@ -182,12 +293,16 @@ try {
     $finish($rebuild);
     $check('Rebuild waits for source commits and preserves them', $count($raceUpload) === 8 && Media::ready());
     $pageId = (int) DB::value("SELECT id FROM pages WHERE slug='fixture-page'");
+    EntityMeta::set('page', $pageId, 'plugin:qa_media', 'marker', 'cleanup');
     $pageCount = $count($a);
     (new Pafish\Admin\PagesController())->delete($request, new Response(), ['id' => $pageId]);
-    $check('Permanent page deletion releases its references', $count($a) === $pageCount - 1);
+    $check('Permanent page deletion releases media and entity metadata', $count($a) === $pageCount - 1
+        && (int) DB::value('SELECT COUNT(*) FROM entity_meta WHERE subject_type=? AND subject_id=?', ['page', $pageId]) === 0);
     DB::execute('UPDATE posts SET deleted_at=NOW() WHERE id=?', [$id]);
+    EntityMeta::set('post', $id, 'plugin:qa_media', 'marker', 'cleanup');
     $posts->purge($request, new Response(), ['id' => $id]);
-    $check('Permanent post purge releases cover and body references', $count($b) === 0);
+    $check('Permanent post purge releases media and entity metadata', $count($b) === 0
+        && (int) DB::value('SELECT COUNT(*) FROM entity_meta WHERE subject_type=? AND subject_id=?', ['post', $id]) === 0);
     $check('Wrong upload owner cannot delete', $throws(fn () => Media::deleteUpload($a, 2, true)));
     Media::deleteUpload($other, null);
     $check('Unreferenced upload can be deleted', DB::value('SELECT id FROM uploads WHERE id=?', [$other]) === null);
@@ -222,6 +337,15 @@ try {
     $check('Backup binary literal preserves every byte', DB::value('SELECT url_hash FROM uploads WHERE id=?', [$raceUpload]) === $rawHash);
     $nulText = "text\0tail";
     $check('Backup no longer strips embedded NUL', DB::value('SELECT ' . $quote->invoke(null, $nulText)) === $nulText);
+    $storageTable = $pdo->prefix . 'extension_storage';
+    $renamedStorageTable = $pdo->prefix . 'extension_storage_missing';
+    $pdo->query('RENAME TABLE `' . $storageTable . '` TO `' . $renamedStorageTable . '`');
+    try {
+        $check('Legacy extension data remains readable when new storage table is absent',
+            json_decode((string) Settings::get('plugin_data:qa_legacy'), true)['url'] === 'fallback');
+    } finally {
+        $pdo->query('RENAME TABLE `' . $renamedStorageTable . '` TO `' . $storageTable . '`');
+    }
 } catch (Throwable $e) {
     $failed++;
     echo 'ERROR ' . $e->getMessage() . PHP_EOL . $e->getTraceAsString() . PHP_EOL;

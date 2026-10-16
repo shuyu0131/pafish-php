@@ -16,7 +16,7 @@ final class ExtensionRoutes
     private const SEGMENT_PATTERN = '/^[a-z0-9_-]{1,50}$/';
     private const RESERVED_FIRST_SEGMENTS = [
         'admin', 'api', 'archives', 'category', 'css', 'js', 'login', 'pages', 'plugin',
-        'post', 'profile', 'register', 'reset-password', 'forgot-password', 'search', 'tag', 'micro',
+        'post', 'profile', 'user', 'register', 'reset-password', 'forgot-password', 'search', 'tag', 'micro',
         'theme-assets', 'themes', 'uploads', 'rss.xml', 'sitemap.xml', 'robots.txt',
     ];
 

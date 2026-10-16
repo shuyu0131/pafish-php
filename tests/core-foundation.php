@@ -16,10 +16,12 @@ use Pafish\Core\Version;
 use Pafish\Core\Session;
 use Pafish\Core\Auth;
 use Pafish\Services\Migrator;
+use Pafish\Services\ContentRepository;
 use Pafish\Services\Store;
 use Pafish\Services\EmailCode;
 use Pafish\Services\PostReactions;
 use Pafish\Services\ExtensionSchema;
+use Pafish\Services\ExtensionKernel;
 use Pafish\Tests\MySql;
 use Slim\Psr7\Factory\ServerRequestFactory;
 use Slim\Psr7\Response;
@@ -92,6 +94,13 @@ try {
     }
     $check('Current migration set runs on a fresh baseline', is_array(Migrator::run($pdo, PAFISH_ROOT . '/migrations')['applied']));
     $check('Current migration set is repeatable', Migrator::run($pdo, PAFISH_ROOT . '/migrations') === ['applied' => []]);
+    DB::execute('ALTER TABLE pages DROP COLUMN deleted_at');
+    DB::execute("DELETE FROM schema_migrations WHERE version = 'pages_deleted_at'");
+    $migrationRetry = Migrator::run($pdo, PAFISH_ROOT . '/migrations');
+    $pageSoftDeleteColumnExists = (int) DB::value('SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME=?', ['pages', 'deleted_at']) === 1;
+    $check('Existing database receives the page soft-delete column', $pageSoftDeleteColumnExists);
+    $check('Page soft-delete migration is recorded', in_array('pages_deleted_at', $migrationRetry['applied'], true)
+        || in_array('pages_deleted_at', Migrator::appliedVersions($pdo), true));
     // Only retired transient codes are removed; normal application records are untouched.
     DB::execute("DELETE FROM schema_migrations WHERE version IN ('email_code_security','zzzzz_email_codes_session')");
     DB::execute('CREATE TABLE email_codes (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,email VARCHAR(255),purpose VARCHAR(20),code VARCHAR(10),expires_at DATETIME,used TINYINT DEFAULT 0,created_at DATETIME DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB');
@@ -196,6 +205,13 @@ try {
         && str_contains($html, "body.set('_csrf',") && str_contains($html, Session::csrfToken())
         && str_contains($html, "body.set('active', active ? '0' : '1')"));
 
+    $legacyField = ExtensionKernel::describeSetting([
+        'key' => 'legacy_help', 'label' => '旧字段', 'type' => 'text',
+        'description' => '旧版插件字段说明',
+    ], 'plugin');
+    $check('Legacy plugin descriptions remain visible in normalized settings', is_array($legacyField)
+        && ($legacyField['desc'] ?? '') === '旧版插件字段说明');
+
     $schema = ['tables' => [['name' => 'records', 'columns' => [
         ['name' => 'id', 'type' => 'bigint', 'unsigned' => true, 'autoIncrement' => true],
         ['name' => 'user_id', 'type' => 'bigint', 'unsigned' => true, 'default' => 0],
@@ -218,7 +234,12 @@ try {
     $check('Existing extension signedness is not silently changed', $throws(fn () => ExtensionSchema::sync('plugin', 'qa_foundation', $bad)));
 
     DB::execute("INSERT INTO micro_statuses (id,content,status,author_id) VALUES (1,'micro fixture','PUBLISHED',2)");
-    DB::execute("INSERT INTO pages (id,title,slug,content) VALUES (1,'page fixture','page-fixture','body')");
+    DB::execute("INSERT INTO pages (id,title,slug,content,status) VALUES (1,'page fixture','page-fixture','body','PUBLISHED')");
+    $check('Published page repository returns visible content', ContentRepository::publishedPageBySlug('page-fixture')['id'] === 1
+        && count(ContentRepository::publishedPages()) === 1);
+    DB::execute('UPDATE pages SET deleted_at=NOW() WHERE id=1');
+    $check('Soft-deleted pages are excluded from all shared public reads', ContentRepository::publishedPageBySlug('page-fixture') === null
+        && ContentRepository::publishedPageById(1) === null && ContentRepository::publishedPages() === []);
     DB::execute("INSERT INTO comments (post_id,author_name,author_email,content,user_id) VALUES (1,'fixture','fixture@invalid.test','comment fixture',2)");
     PostReactions::change(1, 'like', 2, true);
     Session::set('user_id', 1);
@@ -256,6 +277,33 @@ try {
     $throws(fn () => Migrator::run($pdo, $fixtureDir));
     $check('Whole script is parsed before any write', DB::value('SELECT value FROM fixture_log WHERE id=12') === null);
     unlink($fixtureDir . '/003_bad.sql');
+    file_put_contents($fixtureDir . '/004_php.php', str_replace('fixture_log', $pdo->prefix . 'fixture_log', <<<'PHP'
+<?php
+return static function (PDO $pdo): void {
+    $pdo->exec("INSERT INTO fixture_log (id,value) VALUES (20,'php')");
+};
+PHP));
+    $phpMigration = Migrator::run($pdo, $fixtureDir);
+    $check('PHP data migration runs and records its version', in_array('004_php', $phpMigration['applied'], true)
+        && DB::value('SELECT value FROM fixture_log WHERE id=20') === 'php');
+    $check('Successful PHP migration is not repeated', Migrator::run($pdo, $fixtureDir) === ['applied' => []]
+        && (int) DB::value('SELECT COUNT(*) FROM fixture_log WHERE id=20') === 1);
+    file_put_contents($fixtureDir . '/005_php_retry.php', str_replace('fixture_log', $pdo->prefix . 'fixture_log', <<<'PHP'
+<?php
+return static function (PDO $pdo): void {
+    throw new RuntimeException('retry');
+};
+PHP));
+    $check('Failed PHP data migration is not recorded', $throws(fn () => Migrator::run($pdo, $fixtureDir))
+        && !in_array('005_php_retry', Migrator::appliedVersions($pdo), true));
+    file_put_contents($fixtureDir . '/005_php_retry.php', str_replace('fixture_log', $pdo->prefix . 'fixture_log', <<<'PHP'
+<?php
+return static function (PDO $pdo): void {
+    $pdo->exec("INSERT INTO fixture_log (id,value) VALUES (21,'retry')");
+};
+PHP));
+    $check('Failed PHP migration can be retried', in_array('005_php_retry', Migrator::run($pdo, $fixtureDir)['applied'], true)
+        && DB::value('SELECT value FROM fixture_log WHERE id=21') === 'retry');
     $pdo->beginTransaction();
     $check('Migration refuses an existing business transaction', $throws(fn () => Migrator::run($pdo, $fixtureDir)) && $pdo->inTransaction());
     $pdo->rollBack();
@@ -270,6 +318,7 @@ try {
     $pdo->cleanup();
     $property->setValue(null, null);
     foreach (glob($fixtureDir . '/*.sql') ?: [] as $file) { unlink($file); }
+    foreach (glob($fixtureDir . '/*.php') ?: [] as $file) { unlink($file); }
     rmdir($fixtureDir);
 }
 echo "{$passed} passed, {$failed} failed" . PHP_EOL;

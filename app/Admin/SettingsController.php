@@ -34,7 +34,7 @@ final class SettingsController extends AdminController
         'notify_email_enabled', 'notify_email',
         'api_enabled', 'api_key',
         'api_rate_limit', 'api_cors', 'api_max_limit',
-        'permalink_structure', 'role_capabilities',
+        'permalink_structure',
         'store_account_token',
     ];
 
@@ -45,7 +45,6 @@ final class SettingsController extends AdminController
         $all = Settings::core();
         $response->getBody()->write($this->render('settings', [
             'all' => $all,
-            'roleCapabilities' => Auth::roleCapabilities(),
         ], '站点设置'));
         return $response;
     }

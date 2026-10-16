@@ -9,6 +9,7 @@ use Pafish\Core\Hooks;
 /** 主题清单、设置、模板覆盖和安装生命周期管理。 */
 final class Theme
 {
+    public const API_VERSION = 2;
     private const NAME_PATTERN = '/^[a-z0-9_-]{1,50}$/';
     private const TEMPLATE_NAME_PATTERN = '/^[a-z0-9-]{1,40}$/';
     private const FIELD_TYPES = ['text', 'textarea', 'checkbox', 'select', 'color', 'switcher', 'radio', 'image'];
@@ -20,6 +21,12 @@ final class Theme
     private const MAX_ZIP_BYTES = 10 * 1024 * 1024;
     private const BACKUP_FORMAT = 'blogcms-theme-settings';
     private const DEFAULT_VERSION = '1.0.0';
+    private const INJECT_TARGETS = [
+        'head', 'footer', 'sidebar',
+        'comment_form', 'login_form', 'register_form', 'post_editor', 'micro_editor',
+    ];
+    private const USER_DATA = ['posts', 'stats', 'reactions', 'comments', 'points'];
+    private const PAGE_TEMPLATES = ['index', 'post', 'page', 'category', 'tag', 'search', 'archives', 'micro', 'user'];
 
     private static ?array $manifests = [];
     private static ?array $contexts = [];
@@ -37,13 +44,30 @@ final class Theme
     public static function active(): string
     {
         $name = (string) Settings::get('active_theme', 'default');
-        return self::isValidName($name) && self::isThemeDirectory(self::root() . '/' . $name) ? $name : 'default';
+        if (!self::isValidName($name) || !self::isThemeDirectory(self::root() . '/' . $name)) {
+            return 'default';
+        }
+        return self::manifest($name) !== null ? $name : 'default';
     }
 
     /** 加载当前主题的 PHP 扩展入口；每个请求只加载一次。 */
-    public static function boot(): void
+    public static function boot(): bool
     {
         $name = self::active();
+        $manifest = self::manifest($name);
+        if ($manifest === null) {
+            ExtensionKernel::reset('theme', $name);
+            self::$bootedTheme = null;
+            return false;
+        }
+        try {
+            ExtensionDependencies::assertSatisfied('theme', $name, $manifest['requires'] ?? []);
+        } catch (\Throwable $e) {
+            \Pafish\Core\Logger::error('[pafish-theme] ' . $name . ' 依赖检查失败：' . $e->getMessage());
+            ExtensionKernel::reset('theme', $name);
+            self::$bootedTheme = null;
+            return false;
+        }
         // schema 兜底必须先于主题早退判断；按 manifest 版本/schema 记忆，避免一次请求内重复查库。
         $schemaKey = self::schemaBootKey($name);
         $schemaReady = true;
@@ -60,17 +84,25 @@ final class Theme
             }
             // 允许同一长驻进程在下一次调用时重试失败的迁移。
             self::$bootedTheme = null;
-            return;
+            return false;
         }
         if (self::$bootedTheme === $name) {
-            return;
+            return true;
         }
         if (self::$bootedTheme !== null) {
             ExtensionKernel::reset('theme', self::$bootedTheme);
         }
+        if (is_file(self::root() . '/' . $name . '/extension.php')
+            && !ExtensionKernel::boot('theme', $name, self::root(), self::context($name))) {
+            // 有动态入口但注册失败时，不让主题的业务钩子继续进入请求。
+            // 下次请求仍会重试，核心页面保持可用。
+            self::$bootedTheme = null;
+            ExtensionKernel::reset('theme', $name);
+            return false;
+        }
         self::$bootedTheme = $name;
-        ExtensionKernel::boot('theme', $name, self::root(), self::context($name));
         self::registerHooks($name);
+        return true;
     }
 
     /** 主题清单签名；schema 或版本变化时，即使主题名未变也要重新同步。 */
@@ -90,8 +122,57 @@ final class Theme
     public static function renderInjection(string $hook, array $context = []): string
     {
         self::boot();
-        $result = Hooks::applyFilters('theme_' . $hook, '', $context);
-        return is_string($result) ? $result : '';
+        if (!in_array($hook, self::INJECT_TARGETS, true)) {
+            return '';
+        }
+        $parts = [];
+        $name = self::active();
+        $manifest = self::manifest($name);
+        if (is_array($manifest)
+            && ((int) ($manifest['apiVersion'] ?? 1) < 2
+                || in_array($hook, (array) ($manifest['injects'] ?? []), true))) {
+            foreach (ExtensionKernel::injectionsFor('theme', $name, $hook) as $handler) {
+                try {
+                    $html = $handler($context, self::context($name));
+                    if (is_string($html) && trim($html) !== '') {
+                        $parts[] = $html;
+                    }
+                } catch (\Throwable $e) {
+                    \Pafish\Core\Logger::error('[pafish-theme] ' . $name . ' renderInjection(' . $hook . ') 失败：' . $e->getMessage());
+                }
+            }
+            $provider = ExtensionKernel::providerFor('theme', $name, 'renderInjection');
+            if ($provider !== null && ExtensionKernel::injectionsFor('theme', $name, $hook) === []) {
+                try {
+                    $html = $provider($hook, self::context($name), $context);
+                    if (is_string($html) && trim($html) !== '') {
+                        $parts[] = $html;
+                    }
+                } catch (\Throwable $e) {
+                    \Pafish\Core\Logger::error('[pafish-theme] ' . $name . ' renderInjection(' . $hook . ') 失败：' . $e->getMessage());
+                }
+            }
+        }
+        $result = Hooks::applyFilters('theme_' . $hook, implode("\n", $parts), $context);
+        $html = is_string($result) ? $result : '';
+        return $hook === 'head' ? self::parseInjectionTags($html) : $html;
+    }
+
+    /** 主题 head 注入与插件使用同一套标签白名单。 */
+    private static function parseInjectionTags(string $html): string
+    {
+        $out = '';
+        foreach ([
+            '/<script\\b[^>]*>[\\s\\S]*?<\\/script>/i',
+            '/<meta\\b[^>]*>/i',
+            '/<link\\b[^>]*>/i',
+            '/<style\\b[^>]*>[\\s\\S]*?<\\/style>/i',
+        ] as $pattern) {
+            if (preg_match_all($pattern, $html, $matches) !== false) {
+                $out .= implode("\n", $matches[0]);
+            }
+        }
+        return $out;
     }
 
     /** 当前主题编辑器专属样式；主题未提供时不输出任何内容。 */
@@ -171,7 +252,7 @@ final class Theme
         return $names;
     }
 
-    /** 读取主题清单；所有主题必须声明统一 extension.php 入口。 */
+    /** 读取主题清单；纯模板主题可以没有 extension.php。 */
     public static function manifest(string $name): ?array
     {
         if (!self::isValidName($name)) {
@@ -180,22 +261,8 @@ final class Theme
         if (array_key_exists($name, self::$manifests)) {
             return self::$manifests[$name];
         }
-        $dir = self::root() . '/' . $name;
-        if (!is_dir($dir) || !self::isThemeDirectory($dir)) {
-            return self::$manifests[$name] = null;
-        }
-        if (!is_file($dir . '/extension.php')) {
-            return self::$manifests[$name] = null;
-        }
-        $file = $dir . '/theme.json';
-        if (!is_file($file)) {
-            return self::$manifests[$name] = null;
-        }
-        $json = json_decode((string) file_get_contents($file), true);
-        if (!is_array($json) || ($json['name'] ?? null) !== $name) {
-            return self::$manifests[$name] = null;
-        }
-        return self::$manifests[$name] = self::normalizeManifest($json, $name);
+        $description = self::describe($name);
+        return self::$manifests[$name] = $description['manifest'];
     }
 
     /**
@@ -210,9 +277,6 @@ final class Theme
         $dir = self::root() . '/' . $name;
         if (!is_dir($dir) || !self::isThemeDirectory($dir)) {
             return ['manifest' => null, 'error' => '主题目录不存在或缺少模板文件'];
-        }
-        if (!is_file($dir . '/extension.php')) {
-            return ['manifest' => null, 'error' => '缺少 extension.php'];
         }
         $file = $dir . '/theme.json';
         if (!is_file($file)) {
@@ -245,6 +309,22 @@ final class Theme
         if (array_key_exists('version', $json) && (!is_string($json['version']) || trim($json['version']) === '')) {
             return 'version 必须是非空字符串';
         }
+        if (array_key_exists('apiVersion', $json)
+            && (!is_int($json['apiVersion']) || $json['apiVersion'] < 1 || $json['apiVersion'] > self::API_VERSION)) {
+            return 'apiVersion 不受支持';
+        }
+        $dependencyError = ExtensionDependencies::validate($json['requires'] ?? null);
+        if ($dependencyError !== null) {
+            return $dependencyError;
+        }
+        $metaError = EntityMetaSchema::validate($json['meta'] ?? null);
+        if ($metaError !== null) return $metaError;
+        if (array_key_exists('injects', $json)) {
+            if (!is_array($json['injects'])
+                || array_filter($json['injects'], static fn ($target): bool => !is_string($target) || !in_array($target, self::INJECT_TARGETS, true)) !== []) {
+                return 'injects 包含无效注入点';
+            }
+        }
         if (array_key_exists('pageTemplates', $json)) {
             if (!is_array($json['pageTemplates'])) {
                 return 'pageTemplates 必须是数组';
@@ -275,6 +355,16 @@ final class Theme
         if (array_key_exists('settings', $json) && !is_array($json['settings'])) {
             return 'settings 必须是数组';
         }
+        if (array_key_exists('userData', $json)
+            && (!is_array($json['userData'])
+                || array_filter($json['userData'], static fn ($key): bool => !is_string($key) || !in_array($key, self::USER_DATA, true)) !== [])) {
+            return 'userData 包含无效数据项';
+        }
+        if (array_key_exists('systemTemplateFallback', $json)
+            && (!is_array($json['systemTemplateFallback'])
+                || array_filter($json['systemTemplateFallback'], static fn ($key): bool => !is_string($key) || !in_array($key, self::PAGE_TEMPLATES, true)) !== [])) {
+            return 'systemTemplateFallback 包含无效模板';
+        }
         $routesError = ExtensionRoutes::validateDeclaration($json['routes'] ?? null, 'theme', $dirName);
         if ($routesError !== null) {
             return $routesError;
@@ -292,6 +382,20 @@ final class Theme
         $json['name'] = $name;
         $json['title'] = trim((string) ($json['title'] ?? $name)) ?: $name;
         $json['version'] = trim((string) ($json['version'] ?? self::DEFAULT_VERSION)) ?: self::DEFAULT_VERSION;
+        $json['apiVersion'] = is_int($json['apiVersion'] ?? null) ? $json['apiVersion'] : 1;
+        $json['requires'] = ExtensionDependencies::normalize($json['requires'] ?? null);
+        $json['meta'] = EntityMetaSchema::normalize($json['meta'] ?? null);
+        $json['injects'] = is_array($json['injects'] ?? null)
+            ? array_values(array_unique(array_intersect(self::INJECT_TARGETS, $json['injects'])))
+            : [];
+        $json['userData'] = is_array($json['userData'] ?? null)
+            ? array_values(array_unique(array_intersect(self::USER_DATA, $json['userData'])))
+            : [];
+        if (is_array($json['systemTemplateFallback'] ?? null)) {
+            $json['systemTemplateFallback'] = array_values(array_unique(array_intersect(self::PAGE_TEMPLATES, $json['systemTemplateFallback'])));
+        } else {
+            $json['systemTemplateFallback'] = null;
+        }
         foreach (['description', 'author', 'authorUrl', 'homepage'] as $key) {
             if (!isset($json[$key]) || !is_string($json[$key])) {
                 $json[$key] = '';
@@ -305,13 +409,18 @@ final class Theme
         return $json;
     }
 
-    /** 主题至少提供一个模板或样式/封面文件。 */
+    /**
+     * 主题至少提供一个实际的模板或样式/封面文件。
+     *
+     * theme.json 和 extension.php 只是描述/业务入口，不能单独把一个
+     * 没有任何展示层的目录识别为主题，否则激活后会静默落到系统模板。
+     */
     private static function isThemeDirectory(string $dir): bool
     {
         if (!is_dir($dir)) {
             return false;
         }
-        foreach (['theme.json', 'extension.php', 'header.php', 'index.php', 'post.php', 'page.php', 'style.css', 'theme.css', 'preview.jpg', 'assets/css/style.css', 'assets/css/theme.css', 'assets/preview.jpg'] as $file) {
+        foreach (['header.php', 'footer.php', 'index.php', 'post.php', 'page.php', 'category.php', 'tag.php', 'search.php', 'archives.php', 'micro.php', 'user.php', 'style.css', 'theme.css', 'preview.jpg', 'preview.png', 'assets/css/style.css', 'assets/css/theme.css', 'assets/preview.jpg', 'assets/preview.png'] as $file) {
             if (is_file($dir . '/' . $file)) {
                 return true;
             }
@@ -328,7 +437,8 @@ final class Theme
         if (isset(self::$contexts[$name])) {
             return self::$contexts[$name];
         }
-        return self::$contexts[$name] = new ExtensionContext('theme', $name, 1);
+        $apiVersion = (int) (self::manifest($name)['apiVersion'] ?? 1);
+        return self::$contexts[$name] = new ExtensionContext('theme', $name, $apiVersion);
     }
 
     /** 注册主题业务模块的钩子。 */
@@ -363,7 +473,10 @@ final class Theme
                 ExtensionSchema::recordFingerprint('theme', $name, $schema);
             }
             // 版本迁移可能由 extension.php 注册，先加载统一入口再执行 onUpgrade。
-            ExtensionKernel::boot('theme', $name, self::root(), self::context($name));
+            if (is_file(self::root() . '/' . $name . '/extension.php')
+                && !ExtensionKernel::boot('theme', $name, self::root(), self::context($name))) {
+                throw new \RuntimeException('主题入口加载失败');
+            }
             self::runUpgrade($name, $fromVersion, $version);
             if ($fromVersion !== $version) {
                 ExtensionSchema::recordVersion('theme', $name, $version);
@@ -433,7 +546,14 @@ final class Theme
         if (!self::isValidName($name)) {
             throw new \RuntimeException('主题名不合法');
         }
-        Settings::set('theme_data:' . $name, json_encode($data, JSON_UNESCAPED_UNICODE));
+        ExtensionStorage::updateJson('theme_data:' . $name, static function (array $current) use ($data): array {
+            if (is_array($current['logs'] ?? null)) {
+                $data['logs'] = $current['logs'];
+            } else {
+                unset($data['logs']);
+            }
+            return $data;
+        });
     }
 
     /** 主题上下文保存设置时仅接纳自己的 schema 键。 */
@@ -999,6 +1119,11 @@ final class Theme
                 return $themeFile;
             }
         }
+        $manifest = self::manifest(self::active());
+        $fallbacks = $manifest['systemTemplateFallback'] ?? null;
+        if (in_array($name, self::PAGE_TEMPLATES, true) && is_array($fallbacks) && !in_array($name, $fallbacks, true)) {
+            throw new \RuntimeException('当前主题未提供页面模板：' . $name);
+        }
         foreach ($candidates as $candidate) {
             $systemFile = dirname(__DIR__) . '/Views/theme/' . $candidate . '.php';
             if (is_file($systemFile)) {
@@ -1024,28 +1149,43 @@ final class Theme
         if ($desc['error'] !== null) {
             throw new \RuntimeException($desc['error'] ?? '主题不存在');
         }
-        ExtensionKernel::boot('theme', $name, self::root(), self::context($name));
+        ExtensionDependencies::assertSatisfied('theme', $name, $desc['manifest']['requires'] ?? []);
+        if (is_file(self::root() . '/' . $name . '/extension.php')
+            && !ExtensionKernel::boot('theme', $name, self::root(), self::context($name))) {
+            throw new \RuntimeException('主题入口加载失败');
+        }
+        $previous = self::active();
         try {
             ExtensionRoutes::assertCanActivate('theme', $name, $desc['manifest']);
+            $version = (string) $desc['manifest']['version'];
+            $previousVersion = ExtensionSchema::installedVersion('theme', $name);
+            $schema = $desc['manifest']['schema'] ?? null;
+            ExtensionSchema::sync('theme', $name, $schema);
+            ExtensionSchema::recordFingerprint('theme', $name, $schema);
+            self::runUpgrade($name, $previousVersion, $version);
+            ExtensionSchema::recordVersion('theme', $name, $version);
+            if ($previous !== $name) {
+                self::runLifecycle($previous, 'onDeactivate');
+                self::runLifecycle($name, 'onActivate');
+            }
+            Settings::set('active_theme', $name);
+            self::reset();
+            if (!self::boot()) {
+                throw new \RuntimeException('主题入口加载失败');
+            }
         } catch (\Throwable $e) {
+            // 路由、schema 或迁移失败后，不能把新主题已注册的能力留在长驻进程中。
             ExtensionKernel::reset('theme', $name);
+            if ($previous !== $name && self::active() === $name) {
+                try {
+                    Settings::set('active_theme', $previous);
+                } catch (\Throwable) {
+                    // 保留原始切换错误；下一次请求会按主题清单回退到 default。
+                }
+            }
+            self::reset();
             throw $e;
         }
-        $version = (string) $desc['manifest']['version'];
-        $previousVersion = ExtensionSchema::installedVersion('theme', $name);
-        $schema = $desc['manifest']['schema'] ?? null;
-        ExtensionSchema::sync('theme', $name, $schema);
-        ExtensionSchema::recordFingerprint('theme', $name, $schema);
-        self::runUpgrade($name, $previousVersion, $version);
-        ExtensionSchema::recordVersion('theme', $name, $version);
-        $previous = self::active();
-        if ($previous !== $name) {
-            self::runLifecycle($previous, 'onDeactivate');
-            self::runLifecycle($name, 'onActivate');
-        }
-        Settings::set('active_theme', $name);
-        self::reset();
-        self::boot();
     }
 
     /** 从 zip 缓冲安装主题；返回 name/title/version/updated。校验失败抛 RuntimeException（已回滚） */
@@ -1109,10 +1249,6 @@ final class Theme
             }
             $zip->close();
             $stagedTarget = $stage . '/' . $top;
-            if (!is_file($stagedTarget . '/extension.php')) {
-                self::rmDir($stage);
-                throw new \RuntimeException('安装失败：主题包缺少 extension.php（已回滚）');
-            }
             if (!self::isThemeDirectory($stagedTarget)) {
                 self::rmDir($stage);
                 throw new \RuntimeException('安装失败：主题包缺少可识别的 PHP 模板或资源（已回滚）');
@@ -1185,16 +1321,18 @@ final class Theme
             throw new \RuntimeException('不能卸载当前正在使用的主题，请先切换到其他主题');
         }
         self::runLifecycle($name, 'onUninstall');
+        // 先删除代码目录；目录权限失败时保留主题设置和数据，便于修复后重试。
+        if (!@self::rmDir(self::root() . '/' . $name)) {
+            throw new \RuntimeException('删除主题目录失败');
+        }
         if ($deleteData) {
+            EntityMeta::deleteOwner('theme', $name);
             ExtensionSchema::drop('theme', $name, $desc['manifest']['schema'] ?? null);
             Settings::remove('theme_data:' . $name);
             ExtensionSchema::forget('theme', $name);
             Settings::deletePrefix(self::settingsPrefix($name));
         }
         ExtensionKernel::reset('theme', $name);
-        if (!@self::rmDir(self::root() . '/' . $name)) {
-            throw new \RuntimeException('删除主题目录失败');
-        }
         self::reset();
     }
 

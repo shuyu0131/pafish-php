@@ -35,10 +35,8 @@ final class AdminAuthMiddleware
             $body = $request->getParsedBody();
             $token = is_array($body) ? (string) ($body['_csrf'] ?? '') : '';
             if (!Session::verifyCsrf($token)) {
-                http_response_code(419);
-                header('Content-Type: text/html; charset=UTF-8');
                 $home = e(Url::to('/admin'));
-                echo '<!doctype html><html lang="zh-CN"><meta charset="utf-8">'
+                $html = '<!doctype html><html lang="zh-CN"><meta charset="utf-8">'
                     . '<title>CSRF 校验失败</title>'
                     . '<body style="font-family:system-ui, sans-serif;display:grid;place-items:center;'
                     . 'min-height:100vh;margin:0;background:#f6f7f9;color:#333">'
@@ -51,7 +49,9 @@ final class AdminAuthMiddleware
                     . 'padding:8px 20px;border-radius:8px;background:#4786d6;color:#fff;'
                     . 'text-decoration:none;font-size:14px">返回工作台</a>'
                     . '</div></body></html>';
-                exit;
+                $response = new \Slim\Psr7\Response(419);
+                $response->getBody()->write($html);
+                return $response->withHeader('Content-Type', 'text/html; charset=UTF-8');
             }
         }
 

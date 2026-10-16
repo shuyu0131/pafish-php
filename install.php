@@ -323,6 +323,8 @@ function inst_run(array $post, string $root): array
 
         // 3.5 迁移基线登记：schema.sql 已建全部表，标记 baseline。
         // 后续结构演进新增 migrations/ 下的语义迁移文件。
+        // 安装器不注册 Composer 自动加载，需显式加载迁移器的 SQL 解析依赖。
+        require_once $root . '/app/Core/SqlScript.php';
         require_once $root . '/app/Services/Migrator.php';
         try {
             \Pafish\Services\Migrator::ensureTable($pdo);

@@ -87,11 +87,11 @@ final class Migrator
             $recorded = self::appliedVersions($pdo);
         }
 
-        $files = glob($migrationsDir . '/*.sql') ?: [];
+        $files = array_merge(glob($migrationsDir . '/*.sql') ?: [], glob($migrationsDir . '/*.php') ?: []);
         sort($files);
         $applied = [];
         foreach ($files as $file) {
-            $version = basename($file, '.sql');
+            $version = pathinfo($file, PATHINFO_FILENAME);
             if (in_array($version, $recorded, true)) {
                 continue;
             }
@@ -102,19 +102,23 @@ final class Migrator
                 $recorded[] = $version;
                 continue;
             }
-            $sql = file_get_contents($file);
-            if ($sql === false) {
-                throw new \RuntimeException('无法读取迁移：' . $version);
-            }
+            $isPhp = strtolower(pathinfo($file, PATHINFO_EXTENSION)) === 'php';
+            $sql = $isPhp ? null : file_get_contents($file);
+            if (!$isPhp && $sql === false) throw new \RuntimeException('无法读取迁移：' . $version);
             // 整个文件先解析，再写入；语法不完整时不能先执行前半部分。
-            $modes = explode(',', strtoupper((string) $pdo->query('SELECT @@SESSION.sql_mode')->fetchColumn()));
-            $statements = self::splitStatements($sql, in_array('NO_BACKSLASH_ESCAPES', $modes, true), in_array('ANSI_QUOTES', $modes, true));
+            $modes = $isPhp ? [] : explode(',', strtoupper((string) $pdo->query('SELECT @@SESSION.sql_mode')->fetchColumn()));
+            $statements = $isPhp ? [] : self::splitStatements((string) $sql, in_array('NO_BACKSLASH_ESCAPES', $modes, true), in_array('ANSI_QUOTES', $modes, true));
             foreach ($statements as $stmt) {
                 if (preg_match('/^(?:CREATE\s+(?:TABLE|(?:UNIQUE\s+)?INDEX)|ALTER\s+TABLE|DROP\s+(?:TABLE|INDEX)|TRUNCATE\s+TABLE|RENAME\s+TABLE|SET\s|INSERT\s|UPDATE\s|DELETE\s|REPLACE\s|SELECT\s|START\s+TRANSACTION\s*$|BEGIN\s*$|COMMIT\s*$)/i', $stmt) !== 1) {
                     throw new \RuntimeException('迁移 ' . $version . ' 包含不支持的语句；只支持表结构和普通数据迁移');
                 }
             }
             try {
+                if ($isPhp) {
+                    $migration = require $file;
+                    if (!is_callable($migration)) throw new \RuntimeException('PHP 迁移必须返回可调用函数');
+                    $migration($pdo);
+                }
                 foreach ($statements as $stmt) {
                     // 验证码已转为会话存储；保留历史迁移文件，不在新安装重建退役表。
                     if ($version === 'zzzz_core_comments' && preg_match('/^ALTER\s+TABLE\s+`?email_codes`?\s/i', $stmt) === 1) continue;
@@ -190,8 +194,10 @@ final class Migrator
             'query_indexes' => self::queryIndexesReady($pdo),
             'content_format' => self::tableHasColumns($pdo, 'posts', ['content_format'])
                 && self::tableHasColumns($pdo, 'pages', ['content_format']),
+            'pages_deleted_at' => self::tableHasColumns($pdo, 'pages', ['deleted_at']),
             'micro_statuses_content_format' => self::tableHasColumns($pdo, 'micro_statuses', ['content_format']),
             'micro_statuses_content_capacity' => in_array(self::columnType($pdo, 'micro_statuses', 'content'), ['mediumtext', 'longtext'], true),
+            'entity_meta' => self::tableExists($pdo, 'entity_meta'),
             'email_code_security' => true, // 退役迁移；最后由 zzzzz_email_codes_session 清理旧表。
             'zzzzz_email_codes_session' => !self::tableExists($pdo, 'email_codes'),
             'media_capabilities' => self::tableHasColumns($pdo, 'uploads', ['usage_count', 'last_used_at']),

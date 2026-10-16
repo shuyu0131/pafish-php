@@ -11,6 +11,7 @@ use Pafish\Core\Url;
 use Pafish\Http\Comments;
 use Pafish\Http\Responses;
 use Pafish\Services\Plugin;
+use Pafish\Services\Points;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -124,7 +125,7 @@ abstract class AdminController
     {
         Auth::requireLogin();
         if (!Auth::can('posts.manage')) {
-            Auth::redirect(Auth::isEditor() ? '/admin' : '/profile');
+            Auth::redirect('/admin');
         }
     }
 
@@ -162,7 +163,7 @@ abstract class AdminController
     {
         Auth::requireLogin();
         if (!Auth::isAdmin()) {
-            Auth::redirect(Auth::isEditor() ? '/admin' : '/profile');
+            Auth::redirect('/admin');
         }
     }
 
@@ -192,6 +193,9 @@ abstract class AdminController
     {
         $ok = fn (array $item): bool => empty($item['capability']) || Auth::can((string) $item['capability']);
         $top = array_values(array_filter(static::TOP_ITEMS, $ok));
+        if ($role === 'USER') {
+            $top = [['href' => '/admin', 'query' => ['section' => 'overview'], 'label' => '个人中心', 'icon' => 'dashboard', 'exact' => true]];
+        }
         $groups = [];
         $allExtensionItems = Plugin::adminMenu();
         foreach (static::NAV_GROUPS as $group) {
@@ -204,6 +208,18 @@ abstract class AdminController
             if ($items !== []) {
                 $groups[] = ['id' => $group['id'], 'label' => $group['label'], 'items' => $items];
             }
+        }
+        if ($role === 'USER') {
+            $accountItems = [
+                ['href' => '/admin', 'query' => ['section' => 'comments'], 'label' => '我的评论', 'icon' => 'message'],
+                ['href' => '/admin', 'query' => ['section' => 'favorites'], 'label' => '我的收藏', 'icon' => 'star'],
+                ['href' => '/admin', 'query' => ['section' => 'likes'], 'label' => '我的点赞', 'icon' => 'heart'],
+            ];
+            if (Points::available()) {
+                $accountItems[] = ['href' => '/admin', 'query' => ['section' => 'points'], 'label' => '积分记录', 'icon' => 'star'];
+            }
+            $accountItems[] = ['href' => '/admin/profile', 'label' => '个人资料', 'icon' => 'user'];
+            $groups[] = ['id' => 'account', 'label' => '账户', 'items' => $accountItems];
         }
         return ['top' => $top, 'groups' => $groups];
     }

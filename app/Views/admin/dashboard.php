@@ -3,15 +3,7 @@
   <div class="admin-page-head">
     <div><h1 class="admin-h1">工作台</h1><p class="admin-page-sub">你好，<?= e($username) ?>，欢迎回来</p></div>
   </div>
-  <div class="admin-dashboard-stats">
-    <?php foreach ($stats as $stat): ?>
-      <?php $tag = $stat['url'] ? 'a' : 'div'; ?>
-      <<?= $tag ?> class="card admin-overview-card"<?php if ($stat['url']): ?> href="<?= e(url_to($stat['url'])) ?>"<?php endif; ?>>
-        <div class="admin-overview-label"><span class="admin-overview-icon"><?= admin_icon($stat['icon'], 18) ?></span><span><?= e($stat['label']) ?></span></div>
-        <p class="admin-overview-value"><?= number_format($stat['value']) ?></p>
-      </<?= $tag ?>>
-    <?php endforeach; ?>
-  </div>
+  <?php require __DIR__ . '/partials/dashboard-stats.php'; ?>
   <div class="admin-dashboard-grid">
     <section class="card admin-dashboard-panel">
       <div class="admin-dashboard-panel-head"><h2>快捷入口</h2></div>

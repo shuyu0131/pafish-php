@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Pafish\Core;
 
-use Pafish\Services\Settings;
-
 /**
  * 认证：会话内只存 user_id，每次请求回查数据库真实角色（防篡改）
  * 角色：ADMIN / EDITOR / USER
@@ -32,7 +30,7 @@ final class Auth
         'users.manage', 'backup.manage', 'transfer.manage', 'api.manage',
     ];
 
-    /** 能力的中文标签，供后台权限矩阵展示。 */
+    /** 能力的中文标签，供权限说明与扩展调用。 */
     public const CAPABILITY_LABELS = [
         'dashboard.view'    => '访问后台',
         'posts.manage'      => '管理文章',
@@ -61,7 +59,7 @@ final class Auth
     /**
      * 各角色的默认能力。
      *
-     * 公开给后台设置页用于「恢复默认」，避免管理员误改后无法回退。
+     * 固定角色分工，供核心和扩展查询。
      *
      * @return array<string, array<int, string>>
      */
@@ -156,19 +154,8 @@ final class Auth
         if ($role === 'ADMIN') {
             return self::CAPABILITIES;
         }
-        $defaults = self::DEFAULT_ROLE_CAPABILITIES[$role] ?? [];
-        $raw = Settings::get('role_capabilities', '');
-        $configured = is_string($raw) ? json_decode($raw, true) : $raw;
-        if (is_array($configured) && isset($configured[$role]) && is_array($configured[$role])) {
-            // 非管理员的设置仅能收缩其角色上限，不能重新授予系统管理能力。
-            $allowed = array_values(array_intersect(
-                array_map('strval', $configured[$role]),
-                self::CAPABILITIES,
-                $defaults
-            ));
-            return array_values(array_unique($allowed));
-        }
-        return $defaults;
+        // Fixed role defaults keep navigation and route guards consistent without site-owner JSON.
+        return self::DEFAULT_ROLE_CAPABILITIES[$role] ?? [];
     }
 
     public static function roleCapabilities(): array
@@ -205,7 +192,7 @@ final class Auth
     {
         self::requireLogin();
         if (!self::isAdmin()) {
-            self::redirect(self::isEditor() ? '/admin' : '/profile');
+            self::redirect('/admin');
         }
     }
 
@@ -213,7 +200,7 @@ final class Auth
     {
         self::requireLogin();
         if (!self::can($capability)) {
-            self::redirect(self::isEditor() ? '/admin' : '/profile');
+            self::redirect('/admin');
         }
     }
 

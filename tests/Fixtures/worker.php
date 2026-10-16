@@ -13,6 +13,7 @@ use Pafish\Core\Config;
 use Pafish\Core\DB;
 use Pafish\Services\EmailCode;
 use Pafish\Services\PostReactions;
+use Pafish\Services\Plugin;
 use Pafish\Services\Migrator;
 use Pafish\Tests\MySql;
 
@@ -61,6 +62,20 @@ try {
         'migrate' => Migrator::run($pdo, $argv[3]),
         'media_setting' => (static function () use ($argv) {
             \Pafish\Services\Settings::set($argv[3], $argv[4]);
+            return true;
+        })(),
+        'extension_set_data' => (static function () use ($argv) {
+            for ($i = 0; $i < (int) $argv[3]; $i++) {
+                Plugin::setData('qa_media', ['marker' => $i]);
+                usleep(1000);
+            }
+            return true;
+        })(),
+        'extension_log' => (static function () use ($argv) {
+            for ($i = 0; $i < (int) $argv[3]; $i++) {
+                Plugin::log('qa_media', 'concurrent-' . $i);
+                usleep(1000);
+            }
             return true;
         })(),
         'media_sync' => (static function () use ($argv) {

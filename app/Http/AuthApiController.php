@@ -10,6 +10,7 @@ use Pafish\Core\RateLimiter;
 use Pafish\Core\Session;
 use Pafish\Core\Url;
 use Pafish\Services\EmailCode;
+use Pafish\Services\LoginService;
 use Pafish\Services\Notify;
 use Pafish\Services\Settings;
 use Pafish\Http\Responses;
@@ -33,58 +34,14 @@ final class AuthApiController
         $body = $request->getParsedBody() ?? [];
         $username = trim((string) ($body['username'] ?? ''));
         $password = (string) ($body['password'] ?? '');
-
-        if ($username === '' || $password === '') {
-            return $this->json($response, ['error' => '请输入用户名和密码'], 400);
+        $attempt = LoginService::attempt($request, $username, $password);
+        if (!isset($attempt['user'])) {
+            return $this->json($response, ['error' => $attempt['error'] ?? '登录失败'], (int) ($attempt['status'] ?? 401));
         }
-
-        $ip = $this->remoteIp($request);
-        $loginKey = $ip . '|' . mb_strtolower($username, 'UTF-8');
-        if (!RateLimiter::allow('auth-login-ip', $ip, 30, 300)
-            || !RateLimiter::allow('auth-login-combo', $loginKey, 8, 600)) {
-            return $this->json($response, ['error' => '登录尝试过于频繁，请稍后再试'], 429);
-        }
-
-        $loginDecision = \apply_decision_filters('before_login', [
-            'allowed' => true,
-            'status' => 403,
-            'error' => '登录被安全策略拒绝',
-        ], [
-            'username' => $username,
-            'plugins' => is_array($body['plugins'] ?? null) ? $body['plugins'] : [],
-            'ip' => (string) (($request->getServerParams()['REMOTE_ADDR'] ?? '') ?: 'unknown'),
-        ]);
-        if ($loginDecision === false || (is_array($loginDecision) && ($loginDecision['allowed'] ?? true) === false)) {
-            $status = max(400, min(499, (int) (is_array($loginDecision) ? ($loginDecision['status'] ?? 403) : 403)));
-            return $this->json($response, ['error' => is_array($loginDecision) ? (string) ($loginDecision['error'] ?? '登录被安全策略拒绝') : '登录被安全策略拒绝'], $status);
-        }
-
-        $user = DB::fetchOne(
-            'SELECT id, username, password_hash, role, disabled FROM users WHERE username = ?',
-            [$username]
-        );
-        if (!$user || !password_verify($password, (string) $user['password_hash'])) {
-            return $this->json($response, ['error' => '用户名或密码错误'], 401);
-        }
-        if ((int) $user['disabled'] === 1) {
-            return $this->json($response, ['error' => '账号已被禁用，请联系管理员'], 403);
-        }
-
-        $ip = trim((string) (($request->getServerParams()['REMOTE_ADDR'] ?? '') ?: ''));
-        if (filter_var($ip, FILTER_VALIDATE_IP) === false) {
-            $ip = null;
-        }
-        DB::execute('UPDATE users SET last_login_ip = ?, last_active_at = NOW() WHERE id = ?', [$ip, (int) $user['id']]);
+        $user = $attempt['user'];
         Auth::login((int) $user['id']);
-        RateLimiter::clear('auth-login-combo', $loginKey);
         Session::set('last_active_touch', time());
-
-        // 钩子：登录成功
-        \do_action('after_login', [
-            'id' => (string) $user['id'],
-            'username' => $user['username'],
-            'role' => $user['role'],
-        ]);
+        LoginService::succeeded($user);
 
         return $this->json($response, ['ok' => true, 'username' => $user['username'], 'role' => $user['role']]);
     }
@@ -269,10 +226,14 @@ final class AuthApiController
         }
         RateLimiter::clear('auth-code-verify', $verifyKey);
 
-        $changed = DB::execute(
-            'UPDATE users SET password_hash = ?, reset_token = NULL, reset_token_expires = NULL WHERE id = ? AND disabled = 0 AND email = ?',
-            [password_hash($newPassword, PASSWORD_BCRYPT, ['cost' => 10]), (int) $user['id'], $email]
-        );
+        $changed = DB::transaction(static function () use ($newPassword, $user, $email): int {
+            $changed = DB::execute(
+                'UPDATE users SET password_hash = ?, reset_token = NULL, reset_token_expires = NULL WHERE id = ? AND disabled = 0 AND email = ?',
+                [password_hash($newPassword, PASSWORD_BCRYPT, ['cost' => 10]), (int) $user['id'], $email]
+            );
+            if ($changed === 1) \Pafish\Services\AppTokens::revokeAll((int) $user['id']);
+            return $changed;
+        });
         if ($changed !== 1) return $this->json($response, ['error' => '验证码错误或已过期'], 400);
 
         return $this->json($response, ['ok' => true]);
@@ -351,11 +312,15 @@ final class AuthApiController
         }
 
         // 条件更新同时消费令牌；两个请求即使都完成了上面的读取，也只允许一个成功。
-        $changed = DB::execute(
-            'UPDATE users SET password_hash = ?, reset_token = NULL, reset_token_expires = NULL
-             WHERE id = ? AND reset_token = ? AND reset_token_expires > NOW() AND disabled = 0',
-            [password_hash($password, PASSWORD_BCRYPT, ['cost' => 10]), (int) $user['id'], $token]
-        );
+        $changed = DB::transaction(static function () use ($password, $user, $token): int {
+            $changed = DB::execute(
+                'UPDATE users SET password_hash = ?, reset_token = NULL, reset_token_expires = NULL
+                 WHERE id = ? AND reset_token = ? AND reset_token_expires > NOW() AND disabled = 0',
+                [password_hash($password, PASSWORD_BCRYPT, ['cost' => 10]), (int) $user['id'], $token]
+            );
+            if ($changed === 1) \Pafish\Services\AppTokens::revokeAll((int) $user['id']);
+            return $changed;
+        });
         if ($changed !== 1) return $this->json($response, ['error' => '重置链接无效或已过期'], 400);
 
         return $this->json($response, ['ok' => true]);

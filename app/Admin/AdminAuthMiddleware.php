@@ -8,6 +8,7 @@ use Pafish\Core\Auth;
 use Pafish\Core\RedirectException;
 use Pafish\Core\Session;
 use Pafish\Core\Url;
+use Pafish\Services\AppTokens;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Psr\Http\Server\RequestHandlerInterface as Handler;
@@ -21,6 +22,23 @@ final class AdminAuthMiddleware
 {
     public function __invoke(Request $request, Handler $handler): Response
     {
+        $authorization = trim($request->getHeaderLine('Authorization'));
+        if (preg_match('/^Bearer\b/i', $authorization) === 1) {
+            $auth = AppTokens::authenticate($request);
+            if ($auth === null) {
+                $response = new \Slim\Psr7\Response(401);
+                $response->getBody()->write(json_encode(['error' => '访问令牌无效、已过期或已撤销'], JSON_UNESCAPED_UNICODE));
+                return $response->withHeader('Content-Type', 'application/json; charset=UTF-8');
+            }
+            if ($request->getMethod() !== 'POST'
+                || strtolower($request->getHeaderLine('X-Requested-With')) !== 'xmlhttprequest') {
+                $response = new \Slim\Psr7\Response(405);
+                $response->getBody()->write(json_encode(['error' => 'Bearer 令牌仅可调用后台 AJAX 写入接口'], JSON_UNESCAPED_UNICODE));
+                return $response->withHeader('Content-Type', 'application/json; charset=UTF-8');
+            }
+            return Auth::withBearerUser((int) $auth['user']['id'], static fn (): Response => $handler->handle($request));
+        }
+
         if (!Auth::check()) {
             $uri = $request->getUri();
             $from = $uri->getPath();

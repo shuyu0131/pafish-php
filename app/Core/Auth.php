@@ -13,6 +13,7 @@ final class Auth
     private const SESSION_KEY = 'user_id';
 
     private static ?array $user = null;
+    private static ?array $bearerUser = null;
     private static bool $activityTouched = false;
 
     public const PASSWORD_RULE = '密码至少6个字符，且不超过72字节';
@@ -71,6 +72,9 @@ final class Auth
     /** 当前登录用户（回查库），未登录返回 null */
     public static function user(): ?array
     {
+        if (self::$bearerUser !== null) {
+            return self::$bearerUser ?: null;
+        }
         if (self::$user !== null) {
             return self::$user ?: null;
         }
@@ -84,6 +88,23 @@ final class Auth
             self::touchActivity();
         }
         return self::$user ?: null;
+    }
+
+    /** Run a handler as a verified app-token user without changing the PHP session. */
+    public static function withBearerUser(int $userId, callable $callback): mixed
+    {
+        $previous = self::$bearerUser;
+        self::$bearerUser = DB::fetchOne('SELECT * FROM users WHERE id = ? AND disabled = 0', [$userId]) ?? [];
+        try {
+            return $callback();
+        } finally {
+            self::$bearerUser = $previous;
+        }
+    }
+
+    public static function isBearerAuthenticated(): bool
+    {
+        return self::$bearerUser !== null && self::$bearerUser !== [];
     }
 
     public static function id(): ?int

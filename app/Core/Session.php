@@ -108,6 +108,9 @@ final class Session
 
     public static function verifyCsrf(?string $token): bool
     {
+        if (Auth::isBearerAuthenticated()) {
+            return true;
+        }
         $expected = $_SESSION['_csrf'] ?? null;
         return is_string($expected) && is_string($token) && hash_equals($expected, $token);
     }

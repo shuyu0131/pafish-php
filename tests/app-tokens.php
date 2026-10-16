@@ -9,7 +9,9 @@ require PAFISH_ROOT . '/app/Core/helpers.php';
 require __DIR__ . '/Fixtures/MySql.php';
 
 use Pafish\Core\Config;
+use Pafish\Core\Auth;
 use Pafish\Core\DB;
+use Pafish\Core\Session;
 use Pafish\Core\SqlScript;
 use Pafish\Services\AppTokens;
 use Pafish\Services\Migrator;
@@ -17,8 +19,10 @@ use Pafish\Services\Plugin;
 use Pafish\Services\Settings;
 use Pafish\Tests\MySql;
 use Pafish\Http\AppAuthController;
+use Pafish\Admin\AdminAuthMiddleware;
 use Slim\Psr7\Factory\ServerRequestFactory;
 use Slim\Psr7\Response;
+use Psr\Http\Server\RequestHandlerInterface;
 
 Config::load(Config::resolveFile(PAFISH_ROOT));
 $pdo = new MySql('qa_core_' . bin2hex(random_bytes(6)) . '_');
@@ -60,6 +64,39 @@ try {
         && $authenticated['tokenId'] === $tokenId && $authenticated['user']['id'] === 1);
     DB::execute('UPDATE users SET role = \'EDITOR\' WHERE id = 1');
     $check('Role changes take effect on the next token authentication', AppTokens::authenticate($request($token))['user']['role'] === 'EDITOR');
+
+    $_SESSION = ['user_id' => 2, '_csrf' => 'browser-session-csrf'];
+    $browserUserId = Auth::id();
+    $bridgeHandler = new class implements RequestHandlerInterface {
+        public function handle(\Psr\Http\Message\ServerRequestInterface $request): \Psr\Http\Message\ResponseInterface
+        {
+            $response = new Response();
+            $response->getBody()->write(json_encode([
+                'userId' => Auth::id(),
+                'canManagePosts' => Auth::can('posts.manage'),
+                'canManageUsers' => Auth::can('users.manage'),
+                'csrfAccepted' => Session::verifyCsrf(null),
+            ]));
+            return $response;
+        }
+    };
+    $adminRequest = $factory->createServerRequest('POST', '/admin/posts/save')
+        ->withHeader('Authorization', 'Bearer ' . $token)
+        ->withHeader('X-Requested-With', 'XMLHttpRequest');
+    $bridgeResponse = (new AdminAuthMiddleware())($adminRequest, $bridgeHandler);
+    $bridge = json_decode((string) $bridgeResponse->getBody(), true);
+    $check('Verified app token supplies its user and capabilities to existing admin handlers', $bridge['userId'] === 1
+        && $bridge['canManagePosts'] && !$bridge['canManageUsers'] && $bridge['csrfAccepted']);
+    $check('Bearer bridge does not overwrite the browser session identity', (int) $_SESSION['user_id'] === 2
+        && Auth::id() === $browserUserId);
+    $invalidResponse = (new AdminAuthMiddleware())(
+        $adminRequest->withHeader('Authorization', 'Bearer ' . str_repeat('0', 64)), $bridgeHandler
+    );
+    $check('Invalid bearer credentials cannot fall back to a logged-in browser session', $invalidResponse->getStatusCode() === 401);
+    $htmlResponse = (new AdminAuthMiddleware())(
+        $factory->createServerRequest('GET', '/admin')->withHeader('Authorization', 'Bearer ' . $token), $bridgeHandler
+    );
+    $check('Bearer credentials cannot be used to fetch browser admin pages', $htmlResponse->getStatusCode() === 405);
 
     $other = AppTokens::issue(2, 'Other account phone');
     $otherStoredId = (int) DB::value('SELECT id FROM app_tokens WHERE user_id = 2');

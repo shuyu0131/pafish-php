@@ -9,6 +9,7 @@ use Pafish\Core\DB;
 use Pafish\Core\Session;
 use Pafish\Core\Url;
 use Pafish\Http\Comments;
+use Pafish\Http\Responses;
 use Pafish\Services\Plugin;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -136,10 +137,7 @@ abstract class AdminController
     /** 统一 JSON 响应。 */
     protected function json(Response $response, array $data, int $status = 200): Response
     {
-        $response->getBody()->write(json_encode($data, JSON_UNESCAPED_UNICODE));
-        return $response
-            ->withStatus($status)
-            ->withHeader('Content-Type', 'application/json');
+        return Responses::json($response, $data, $status);
     }
 
     /** 读取并清除 flash */
@@ -210,22 +208,17 @@ abstract class AdminController
         return ['top' => $top, 'groups' => $groups];
     }
 
-    /** 注入低成本待办计数；编辑角色只统计自己可管理的内容。 */
+    /** 注入待审评论计数；编辑角色只统计自己可管理的内容。 */
     private function navWithBadges(array $nav, string $role): array
     {
         $userId = (int) (Auth::id() ?? 0);
         $postScope = $role === 'EDITOR' ? ' AND p.author_id = ?' : '';
         $postParams = $role === 'EDITOR' ? [$userId] : [];
-        $drafts = (int) DB::value(
-            "SELECT COUNT(*) FROM posts p WHERE p.status = 'DRAFT' AND p.deleted_at IS NULL{$postScope}",
-            $postParams
-        );
         $pendingComments = (int) DB::value(
             "SELECT COUNT(*) FROM comments c JOIN posts p ON p.id = c.post_id WHERE c.status = 'PENDING' AND p.deleted_at IS NULL{$postScope}",
             $postParams
         );
         $badges = [
-            '/admin/posts' => $drafts,
             '/admin/comments' => $pendingComments,
         ];
         foreach ($nav['top'] as &$item) {

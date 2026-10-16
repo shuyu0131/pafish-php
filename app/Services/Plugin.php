@@ -276,6 +276,7 @@ final class Plugin
             'builtin' => ($json['builtin'] ?? false) === true,
             'apiVersion' => is_int($json['apiVersion'] ?? null) ? $json['apiVersion'] : 1,
             'description' => is_string($json['description'] ?? null) ? $json['description'] : '',
+            'category' => is_string($json['category'] ?? null) ? $json['category'] : '',
             'author' => is_string($json['author'] ?? null) ? $json['author'] : '',
             'authorUrl' => self::manifestUrl($json, 'authorUrl'),
             'homepage' => self::manifestUrl($json, 'homepage'),
@@ -389,8 +390,7 @@ final class Plugin
     /** 兼容 author_url/url 旧字段，过滤非网页地址。 */
     private static function manifestUrl(array $json, string $key): string
     {
-        $value = $json[$key] ?? ($key === 'homepage' ? ($json['url'] ?? '') : ($json['author_url'] ?? ''));
-        return is_string($value) && preg_match('/^https?:\\/\\//i', $value) === 1 ? $value : '';
+        return ExtensionLinks::manifestUrl($json, $key);
     }
 
     /** 当前插件上下文。 */
@@ -450,17 +450,18 @@ final class Plugin
             }
             $clean[$key] = $value;
         }
-        Settings::set('plugin_settings:' . $name, json_encode(array_merge(self::settings($name), $clean), JSON_UNESCAPED_UNICODE));
+        ExtensionStorage::updateJson('plugin_settings:' . $name, static fn (array $current): array => array_merge($current, $clean));
     }
 
     /** 追加插件日志。 */
     public static function log(string $name, string $message): void
     {
-        $data = self::data($name);
-        $logs = is_array($data['logs'] ?? null) ? $data['logs'] : [];
-        $logs[] = ['time' => date('Y-m-d H:i:s'), 'message' => $message];
-        $data['logs'] = array_slice($logs, -self::MAX_LOGS);
-        self::setData($name, $data);
+        ExtensionStorage::updateJson('plugin_data:' . $name, static function (array $data) use ($message): array {
+            $logs = is_array($data['logs'] ?? null) ? $data['logs'] : [];
+            $logs[] = ['time' => date('Y-m-d H:i:s'), 'message' => $message];
+            $data['logs'] = array_slice($logs, -self::MAX_LOGS);
+            return $data;
+        });
     }
 
     // ---------- 生命周期 ----------
@@ -585,6 +586,19 @@ final class Plugin
         ExtensionSchema::recordFingerprint('plugin', $name, $schema);
         self::runUpgrade($name, $previousVersion, $version);
         ExtensionSchema::recordVersion('plugin', $name, $version);
+        // 编辑器是全站唯一能力。启用新的编辑器插件时自动停用已启用的同类插件，
+        // 让“启用即接管”保持确定性，不再额外增加站点级选择配置。
+        if (($desc['manifest']['category'] ?? '') === 'editor') {
+            foreach (self::activeNames() as $active) {
+                if ($active === $name) {
+                    continue;
+                }
+                $activeManifest = self::manifest($active);
+                if (($activeManifest['category'] ?? '') === 'editor') {
+                    self::deactivate($active);
+                }
+            }
+        }
         $list = self::activeNames();
         $wasActive = in_array($name, $list, true);
         if (!$wasActive) {

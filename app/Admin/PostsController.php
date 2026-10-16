@@ -76,10 +76,10 @@ final class PostsController extends AdminController
 
         $orderBy = match ($sort) {
             'updated' => 'p.updated_at DESC',
-            'pinned' => 'p.is_pinned DESC, p.published_at DESC',
+            'pinned' => 'p.is_pinned DESC, p.published_at DESC, p.id DESC',
             'views' => 'p.view_count DESC',
             'comments' => '(SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) DESC, p.id DESC',
-            default => 'p.published_at DESC',
+            default => 'p.published_at DESC, p.id DESC',
         };
 
         $total = (int) DB::value("SELECT COUNT(*) FROM posts p WHERE {$where}", $params);
@@ -238,6 +238,7 @@ final class PostsController extends AdminController
         $op = (string) ($body['op'] ?? '');
         $in = implode(',', array_fill(0, count($ids), '?'));
         $publishedRows = [];
+        $commentEvents = [];
 
         try {
             switch ($op) {
@@ -264,7 +265,16 @@ final class PostsController extends AdminController
                     DB::execute("UPDATE posts SET deleted_at = NULL WHERE id IN ({$in})", $ids);
                     break;
                 case 'purge':
-                    DB::execute("DELETE FROM posts WHERE id IN ({$in}) AND deleted_at IS NOT NULL", $ids);
+                    $commentEvents = \Pafish\Services\MediaReferences::transaction(static function () use ($ids, $in): array {
+                        $events = [];
+                        $rows = DB::fetchAll("SELECT id FROM posts WHERE id IN ({$in}) AND deleted_at IS NOT NULL ORDER BY id FOR UPDATE", $ids);
+                        foreach ($rows as $row) {
+                            array_push($events, ...\Pafish\Services\Comments::deleteForPost((int) $row['id']));
+                            DB::execute('DELETE FROM posts WHERE id = ?', [$row['id']]);
+                            \Pafish\Services\MediaReferences::forget('post', (int) $row['id']);
+                        }
+                        return $events;
+                    });
                     break;
                 case 'move':
                     $rawCat = (string) ($body['category_id'] ?? '');
@@ -284,6 +294,7 @@ final class PostsController extends AdminController
             return $this->json($response, ['error' => '操作失败'], 500);
         }
 
+        \Pafish\Services\Comments::emit($commentEvents);
         foreach ($publishedRows as $row) {
             $payload = self::postPayloadFromRow($row, 'batch', (string) $row['status']);
             $payload['status'] = 'PUBLISHED';
@@ -307,7 +318,18 @@ final class PostsController extends AdminController
      */
     public function savePost(array $body, ?int $id = null): array
     {
+        return \Pafish\Services\MediaReferences::transaction(function () use ($body, $id): array {
+            return $this->persistPost($body, $id);
+        });
+    }
+    private function persistPost(array $body, ?int $id = null): array
+    {
         $action = (string) ($body['action'] ?? 'draft');
+        $stored = $id !== null ? DB::fetchOne('SELECT * FROM posts WHERE id = ? FOR UPDATE', [$id]) : null;
+        if ($id !== null && $stored === null) throw new \RuntimeException('文章不存在');
+        $seo = \Pafish\Services\Content::seoFields($body, $stored ?? []);
+        $allowComments = $body['allow_comments'] ?? $stored['allow_comments'] ?? 1;
+        if (!in_array($allowComments, [true,false,1,0,'1','0'], true)) throw new \RuntimeException('评论开关无效');
         if ($id !== null && !\Pafish\Core\Auth::isAdmin()) {
             $owned = DB::fetchOne('SELECT id FROM posts WHERE id = ? AND author_id = ?', [$id, (int) \Pafish\Core\Auth::id()]);
             if ($owned === null) {
@@ -328,7 +350,9 @@ final class PostsController extends AdminController
         if (mb_strlen($externalUrl) > 500) {
             $externalUrl = '';
         }
+        $contentFormat = \Pafish\Services\Content::format($body['content_format'] ?? ($id !== null ? (DB::value('SELECT content_format FROM posts WHERE id = ?', [$id]) ?: 'markdown') : 'markdown'));
         $content = (string) ($body['content'] ?? '');
+        if ($contentFormat === 'html') $content = \Pafish\Services\Content::sanitize($content);
         if (trim($content) === '' && $externalUrl === '') {
             throw new \RuntimeException('内容不能为空（若这是纯外链条目，请填写外链地址）');
         }
@@ -352,10 +376,10 @@ final class PostsController extends AdminController
         $excerpt = trim((string) ($body['excerpt'] ?? ''));
         $coverUrl = trim((string) ($body['cover_url'] ?? ''));
         if ($excerpt === '') {
-            $excerpt = self::extractSummary($content);
+            $excerpt = self::extractSummary($content, 180, $contentFormat);
         }
         if ($coverUrl === '') {
-            $coverUrl = (string) self::extractCover($content);
+            $coverUrl = (string) self::extractCover($content, $contentFormat);
         }
         if (mb_strlen($excerpt) > 500) {
             $excerpt = mb_substr($excerpt, 0, 500);
@@ -413,6 +437,7 @@ final class PostsController extends AdminController
         $passwordSet = false;
         $newPass = (string) ($body['password'] ?? '');
         if (trim($newPass) !== '') {
+            if (strlen(trim($newPass)) > 72 || str_contains($newPass, "\0")) throw new \RuntimeException('文章密码过长或含无效字符，最多72字节');
             $password = password_hash(trim($newPass), PASSWORD_BCRYPT);
             $passwordSet = true;
         } elseif (!empty($body['remove_password'])) {
@@ -435,23 +460,35 @@ final class PostsController extends AdminController
             'slug' => $slug,
             'excerpt' => $excerpt,
             'content' => $content,
+            'contentFormat' => $contentFormat,
             'status' => $status,
             'publishedAt' => $publishedAt,
             'categoryId' => $categoryId,
             'externalUrl' => $externalUrl,
             'isPinned' => $isPinned,
             'categoryPinned' => $categoryPinned,
+            'allowComments' => (bool) $allowComments,
+            'seoTitle' => $seo['seo_title'],
+            'metaDescription' => $seo['meta_description'],
             'action' => $action,
         ], ['id' => $id !== null ? (string) $id : null, 'created' => $id === null]);
         if ($before === false || (is_array($before) && ($before['allowed'] ?? true) === false)) {
             throw new \RuntimeException(is_array($before) ? (string) ($before['error'] ?? '文章保存被扩展拒绝') : '文章保存被扩展拒绝');
         }
         if (is_array($before)) {
+            $seo = \Pafish\Services\Content::seoFields([
+                'seo_title' => $before['seoTitle'] ?? $seo['seo_title'],
+                'meta_description' => $before['metaDescription'] ?? $seo['meta_description'],
+            ]);
+            $allowComments = $before['allowComments'] ?? $allowComments;
+            if (!in_array($allowComments, [true,false,1,0,'1','0'], true)) throw new \RuntimeException('文章保存前过滤器返回了无效评论开关');
             foreach (['title', 'slug', 'excerpt', 'content', 'externalUrl'] as $field) {
                 if (array_key_exists($field, $before) && is_scalar($before[$field])) {
                     ${$field} = trim((string) $before[$field]);
                 }
             }
+            $contentFormat = \Pafish\Services\Content::format($before['contentFormat'] ?? $contentFormat);
+            if ($contentFormat === 'html') $content = \Pafish\Services\Content::sanitize($content);
             // 正文为空只在「同时没有外链」时才非法：过滤器可能把外链补上或清掉，
             // 所以这里要用过滤后的值重新判断，不能沿用入口处的结论。
             if (($content === '' && $externalUrl === '')
@@ -472,19 +509,22 @@ final class PostsController extends AdminController
             $created = true;
             $pdo = DB::pdo();
             $stmt = $pdo->prepare(
-                'INSERT INTO posts (title, slug, excerpt, content, cover_url, status, published_at,
+                'INSERT INTO posts (title, slug, excerpt, content, content_format, cover_url, status, published_at,
                     is_pinned, category_pinned, password, external_url, custom_fields, author_id, category_id, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
             );
             $stmt->execute([
-                $title, $slug, $excerpt, $content, $coverUrl !== '' ? $coverUrl : null,
+                $title, $slug, $excerpt, $content, $contentFormat, $coverUrl !== '' ? $coverUrl : null,
                 $status, $publishedAt, $isPinned ? 1 : 0, $categoryPinned ? 1 : 0,
                 $password, $externalUrl !== '' ? $externalUrl : null, $customFields,
                 $authorId, $categoryId, $now, $now,
             ]);
             $id = (int) $pdo->lastInsertId();
+            DB::execute('UPDATE posts SET allow_comments=?,seo_title=?,meta_description=? WHERE id=?',
+                [(int) (bool) $allowComments,$seo['seo_title'],$seo['meta_description'],$id]);
             self::replaceTags($id, $tagIds);
-            $payload = self::postPayload($id, $title, $slug, $status, $publishedAt, $categoryId, $externalUrl, $isPinned, $categoryPinned, $action, null);
+            \Pafish\Services\MediaReferences::sync('post', $id);
+            $payload = self::postPayload($id, $title, $slug, $status, $publishedAt, $categoryId, $externalUrl, $isPinned, $categoryPinned, $action, null, $seo + ['allow_comments' => $allowComments]);
             \do_action('after_create_post', $payload);
         } else {
             $created = false;
@@ -505,19 +545,22 @@ final class PostsController extends AdminController
                 $password = $existing['password'];
             }
             DB::execute(
-                'UPDATE posts SET title = ?, slug = ?, excerpt = ?, content = ?, cover_url = ?, status = ?,
+                'UPDATE posts SET title = ?, slug = ?, excerpt = ?, content = ?, content_format = ?, cover_url = ?, status = ?,
                     published_at = ?, is_pinned = ?, category_pinned = ?, password = ?, external_url = ?,
                     custom_fields = ?, category_id = ?, updated_at = ?
                  WHERE id = ?',
                 [
-                    $title, $slug, $excerpt, $content, $coverUrl !== '' ? $coverUrl : null,
+                    $title, $slug, $excerpt, $content, $contentFormat, $coverUrl !== '' ? $coverUrl : null,
                     $status, $publishedAt, $isPinned ? 1 : 0, $categoryPinned ? 1 : 0,
                     $password, $externalUrl !== '' ? $externalUrl : null, $customFields,
                     $categoryId, $now, $id,
                 ]
             );
+            DB::execute('UPDATE posts SET allow_comments=?,seo_title=?,meta_description=? WHERE id=?',
+                [(int) (bool) $allowComments,$seo['seo_title'],$seo['meta_description'],$id]);
             self::replaceTags($id, $tagIds);
-            $payload = self::postPayload($id, $title, $slug, $status, $publishedAt, $categoryId, $externalUrl, $isPinned, $categoryPinned, $action, $previousStatus);
+            \Pafish\Services\MediaReferences::sync('post', $id);
+            $payload = self::postPayload($id, $title, $slug, $status, $publishedAt, $categoryId, $externalUrl, $isPinned, $categoryPinned, $action, $previousStatus, $seo + ['allow_comments' => $allowComments]);
             \do_action('after_update_post', $payload);
         }
 
@@ -600,7 +643,16 @@ final class PostsController extends AdminController
                     DB::execute('UPDATE posts SET deleted_at = NULL WHERE id = ?', [$id]);
                     break;
                 case 'purge':
-                    DB::execute('DELETE FROM posts WHERE id = ? AND deleted_at IS NOT NULL', [$id]);
+                    $commentEvents = \Pafish\Services\MediaReferences::transaction(static function () use ($id): array {
+                        if (DB::fetchOne('SELECT id FROM posts WHERE id = ? AND deleted_at IS NOT NULL FOR UPDATE', [$id])) {
+                            $events = \Pafish\Services\Comments::deleteForPost($id);
+                            DB::execute('DELETE FROM posts WHERE id = ?', [$id]);
+                            \Pafish\Services\MediaReferences::forget('post', $id);
+                            return $events;
+                        }
+                        return [];
+                    });
+                    \Pafish\Services\Comments::emit($commentEvents);
                     \do_action('after_purge_post', self::postPayloadFromRow($post));
                     break;
             }
@@ -618,22 +670,18 @@ final class PostsController extends AdminController
         return $this->json($response, ['ok' => true]);
     }
 
-    /** 从 Markdown 提取纯文本摘要（前 180 字） */
-    public static function extractSummary(string $md, int $max = 180): string
+    /** 正文先按自身格式渲染，再提取摘要；不把 HTML 标签写进列表摘要。 */
+    public static function extractSummary(string $content, int $max = 180, string $format = 'markdown'): string
     {
-        $text = (string) preg_replace('/```[\s\S]*?```/', ' ', $md);
-        $text = (string) preg_replace('/!\[[^\]]*\]\([^)\s]*\)/', ' ', $text);
-        $text = (string) preg_replace('/\[([^\]]*)\]\([^)\s]*\)/', '$1', $text);
-        $text = (string) preg_replace('/[#>*_`~\-|]/', ' ', $text);
-        $text = trim((string) preg_replace('/\s+/u', ' ', $text));
-        return mb_substr($text, 0, $max);
+        return mb_substr(\Pafish\Services\Content::plain($content, $format), 0, $max);
     }
 
-    /** 提取第一张图片 URL */
-    public static function extractCover(string $md): ?string
+    /** 提取正文中实际渲染的第一张图片，忽略代码块中的图片语法。 */
+    public static function extractCover(string $content, string $format = 'markdown'): ?string
     {
-        if (preg_match('/!\[[^\]]*\]\(([^)\s]+)\)/', $md, $m)) {
-            return $m[1];
+        $html = \Pafish\Services\Content::render($content, $format);
+        if (preg_match('/<img\b[^>]*\bsrc="([^"]+)"/i', $html, $m)) {
+            return html_entity_decode($m[1], ENT_QUOTES | ENT_HTML5, 'UTF-8');
         }
         return null;
     }
@@ -668,7 +716,9 @@ final class PostsController extends AdminController
         }
         $slug = Slug::resolveUnique(Slug::slugify($name), fn (string $s) => DB::value('SELECT COUNT(*) FROM categories WHERE slug = ?', [$s]) > 0);
         DB::execute('INSERT INTO categories (name, slug, description, parent_id, sort_order) VALUES (?, ?, NULL, NULL, 0)', [$name, $slug]);
-        return (int) DB::pdo()->lastInsertId();
+        $id = (int) DB::pdo()->lastInsertId();
+        \Pafish\Core\Cache::clearPrefix('categories.');
+        return $id;
     }
 
     /** 全量重建文章标签关联。 */
@@ -739,7 +789,8 @@ final class PostsController extends AdminController
         bool $isPinned,
         bool $categoryPinned,
         ?string $action = null,
-        ?string $previousStatus = null
+        ?string $previousStatus = null,
+        array $controls = []
     ): array
     {
         return [
@@ -754,6 +805,9 @@ final class PostsController extends AdminController
             'categoryPinned' => $categoryPinned,
             'action' => $action,
             'previousStatus' => $previousStatus,
+            'allowComments' => (bool) ($controls['allow_comments'] ?? 1),
+            'seoTitle' => (string) ($controls['seo_title'] ?? ''),
+            'metaDescription' => (string) ($controls['meta_description'] ?? ''),
         ];
     }
 
@@ -770,7 +824,8 @@ final class PostsController extends AdminController
             (bool) $row['is_pinned'],
             (bool) $row['category_pinned'],
             $action,
-            $previousStatus
+            $previousStatus,
+            $row
         );
     }
 

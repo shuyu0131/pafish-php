@@ -53,10 +53,17 @@ $accept = 'image/*,.svg,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip
       <h1 class="admin-h1">媒体库</h1>
       <p class="admin-page-sub">共 <?= (int) $total ?> 个媒体</p>
     </div>
-    <div class="admin-head-actions"><button type="button" class="btn btn-outline" id="btnAddExternal" title="添加外部资源" aria-label="添加外部资源"><?= admin_icon('link', 15) ?><span>添加外部资源</span></button>
+    <div class="admin-head-actions">
+<?php if ($canRebuildReferences ?? false): ?>
+      <button type="button" class="btn btn-outline" id="btnRebuildReferences">重建媒体引用</button>
+<?php endif; ?>
+<button type="button" class="btn btn-outline" id="btnAddExternal" title="添加外部资源" aria-label="添加外部资源"><?= admin_icon('link', 15) ?><span>添加外部资源</span></button>
 <button type="button" class="btn btn-primary" id="btnUploadMedia"><?= admin_icon('upload', 15) ?><span id="btnUploadLabel">上传媒体</span></button></div>
   </div>
 
+  <?php if (!($referencesReady ?? true)): ?>
+    <p role="status">媒体引用尚未重建，暂不能删除媒体。请管理员点击“重建媒体引用”。</p>
+  <?php endif; ?>
   <div class="admin-media-toolbar">
     <div class="admin-media-query">
       <input type="search" class="input admin-media-search" id="mediaQ" placeholder="搜索文件名…" value="<?= e($q) ?>" autocomplete="off">
@@ -128,16 +135,22 @@ $accept = 'image/*,.svg,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip
     <?php else: ?>
     <div class="admin-table-wrap admin-media-table-wrap">
       <table class="admin-table admin-media-table">
-        <thead><tr><th>文件</th><th>类型</th><th>大小</th><th>上传时间</th><th>引用</th><th class="admin-col-ops">操作</th></tr></thead>
+        <thead><tr><th>文件</th><th class="admin-table-secondary">类型</th><th class="admin-table-secondary">大小</th><th class="admin-table-secondary">上传时间</th><th class="admin-table-secondary">引用</th><th class="admin-col-ops">操作</th></tr></thead>
         <tbody>
           <?php foreach ($items as $u): ?>
             <?php $kind = $kindOf($u); $isExternal = !str_contains((string) $u['url'], '/uploads/'); $ext = strtolower(pathinfo((string) parse_url((string) $u['url'], PHP_URL_PATH), PATHINFO_EXTENSION)); ?>
             <tr class="admin-media-row" data-media-id="<?= (int) $u['id'] ?>">
-              <td data-label="文件"><div class="admin-media-list-name"><span class="admin-media-list-icon"><?= admin_icon($kindIcon[$kind], 18) ?></span><span title="<?= e($u['original_name']) ?>"><?= e($u['original_name']) ?></span><?php if ($isExternal): ?><span class="badge">外链</span><?php endif; ?></div></td>
-              <td data-label="类型"><?= e(strtoupper($ext !== '' ? $ext : $kind)) ?></td>
-              <td data-label="大小"><?= e($formatSize((int) $u['size'])) ?></td>
-              <td data-label="上传时间" class="admin-media-list-date"><?= e(format_date($u['created_at'], 'yyyy-MM-dd HH:mm')) ?></td>
-              <td data-label="引用"><?= (int) ($u['usage_count'] ?? 0) ?></td>
+              <td data-label="文件">
+                <div class="admin-media-list-name"><span class="admin-media-list-icon"><?= admin_icon($kindIcon[$kind], 18) ?></span><span title="<?= e($u['original_name']) ?>"><?= e($u['original_name']) ?></span><?php if ($isExternal): ?><span class="badge">外链</span><?php endif; ?></div>
+                <div class="admin-table-mobile-meta">
+                  <span><?= e(strtoupper($ext !== '' ? $ext : $kind)) ?></span><span><?= e($formatSize((int) $u['size'])) ?></span><span>引用 <?= (int) ($u['usage_count'] ?? 0) ?></span>
+                  <time title="上传时间" datetime="<?= e((string) $u['created_at']) ?>"><?= e(format_date($u['created_at'], 'yyyy-MM-dd HH:mm')) ?></time>
+                </div>
+              </td>
+              <td data-label="类型" class="admin-table-secondary"><?= e(strtoupper($ext !== '' ? $ext : $kind)) ?></td>
+              <td data-label="大小" class="admin-table-secondary"><?= e($formatSize((int) $u['size'])) ?></td>
+              <td data-label="上传时间" class="admin-media-list-date admin-table-secondary"><?= e(format_date($u['created_at'], 'yyyy-MM-dd HH:mm')) ?></td>
+              <td data-label="引用" class="admin-table-secondary"><?= (int) ($u['usage_count'] ?? 0) ?></td>
               <td data-label="操作" class="admin-col-ops"><div class="admin-media-ops"><button type="button" class="admin-icon-btn" data-copy-url="<?= e(absolute_url($u['url'])) ?>" title="复制完整 URL"><?= admin_icon('copy', 14) ?></button><a class="admin-icon-btn" href="<?= e($u['url']) ?>" target="_blank" rel="noopener" title="新窗口打开"><?= admin_icon('external-link', 14) ?></a><button type="button" class="admin-icon-btn admin-icon-danger" data-delete-media="<?= (int) $u['id'] ?>" data-name="<?= e($u['original_name']) ?>" title="删除"><?= admin_icon('trash', 14) ?></button></div></td>
             </tr>
           <?php endforeach; ?>
@@ -179,6 +192,19 @@ $accept = 'image/*,.svg,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip
 
 <script>
 (function () {
+  var rebuildBtn = document.getElementById("btnRebuildReferences");
+  if (rebuildBtn) rebuildBtn.addEventListener("click", function () {
+    rebuildBtn.disabled = true;
+    rebuildBtn.textContent = "正在重建…";
+    post(<?= json_encode(url_to('/admin/uploads/rebuild-references')) ?>)
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (!j || !j.ok) throw new Error((j && j.error) || "引用重建失败");
+        pafishToastReload("媒体引用已重建", "success");
+      })
+      .catch(function (error) { pafishNotify(error.message || "引用重建失败", true); })
+      .finally(function () { rebuildBtn.disabled = false; rebuildBtn.textContent = "重建媒体引用"; });
+  });
   var token = <?= json_encode($pageCsrf) ?>;
   function post(url, body) {
     var fd = new FormData();
@@ -316,7 +342,10 @@ $accept = 'image/*,.svg,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip
           if (j && j.ok) pafishToastReload("媒体已删除", "success");
           else if (j && j.usageCount) {
             (window.pafishConfirm ? window.pafishConfirm("该媒体仍被引用 " + j.usageCount + " 次，确认强制删除？", { title: "强制删除媒体" }) : Promise.resolve(window.confirm("确认强制删除？"))).then(function (force) {
-              if (force) post(<?= json_encode(url_to('/admin/uploads')) ?> + "/" + id + "/delete", { force: "1" }).then(function (forced) { if (forced && forced.ok) pafishToastReload("媒体已强制删除", "success"); else pafishNotify("强制删除失败", true); });
+              if (force) post(<?= json_encode(url_to('/admin/uploads')) ?> + "/" + id + "/delete", { force: "1" })
+                .then(function (r) { return r.json(); })
+                .then(function (forced) { if (forced && forced.ok) pafishToastReload("媒体已强制删除", "success"); else pafishNotify((forced && forced.error) || "强制删除失败", true); })
+                .catch(function () { pafishNotify("网络错误", true); });
             });
           } else pafishNotify((j && j.error) || "删除失败", true);
         })

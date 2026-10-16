@@ -1,9 +1,9 @@
 <?php
 /**
  * 侧边栏组件管理：
- * - 顶部新建表单：类型下拉（6 种）+ 标题（留空用默认）+ content（仅 custom 显示）
+ * - 新建与编辑复用弹窗，内容框仅在自定义类型显示
  * - 列表行：标题（无标题显示类型名）+ 类型徽标 + 「已隐藏」badge + custom 预览首行
- * - 操作：↑/↓ 上下移动（边界禁用）、显隐、编辑（行内展开）、删除（确认弹窗）
+ * - 操作：↑/↓ 上下移动（边界禁用）、显隐、编辑（弹窗）、删除（确认弹窗）
  * 变量：$items $types $typeLabels $defaultTitles $role
  */
 $count = count($items);
@@ -14,7 +14,6 @@ foreach ($items as $w) {
     }
 }
 $typeJson = json_encode($defaultTitles, JSON_UNESCAPED_UNICODE);
-$areaJson = json_encode($areas ?? ['sidebar' => '侧边栏'], JSON_UNESCAPED_UNICODE);
 $existingTypes = [];
 foreach ($items as $item) {
     $existingTypes[(string) ($item['type'] ?? '')] = true;
@@ -35,6 +34,7 @@ $typeHints = [
       <h1 class="admin-h1">组件管理</h1>
       <p class="admin-page-sub">共 <?= $count ?> 个（含隐藏 <?= $hidden ?> 个）· 区域和顺序由当前主题决定</p>
     </div>
+    <button type="button" class="btn btn-primary" data-entity-new="widgetsModal"><?= admin_icon('plus', 15) ?>添加组件</button>
   </div>
 
   <div class="admin-widget-layout">
@@ -43,7 +43,6 @@ $typeHints = [
         <div class="admin-widget-panel-head">
           <div>
             <h2 class="admin-card-title">可用组件</h2>
-            <p class="admin-widget-panel-meta">选择组件后添加到右侧区域</p>
           </div>
         </div>
         <div class="admin-widget-available-list">
@@ -61,44 +60,6 @@ $typeHints = [
         </div>
       </div>
 
-      <div class="card admin-form-card">
-    <h2 class="admin-card-title">添加组件</h2>
-    <form id="createForm" method="post" action="<?= e(url_to('/admin/widgets/save')) ?>" novalidate>
-      <?= csrf_field() ?>
-      <div class="admin-form-grid">
-        <div class="admin-field">
-          <span class="label">类型 *</span>
-          <select class="input" name="type" id="newType">
-            <?php foreach ($types as $t): ?>
-              <option value="<?= e($t) ?>" data-default="<?= e($defaultTitles[$t]) ?>"><?= e($typeLabels[$t]) ?></option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-        <div class="admin-field">
-          <span class="label">显示区域 *</span>
-          <select class="input" name="area" id="newArea">
-            <?php foreach (($areas ?? ['sidebar' => '侧边栏']) as $areaKey => $areaLabel): ?>
-              <option value="<?= e($areaKey) ?>"><?= e($areaLabel) ?></option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-        <div class="admin-field">
-          <span class="label">标题（留空用默认）</span>
-          <input class="input" type="text" name="title" id="newTitle" placeholder="分类" maxlength="100">
-        </div>
-      </div>
-      <div class="admin-field" id="newContentField">
-        <span class="label">内容 *</span>
-        <textarea class="input" name="content" rows="4" maxlength="5000"
-                  placeholder="每行一段，支持 [文字](https://链接) 格式"></textarea>
-      </div>
-      <p class="admin-field-hint">分类 / 标签 / 最新文章 / 热门文章 / 最新评论为自动内容，自定义文本由你填写。</p>
-      <div class="admin-cat-form-actions">
-        <button type="submit" class="btn btn-primary">添加组件</button>
-      </div>
-      <div class="admin-editor-error" hidden></div>
-      </form>
-      </div>
     </section>
 
     <section class="admin-widget-active">
@@ -111,7 +72,7 @@ $typeHints = [
       <?php if ($count === 0): ?>
         <div class="admin-empty-list card">
       <?= admin_icon('layout', 32) ?>
-      <p>还没有组件，在上方添加第一个</p>
+      <p>还没有组件</p>
         </div>
       <?php else: ?>
         <div class="admin-list admin-widget-list">
@@ -161,46 +122,8 @@ $typeHints = [
             <button type="button" class="admin-icon-btn" data-toggle title="<?= (int) $w['visible'] === 1 ? '隐藏' : '显示' ?>" aria-label="<?= (int) $w['visible'] === 1 ? '隐藏' : '显示' ?> <?= e($showTitle) ?>">
               <?= admin_icon((int) $w['visible'] === 1 ? 'eye' : 'eye-off', 15) ?>
             </button>
-            <button type="button" class="admin-icon-btn" data-edit title="编辑" aria-label="编辑 <?= e($showTitle) ?>"><?= admin_icon('edit', 15) ?></button>
+            <button type="button" class="admin-icon-btn" data-entity-edit="widgetsModal" title="编辑" aria-label="编辑 <?= e($showTitle) ?>"><?= admin_icon('edit', 15) ?></button>
             <button type="button" class="admin-icon-btn admin-icon-danger" data-delete title="删除" aria-label="删除 <?= e($showTitle) ?>"><?= admin_icon('trash', 15) ?></button>
-          </div>
-          <!-- 行内编辑表单 -->
-          <div class="admin-list-edit" hidden>
-            <form class="admin-inline-edit" method="post" novalidate>
-              <?= csrf_field() ?>
-              <div class="admin-form-grid">
-                <div class="admin-field">
-                  <span class="label">类型 *</span>
-                  <select class="input" name="type">
-                    <?php foreach ($types as $t): ?>
-                      <option value="<?= e($t) ?>" data-default="<?= e($defaultTitles[$t]) ?>"><?= e($typeLabels[$t]) ?></option>
-                    <?php endforeach; ?>
-                  </select>
-                </div>
-                <div class="admin-field">
-                  <span class="label">显示区域 *</span>
-                  <select class="input" name="area">
-                    <?php foreach (($areas ?? ['sidebar' => '侧边栏']) as $areaKey => $areaLabel): ?>
-                      <option value="<?= e($areaKey) ?>"><?= e($areaLabel) ?></option>
-                    <?php endforeach; ?>
-                  </select>
-                </div>
-                <div class="admin-field">
-                  <span class="label">标题（留空用默认）</span>
-                  <input class="input" type="text" name="title" maxlength="100">
-                </div>
-              </div>
-              <div class="admin-field">
-                <span class="label">内容</span>
-                <textarea class="input" name="content" rows="4" maxlength="5000"
-                          placeholder="每行一段，支持 [文字](https://链接) 格式"></textarea>
-              </div>
-              <div class="admin-cat-form-actions">
-                <button type="submit" class="btn btn-primary">保存修改</button>
-                <button type="button" class="btn btn-ghost" data-edit-cancel>取消</button>
-              </div>
-              <div class="admin-editor-error" hidden></div>
-            </form>
           </div>
         </div>
       <?php endforeach; ?>
@@ -210,6 +133,44 @@ $typeHints = [
   </div>
 </div>
 
+<?php ob_start(); ?>
+<div class="admin-form-grid">
+        <div class="admin-field">
+          <label class="label" for="newType">类型 *</label>
+          <select class="input" name="type" id="newType" required>
+            <?php foreach ($types as $t): ?>
+              <option value="<?= e($t) ?>" data-default="<?= e($defaultTitles[$t]) ?>"><?= e($typeLabels[$t]) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="admin-field">
+          <label class="label" for="newArea">显示区域 *</label>
+          <select class="input" name="area" id="newArea" required>
+            <?php foreach (($areas ?? ['sidebar' => '侧边栏']) as $areaKey => $areaLabel): ?>
+              <option value="<?= e($areaKey) ?>"><?= e($areaLabel) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="admin-field">
+          <label class="label" for="newTitle">标题（留空用默认）</label>
+          <input class="input" type="text" name="title" id="newTitle" placeholder="分类" maxlength="100">
+        </div>
+      </div>
+      <div class="admin-field" id="newContentField">
+        <label class="label" for="widgetsContent">内容 *</label>
+          <textarea class="input" name="content" rows="4" maxlength="5000"
+                  placeholder="每行一段，支持 [文字](https://链接) 格式" id="widgetsContent" required></textarea>
+      </div>
+<?php
+$entityFields = (string) ob_get_clean();
+$entityModalId = 'widgetsModal';
+$entityFormId = 'createForm';
+$entityConfig = ['createTitle'=>'添加组件', 'editTitle'=>'编辑组件', 'savedMessage'=>'组件已保存',
+    'savePath'=>'/admin/widgets/save', 'basePath'=>'/admin/widgets', 'fields'=>['type'=>'type','area'=>'area','title'=>'title','content'=>'content']];
+require __DIR__ . '/partials/entity-modal.php';
+?>
+<script src="<?= e(asset_url('/js/admin-entity-forms.js')) ?>" defer></script>
+
 <?php $widgetsCsrf = csrf_token(); ?>
 <script>
 (function () {
@@ -217,7 +178,6 @@ $typeHints = [
   var CSRF = <?= json_encode($widgetsCsrf) ?>;
   var base = <?= json_encode(url_to('/admin/widgets')) ?>;
   var defaults = <?= $typeJson ?>;
-  var areas = <?= $areaJson ?>;
 
   function post(url, body) {
     var fd = new FormData();
@@ -225,20 +185,6 @@ $typeHints = [
     fd.append("_csrf", CSRF);
     return fetch(url, { method: "POST", body: fd, headers: { "X-Requested-With": "XMLHttpRequest" } });
   }
-  function submitForm(form) {
-    var err = form.querySelector(".admin-editor-error");
-    err.hidden = true;
-    var fd = new FormData(form);
-    fd.set("_csrf", CSRF);
-    fetch(form.action, { method: "POST", body: fd, headers: { "X-Requested-With": "XMLHttpRequest" } })
-      .then(function (r) { return r.json(); })
-      .then(function (j) {
-        if (j && j.ok) pafishToastReload("组件已保存", "success");
-        else { err.textContent = (j && j.error) || "保存失败"; err.hidden = false; }
-      })
-      .catch(function () { err.textContent = "网络错误"; err.hidden = false; });
-  }
-
   // 类型切换：custom 才显示内容框；切换时标题为空自动填默认标题
   function syncType(select, titleInput, contentField, isEdit, fillTitle) {
     var t = select.value;
@@ -250,6 +196,7 @@ $typeHints = [
       titleInput.placeholder = defaults[t] || "";
     }
     if (contentField) contentField.style.display = custom ? "" : "none";
+    if (contentField) contentField.querySelector("textarea").required = custom;
     var label = contentField ? contentField.querySelector(".label") : null;
     if (label) label.textContent = "内容" + (custom ? " *" : "");
   }
@@ -264,60 +211,19 @@ $typeHints = [
     });
     syncType(select, title, contentField, isEdit, false);
   }
-  wireForm(document.getElementById("createForm"), false);
-
-  document.querySelectorAll("[data-widget-add]").forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      if (btn.disabled) return;
-      var form = document.getElementById("createForm");
-      var type = btn.getAttribute("data-widget-add");
-      var select = form && form.querySelector('[name="type"]');
-      if (!form || !select) return;
-      select.value = type;
-      var title = form.querySelector('[name="title"]');
-      if (title) title.value = defaults[type] || "";
-      select.dispatchEvent(new Event("change", { bubbles: true }));
-      if (type === "custom") {
-        form.scrollIntoView({ behavior: "smooth", block: "center" });
-        form.querySelector('[name="content"]').focus();
-        return;
-      }
-      submitForm(form);
-    });
+  var widgetForm = document.getElementById("createForm");
+  wireForm(widgetForm, false);
+  widgetForm.addEventListener("pafish:entity-open", function (event) {
+    var select = widgetForm.elements.type;
+    var contentField = widgetForm.elements.content.closest(".admin-field");
+    syncType(select, widgetForm.elements.title, contentField, !event.detail.creating, false);
   });
-
-  document.getElementById("createForm").addEventListener("submit", function (e) {
-    e.preventDefault();
-    submitForm(e.target);
-  });
-
-  document.querySelectorAll("[data-edit]").forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      var row = btn.closest(".admin-list-row");
-      var box = row.querySelector(".admin-list-edit");
-      var open = !box.hidden;
-      document.querySelectorAll(".admin-list-edit").forEach(function (b) { b.hidden = true; });
-      if (open) return;
-      box.hidden = false;
-      var f = box.querySelector("form");
-      f.action = base + "/" + row.getAttribute("data-id") + "/save";
-      f.querySelector('[name="type"]').value = row.getAttribute("data-type");
-      f.querySelector('[name="area"]').value = row.getAttribute("data-area") || "sidebar";
-      f.querySelector('[name="title"]').value = row.getAttribute("data-title");
-      f.querySelector('[name="content"]').value = row.getAttribute("data-content");
-      wireForm(f, true);
-      box.scrollIntoView({ behavior: "smooth", block: "center" });
-    });
-  });
-  document.querySelectorAll("[data-edit-cancel]").forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      btn.closest(".admin-list-edit").hidden = true;
-    });
-  });
-  document.querySelectorAll(".admin-inline-edit").forEach(function (form) {
-    form.addEventListener("submit", function (e) {
-      e.preventDefault();
-      submitForm(e.target);
+  document.querySelectorAll("[data-widget-add]").forEach(function (button) {
+    button.addEventListener("click", function () {
+      var type = button.getAttribute("data-widget-add");
+      document.getElementById("widgetsModal").dispatchEvent(new CustomEvent("pafish:entity-create", {
+        detail: { type: type, title: defaults[type] || "" }
+      }));
     });
   });
 

@@ -31,7 +31,7 @@ final class UsersController extends AdminController
         $role = strtoupper((string) ($body['role'] ?? 'USER'));
         if (!preg_match('/^[a-zA-Z0-9_-]{3,50}$/', $username)) return $this->json($response, ['error' => '用户名需为 3-50 位字母、数字、下划线或连字符'], 400);
         if (!filter_var($email, FILTER_VALIDATE_EMAIL) || mb_strlen($email) > 255) return $this->json($response, ['error' => '邮箱格式不正确'], 400);
-        if (mb_strlen($password) < 6 || mb_strlen($password) > 72) return $this->json($response, ['error' => '密码长度需 6-72 位'], 400);
+        if (!Auth::validPassword($password)) return $this->json($response, ['error' => Auth::PASSWORD_RULE], 400);
         if (!in_array($role, self::ROLES, true)) return $this->json($response, ['error' => '无效角色'], 400);
         if (DB::fetchOne('SELECT id FROM users WHERE username = ? OR email = ? LIMIT 1', [$username, $email])) return $this->json($response, ['error' => '用户名或邮箱已存在'], 409);
         DB::execute('INSERT INTO users (username, nickname, email, password_hash, role) VALUES (?, ?, ?, ?, ?)', [
@@ -99,20 +99,15 @@ final class UsersController extends AdminController
             'state' => 'u.disabled DESC, u.created_at DESC, u.id DESC',
             default => 'u.created_at DESC, u.id DESC',
         };
+        $pointsEnabled = Points::available();
         $rows = DB::fetchAll(
-            "SELECT u.*, "
+            "SELECT u.*, " . ($pointsEnabled ? 'COALESCE(up.balance, 0)' : '0') . ' AS points_balance, '
             . '(SELECT COUNT(*) FROM posts p WHERE p.author_id = u.id AND p.deleted_at IS NULL) AS post_count, '
             . '(SELECT COUNT(*) FROM comments c WHERE c.user_id = u.id) AS comment_count '
-            . "FROM users u WHERE {$whereSql} ORDER BY {$orderBy} LIMIT {$per} OFFSET " . (($page - 1) * $per),
+            . 'FROM users u ' . ($pointsEnabled ? 'LEFT JOIN user_points up ON up.user_id = u.id ' : '')
+            . "WHERE {$whereSql} ORDER BY {$orderBy} LIMIT {$per} OFFSET " . (($page - 1) * $per),
             $params
         );
-        $pointsEnabled = Points::available();
-        if ($pointsEnabled) {
-            foreach ($rows as &$row) {
-                $row['points_balance'] = Points::balance((int) $row['id']);
-            }
-            unset($row);
-        }
         $response->getBody()->write($this->render('users', [
             'users' => $rows,
             'me' => Auth::user(),
@@ -208,8 +203,8 @@ final class UsersController extends AdminController
         if ($avatarUrl !== '' && !preg_match('#^(?:https?://|/)#i', $avatarUrl)) {
             return $this->userUpdateError($request, $response, $id, '头像地址需使用 http(s) 或站内路径');
         }
-        if ($password !== '' && (mb_strlen($password) < 6 || mb_strlen($password) > 72)) {
-            return $this->userUpdateError($request, $response, $id, '密码长度需 6-72 位，留空表示不修改');
+        if ($password !== '' && (!Auth::validPassword($password))) {
+            return $this->userUpdateError($request, $response, $id, Auth::PASSWORD_RULE . '，留空表示不修改');
         }
         if ($password !== '' && array_key_exists('password_confirm', $body) && !hash_equals($password, $passwordConfirm)) {
             return $this->userUpdateError($request, $response, $id, '两次输入的密码不一致');
@@ -223,18 +218,22 @@ final class UsersController extends AdminController
             return $this->userUpdateError($request, $response, $id, '用户名或邮箱已被其他用户使用', 409);
         }
 
-        if ($password !== '') {
-            DB::execute(
-                'UPDATE users SET username = ?, nickname = ?, email = ?, avatar_url = ?, description = ?, role = ?, password_hash = ?, reset_token = NULL, reset_token_expires = NULL WHERE id = ?',
-                [$username, $nickname !== '' ? $nickname : null, strtolower($email), $avatarUrl !== '' ? $avatarUrl : null, $description !== '' ? $description : null, $role, password_hash($password, PASSWORD_BCRYPT, ['cost' => 10]), $id]
-            );
-        } else {
-            DB::execute(
-                'UPDATE users SET username = ?, nickname = ?, email = ?, avatar_url = ?, description = ?, role = ? WHERE id = ?',
-                [$username, $nickname !== '' ? $nickname : null, strtolower($email), $avatarUrl !== '' ? $avatarUrl : null, $description !== '' ? $description : null, $role, $id]
-            );
-        }
+        \Pafish\Services\MediaReferences::transaction(static function () use ($password, $username, $nickname, $email, $avatarUrl, $description, $role, $id): void {
+            if ($password !== '') {
+                DB::execute(
+                    'UPDATE users SET username = ?, nickname = ?, email = ?, avatar_url = ?, description = ?, role = ?, password_hash = ?, reset_token = NULL, reset_token_expires = NULL WHERE id = ?',
+                    [$username, $nickname !== '' ? $nickname : null, strtolower($email), $avatarUrl !== '' ? $avatarUrl : null, $description !== '' ? $description : null, $role, password_hash($password, PASSWORD_BCRYPT, ['cost' => 10]), $id]
+                );
+            } else {
+                DB::execute(
+                    'UPDATE users SET username = ?, nickname = ?, email = ?, avatar_url = ?, description = ?, role = ? WHERE id = ?',
+                    [$username, $nickname !== '' ? $nickname : null, strtolower($email), $avatarUrl !== '' ? $avatarUrl : null, $description !== '' ? $description : null, $role, $id]
+                );
+            }
 
+            \Pafish\Services\MediaReferences::sync('user', $id);
+            \Pafish\Core\Cache::clearPrefix('micro.latest.');
+        });
         if ($this->isAjax($request)) {
             return $this->json($response, ['ok' => true]);
         }
@@ -356,9 +355,8 @@ final class UsersController extends AdminController
             return $user;
         }
         $new = (string) ($body['password'] ?? '');
-        $len = mb_strlen($new);
-        if ($len < 6 || $len > 72) {
-            return $this->json($response, ['error' => '密码长度需 6-72 位'], 400);
+        if (!Auth::validPassword($new)) {
+            return $this->json($response, ['error' => Auth::PASSWORD_RULE], 400);
         }
         DB::execute(
             'UPDATE users SET password_hash = ?, reset_token = NULL, reset_token_expires = NULL WHERE id = ?',
@@ -426,11 +424,20 @@ final class UsersController extends AdminController
         }
 
         try {
-            DB::transaction(function () use ($id, $meId): void {
+            \Pafish\Services\MediaReferences::transaction(function () use ($id, $meId): void {
                 // 先转移有 NOT NULL 外键的内容，避免删除用户触发约束失败或丢失微语。
                 DB::execute('UPDATE posts SET author_id = ? WHERE author_id = ?', [$meId, $id]);
                 DB::execute('UPDATE micro_statuses SET author_id = ? WHERE author_id = ?', [$meId, $id]);
+                // FK 级联只删除关系，不会维护文章上的汇总计数；保留匿名互动部分。
+                DB::execute("UPDATE posts p JOIN (
+                    SELECT post_id, SUM(kind = 'like') AS likes, SUM(kind = 'favorite') AS favorites
+                    FROM post_reactions WHERE user_id = ? GROUP BY post_id
+                ) r ON r.post_id = p.id
+                SET p.like_count = GREATEST(p.like_count - r.likes, 0),
+                    p.favorite_count = GREATEST(p.favorite_count - r.favorites, 0)", [$id]);
                 DB::execute('DELETE FROM users WHERE id = ?', [$id]);
+                \Pafish\Services\MediaReferences::forget('user', $id);
+                \Pafish\Core\Cache::clearPrefix('micro.latest.');
             });
         } catch (\Throwable $e) {
             \Pafish\Core\Logger::error('[pafish-user-delete] ' . $e->getMessage());

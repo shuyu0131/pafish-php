@@ -25,6 +25,10 @@ return [
     // 不支持伪静态的虚拟主机改为 false，链接自动退化为 index.php?p=xxx 形式
     'pretty_urls' => true,
 
+    // ---- 可信反向代理 IP/CIDR；默认不接受客户端转发头 ----
+    // 仅填写实际连接 PHP 的代理地址，不要照抄整个内网或任意来源。
+    'trusted_proxies' => [],
+
     // ---- 邮件 SMTP（可选：后台"站点设置 → 邮件服务"优先，此处仅兜底） ----
     // 'smtp' => [
     //     'host' => 'smtp.qq.com',

@@ -10,8 +10,9 @@ $postId = (int) ($postId ?? 0);
 $needReview = $needReview ?? true;
 $user = $user ?? null;
 $captchaEnabled = $captchaEnabled ?? true;
+$commentsOpen = $commentsOpen ?? true;
 
-$renderItem = function (array $node, int $depth) use (&$renderItem, $postId, $needReview, $user, $captchaEnabled): void {
+$renderItem = function (array $node, int $depth) use (&$renderItem, $postId, $needReview, $user, $captchaEnabled, $commentsOpen): void {
     $id = e((string) $node['id']);
     ?>
     <div id="comment-<?= $id ?>" class="comment-item">
@@ -29,13 +30,13 @@ $renderItem = function (array $node, int $depth) use (&$renderItem, $postId, $ne
           <span class="comment-pending">待审核</span>
         <?php endif; ?>
         <span class="comment-date"><?= e($node['createdAtLabel']) ?></span>
-        <?php if (empty($node['isPending'])): ?>
+        <?php if ($commentsOpen && empty($node['isPending'])): ?>
           <button type="button" class="comment-reply-btn" data-reply-toggle>回复</button>
         <?php endif; ?>
       </div>
       <p class="comment-content"><?= e($node['content']) ?></p>
 
-      <?php if (empty($node['isPending'])): ?>
+      <?php if ($commentsOpen && empty($node['isPending'])): ?>
         <div class="comment-reply-box" hidden>
           <?= render_partial('comment-form', [
               'postId' => $postId,

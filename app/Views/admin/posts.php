@@ -100,12 +100,12 @@ $canEdit = in_array($role ?? '', ['ADMIN', 'EDITOR'], true);
         <tr>
           <th class="admin-col-check"><input type="checkbox" id="adminCheckAll" aria-label="全选"></th>
           <th>标题</th>
-          <th class="admin-post-category">分类</th>
-          <th class="admin-post-author">作者</th>
+          <th class="admin-post-category admin-table-secondary">分类</th>
+          <th class="admin-post-author admin-table-secondary">作者</th>
           <th class="admin-post-count">评论</th>
           <th class="admin-post-count" data-stat="views">浏览</th>
           <th class="admin-post-engagement">赞 / 收藏</th>
-          <th class="admin-list-date"><?= $isTrash ? '删除时间' : ($params['sort'] === 'updated' ? '更新时间' : '发布时间') ?></th>
+          <th class="admin-list-date admin-table-secondary"><?= $isTrash ? '删除时间' : ($params['sort'] === 'updated' ? '更新时间' : '发布时间') ?></th>
           <th class="admin-col-ops">操作</th>
         </tr>
       </thead>
@@ -122,6 +122,7 @@ $canEdit = in_array($role ?? '', ['ADMIN', 'EDITOR'], true);
           </td></tr>
         <?php endif; ?>
         <?php foreach ($posts as $p): ?>
+          <?php $listTime = $isTrash ? ($p['deleted_at'] ?: $p['updated_at']) : ($params['sort'] === 'updated' ? $p['updated_at'] : ($p['published_at'] ?: $p['updated_at'])); ?>
           <tr data-row-id="<?= (int) $p['id'] ?>">
             <td class="admin-col-check"><input type="checkbox" class="admin-row-check" value="<?= (int) $p['id'] ?>"></td>
             <td class="admin-post-title-cell" data-label="标题">
@@ -133,18 +134,22 @@ $canEdit = in_array($role ?? '', ['ADMIN', 'EDITOR'], true);
                 <?php if ($p['status'] !== 'PUBLISHED' && !$isTrash): ?><span class="admin-list-status"><?= e($statusLabel[$p['status']] ?? $p['status']) ?></span><?php endif; ?>
                 <a class="admin-post-title" title="<?= e($p['title']) ?>" href="<?= e(url_to('/admin/posts/' . $p['id'] . '/edit')) ?>"><span class="admin-post-title-text"><?= e($p['title']) ?></span></a>
               </div>
+              <div class="admin-table-mobile-meta">
+                <?php if ($p['category_name']): ?><a href="<?= e(url_to(admin_posts_url($params, ['category' => (string) $p['category_id']], $per))) ?>"><?= e($p['category_name']) ?></a><?php else: ?><span>未分类</span><?php endif; ?>
+                <a href="<?= e(url_to(admin_posts_url($params, ['author' => (string) $p['author_id']], $per))) ?>"><?= e($p['author_username']) ?></a>
+                <time title="<?= e(($isTrash ? '删除时间：' : ($params['sort'] === 'updated' || !$p['published_at'] ? '更新时间：' : '发布时间：')) . format_date($listTime, 'yyyy-MM-dd HH:mm')) ?>" datetime="<?= e((string) $listTime) ?>"><?= e(format_date($listTime, 'yyyy-MM-dd')) ?></time>
+              </div>
             </td>
-            <td class="admin-post-category" data-label="分类">
+            <td class="admin-post-category admin-table-secondary" data-label="分类">
               <?php if ($p['category_name']): ?>
                 <a class="admin-table-filter-link" href="<?= e(url_to(admin_posts_url($params, ['category' => (string) $p['category_id']], $per))) ?>"><?= e($p['category_name']) ?></a>
               <?php else: ?><span class="admin-muted">未分类</span><?php endif; ?>
             </td>
-            <td class="admin-post-author" data-label="作者"><a class="admin-table-filter-link" href="<?= e(url_to(admin_posts_url($params, ['author' => (string) $p['author_id']], $per))) ?>"><?= e($p['author_username']) ?></a></td>
+            <td class="admin-post-author admin-table-secondary" data-label="作者"><a class="admin-table-filter-link" href="<?= e(url_to(admin_posts_url($params, ['author' => (string) $p['author_id']], $per))) ?>"><?= e($p['author_username']) ?></a></td>
             <td class="admin-post-count" data-label="评论"><a class="admin-table-filter-link" href="<?= e(url_to('/admin/comments?status=ALL&post_id=' . (int) $p['id'])) ?>"><?= (int) $p['comment_count'] ?></a></td>
             <td class="admin-post-count" data-label="浏览"><?= number_format((int) $p['view_count']) ?></td>
             <td class="admin-post-engagement" data-label="赞 / 收藏"><span title="点赞 <?= (int) $p['like_count'] ?>，收藏 <?= (int) $p['favorite_count'] ?>"><?= number_format((int) $p['like_count']) ?> / <?= number_format((int) $p['favorite_count']) ?></span></td>
-            <?php $listTime = $isTrash ? ($p['deleted_at'] ?: $p['updated_at']) : ($params['sort'] === 'updated' ? $p['updated_at'] : ($p['published_at'] ?: $p['updated_at'])); ?>
-            <td class="admin-list-date" data-label="时间"><time title="<?= e(($isTrash ? '删除时间：' : ($params['sort'] === 'updated' || !$p['published_at'] ? '更新时间：' : '发布时间：')) . format_date($listTime, 'yyyy-MM-dd HH:mm')) ?>" datetime="<?= e((string) $listTime) ?>"><?= e(format_date($listTime, 'yyyy-MM-dd')) ?></time></td>
+            <td class="admin-list-date admin-table-secondary" data-label="时间"><time title="<?= e(($isTrash ? '删除时间：' : ($params['sort'] === 'updated' || !$p['published_at'] ? '更新时间：' : '发布时间：')) . format_date($listTime, 'yyyy-MM-dd HH:mm')) ?>" datetime="<?= e((string) $listTime) ?>"><?= e(format_date($listTime, 'yyyy-MM-dd')) ?></time></td>
             <td class="admin-col-ops" data-label="操作">
               <div class="admin-row-ops">
                 <a class="admin-icon-btn" href="<?= e(url_to('/admin/posts/' . $p['id'] . '/edit')) ?>" title="编辑"><?= admin_icon('edit', 15) ?></a>

@@ -25,10 +25,11 @@ final class Markdown
         self::$parser->setSafeMode((string) settings('md_allow_raw_html', '0') !== '1');
         $html = self::$parser->text($md);
 
-        // 全部链接新窗口
+        // 正文链接新窗口；页内锚点（含脚注往返）保留当前页面。
         $html = preg_replace_callback(
             '/<a href="([^"]+)"/',
-            static fn (array $m): string => '<a href="' . $m[1] . '" target="_blank" rel="noopener noreferrer"',
+            static fn (array $m): string => str_starts_with($m[1], '#') ? $m[0]
+                : '<a href="' . $m[1] . '" target="_blank" rel="noopener noreferrer"',
             $html
         );
 
@@ -38,8 +39,8 @@ final class Markdown
 
         // GFM 任务列表：- [ ] / - [x] → 复选框
         $html = preg_replace_callback(
-            '/<li>\[([ xX])\]\s*/',
-            static fn (array $m): string => '<li><input type="checkbox" disabled' . ($m[1] !== ' ' ? ' checked' : '') . '> ',
+            '/<li>(\s*<p>)?\[([ xX])\]\s*/',
+            static fn (array $m): string => '<li>' . ($m[1] ?? '') . '<input type="checkbox" disabled' . ($m[2] !== ' ' ? ' checked' : '') . '> ',
             $html
         );
 

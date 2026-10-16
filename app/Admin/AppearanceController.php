@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pafish\Admin;
 
 use Pafish\Services\Theme;
+use Pafish\Services\ExtensionLinks;
 use Pafish\Core\Url;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -36,8 +37,8 @@ final class AppearanceController extends AdminController
                 'version' => $manifest['version'] ?? '',
                 'description' => $manifest['description'] ?? '',
                 'author' => $manifest['author'] ?? '',
-                'authorUrl' => self::manifestUrl($manifest, 'authorUrl'),
-                'homepage' => self::manifestUrl($manifest, 'homepage'),
+                'authorUrl' => ExtensionLinks::manifestUrl($manifest, 'authorUrl'),
+                'homepage' => ExtensionLinks::manifestUrl($manifest, 'homepage'),
                 'preview' => self::previewUrl($name),
                 'error' => $desc['error'],
                 // 统计真实设置项数量：group 容器自身不算，要展平到子字段
@@ -51,13 +52,6 @@ final class AppearanceController extends AdminController
             'themes' => $themes,
         ], '主题与外观'));
         return $response;
-    }
-
-    private static function manifestUrl(?array $manifest, string $key): string
-    {
-        if (!is_array($manifest)) return '';
-        $value = $manifest[$key] ?? ($key === 'homepage' ? ($manifest['url'] ?? '') : ($manifest['author_url'] ?? ''));
-        return is_string($value) && preg_match('/^https?:\\/\\//i', $value) === 1 ? $value : '';
     }
 
     private static function previewUrl(string $name): string

@@ -17,37 +17,33 @@ final class CategoryController
     public function show(Request $request, Response $response, array $args): Response
     {
         $slug = rawurldecode((string) ($args['slug'] ?? ''));
-        $category = DB::fetchOne('SELECT id, name, slug, description FROM categories WHERE slug = ?', [$slug]);
+        $category = DB::fetchOne('SELECT * FROM categories WHERE slug = ?', [$slug]);
         if (!$category) {
             return Listings::notFound($response, '分类不存在');
         }
 
-        // 递归收集后代分类 id（含自身；防环兜底）
-        $ids = [(int) $category['id']];
-        $frontier = $ids;
-        while ($frontier !== [] && count($ids) < 500) {
-            $ph = implode(',', array_fill(0, count($frontier), '?'));
-            $kids = DB::fetchAll("SELECT id FROM categories WHERE parent_id IN ({$ph})", $frontier);
-            $frontier = array_map(static fn (array $k): int => (int) $k['id'], $kids);
-            $ids = array_merge($ids, $frontier);
-        }
-        $idPh = implode(',', array_fill(0, count($ids), '?'));
-
+        $ids = array_keys(\Pafish\Services\Categories::descendants(
+            DB::fetchAll('SELECT id,parent_id FROM categories'), (int) $category['id']
+        ));
         [$posts, $total, $perPage, $pageNum] = Listings::published(
-            "p.category_id IN ({$idPh})",
-            $ids,
+            '',
+            [],
             $request,
-            'p.is_pinned DESC, p.category_pinned DESC, p.published_at DESC'
+            categoryIds: $ids
         );
         $totalPages = max(1, (int) ceil($total / $perPage));
 
         $description = (string) ($category['description'] ?? '');
-        $metaDesc = $description !== '' ? $description : "「{$category['name']}」分类下的文章列表";
+        $metaDesc = $category['meta_description'] ?: ($description !== '' ? $description : "「{$category['name']}」分类下的文章列表");
+        $seoTitle = $category['seo_title'] ?: $category['name'];
+        $og = Listings::og($request, $seoTitle, $metaDesc);
+        if (!empty($category['cover_url'])) $og['image'] = \absolute_url($category['cover_url']);
 
         $response->getBody()->write(\render('category', [
             'title' => $category['name'],
+            'seoTitle' => $seoTitle,
             'description' => $metaDesc,
-            'og' => Listings::og($request, $category['name'], $metaDesc),
+            'og' => $og,
             'category' => $category,
             'posts' => $posts,
             'total' => $total,

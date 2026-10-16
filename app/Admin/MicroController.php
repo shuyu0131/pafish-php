@@ -72,7 +72,7 @@ final class MicroController extends AdminController
             } else {
                 $micro = MicroStatuses::find((int) ($micro['id'] ?? 0)) ?? $micro;
             }
-        } catch (\RuntimeException $e) {
+        } catch (\RuntimeException|\InvalidArgumentException $e) {
             if ($this->isAjax($request)) {
                 return $this->json($response, ['error' => $e->getMessage()], 400);
             }

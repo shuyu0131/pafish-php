@@ -4,7 +4,7 @@
  * 可用数据：$title / $description（控制器传入，可选）
  * 前台布局：左侧 40% 侧边栏（桌面）+ 右侧 60% 内容栏 + 移动端顶栏
  */
-$pageTitle = $title ?? '';
+$pageTitle = $seoTitle ?? $title ?? '';
 $desc = $description ?? (string) settings('site_description', '');
 $siteName = site_name();
 $subtitle = (string) settings('site_subtitle', '');
@@ -50,6 +50,7 @@ $jsonLd = $frontMeta['jsonLd'] ?? [];
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= e($fullTitle) ?></title>
 <link rel="icon" href="<?= e(asset_url('/favicon.svg')) ?>" type="image/svg+xml">
+<link rel="stylesheet" href="<?= e(asset_url('/css/content.css')) ?>">
 <?php if ($desc !== ''): ?><meta name="description" content="<?= e($desc) ?>"><?php endif; ?>
 <?php if ($robots !== ''): ?><meta name="robots" content="<?= e($robots) ?>"><?php endif; ?>
 <?php if ($canonical !== ''): ?><link rel="canonical" href="<?= e($canonical) ?>"><?php endif; ?>

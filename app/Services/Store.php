@@ -58,29 +58,10 @@ final class Store
         return ['status' => 'bound', 'data' => $data];
     }
 
-    /** 数字分段版本比较：$a < $b → -1，相等 → 0，$a > $b → 1 */
+    /** 与核心、升级器使用同一套版本比较规则。 */
     public static function compareVersions(string $a, string $b): int
     {
-        $pa = self::versionParts($a);
-        $pb = self::versionParts($b);
-        $n = max(count($pa), count($pb));
-        for ($i = 0; $i < $n; $i++) {
-            $x = $pa[$i] ?? 0;
-            $y = $pb[$i] ?? 0;
-            if ($x < $y) {
-                return -1;
-            }
-            if ($x > $y) {
-                return 1;
-            }
-        }
-        return 0;
-    }
-
-    private static function versionParts(string $v): array
-    {
-        $v = ltrim(trim($v), 'vV');
-        return array_map(static fn (string $s): int => ctype_digit($s) ? (int) $s : 0, explode('.', $v));
+        return Version::compare($a, $b);
     }
 
     /**

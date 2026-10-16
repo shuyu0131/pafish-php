@@ -19,6 +19,7 @@ $sep = str_contains($baseUrl, '?') ? '&' : '?';
 <section id="comments" class="comment-section" data-comment-section data-need-review="<?= $needReview ? '1' : '0' ?>">
   <h2 class="comment-heading">评论 <span class="comment-total">(<?= $commentTotal ?>)</span></h2>
 
+  <?php if ($commentsOpen ?? true): ?>
   <?= render_partial('comment-form', [
       'postId' => $postId,
       'parentId' => null,
@@ -26,6 +27,9 @@ $sep = str_contains($baseUrl, '?') ? '&' : '?';
       'captchaEnabled' => $captchaEnabled,
       'needReview' => $needReview,
   ]) ?>
+  <?php else: ?>
+    <p class="comment-empty">此文章已关闭评论</p>
+  <?php endif; ?>
 
   <?= render_partial('comment-thread', [
       'nodes' => $commentRoots ?? [],
@@ -33,6 +37,7 @@ $sep = str_contains($baseUrl, '?') ? '&' : '?';
       'user' => $user,
       'captchaEnabled' => $captchaEnabled,
       'needReview' => $needReview,
+      'commentsOpen' => $commentsOpen ?? true,
   ]) ?>
 
   <?php if ($commentTotalPages > 1): ?>

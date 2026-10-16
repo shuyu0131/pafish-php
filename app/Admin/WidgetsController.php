@@ -87,13 +87,17 @@ final class WidgetsController extends AdminController
                 }
             }
 
-            if ($id > 0) {
-                // 编辑：不动 visible / sort_order；可改 type
-                DB::execute('UPDATE widgets SET type = ?, title = ?, content = ?, area = ? WHERE id = ?', [$type, $title, $content, $area, $id]);
-            } else {
-                $sort = (int) DB::value('SELECT COALESCE(MAX(sort_order), 0) + 1 FROM widgets WHERE area = ?', [$area]);
-                DB::execute('INSERT INTO widgets (type, title, content, area, sort_order) VALUES (?, ?, ?, ?, ?)', [$type, $title, $content, $area, $sort]);
-            }
+            \Pafish\Services\MediaReferences::transaction(function () use (&$id, $type, $title, $content, $area): void {
+                if ($id > 0) {
+                    // 编辑：不动 visible / sort_order；可改 type
+                    DB::execute('UPDATE widgets SET type = ?, title = ?, content = ?, area = ? WHERE id = ?', [$type, $title, $content, $area, $id]);
+                } else {
+                    $sort = (int) DB::value('SELECT COALESCE(MAX(sort_order), 0) + 1 FROM widgets WHERE area = ?', [$area]);
+                    DB::execute('INSERT INTO widgets (type, title, content, area, sort_order) VALUES (?, ?, ?, ?, ?)', [$type, $title, $content, $area, $sort]);
+                    $id = DB::lastInsertId();
+                }
+                \Pafish\Services\MediaReferences::sync('widget', $id);
+            });
         } catch (\RuntimeException $e) {
             if ($this->isAjax($request)) {
                 return $this->json($response, ['error' => $e->getMessage()], 400);
@@ -115,7 +119,11 @@ final class WidgetsController extends AdminController
     public function delete(Request $request, Response $response, array $args): Response
     {
         $this->guardAdmin();
-        DB::execute('DELETE FROM widgets WHERE id = ?', [(int) ($args['id'] ?? 0)]);
+        $id = (int) ($args['id'] ?? 0);
+        \Pafish\Services\MediaReferences::transaction(static function () use ($id): void {
+            DB::execute('DELETE FROM widgets WHERE id = ?', [$id]);
+            if ($id > 0) \Pafish\Services\MediaReferences::forget('widget', $id);
+        });
         Cache::clearPrefix('widgets.');
         return $this->json($response, ['ok' => true]);
     }

@@ -98,7 +98,7 @@ foreach ($widgets as $widget):
             $microItems = MicroStatuses::latest(5);
             echo '<ul class="widget-list widget-micro-statuses">';
             foreach ($microItems as $micro):
-                echo '<li><a href="' . e(url_to('/micro')) . '">' . e(mb_strimwidth(str_replace(["\r", "\n"], ' ', (string) $micro['content']), 0, 60, '…')) . '</a><small class="widget-muted">' . e(format_date($micro['publishedAt'] ?? null)) . '</small></li>';
+                echo '<li><a href="' . e(url_to('/micro')) . '">' . e(mb_strimwidth(\Pafish\Services\Content::plain((string) $micro['content'], (string) ($micro['contentFormat'] ?? 'markdown')), 0, 60, '…')) . '</a><small class="widget-muted">' . e(format_date($micro['publishedAt'] ?? null)) . '</small></li>';
             endforeach;
             echo '</ul>';
             break;

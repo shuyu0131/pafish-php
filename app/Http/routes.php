@@ -32,6 +32,7 @@ use Pafish\Admin\SettingsController;
 use Pafish\Admin\UsersController;
 use Pafish\Admin\ProfileController;
 use Pafish\Admin\BackupController;
+use Pafish\Admin\ExtensionDataController;
 use Pafish\Admin\AppearanceController;
 use Pafish\Admin\PluginsController;
 use Pafish\Admin\StoreController;
@@ -151,6 +152,7 @@ $app->group('/admin', function ($group) {
     $group->get('/uploads', [MediaController::class, 'index']);
     $group->post('/uploads/{id}/delete', [MediaController::class, 'delete']);
     $group->post('/uploads/external', [MediaController::class, 'external']);
+    $group->post('/uploads/rebuild-references', [MediaController::class, 'rebuildReferences']);
 
     // 评论审核（4 Tab 20/页 / 状态流转 / 管理员回复 / 置顶 / 按 IP 删 / 拉黑）
     $group->get('/comments', [CommentsController::class, 'index']);
@@ -213,6 +215,7 @@ $app->group('/admin', function ($group) {
 
     // 数据备份（仅 ADMIN：创建/上传/下载/恢复/删除）
     $group->get('/backup', [BackupController::class, 'index']);
+    $group->get('/extensions/data', [ExtensionDataController::class, 'index']);
     $group->get('/backup/download', [BackupController::class, 'download']);
     $group->post('/backup/create', [BackupController::class, 'create']);
     $group->post('/backup/upload', [BackupController::class, 'upload']);
@@ -255,6 +258,9 @@ $app->group('/admin', function ($group) {
     $group->post('/upgrade/check', [UpgradeController::class, 'check']);
     $group->post('/upgrade/run', [UpgradeController::class, 'run']);
 })->add(AdminAuthMiddleware::class);
+
+// 编辑器插件的静态资源，兼容项目根目录/public 文档根与查询串路由。
+$app->get('/editor-assets/{plugin:[a-z0-9_-]+}/{path:.*}', [\Pafish\Http\EditorAssetController::class, 'serve']);
 
 // 编辑器配套 API
 $app->post('/api/upload', [ApiController::class, 'upload']);

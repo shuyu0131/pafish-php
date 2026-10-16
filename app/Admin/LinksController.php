@@ -46,15 +46,22 @@ final class LinksController extends AdminController
                 throw new \RuntimeException('内容超出长度限制');
             }
             $description = $description === '' ? null : $description;
+            $stored = $id > 0 ? DB::fetchOne('SELECT icon_url FROM links WHERE id=?', [$id]) : null;
+            if ($id > 0 && !$stored) throw new \RuntimeException('链接不存在');
+            $iconUrl = \Pafish\Services\Content::imageUrl($request->getParsedBody()['icon_url'] ?? $stored['icon_url'] ?? '');
 
-            if ($id > 0) {
-                // 编辑：不动 visible / sort_order
-                DB::execute('UPDATE links SET name = ?, url = ?, description = ? WHERE id = ?', [$name, $url, $description, $id]);
-            } else {
-                // 新建：追加到末尾
-                $sort = (int) DB::value('SELECT COALESCE(MAX(sort_order), 0) + 1 FROM links');
-                DB::execute('INSERT INTO links (name, url, description, sort_order) VALUES (?, ?, ?, ?)', [$name, $url, $description, $sort]);
-            }
+            \Pafish\Services\MediaReferences::transaction(function () use (&$id, $name, $url, $description, $iconUrl): void {
+                if ($id > 0) {
+                    // 编辑：不动 visible / sort_order
+                    DB::execute('UPDATE links SET name = ?, url = ?, description = ?, icon_url=? WHERE id = ?', [$name, $url, $description, $iconUrl, $id]);
+                } else {
+                    // 新建：追加到末尾
+                    $sort = (int) DB::value('SELECT COALESCE(MAX(sort_order), 0) + 1 FROM links');
+                    DB::execute('INSERT INTO links (name, url, description, sort_order, icon_url) VALUES (?, ?, ?, ?, ?)', [$name, $url, $description, $sort, $iconUrl]);
+                    $id = DB::lastInsertId();
+                }
+                \Pafish\Services\MediaReferences::sync('link', $id);
+            });
         } catch (\RuntimeException $e) {
             if ($this->isAjax($request)) {
                 return $this->json($response, ['error' => $e->getMessage()], 400);
@@ -76,7 +83,11 @@ final class LinksController extends AdminController
     public function delete(Request $request, Response $response, array $args): Response
     {
         $this->guardAdmin();
-        DB::execute('DELETE FROM links WHERE id = ?', [(int) ($args['id'] ?? 0)]);
+        $id = (int) ($args['id'] ?? 0);
+        \Pafish\Services\MediaReferences::transaction(static function () use ($id): void {
+            DB::execute('DELETE FROM links WHERE id = ?', [$id]);
+            if ($id > 0) \Pafish\Services\MediaReferences::forget('link', $id);
+        });
         Cache::clearPrefix('links.');
         return $this->json($response, ['ok' => true]);
     }

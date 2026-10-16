@@ -22,6 +22,7 @@ final class Scheduler
      */
     public static function publishDue(): int
     {
+        if (DB::pdo()->inTransaction()) throw new \LogicException('定时发布必须独立提交后触发事件');
         $rows = DB::fetchAll(
             "SELECT id, title, slug, published_at, category_id, external_url, is_pinned, category_pinned
              FROM posts WHERE status = 'SCHEDULED' AND deleted_at IS NULL AND published_at <= NOW()"
@@ -31,13 +32,13 @@ final class Scheduler
         }
         $updated = 0;
         foreach ($rows as $row) {
-            $changed = DB::execute(
-                "UPDATE posts SET status = 'PUBLISHED', updated_at = updated_at WHERE id = ? AND status = 'SCHEDULED'",
-                [(int) $row['id']]
-            );
-            if ($changed !== 1) {
-                continue;
-            }
+            $row = DB::transaction(static function () use ($row): ?array {
+                $current = DB::fetchOne("SELECT * FROM posts WHERE id=? AND status='SCHEDULED' AND deleted_at IS NULL AND published_at<=NOW() FOR UPDATE", [(int) $row['id']]);
+                if ($current === null) return null;
+                $changed = DB::execute("UPDATE posts SET status='PUBLISHED',updated_at=updated_at WHERE id=? AND status='SCHEDULED' AND deleted_at IS NULL AND published_at<=NOW()", [(int) $row['id']]);
+                return $changed === 1 ? $current : null;
+            });
+            if ($row === null) continue;
             $updated++;
             \do_action('after_post_published', [
                 'id' => (string) $row['id'],
@@ -64,13 +65,15 @@ final class Scheduler
     public static function maybeRun(int $interval = 60): void
     {
         $lock = dirname(__DIR__, 2) . '/runtime/scheduler.lock';
-        $last = @filemtime($lock);
-        if ($last !== false && (time() - $last) < $interval) {
-            return;
-        }
-        @touch($lock);
-        if (self::publishDue() > 0) {
-            \Pafish\Core\Logger::error('[pafish] 定时发布：前台请求兜底已发布到期文章');
-        }
+        $handle = @fopen($lock, 'c+');
+        if ($handle === false) return;
+        try {
+            if (!flock($handle, LOCK_EX | LOCK_NB)) return;
+            $last = (int) stream_get_contents($handle);
+            if ($last > 0 && time() - $last < max(1, $interval)) return;
+            rewind($handle);
+            if (!ftruncate($handle, 0) || fwrite($handle, (string) time()) === false || !fflush($handle)) return;
+            if (self::publishDue() > 0) \Pafish\Core\Logger::error('[pafish] 定时发布：前台请求兜底已发布到期文章');
+        } finally { flock($handle, LOCK_UN); fclose($handle); }
     }
 }

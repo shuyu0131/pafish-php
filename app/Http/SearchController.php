@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Pafish\Http;
 
-use Pafish\Core\DB;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -16,8 +15,9 @@ final class SearchController
 {
     public function index(Request $request, Response $response): Response
     {
-        $keyword = trim((string) ($request->getQueryParams()['q'] ?? ''));
-        $pageNum = max(1, (int) ($request->getQueryParams()['page'] ?? 1));
+        $query = $request->getQueryParams();
+        $keyword = is_scalar($query['q'] ?? null) ? trim((string) $query['q']) : '';
+        $pageNum = is_scalar($query['page'] ?? null) ? max(1, (int) $query['page']) : 1;
         $posts = [];
         $total = 0;
         $perPage = 10;

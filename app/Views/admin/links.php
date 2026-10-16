@@ -1,8 +1,8 @@
 <?php
 /**
  * 友情链接管理：
- * - 顶部新建表单；列表行：名称 + 「已隐藏」badge + url · description
- * - 操作：↑/↓ 上下移动（边界禁用）、显隐、编辑（行内展开）、删除（确认弹窗）
+ * - 新建与编辑复用弹窗；列表保留名称、状态、地址和简介
+ * - 操作：↑/↓ 上下移动（边界禁用）、显隐、编辑（弹窗）、删除（确认弹窗）
  * 变量：$items $role
  */
 $count = count($items);
@@ -19,39 +19,14 @@ foreach ($items as $l) {
       <h1 class="admin-h1">友情链接</h1>
       <p class="admin-page-sub">展示在首页底部，共 <?= $count ?> 个（含隐藏 <?= $hidden ?> 个）</p>
     </div>
-  </div>
-
-  <!-- 新建表单 -->
-  <div class="card admin-form-card">
-    <h2 class="admin-card-title">添加链接</h2>
-    <form id="createForm" method="post" action="<?= e(url_to('/admin/links/save')) ?>" novalidate>
-      <?= csrf_field() ?>
-      <div class="admin-form-grid">
-        <div class="admin-field">
-          <span class="label">站点名称 *</span>
-          <input class="input" type="text" name="name" placeholder="站点名称" maxlength="100">
-        </div>
-        <div class="admin-field">
-          <span class="label">地址 *</span>
-          <input class="input" type="text" name="url" placeholder="https://example.com" maxlength="500">
-        </div>
-        <div class="admin-field">
-          <span class="label">简介（可选）</span>
-          <input class="input" type="text" name="description" placeholder="一句话介绍" maxlength="255">
-        </div>
-      </div>
-      <div class="admin-cat-form-actions">
-        <button type="submit" class="btn btn-primary">添加链接</button>
-      </div>
-      <div class="admin-editor-error" hidden></div>
-    </form>
+    <button type="button" class="btn btn-primary" data-entity-new="linksModal"><?= admin_icon('plus', 15) ?>添加链接</button>
   </div>
 
   <!-- 列表 -->
   <?php if ($count === 0): ?>
     <div class="admin-empty-list card">
       <?= admin_icon('link', 32) ?>
-      <p>还没有友情链接，在上方添加第一个</p>
+      <p>还没有友情链接</p>
     </div>
   <?php else: ?>
     <div class="admin-table-wrap admin-order-table-wrap">
@@ -61,7 +36,7 @@ foreach ($items as $l) {
       <?php foreach ($items as $i => $l): ?>
         <tr class="admin-list-row" data-id="<?= (int) $l['id'] ?>"
              data-name="<?= e($l['name']) ?>" data-url="<?= e($l['url']) ?>"
-             data-description="<?= e($l['description'] ?? '') ?>">
+             data-description="<?= e($l['description'] ?? '') ?>" data-icon="<?= e($l['icon_url'] ?? '') ?>">
           <td data-label="名称"><button type="button" class="admin-icon-btn admin-sort-handle" aria-label="拖动排序" title="拖动排序"><svg width="14" height="18" viewBox="0 0 14 18" aria-hidden="true" fill="currentColor"><circle cx="4" cy="4" r="1.2"/><circle cx="10" cy="4" r="1.2"/><circle cx="4" cy="9" r="1.2"/><circle cx="10" cy="9" r="1.2"/><circle cx="4" cy="14" r="1.2"/><circle cx="10" cy="14" r="1.2"/></svg></button><span class="admin-list-name"><?= e($l['name']) ?></span></td>
           <td data-label="地址"><div class="admin-muted"><?= e($l['url']) ?><?= ($l['description'] ?? '') !== '' ? ' · ' . e($l['description']) : '' ?></div></td>
           <td data-label="状态">
@@ -76,40 +51,45 @@ foreach ($items as $l) {
             <button type="button" class="admin-icon-btn" data-toggle title="<?= (int) $l['visible'] === 1 ? '隐藏' : '显示' ?>">
               <?= admin_icon((int) $l['visible'] === 1 ? 'eye' : 'eye-off', 15) ?>
             </button>
-            <button type="button" class="admin-icon-btn" data-edit title="编辑"><?= admin_icon('edit', 15) ?></button>
+            <button type="button" class="admin-icon-btn" data-entity-edit="linksModal" title="编辑"><?= admin_icon('edit', 15) ?></button>
             <button type="button" class="admin-icon-btn admin-icon-danger" data-delete title="删除"><?= admin_icon('trash', 15) ?></button>
           </div></td>
         </tr>
-        <tr class="admin-list-edit-row" hidden><td colspan="4"><div class="admin-list-edit">
-            <form class="admin-inline-edit" method="post" novalidate>
-              <?= csrf_field() ?>
-              <div class="admin-form-grid">
-                <div class="admin-field">
-                  <span class="label">站点名称 *</span>
-                  <input class="input" type="text" name="name" maxlength="100">
-                </div>
-                <div class="admin-field">
-                  <span class="label">地址 *</span>
-                  <input class="input" type="text" name="url" maxlength="500">
-                </div>
-                <div class="admin-field">
-                  <span class="label">简介（可选）</span>
-                  <input class="input" type="text" name="description" maxlength="255">
-                </div>
-              </div>
-              <div class="admin-cat-form-actions">
-                <button type="submit" class="btn btn-primary">保存修改</button>
-                <button type="button" class="btn btn-ghost" data-edit-cancel>取消</button>
-              </div>
-              <div class="admin-editor-error" hidden></div>
-            </form>
-          </div></td></tr>
       <?php endforeach; ?>
         </tbody>
       </table>
     </div>
   <?php endif; ?>
 </div>
+
+<?php ob_start(); ?>
+<div class="admin-form-grid">
+        <div class="admin-field">
+          <label class="label" for="linksName">站点名称 *</label>
+          <input class="input" type="text" name="name" placeholder="站点名称" maxlength="100" id="linksName" required>
+        </div>
+        <div class="admin-field">
+          <label class="label" for="linksUrl">地址 *</label>
+          <input class="input" type="text" name="url" placeholder="https://example.com" maxlength="500" id="linksUrl" required>
+        </div>
+        <div class="admin-field">
+          <label class="label" for="linksDescription">简介（可选）</label>
+          <input class="input" type="text" name="description" placeholder="一句话介绍" maxlength="255" id="linksDescription">
+        </div>
+        <div class="admin-field">
+          <label class="label" for="linkIcon">站点图标</label>
+          <?php $imageId = 'linkIcon'; $imageName = 'icon_url'; $imageValue = ''; require __DIR__ . '/partials/image-field.php'; ?>
+        </div>
+      </div>
+<?php
+$entityFields = (string) ob_get_clean();
+$entityModalId = 'linksModal';
+$entityFormId = 'createForm';
+$entityConfig = ['createTitle'=>'添加链接', 'editTitle'=>'编辑链接', 'savedMessage'=>'链接已保存',
+    'savePath'=>'/admin/links/save', 'basePath'=>'/admin/links', 'fields'=>['name'=>'name','url'=>'url','description'=>'description','icon_url'=>'icon']];
+require __DIR__ . '/partials/entity-modal.php';
+?>
+<script src="<?= e(asset_url('/js/admin-entity-forms.js')) ?>" defer></script>
 
 <?php $linksCsrf = csrf_token(); ?>
 <script>
@@ -124,57 +104,6 @@ foreach ($items as $l) {
     fd.append("_csrf", CSRF);
     return fetch(url, { method: "POST", body: fd, headers: { "X-Requested-With": "XMLHttpRequest" } });
   }
-  function submitForm(form) {
-    var err = form.querySelector(".admin-editor-error");
-    err.hidden = true;
-    var fd = new FormData(form);
-    fd.set("_csrf", CSRF);
-    fetch(form.action, { method: "POST", body: fd, headers: { "X-Requested-With": "XMLHttpRequest" } })
-      .then(function (r) { return r.json(); })
-      .then(function (j) {
-        if (j && j.ok) pafishToastReload("链接已保存", "success");
-        else { err.textContent = (j && j.error) || "保存失败"; err.hidden = false; }
-      })
-      .catch(function () { err.textContent = "网络错误"; err.hidden = false; });
-  }
-
-  // 新建
-  document.getElementById("createForm").addEventListener("submit", function (e) {
-    e.preventDefault();
-    submitForm(e.target);
-  });
-
-  // 行内编辑：展开/收起
-  document.querySelectorAll("[data-edit]").forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      var row = btn.closest(".admin-list-row");
-      var editRow = row.nextElementSibling;
-      var box = editRow.querySelector(".admin-list-edit");
-      var open = !editRow.hidden;
-      document.querySelectorAll(".admin-list-edit-row").forEach(function (b) { b.hidden = true; });
-      if (open) return;
-      editRow.hidden = false;
-      var f = box.querySelector("form");
-      f.action = base + "/" + row.getAttribute("data-id") + "/save";
-      f.querySelector('[name="name"]').value = row.getAttribute("data-name");
-      f.querySelector('[name="url"]').value = row.getAttribute("data-url");
-      f.querySelector('[name="description"]').value = row.getAttribute("data-description");
-      box.scrollIntoView({ behavior: "smooth", block: "center" });
-    });
-  });
-  document.querySelectorAll("[data-edit-cancel]").forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      btn.closest(".admin-list-edit-row").hidden = true;
-    });
-  });
-  document.querySelectorAll(".admin-inline-edit").forEach(function (form) {
-    form.addEventListener("submit", function (e) {
-      e.preventDefault();
-      submitForm(e.target);
-    });
-  });
-
-  // 显隐
   document.querySelectorAll("[data-toggle]").forEach(function (btn) {
     btn.addEventListener("click", function () {
       var row = btn.closest(".admin-list-row");
@@ -220,3 +149,4 @@ foreach ($items as $l) {
 </script>
 
 <script src="<?= e(asset_url('/js/admin-sort.js')) ?>" defer></script>
+<script src="<?= e(asset_url('/js/admin-image-fields.js')) ?>" defer></script>

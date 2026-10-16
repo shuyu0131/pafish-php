@@ -74,6 +74,12 @@ final class ExtensionContext
         Theme::setData($this->name, $data);
     }
 
+    /** 在短事务中修改最新数据；回调只处理数据，不执行网络或文件操作。 */
+    public function updateData(callable $update): array
+    {
+        return ExtensionStorage::updateJson($this->kind . '_data:' . $this->name, $update);
+    }
+
     public function getSettings(): array
     {
         return $this->kind === 'plugin' ? Plugin::settings($this->name) : Theme::valuesFor($this->name);
@@ -125,7 +131,7 @@ final class ExtensionContext
         $manifest = $this->kind === 'plugin' ? Plugin::manifest($this->name) : Theme::manifest($this->name);
         foreach ((array) ($manifest['schema']['tables'] ?? []) as $table) {
             if (is_array($table) && ($table['name'] ?? null) === $logicalName) {
-                return ExtensionSchema::physicalName($this->kind, $this->name, $logicalName);
+                return ExtensionSchema::ownedName($this->kind, $this->name, $logicalName);
             }
         }
         throw new \RuntimeException('未声明的扩展数据表：' . $logicalName);

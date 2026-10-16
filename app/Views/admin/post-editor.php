@@ -1,7 +1,7 @@
 <?php
 /**
  * 文章编辑器：
- * 宽屏正文与设置栏按 3:1 双栏展示；窄屏按正文、设置、发布的顺序阅读。
+ * 正文为主，发布设置分组；保存操作在桌面头部、手机正文之后。
  * 变量：$post $isEdit $postId $catTree $tags $tagIds $customFields $hasPassword $isScheduled $statusLabel
  */
 $editorData = [
@@ -10,12 +10,16 @@ $editorData = [
         'slug' => (string) $post['slug'],
         'excerpt' => (string) $post['excerpt'],
         'content' => (string) $post['content'],
+        'contentFormat' => (string) ($post['content_format'] ?? 'markdown'),
         'coverUrl' => (string) ($post['cover_url'] ?? ''),
         'categoryId' => $post['category_id'] ? (string) $post['category_id'] : '',
         'tagIds' => $tagIds,
         'isPinned' => (bool) $post['is_pinned'],
         'categoryPinned' => (bool) $post['category_pinned'],
         'externalUrl' => (string) ($post['external_url'] ?? ''),
+        'allowComments' => (bool) ($post['allow_comments'] ?? true),
+        'seoTitle' => (string) ($post['seo_title'] ?? ''),
+        'metaDescription' => (string) ($post['meta_description'] ?? ''),
         'customFields' => $customFields !== [] ? $customFields : [['key' => '', 'value' => '']],
     ],
     'isEdit' => $isEdit,
@@ -38,67 +42,67 @@ $editorData = [
     'hiddenCustomFieldKeys' => $hiddenCustomFieldKeys ?? [],
 ];
 ?>
-<div class="admin-editor">
+<div class="admin-editor admin-editor-workspace">
   <form id="postForm" method="post" action="<?= e(url_to($isEdit ? '/admin/posts/' . $postId . '/save' : '/admin/posts/save')) ?>" novalidate>
     <?= csrf_field() ?>
     <input type="hidden" name="_idempotency" value="<?= e(\Pafish\Core\Session::requestToken()) ?>">
     <input type="hidden" name="action" id="fAction" value="draft">
 
+    <header class="admin-editor-header">
+      <div class="admin-editor-heading">
+        <h1 class="admin-h1"><?= $isEdit ? '编辑文章' : '新建文章' ?></h1>
+        <?php if ($isEdit): ?><p class="admin-autosave" data-autosave role="status">每 60 秒自动保存</p><?php endif; ?>
+      </div>
+      <div class="admin-editor-header-actions">
+        <button type="submit" class="btn btn-outline" data-save="draft">存为草稿</button>
+        <button type="submit" class="btn btn-primary admin-publish-primary" data-save="publish"><?= $isEdit && $post['status'] === 'PUBLISHED' ? '保存修改' : '立即发布' ?></button>
+      </div>
+    </header>
+    <div class="admin-editor-error" role="alert" hidden></div>
     <div class="admin-editor-grid">
-      <!-- 左列 -->
       <div class="admin-editor-main">
-        <div class="admin-editor-topline">
-          <a class="btn btn-ghost" href="<?= e(url_to('/admin/posts')) ?>"><?= admin_icon('arrow-left', 15) ?>返回</a>
-          <span class="admin-editor-topline-title"><?= $isEdit ? '编辑文章' : '新建文章' ?></span>
+        <div class="admin-editor-writing">
+        <div class="admin-editor-title-wrap">
+          <input class="admin-editor-title" type="text" id="fTitle" name="title" aria-label="文章标题"
+                 value="<?= e($post['title']) ?>" placeholder="文章标题" maxlength="255">
         </div>
-        <input class="admin-editor-title" type="text" id="fTitle" name="title" aria-label="标题"
-               value="<?= e($post['title']) ?>" placeholder="文章标题" maxlength="255">
 
-        <!-- 轻量 Markdown 源码编辑器 -->
+        <?php $editorType = 'post'; require __DIR__ . '/partials/editor-controls.php'; ?>
+        <!-- 正文编辑器 -->
         <div class="admin-md-editor">
           <div id="markdownMount"></div>
+          <input type="hidden" id="fContentFormat" name="content_format" value="<?= e($post['content_format'] ?? 'markdown') ?>">
           <textarea id="fContent" name="content" hidden
                     maxlength="16000000"><?= e($post['content']) ?></textarea>
         </div>
-        <div class="card admin-form-card admin-editor-extra">
+        <div class="admin-editor-extra">
           <div class="admin-field admin-editor-excerpt-field">
             <label class="label" for="fExcerpt">摘要</label>
             <textarea class="input admin-excerpt" id="fExcerpt" name="excerpt"
                       placeholder="展示在列表页（留空自动截取）" maxlength="500"><?= e($post['excerpt']) ?></textarea>
           </div>
 
-          <section class="admin-field admin-custom-fields-field" aria-labelledby="customFieldsTitle">
+        </div>
+        </div>
+
+        <details class="card admin-advanced admin-editor-fields" id="customFieldsDetails">
+          <summary><?= admin_icon('chevron-right', 14) ?><span id="customFieldsTitle">自定义字段</span></summary>
+          <section class="admin-advanced-body admin-custom-fields-field" aria-labelledby="customFieldsTitle">
             <div class="admin-editor-extra-head">
-              <span class="label" id="customFieldsTitle">自定义字段</span>
-              <button type="button" class="btn btn-ghost admin-add-field" id="btnAddField">+ 添加字段</button>
+              <button type="button" class="btn btn-ghost admin-add-field" id="btnAddField"><?= admin_icon('plus', 14) ?>添加字段</button>
             </div>
-            <p class="admin-field-hint">供前台模板详情页按字段名调用，具体展示由模板决定。</p>
             <div class="admin-custom-fields" id="customFields"></div>
             <datalist id="postCustomFieldKeys"></datalist>
           </section>
-        </div>
+        </details>
       </div>
 
       <!-- 右列 -->
       <div class="admin-editor-side">
-        <!-- 发布按钮 -->
-        <div class="card admin-form-card admin-publish-card">
-          <div class="admin-publish-btns">
-            <button type="submit" class="btn btn-primary admin-publish-primary" data-save="publish">立即发布</button>
-            <button type="submit" class="btn btn-outline" data-save="draft">存为草稿</button>
-          </div>
-          <div class="admin-editor-error" hidden></div>
-        </div>
-
-        <!-- 自动保存状态（编辑模式） -->
-        <?php if ($isEdit): ?>
-          <p class="admin-autosave" data-autosave>内容将每 60 秒自动保存，防止意外丢失</p>
-        <?php endif; ?>
-
         <!-- 设置 -->
         <div class="card admin-form-card admin-settings-card">
           <div class="admin-editor-card-heading">
-            <strong>文章设置</strong>
+            <strong>发布设置</strong>
           </div>
           <div class="admin-field">
             <label class="label" for="catTrigger">分类</label>
@@ -115,19 +119,25 @@ $editorData = [
             <div class="admin-tags-all" id="tagsAll"></div>
           </div>
 
-          <div class="admin-field admin-editor-cover-field">
-            <label class="label" for="fCoverUrl">封面图</label>
-            <div class="admin-cover-row">
-              <input class="input" id="fCoverUrl" name="cover_url" value="<?= e($post['cover_url'] ?? '') ?>" placeholder="图片 URL" maxlength="500">
-              <button type="button" class="btn btn-outline" id="btnCoverUpload"><?= admin_icon('upload', 14) ?>上传</button>
-              <button type="button" class="btn btn-outline" id="btnCoverPicker"><?= admin_icon('image', 14) ?>媒体库</button>
-              <input type="file" id="coverFile" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml,.svg" hidden>
-            </div>
-            <div class="admin-cover-preview" data-cover-preview hidden>
-              <img alt="封面预览">
-            </div>
-          </div>
+        </div>
 
+        <div class="card admin-form-card admin-editor-cover-card">
+          <h2 class="admin-card-title">封面图</h2>
+          <button type="button" class="admin-cover-picker" id="btnCoverPicker" aria-label="选择或更换封面">
+            <span class="admin-cover-empty" data-cover-empty><?= admin_icon('image', 24) ?><span>选择封面</span></span>
+            <span class="admin-cover-preview" data-cover-preview hidden><img alt="封面预览"></span>
+          </button>
+          <div class="admin-cover-actions">
+            <details class="admin-cover-address">
+              <summary>使用图片地址</summary>
+              <label for="fCoverUrl">封面图片地址</label>
+              <input class="input" id="fCoverUrl" name="cover_url" value="<?= e($post['cover_url'] ?? '') ?>" placeholder="图片 URL" maxlength="500">
+            </details>
+            <button type="button" class="btn btn-ghost btn-sm" id="btnCoverClear" hidden>移除</button>
+          </div>
+        </div>
+
+        <div class="card admin-form-card admin-editor-advanced-card">
           <!-- 高级选项 -->
           <details class="admin-advanced">
             <summary>
@@ -169,6 +179,11 @@ $editorData = [
                 <input type="checkbox" id="fCatPinned" name="category_pinned" value="1" <?= $post['category_pinned'] ? 'checked' : '' ?>>
                 <span>分类内置顶（在所属分类页置顶展示）</span>
               </label>
+              <input type="hidden" name="allow_comments" value="0">
+              <label class="admin-check">
+                <input type="checkbox" id="fAllowComments" name="allow_comments" value="1" <?= ($post['allow_comments'] ?? 1) ? 'checked' : '' ?>>
+                <span>允许评论</span>
+              </label>
               <?= \Pafish\Services\Plugin::renderInjection('post_editor', [
                   'post' => $post,
                   'isEdit' => $isEdit,
@@ -181,6 +196,7 @@ $editorData = [
               ]) ?>
             </div>
           </details>
+          <?php $seoValues = $post; $seoPrefix = 'post'; require __DIR__ . '/partials/seo-fields.php'; ?>
         </div>
 
       </div>
@@ -195,4 +211,5 @@ window.PAFISH_EDITOR_DATA = <?= json_encode($editorData, JSON_UNESCAPED_UNICODE)
 window.PAFISH_EDITOR_CSRF = <?= json_encode(\Pafish\Core\Session::csrfToken()) ?>;
 </script>
 <script src="<?= e(asset_url('/js/admin-markdown-editor.js')) ?>"></script>
+<script src="<?= e(asset_url('/js/admin-editor-host.js')) ?>"></script>
 <script src="<?= e(asset_url('/js/admin-editor.js')) ?>"></script>

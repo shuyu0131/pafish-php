@@ -34,6 +34,9 @@ final class Slug
             }
             $candidate = $slug . '-' . $i;
         }
-        return $candidate;
+        if (!$check($candidate)) {
+            return $candidate;
+        }
+        throw new \RuntimeException('无法生成可用的别名，请手动指定其他别名');
     }
 }

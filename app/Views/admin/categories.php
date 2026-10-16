@@ -1,7 +1,7 @@
 <?php
 /**
  * 分类管理：
- * 左侧树形列表（└ 缩进、文章数、同级上移/下移/编辑/删除），右侧新建/编辑表单
+ * 树形列表保留层级和排序，新建与编辑复用同一个弹窗表单。
  * 变量：$tree $counts $flatForSelect $disabledMap $role
  * 防自引用：编辑时父级下拉禁用"自身+后代"（disabledMap），后端 BFS 双保险
  */
@@ -11,12 +11,13 @@ $canEdit = in_array($role ?? '', ['ADMIN', 'EDITOR'], true);
   <div class="admin-page-head">
     <div>
       <h1 class="admin-h1">分类管理</h1>
-      <p class="admin-page-sub">共 <?= count($tree) ?> 个分类 · 支持父子层级与同级排序</p>
+      <p class="admin-page-sub">共 <?= count($tree) ?> 个分类</p>
     </div>
+    <?php if ($canEdit): ?><button type="button" class="btn btn-primary" id="btnNewCategory"><?= admin_icon('plus', 15) ?>新建分类</button><?php endif; ?>
   </div>
 
-  <div class="admin-cat-layout">
-    <!-- 左：树形列表 -->
+  <div class="admin-category-list">
+    <!-- 树形列表 -->
     <div class="admin-cat-tree">
       <div class="admin-table-wrap">
         <table class="admin-table">
@@ -32,7 +33,7 @@ $canEdit = in_array($role ?? '', ['ADMIN', 'EDITOR'], true);
               <tr><td colspan="3">
                 <div class="admin-empty-list">
                   <?= admin_icon('folder', 32) ?>
-                  <p>还没有分类，在右侧创建第一个</p>
+                  <p>还没有分类</p>
                 </div>
               </td></tr>
             <?php else: ?>
@@ -43,6 +44,9 @@ $canEdit = in_array($role ?? '', ['ADMIN', 'EDITOR'], true);
                     data-name="<?= e($c['name']) ?>"
                     data-slug="<?= e($c['slug']) ?>"
                     data-desc="<?= e($c['description'] ?? '') ?>"
+                    data-seo-title="<?= e($c['seo_title'] ?? '') ?>"
+                    data-meta-description="<?= e($c['meta_description'] ?? '') ?>"
+                    data-cover="<?= e($c['cover_url'] ?? '') ?>"
                     data-parent="<?= $c['parent_id'] ? (int) $c['parent_id'] : '' ?>">
                   <td>
                     <div class="admin-cat-name">
@@ -78,26 +82,37 @@ $canEdit = in_array($role ?? '', ['ADMIN', 'EDITOR'], true);
       </div>
     </div>
 
-    <!-- 右：新建/编辑表单 -->
-    <div class="admin-cat-form card admin-form-card">
-      <h2 class="admin-card-title" id="catFormTitle">新建分类</h2>
+  </div>
+</div>
+
+<div class="admin-modal-backdrop" id="categoryModal" hidden>
+  <div class="admin-modal admin-entity-modal" role="dialog" aria-modal="true" aria-labelledby="catFormTitle">
+    <div class="admin-modal-head">
+      <h2 class="admin-modal-title" id="catFormTitle">新建分类</h2>
+      <button type="button" class="admin-icon-btn" data-modal-close aria-label="关闭分类窗口"><?= admin_icon('x', 16) ?></button>
+    </div>
       <form id="catForm" method="post" action="<?= e(url_to('/admin/categories/save')) ?>" novalidate>
         <?= csrf_field() ?>
         <input type="hidden" name="id" id="fCatId" value="">
+        <div class="admin-modal-body">
         <div class="admin-field">
-          <span class="label">名称 *</span>
-          <input class="input" type="text" id="fCatName" name="name" placeholder="分类名称" maxlength="100">
+          <label class="label" for="fCatName">名称 <span aria-hidden="true">*</span></label>
+          <input class="input" type="text" id="fCatName" name="name" placeholder="分类名称" maxlength="100" required>
         </div>
         <div class="admin-field">
-          <span class="label">地址</span>
+          <label class="label" for="fCatSlug">地址</label>
           <input class="input" type="text" id="fCatSlug" name="slug" placeholder="自动根据名称生成" maxlength="100">
         </div>
         <div class="admin-field">
-          <span class="label">描述</span>
+          <label class="label" for="fCatDesc">描述</label>
           <textarea class="input" id="fCatDesc" name="description" rows="2" maxlength="500"></textarea>
         </div>
         <div class="admin-field">
-          <span class="label">父分类</span>
+          <label class="label" for="categoryCover">分类封面</label>
+          <?php $imageId = 'categoryCover'; $imageName = 'cover_url'; $imageValue = ''; require __DIR__ . '/partials/image-field.php'; ?>
+        </div>
+        <div class="admin-field">
+          <label class="label" for="fCatParent">父分类</label>
           <select class="input" id="fCatParent" name="parent_id">
             <option value="">（无，作为顶级分类）</option>
             <?php foreach ($flatForSelect as $oc): ?>
@@ -105,13 +120,14 @@ $canEdit = in_array($role ?? '', ['ADMIN', 'EDITOR'], true);
             <?php endforeach; ?>
           </select>
         </div>
-        <div class="admin-cat-form-actions">
-          <button type="submit" class="btn btn-primary">创建分类</button>
-          <button type="button" class="btn btn-ghost" id="catFormCancel" hidden>取消</button>
+        <?php $seoValues = []; $seoPrefix = 'category'; require __DIR__ . '/partials/seo-fields.php'; ?>
+        <div class="admin-editor-error" role="alert" hidden></div>
         </div>
-        <div class="admin-editor-error" hidden></div>
+        <div class="admin-modal-actions admin-cat-form-actions">
+          <button type="button" class="btn btn-ghost" id="catFormCancel" data-modal-close>取消</button>
+          <button type="submit" class="btn btn-primary">创建分类</button>
+        </div>
       </form>
-    </div>
   </div>
 </div>
 
@@ -128,6 +144,7 @@ window.PAFISH_CAT_DATA = <?= json_encode($catJs) ?>;
   "use strict";
   var D = window.PAFISH_CAT_DATA;
   var form = document.getElementById("catForm");
+  var categoryModal = document.getElementById("categoryModal");
   var fId = document.getElementById("fCatId");
   var fName = document.getElementById("fCatName");
   var fSlug = document.getElementById("fCatSlug");
@@ -135,7 +152,26 @@ window.PAFISH_CAT_DATA = <?= json_encode($catJs) ?>;
   var fParent = document.getElementById("fCatParent");
   var titleEl = document.getElementById("catFormTitle");
   var cancelBtn = document.getElementById("catFormCancel");
-  var errorBox = document.querySelector(".admin-editor-error");
+  var errorBox = form.querySelector(".admin-editor-error");
+  var saving = false;
+
+  function resetForm() {
+    form.reset();
+    fId.value = "";
+    form.action = D.saveUrl;
+    titleEl.textContent = "新建分类";
+    errorBox.hidden = true;
+    form.querySelectorAll('details').forEach(function (details) { details.open = false; });
+    form.querySelector(".btn-primary").textContent = "创建分类";
+    Array.prototype.forEach.call(fParent.options, function (opt) { opt.disabled = false; });
+    fParent.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+  var createButton = document.getElementById("btnNewCategory");
+  if (createButton) createButton.addEventListener("click", function () {
+    if (saving) return;
+    resetForm();
+    categoryModal.hidden = false;
+  });
 
   function showError(message) {
     errorBox.textContent = message;
@@ -153,42 +189,48 @@ window.PAFISH_CAT_DATA = <?= json_encode($catJs) ?>;
   document.querySelectorAll("[data-edit-cat]").forEach(function (btn) {
     btn.addEventListener("click", function () {
       var row = btn.closest("[data-cat-row]");
+      if (saving) return;
+      resetForm();
       fId.value = row.getAttribute("data-id");
       fName.value = row.getAttribute("data-name");
       fSlug.value = row.getAttribute("data-slug");
       fDesc.value = row.getAttribute("data-desc");
+      form.elements.seo_title.value = row.getAttribute("data-seo-title") || "";
+      form.elements.meta_description.value = row.getAttribute("data-meta-description") || "";
+      form.elements.cover_url.value = row.getAttribute("data-cover") || "";
+      form.elements.cover_url.dispatchEvent(new Event("input", { bubbles: true }));
       var parentVal = row.getAttribute("data-parent") || "";
       Array.prototype.forEach.call(fParent.options, function (opt) {
         var id = opt.value;
         opt.disabled = id !== "" && (D.disabledMap[fId.value] || []).indexOf(Number(id)) !== -1;
       });
       fParent.value = parentVal;
+      fParent.dispatchEvent(new Event("change", { bubbles: true }));
       form.action = D.saveUrl.replace(/\/save$/, "/" + fId.value + "/save");
       titleEl.textContent = "编辑分类";
-      cancelBtn.hidden = false;
       document.querySelector(".admin-cat-form-actions .btn-primary").textContent = "保存修改";
-      form.scrollIntoView({ behavior: "smooth", block: "center" });
+      categoryModal.hidden = false;
     });
   });
 
-  // 取消编辑：回到新建模式
+  // 取消编辑，下次打开时重新读取对应分类。
   cancelBtn.addEventListener("click", function () {
-    form.reset();
-    fId.value = "";
-    form.action = D.saveUrl;
-    titleEl.textContent = "新建分类";
-    cancelBtn.hidden = true;
-    document.querySelector(".admin-cat-form-actions .btn-primary").textContent = "创建分类";
-    Array.prototype.forEach.call(fParent.options, function (opt) { opt.disabled = false; });
+    if (!saving) resetForm();
   });
 
   // 新建/编辑提交（保持当前页，错误内联展示）
   form.addEventListener("submit", function (e) {
     e.preventDefault();
+    if (saving) return;
     errorBox.hidden = true;
-    if (!fName.value.trim()) { showError("请填写分类名称"); return; }
+    if (!fName.value.trim()) { showError("请填写分类名称"); fName.focus(); return; }
     var fd = new FormData(form);
     fd.set("_csrf", D.csrf);
+    saving = true;
+    categoryModal.setAttribute("data-modal-static", "true");
+    form.querySelector('[type="submit"]').disabled = true;
+    categoryModal.querySelectorAll("[data-modal-close]").forEach(function (button) { button.disabled = true; });
+    form.setAttribute("aria-busy", "true");
     fetch(form.action, { method: "POST", body: fd, headers: { "X-Requested-With": "XMLHttpRequest" } })
       .then(function (r) { return r.json(); })
       .then(function (j) {
@@ -196,7 +238,14 @@ window.PAFISH_CAT_DATA = <?= json_encode($catJs) ?>;
           pafishToastReload(fId.value ? "分类已更新" : "分类已创建", "success");
         } else { showError((j && j.error) || "保存失败"); }
       })
-      .catch(function () { showError("网络错误"); });
+      .catch(function () { showError("网络错误，请重试"); })
+      .finally(function () {
+        saving = false;
+        categoryModal.removeAttribute("data-modal-static");
+        form.querySelector('[type="submit"]').disabled = false;
+        categoryModal.querySelectorAll("[data-modal-close]").forEach(function (button) { button.disabled = false; });
+        form.removeAttribute("aria-busy");
+      });
   });
 
   // 上移/下移（同级交换 sortOrder）
@@ -230,3 +279,4 @@ window.PAFISH_CAT_DATA = <?= json_encode($catJs) ?>;
 </script>
 
 <script src="<?= e(asset_url('/js/admin-sort.js')) ?>" defer></script>
+<script src="<?= e(asset_url('/js/admin-image-fields.js')) ?>" defer></script>

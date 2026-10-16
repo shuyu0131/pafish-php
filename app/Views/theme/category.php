@@ -14,6 +14,9 @@ get_header();
   <header class="listing-head">
     <p class="eyebrow">分类</p>
     <h1 class="editorial listing-title"><?= e((string) ($category['name'] ?? '')) ?></h1>
+    <?php if (!empty($category['cover_url'])): ?>
+      <img class="listing-cover" src="<?= e($category['cover_url']) ?>" alt="" loading="lazy">
+    <?php endif; ?>
     <?php if (!empty($category['description'])): ?>
       <p class="listing-desc"><?= e((string) $category['description']) ?></p>
     <?php endif; ?>

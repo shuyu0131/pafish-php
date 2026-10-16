@@ -10,6 +10,7 @@ use Pafish\Core\Session;
 use Pafish\Services\Captcha;
 use Pafish\Services\Notify;
 use Pafish\Services\Settings;
+use Pafish\Http\Responses;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -106,12 +107,10 @@ final class CommentApiController
             return $this->json($response, ['error' => '邮箱格式不正确'], 400);
         }
 
-        $post = DB::fetchOne(
-            "SELECT id, status, title, slug, author_id FROM posts WHERE id = ? AND deleted_at IS NULL",
-            [(int) ($postId ?: 0)]
-        );
-        if (!$post || $post['status'] !== 'PUBLISHED') {
-            return $this->json($response, ['error' => '文章不存在'], 404);
+        try {
+            $post = \Pafish\Services\Posts::findReadable((int) $postId, true);
+        } catch (\DomainException $e) {
+            return $this->json($response, ['error' => $e->getMessage()], $e->getCode());
         }
 
         // 回复校验：父评论必须存在、属于同一篇文章且已通过审核
@@ -170,22 +169,15 @@ final class CommentApiController
         if (!in_array($commentStatus, ['PENDING', 'APPROVED', 'REJECTED'], true)) {
             $commentStatus = $needReview ? 'PENDING' : 'APPROVED';
         }
-        DB::execute(
-            'INSERT INTO comments (post_id, author_name, author_email, user_id, content, status, parent_id, notify_reply, ip)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [
-                (int) $post['id'],
-                $name,
-                $email,
-                $userId,
-                $content,
-                $commentStatus,
-                $parentId,
-                $notifyReply ? 1 : 0,
-                $ip === 'unknown' ? null : $ip,
-            ]
-        );
-        $commentId = (int) DB::lastInsertId();
+        try {
+            $commentId = \Pafish\Services\Comments::create([
+                'post_id'=>(int) $post['id'], 'author_name'=>$name, 'author_email'=>$email,
+                'user_id'=>$userId, 'content'=>$content, 'status'=>$commentStatus,
+                'parent_id'=>$parentId, 'notify_reply'=>$notifyReply, 'ip'=>$ip === 'unknown' ? null : $ip,
+            ]);
+        } catch (\DomainException $e) {
+            return $this->json($response, ['error'=>$e->getMessage()], $e->getCode());
+        }
 
         // 游客待审评论仅在其当前会话内回显，避免通过可伪造的 Cookie 暴露他人评论。
         if ($userId === null && $commentStatus === 'PENDING') {
@@ -237,16 +229,7 @@ final class CommentApiController
 
     private function clientIp(Request $request): string
     {
-        $forwarded = $request->getHeaderLine('X-Forwarded-For');
-        if ($forwarded !== '') {
-            return trim(explode(',', $forwarded)[0]);
-        }
-        $real = $request->getHeaderLine('X-Real-IP');
-        if ($real !== '') {
-            return trim($real);
-        }
-        $serverParams = $request->getServerParams();
-        return (string) ($serverParams['REMOTE_ADDR'] ?? 'unknown');
+        return \Pafish\Core\ClientIp::fromRequest($request);
     }
 
     /** 验证码绑定会话和来源地址，避免 token 被跨会话转用 */
@@ -291,40 +274,11 @@ final class CommentApiController
     /** 同 IP 限速：runtime/rate/comment_{ip}.ts；顺带清理 10 分钟前的记录 */
     private function isCommentTooFast(string $ip): bool
     {
-        $dir = dirname(__DIR__, 2) . '/runtime/rate';
-        if (!is_dir($dir)) {
-            @mkdir($dir, 0755, true);
-        }
-        $file = $dir . '/comment_' . md5($ip) . '.ts';
-        $now = time();
-        $last = is_file($file) ? (int) @file_get_contents($file) : 0;
-        if ($now - $last < self::MIN_INTERVAL) {
-            return true;
-        }
-        @file_put_contents($file, (string) $now);
-
-        // 顺带清理：文件超过 1000 个时清掉 10 分钟前的
-        $files = glob($dir . '/comment_*.ts');
-        if (is_array($files) && count($files) > 1000) {
-            $cutoff = $now - 600;
-            $cleaned = 0;
-            foreach ($files as $f) {
-                if ((int) @file_get_contents($f) < $cutoff && @unlink($f)) {
-                    $cleaned++;
-                }
-                if ($cleaned >= 200) {
-                    break;
-                }
-            }
-        }
-        return false;
+        return !\Pafish\Core\RateLimiter::allow('comment-submit', $ip, 1, self::MIN_INTERVAL);
     }
 
     private function json(Response $response, array $data, int $status = 200): Response
     {
-        $response->getBody()->write(json_encode($data, JSON_UNESCAPED_UNICODE));
-        return $response
-            ->withStatus($status)
-            ->withHeader('Content-Type', 'application/json');
+        return Responses::json($response, $data, $status);
     }
 }

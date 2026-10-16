@@ -56,10 +56,14 @@ final class ProfileController extends AdminController
             return $this->json($response, ['error' => '邮箱已被注册'], 409);
         }
 
-        DB::execute(
-            'UPDATE users SET nickname = ?, username = ?, email = ?, avatar_url = ? WHERE id = ?',
-            [$nickname, $username, strtolower($email), $avatarUrl, (int) $me['id']]
-        );
+        \Pafish\Services\MediaReferences::transaction(static function () use ($nickname, $username, $email, $avatarUrl, $me): void {
+            DB::execute(
+                'UPDATE users SET nickname = ?, username = ?, email = ?, avatar_url = ? WHERE id = ?',
+                [$nickname, $username, strtolower($email), $avatarUrl, (int) $me['id']]
+            );
+            \Pafish\Services\MediaReferences::sync('user', (int) $me['id']);
+            \Pafish\Core\Cache::clearPrefix('micro.latest.');
+        });
         return $this->json($response, ['ok' => true]);
     }
 
@@ -80,14 +84,15 @@ final class ProfileController extends AdminController
         if (!password_verify($current, (string) ($me['password_hash'] ?? ''))) {
             return $this->json($response, ['error' => '当前密码不正确'], 400);
         }
-        $len = mb_strlen($new);
-        if ($len < 6 || $len > 72) {
-            return $this->json($response, ['error' => '新密码长度需 6-72 位'], 400);
+        if (!Auth::validPassword($new)) {
+            return $this->json($response, ['error' => Auth::PASSWORD_RULE], 400);
         }
-        DB::execute(
-            'UPDATE users SET password_hash = ? WHERE id = ?',
-            [password_hash($new, PASSWORD_BCRYPT, ['cost' => 10]), (int) $me['id']]
+        $changed = DB::execute(
+            'UPDATE users SET password_hash = ?, reset_token = NULL, reset_token_expires = NULL
+             WHERE id = ? AND password_hash = ? AND disabled = 0',
+            [password_hash($new, PASSWORD_BCRYPT, ['cost' => 10]), (int) $me['id'], $me['password_hash']]
         );
+        if ($changed !== 1) return $this->json($response, ['error' => '账号状态已变化，请重新登录后再试'], 409);
         return $this->json($response, ['ok' => true]);
     }
 }

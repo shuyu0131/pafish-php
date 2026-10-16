@@ -8,6 +8,7 @@ $pluginActive = count(array_filter($plugins, static fn (array $plugin): bool => 
       <h1 class="admin-h1">插件管理</h1>
     </div>
     <div class="admin-head-actions">
+      <a class="btn btn-outline" href="<?= e(url_to('/admin/extensions/data')) ?>">扩展数据表</a>
       <a class="btn btn-outline" href="<?= e(url_to('/admin/store')) ?>">应用商店</a>
       <button type="button" class="btn btn-primary" data-open-install="#plugin-install">安装插件</button>
     </div>
@@ -19,18 +20,18 @@ $pluginActive = count(array_filter($plugins, static fn (array $plugin): bool => 
       <button type="button" class="admin-tab" data-plugin-filter="active" role="tab" aria-selected="false">已启用 <span class="admin-resource-count"><?= $pluginActive ?></span></button>
       <button type="button" class="admin-tab" data-plugin-filter="inactive" role="tab" aria-selected="false">未启用 <span class="admin-resource-count"><?= $pluginTotal - $pluginActive ?></span></button>
     </div>
-    <input type="search" id="pluginSearch" class="input admin-resource-search" placeholder="搜索插件名称或描述" autocomplete="off">
+    <input type="search" id="pluginSearch" class="input admin-resource-search" aria-label="搜索插件" placeholder="搜索插件名称或描述" autocomplete="off">
   </div>
 
   <div class="admin-resource-list">
-      <div class="admin-table-wrap">
-        <table class="admin-table">
+      <div class="admin-table-wrap" role="region" aria-label="插件列表，可左右滑动查看完整信息" tabindex="0">
+        <table class="admin-table admin-plugins-table">
           <thead>
             <tr>
               <th>插件</th>
-              <th class="admin-col-md">状态</th>
-              <th class="admin-col-md">作者</th>
-              <th class="admin-col-sm">版本</th>
+              <th class="admin-col-md admin-plugin-status-col">状态</th>
+              <th class="admin-col-md admin-plugin-secondary">作者</th>
+              <th class="admin-col-sm admin-plugin-secondary">版本</th>
               <th class="admin-col-ops">操作</th>
             </tr>
           </thead>
@@ -51,9 +52,9 @@ $pluginActive = count(array_filter($plugins, static fn (array $plugin): bool => 
                     <div class="admin-plugin-info">
                     <div class="admin-plugin-title">
                     <?php if ($p['active'] && $p['settingsCount'] > 0): ?>
-                      <a href="<?= e(url_to('/admin/plugins/' . rawurlencode($p['name']))) ?>" class="admin-plugin-name"><?= e($p['title']) ?></a>
+                      <a href="<?= e(url_to('/admin/plugins/' . rawurlencode($p['name']))) ?>" class="admin-plugin-name" title="<?= e($p['title']) ?>"><?= e($p['title']) ?></a>
                     <?php else: ?>
-                      <span class="admin-plugin-name"><?= e($p['title']) ?></span>
+                      <span class="admin-plugin-name" title="<?= e($p['title']) ?>"><?= e($p['title']) ?></span>
                     <?php endif; ?>
                     <?php if (!empty($p['builtin'])): ?><span class="badge badge-primary admin-plugin-builtin">内置</span><?php endif; ?>
                     <?php if ($p['active'] && ($p['frontendUrl'] ?? '') !== ''): ?>
@@ -72,17 +73,17 @@ $pluginActive = count(array_filter($plugins, static fn (array $plugin): bool => 
                     </div>
                   </div>
                 </td>
-                <td class="admin-col-md" data-label="状态">
+                <td class="admin-col-md admin-plugin-status-col" data-label="状态">
                   <?php if ($p['active']): ?>
                     <span class="badge badge-success">已启用</span>
                   <?php else: ?>
                     <span class="badge">未启用</span>
                   <?php endif; ?>
                 </td>
-                <td class="admin-col-md" data-label="作者">
+                <td class="admin-col-md admin-plugin-secondary" data-label="作者">
                   <?php if (($p['authorUrl'] ?? '') !== ''): ?><a href="<?= e($p['authorUrl']) ?>" target="_blank" rel="noopener noreferrer"><?= e($p['author'] !== '' ? $p['author'] : '未知') ?></a><?php else: ?><?= e($p['author'] !== '' ? $p['author'] : '未知') ?><?php endif; ?>
                 </td>
-                <td class="admin-col-sm" data-label="版本">
+                <td class="admin-col-sm admin-plugin-secondary" data-label="版本">
                   <?php if ($p['version'] !== ''): ?>v<?= e($p['version']) ?><?php endif; ?>
                   <div class="admin-muted" style="font-size: 11px;">API v<?= (int) $p['apiVersion'] ?></div>
                 </td>

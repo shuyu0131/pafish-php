@@ -49,6 +49,7 @@
 
   function closeModal(modal) {
     if (!modal || modal.getAttribute('data-modal-static') === 'true') return;
+    document.dispatchEvent(new Event('pafish:controls-close'));
     var resolver = modal._confirmResolve;
     modal._confirmResolve = null;
     modal.hidden = true;
@@ -153,14 +154,16 @@
     });
     document.addEventListener('keydown', function (event) {
       if (!activeModal) return;
+      if (event.target.closest && event.target.closest('dialog[open]')) return;
       if (event.key === 'Escape') {
+        if (activeModal.querySelector('.is-portal-open')) return;
         event.preventDefault();
         closeModal(activeModal);
         return;
       }
       if (event.key !== 'Tab') return;
       var dialog = activeModal.querySelector('[role="dialog"],.admin-modal');
-      var list = dialog ? focusables(dialog) : [];
+      var list = dialog ? focusables(activeModal) : [];
       if (!list.length) return;
       var first = list[0];
       var last = list[list.length - 1];

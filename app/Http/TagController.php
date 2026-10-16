@@ -17,7 +17,7 @@ final class TagController
     public function show(Request $request, Response $response, array $args): Response
     {
         $slug = rawurldecode((string) ($args['slug'] ?? ''));
-        $tag = DB::fetchOne('SELECT id, name, slug FROM tags WHERE slug = ?', [$slug]);
+        $tag = DB::fetchOne('SELECT * FROM tags WHERE slug = ?', [$slug]);
         if (!$tag) {
             return Listings::notFound($response, '标签不存在');
         }
@@ -29,12 +29,14 @@ final class TagController
         );
         $totalPages = max(1, (int) ceil($total / $perPage));
 
-        $metaDesc = "「{$tag['name']}」标签下的文章列表";
+        $metaDesc = $tag['meta_description'] ?: ($tag['description'] ?: "「{$tag['name']}」标签下的文章列表");
+        $seoTitle = $tag['seo_title'] ?: $tag['name'];
 
         $response->getBody()->write(\render('tag', [
             'title' => $tag['name'],
+            'seoTitle' => $seoTitle,
             'description' => $metaDesc,
-            'og' => Listings::og($request, $tag['name'], $metaDesc),
+            'og' => Listings::og($request, $seoTitle, $metaDesc),
             'tag' => $tag,
             'posts' => $posts,
             'total' => $total,

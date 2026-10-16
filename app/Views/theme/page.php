@@ -9,7 +9,7 @@
 $page = $page ?? [];
 $tpl = !empty($page['template']) && $page['template'] !== 'default' ? (string) $page['template'] : '';
 $pluginHtml = $pluginHtml ?? \Pafish\Services\Plugin::renderPageTemplate($page);
-$contentHtml = $contentHtml ?? md((string) ($page['content'] ?? ''));
+$contentHtml = $contentHtml ?? content_html((string) ($page['content'] ?? ''), (string) ($page['content_format'] ?? 'markdown'));
 $updatedAt = !empty($page['updated_at']) ? format_date($page['updated_at'], 'yyyy-MM-dd HH:mm') : '';
 get_header();
 ?>
@@ -21,7 +21,7 @@ get_header();
   <?php if ($pluginHtml !== ''): ?>
     <div class="plugin-page"><?= $pluginHtml ?></div>
   <?php else: ?>
-    <div class="md-content"><?= $contentHtml ?></div>
+    <div class="md-content pafish-content"><?= $contentHtml ?></div>
   <?php endif; ?>
 </div>
 <?php

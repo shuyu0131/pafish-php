@@ -466,11 +466,12 @@ final class Theme
     /** 主题运行日志保存在主题私有数据中，最多 50 条。 */
     public static function log(string $name, string $message): void
     {
-        $data = self::data($name);
-        $logs = is_array($data['logs'] ?? null) ? $data['logs'] : [];
-        $logs[] = ['time' => date('Y-m-d H:i:s'), 'message' => $message];
-        $data['logs'] = array_slice($logs, -50);
-        self::setData($name, $data);
+        ExtensionStorage::updateJson('theme_data:' . $name, static function (array $data) use ($message): array {
+            $logs = is_array($data['logs'] ?? null) ? $data['logs'] : [];
+            $logs[] = ['time' => date('Y-m-d H:i:s'), 'message' => $message];
+            $data['logs'] = array_slice($logs, -50);
+            return $data;
+        });
     }
 
     /**
@@ -928,10 +929,15 @@ final class Theme
         }
         // 覆盖已保存值
         $prefix = self::settingsPrefix($name);
-        $all = Settings::all();
+        $all = Settings::core();
         foreach ($all as $key => $value) {
             if (str_starts_with($key, $prefix) && isset($values[substr($key, strlen($prefix))])) {
                 $values[substr($key, strlen($prefix))] = $value;
+            }
+        }
+        foreach (ExtensionStorage::values('theme', $name) as $key => $value) {
+            if (str_starts_with($key, 'setting:') && isset($values[substr($key, 8)])) {
+                $values[substr($key, 8)] = $value;
             }
         }
         return $values;

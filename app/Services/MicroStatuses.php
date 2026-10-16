@@ -59,11 +59,12 @@ final class MicroStatuses
     public static function latest(int $limit = 5): array
     {
         $limit = min(20, max(1, $limit));
-        $cacheKey = 'micro.latest.' . $limit;
-        $cached = Cache::get($cacheKey);
-        if (is_array($cached)) {
-            return $cached;
-        }
+        return Cache::remember('micro.latest.' . $limit,
+            static fn(): array => self::loadLatest($limit), 60);
+    }
+
+    private static function loadLatest(int $limit): array
+    {
         $rows = DB::fetchAll(
             "SELECT m.*, COALESCE(NULLIF(u.nickname, ''), u.username) AS author_name, u.avatar_url AS author_avatar
              FROM micro_statuses m LEFT JOIN users u ON u.id = m.author_id
@@ -72,9 +73,7 @@ final class MicroStatuses
              ORDER BY m.is_pinned DESC, m.published_at DESC, m.id DESC
              LIMIT {$limit}"
         );
-        $items = array_map([self::class, 'publicPayload'], $rows);
-        Cache::set($cacheKey, $items, 60);
-        return $items;
+        return array_map([self::class, 'publicPayload'], $rows);
     }
 
     /** @return array{items:array,total:int,page:int,totalPages:int,perPage:int} */
@@ -127,18 +126,18 @@ final class MicroStatuses
         return $row;
     }
 
-    /** 将独立图片合入 Markdown，供编辑和默认前台展示使用；已有正文图片不重复插入。 */
-    public static function contentWithMedia(string $content, array $media): string
+    /** 将旧版独立图片合入正文；已有正文图片不重复插入。 */
+    public static function contentWithMedia(string $content, array $media, string $format = 'markdown'): string
     {
         $media = self::normalizeMedia($media);
         if ($media === []) {
             return $content;
         }
 
-        // 按实际 Markdown 图片识别，避免把普通链接、代码示例误当成已展示的图片。
+        // 按实际渲染图片识别，避免把普通链接、代码示例误当成已展示的图片。
         $parser = new \ParsedownExtra();
         $parser->setSafeMode(true);
-        preg_match_all('/<img\b[^>]*\bsrc="([^"]*)"/i', $parser->text($content), $matches);
+        preg_match_all('/<img\b[^>]*\bsrc="([^"]*)"/i', $format === 'html' ? Content::sanitize($content) : $parser->text($content), $matches);
         $key = static fn (string $url): string => rawurldecode(html_entity_decode($url, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
         $seen = array_fill_keys(array_map($key, $matches[1]), true);
         $images = [];
@@ -148,6 +147,10 @@ final class MicroStatuses
                 continue;
             }
             $seen[$imageKey] = true;
+            if ($format === 'html') {
+                $images[] = '<p><img src="' . htmlspecialchars($url, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '" alt=""></p>';
+                continue;
+            }
             // URL 作为 Markdown 目标写入，空白、括号等须编码，不能改变正文结构。
             $destination = preg_replace_callback('/[\x00-\x20\x7f()<>"\x27\\\\]/', static fn (array $m): string => rawurlencode($m[0]), $url);
             $images[] = '![](' . $destination . ')';
@@ -158,6 +161,10 @@ final class MicroStatuses
 
     /** 保存新建/编辑微语；返回规范化后的记录。 */
     public static function save(array $input, ?int $id = null, ?int $authorId = null): array
+    {
+        return MediaReferences::transaction(static fn () => self::persist($input, $id, $authorId));
+    }
+    private static function persist(array $input, ?int $id = null, ?int $authorId = null): array
     {
         $existing = $id !== null ? self::find($id) : null;
         if ($id !== null && $existing === null) {
@@ -171,6 +178,7 @@ final class MicroStatuses
         $payload = [
             'id' => $id !== null ? (string) $id : null,
             'content' => trim((string) ($input['content'] ?? '')),
+            'contentFormat' => Content::format($input['content_format'] ?? ($existing['content_format'] ?? 'markdown')),
             'status' => ($input['status'] ?? self::DRAFT) === self::PUBLISHED ? self::PUBLISHED : self::DRAFT,
             'publishedAt' => self::normalizeDate($input['published_at'] ?? $input['publishedAt'] ?? null),
             'isPinned' => self::truthy($input['is_pinned'] ?? $input['isPinned'] ?? false),
@@ -192,6 +200,8 @@ final class MicroStatuses
             $payload = array_replace($payload, $decision);
         }
         $payload['content'] = trim((string) ($payload['content'] ?? ''));
+        $payload['contentFormat'] = Content::format($payload['contentFormat']);
+        if ($payload['contentFormat'] === 'html') $payload['content'] = trim(Content::sanitize($payload['content']));
         if ($payload['content'] === '') {
             throw new \RuntimeException('内容不能为空');
         }
@@ -212,17 +222,18 @@ final class MicroStatuses
         $mediaJson = $payload['media'] === [] ? null : json_encode($payload['media'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         if ($id !== null) {
             DB::execute(
-                'UPDATE micro_statuses SET content = ?, media_json = ?, status = ?, published_at = ?, is_pinned = ?, is_private = ?, updated_at = NOW() WHERE id = ?',
-                [$payload['content'], $mediaJson, $payload['status'], $payload['publishedAt'], $payload['isPinned'] ? 1 : 0, $payload['isPrivate'] ? 1 : 0, $id]
+                'UPDATE micro_statuses SET content = ?, content_format = ?, media_json = ?, status = ?, published_at = ?, is_pinned = ?, is_private = ?, updated_at = NOW() WHERE id = ?',
+                [$payload['content'], $payload['contentFormat'], $mediaJson, $payload['status'], $payload['publishedAt'], $payload['isPinned'] ? 1 : 0, $payload['isPrivate'] ? 1 : 0, $id]
             );
         } else {
             DB::execute(
-                'INSERT INTO micro_statuses (content, media_json, status, published_at, is_pinned, is_private, author_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())',
-                [$payload['content'], $mediaJson, $payload['status'], $payload['publishedAt'], $payload['isPinned'] ? 1 : 0, $payload['isPrivate'] ? 1 : 0, $authorId]
+                'INSERT INTO micro_statuses (content, content_format, media_json, status, published_at, is_pinned, is_private, author_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())',
+                [$payload['content'], $payload['contentFormat'], $mediaJson, $payload['status'], $payload['publishedAt'], $payload['isPinned'] ? 1 : 0, $payload['isPrivate'] ? 1 : 0, $authorId]
             );
             $id = DB::lastInsertId();
             $payload['id'] = (string) $id;
         }
+        MediaReferences::sync('micro', (int) $id);
         Cache::clearPrefix('micro.latest.');
         $row = self::find((int) $id);
         if ($row === null) {
@@ -255,6 +266,7 @@ final class MicroStatuses
         return [
             'id' => (string) $row['id'],
             'content' => (string) $row['content'],
+            'contentFormat' => (string) ($row['content_format'] ?? 'markdown'),
             'publishedAt' => (string) ($row['published_at'] ?? ''),
             'updatedAt' => (string) ($row['updated_at'] ?? ''),
             'isPinned' => (bool) $row['is_pinned'],

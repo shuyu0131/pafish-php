@@ -51,10 +51,10 @@ final class Backup
         return date('Ymd-His');
     }
 
-    /** 生成不冲突的文件名（同分钟多次创建时追加 -N，避免安全备份覆盖原备份） */
+    /** Timestamp plus random suffix avoids concurrent requests choosing the same target. */
     private static function uniqueName(string $prefix): string
     {
-        $base = $prefix . self::stamp();
+        $base = $prefix . self::stamp() . '-' . bin2hex(random_bytes(6));
         $file = $base . '.sql';
         $i = 1;
         while (is_file(self::dir() . '/' . $file)) {
@@ -69,14 +69,18 @@ final class Backup
     {
         $file = self::uniqueName(self::PREFIX_BACKUP);
         $path = self::dir() . '/' . $file;
-        // 在线升级和后台备份必须兼容禁用 exec() 的共享主机；
-        // 统一使用 PDO 导出，避免探测或调用 mysqldump 造成致命错误。
-        $sql = self::exportPhp();
-        if (@file_put_contents($path, $sql) === false) {
-            throw new \RuntimeException('无法写入备份文件（请检查 backups 目录权限）');
-        }
-        if (!is_file($path) || (int) @filesize($path) === 0) {
-            throw new \RuntimeException('备份失败：未生成有效文件');
+        $temp = $path . '.' . bin2hex(random_bytes(6)) . '.tmp';
+        $stream = @fopen($temp, 'x+b');
+        if ($stream === false) throw new \RuntimeException('无法写入备份文件（请检查 backups 目录权限）');
+        try {
+            self::exportTo($stream);
+            if (!fflush($stream)) throw new \RuntimeException('备份文件刷新失败');
+            fclose($stream);
+            $stream = null;
+            if (is_file($path) || !@rename($temp, $path)) throw new \RuntimeException('无法完成备份文件，请重试');
+        } finally {
+            if (is_resource($stream)) fclose($stream);
+            if (is_file($temp)) @unlink($temp);
         }
         return $file;
     }
@@ -141,42 +145,102 @@ final class Backup
 
     // ---------- 纯 PHP 兜底 ----------
 
-    /** 逐表导出为 SQL（无 mysqldump 环境时的兜底） */
+    /** Legacy/test adapter. The actual create() path never assembles the dump in memory. */
     private static function exportPhp(): string
     {
-        $pdo = DB::pdo();
-        $tables = $pdo->query('SHOW TABLES')->fetchAll(PDO::FETCH_COLUMN);
-        $out = "-- pafish 数据备份（纯 PHP 导出）\n";
-        $out .= "-- 生成时间：" . date('Y-m-d H:i:s') . "\n\n";
-        $out .= "SET NAMES utf8mb4;\n";
-        $out .= "SET FOREIGN_KEY_CHECKS = 0;\n\n";
-        foreach ($tables as $table) {
-            $out .= "-- ---- 表：{$table} ----\n";
-            $out .= "DROP TABLE IF EXISTS `{$table}`;\n";
-            $create = $pdo->query("SHOW CREATE TABLE `{$table}`")->fetch(PDO::FETCH_ASSOC);
-            $out .= ($create['Create Table'] ?? '') . ";\n\n";
-            $rows = $pdo->query("SELECT * FROM `{$table}`")->fetchAll(PDO::FETCH_ASSOC);
-            if ($rows === []) {
-                continue;
-            }
-            $cols = array_keys($rows[0]);
-            $quoted = array_map(static fn (string $c): string => '`' . $c . '`', $cols);
-            $out .= 'INSERT INTO `' . $table . '` (' . implode(', ', $quoted) . ") VALUES\n";
-            $lines = [];
-            foreach ($rows as $row) {
-                $vals = [];
-                foreach ($cols as $col) {
-                    $vals[] = self::quote($row[$col]);
-                }
-                $lines[] = '(' . implode(', ', $vals) . ')';
-            }
-            $out .= implode(",\n", $lines) . ";\n\n";
-        }
-        $out .= "SET FOREIGN_KEY_CHECKS = 1;\n";
-        return $out;
+        $stream = fopen('php://temp', 'w+');
+        if ($stream === false) throw new \RuntimeException('无法创建备份缓冲区');
+        try {
+            self::exportTo($stream);
+            rewind($stream);
+            $sql = stream_get_contents($stream);
+            if ($sql === false) throw new \RuntimeException('无法读取备份缓冲区');
+            return $sql;
+        } finally { fclose($stream); }
     }
 
-    private static function quote(mixed $v): string
+    /** Core + declared/registered extension tables; excludes unrelated shared-database tables. */
+    private static function tableNames(): array
+    {
+        preg_match_all('/CREATE TABLE IF NOT EXISTS (\w+)/', (string) file_get_contents(dirname(__DIR__) . '/install/schema.sql'), $matches);
+        $names = array_fill_keys(array_merge($matches[1], ['schema_migrations']), true);
+        foreach (DB::fetchAll("SELECT data_key FROM extension_storage WHERE extension_type='system' AND extension_name='table_owners'") as $row) $names[(string) $row['data_key']] = true;
+        // Disabled extensions and legacy installs may not yet have table_owners entries.
+        foreach (['plugin'=>'plugins', 'theme'=>'themes'] as $kind=>$dir) {
+            foreach (glob(dirname(__DIR__, 2) . '/' . $dir . '/*/' . $kind . '.json') ?: [] as $file) {
+                $name = basename(dirname($file));
+                $manifest = json_decode((string) file_get_contents($file), true);
+                if (!is_array($manifest) || ExtensionSchema::validateDeclaration($manifest['schema'] ?? null, $kind, $name) !== null) continue;
+                foreach ($manifest['schema']['tables'] ?? [] as $table) $names[ExtensionSchema::physicalName($kind, $name, $table['name'])] = true;
+            }
+        }
+        return array_keys($names);
+    }
+
+    /** @param resource $stream */
+    private static function exportTo($stream, ?array $names = null): void
+    {
+        $pdo = DB::pdo();
+        if ($pdo->inTransaction()) throw new \RuntimeException('不能在业务事务内创建数据库备份');
+        $tables = [];
+        foreach ($names ?? self::tableNames() as $table) {
+            if (!preg_match('/^[a-zA-Z0-9_]{1,64}$/D', $table)) throw new \RuntimeException('备份表名无效');
+            $stmt = $pdo->prepare("SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND TABLE_TYPE='BASE TABLE'");
+            $stmt->execute([$table]);
+            $engine = $stmt->fetchColumn();
+            $stmt->closeCursor();
+            if ($engine === false) continue;
+            if (strcasecmp((string) $engine, 'InnoDB') !== 0) throw new \RuntimeException('一致性备份要求 InnoDB 表：' . $table);
+            $tables[] = $table;
+        }
+        $write = static function (string $value) use ($stream): void {
+            for ($offset=0,$length=strlen($value);$offset<$length;) {
+                $n = fwrite($stream, substr($value, $offset));
+                if ($n === false || $n === 0) throw new \RuntimeException('写入备份失败（磁盘满或不可写）');
+                $offset += $n;
+            }
+        };
+        $bufferAttribute = defined('Pdo\\Mysql::ATTR_USE_BUFFERED_QUERY')
+            ? constant('Pdo\\Mysql::ATTR_USE_BUFFERED_QUERY')
+            : constant('PDO::MYSQL_ATTR_USE_BUFFERED_QUERY');
+        $buffered = (bool) $pdo->getAttribute($bufferAttribute);
+        try {
+            $pdo->query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ');
+            $pdo->query('START TRANSACTION WITH CONSISTENT SNAPSHOT, READ ONLY');
+            $write("-- pafish 本站核心及已登记/声明扩展表备份\n-- 生成时间：" . date('Y-m-d H:i:s') . "\nSET NAMES utf8mb4;\nSET @PAFISH_OLD_SQL_MODE=@@SESSION.sql_mode;\nSET SESSION sql_mode='NO_AUTO_VALUE_ON_ZERO';\nSET FOREIGN_KEY_CHECKS=0;\n\n");
+            foreach ($tables as $table) {
+                $ident = chr(96) . $table . chr(96);
+                $create = $pdo->query('SHOW CREATE TABLE ' . $ident)->fetch(PDO::FETCH_ASSOC);
+                if (!isset($create['Create Table'])) throw new \RuntimeException('无法读取表结构：' . $table);
+                $columns = $pdo->query('SHOW COLUMNS FROM ' . $ident)->fetchAll(PDO::FETCH_ASSOC);
+                $columns = array_values(array_filter($columns, static fn (array $c): bool => preg_match('/(?:VIRTUAL|STORED) GENERATED/i', $c['Extra']) !== 1));
+                $cols = array_column($columns, 'Field');
+                $binary = [];
+                foreach ($columns as $column) if (preg_match('/^(?:binary|varbinary|tinyblob|blob|mediumblob|longblob|bit)\b/i', $column['Type'])) $binary[$column['Field']] = true;
+                $list = implode(', ', array_map(static fn (string $c): string => chr(96) . str_replace(chr(96), chr(96).chr(96), $c) . chr(96), $cols));
+                $write('-- ---- 表：' . $table . " ----\nDROP TABLE IF EXISTS " . $ident . ";\n" . $create['Create Table'] . ";\n");
+                $pdo->setAttribute($bufferAttribute, false);
+                $rows = $pdo->query('SELECT ' . $list . ' FROM ' . $ident);
+                try {
+                    while (($row = $rows->fetch(PDO::FETCH_ASSOC)) !== false) {
+                        $vals = array_map(static fn (string $col): string => self::quote($row[$col], isset($binary[$col])), $cols);
+                        $write('INSERT INTO ' . $ident . ' (' . $list . ') VALUES (' . implode(', ', $vals) . ");\n");
+                    }
+                } finally {
+                    $rows->closeCursor();
+                    $pdo->setAttribute($bufferAttribute, $buffered);
+                }
+                $write("\n");
+            }
+            $write("SET FOREIGN_KEY_CHECKS=1;\nSET SESSION sql_mode=@PAFISH_OLD_SQL_MODE;\n");
+            $pdo->commit();
+        } catch (\Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            throw $e;
+        } finally { $pdo->setAttribute($bufferAttribute, $buffered); }
+    }
+
+    private static function quote(mixed $v, bool $binary = false): string
     {
         if ($v === null) {
             return 'NULL';
@@ -184,102 +248,41 @@ final class Backup
         if (is_int($v) || is_float($v)) {
             return (string) $v;
         }
-        return "'" . str_replace(["\\", "'", "\0"], ["\\\\", "\\'", ''], (string) $v) . "'";
+        if ($binary || str_contains((string) $v, "\0")) {
+            return "X'" . bin2hex((string) $v) . "'";
+        }
+        return "'" . str_replace(["\\", "'"], ["\\\\", "\\'"], (string) $v) . "'";
     }
 
-    /** 逐语句导入（无 mysql CLI 时的兜底；支持 DELIMITER 块与行注释）。
-     * 语句结束判定需跟踪引号状态——内容里的分号（如 Markdown 代码块）不能提前拆句。 */
+    /** DDL restoration is not atomic; the caller retains a safety backup. */
     private static function restorePhp(string $file): void
     {
         $pdo = DB::pdo();
-        $fp = @fopen($file, 'r');
-        if ($fp === false) {
-            throw new \RuntimeException('恢复失败：无法读取备份文件');
-        }
-        $delimiter = ';';
-        $stmt = '';
-        $count = 0;
-        while (($line = fgets($fp)) !== false) {
-            $trimmed = trim($line);
-            if ($trimmed === '' || str_starts_with($trimmed, '--')) {
-                continue; // 空行与行注释
-            }
-            if (str_starts_with($trimmed, '/*') && !str_starts_with($trimmed, '/*!')) {
-                continue; // 块注释；/*! 是版本条件注释，内容需执行（routines/triggers 依赖）
-            }
-            if (preg_match('/^DELIMITER\s+(\S+)/i', $trimmed, $m)) {
-                if (trim($stmt) !== '') {
-                    $pdo->query(trim($stmt));
-                    $count++;
+        if ($pdo->inTransaction()) throw new \RuntimeException('不能在业务事务内恢复数据库');
+        $fp = @fopen($file, 'rb');
+        if ($fp === false) throw new \RuntimeException('恢复失败：无法读取备份文件');
+        $state = null;
+        $modes = static function () use ($pdo): array {
+            $mode = explode(',', strtoupper((string) $pdo->query('SELECT @@SESSION.sql_mode')->fetchColumn()));
+            return [in_array('NO_BACKSLASH_ESCAPES', $mode, true), in_array('ANSI_QUOTES', $mode, true)];
+        };
+        try {
+            $state = $pdo->query('SELECT @@SESSION.FOREIGN_KEY_CHECKS AS fk, @@SESSION.sql_mode AS mode, @@SESSION.character_set_client AS client, @@SESSION.character_set_results AS results, @@SESSION.collation_connection AS collation')->fetch(PDO::FETCH_ASSOC);
+            foreach (\Pafish\Core\SqlScript::read($fp, true, $modes) as $sql) $pdo->query($sql);
+        } finally {
+            fclose($fp);
+            try {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                if (is_array($state)) {
+                    $pdo->query('SET SESSION FOREIGN_KEY_CHECKS=' . (int) $state['fk']);
+                    foreach (['sql_mode'=>'mode', 'character_set_client'=>'client', 'character_set_results'=>'results', 'collation_connection'=>'collation'] as $var=>$key) {
+                        $pdo->query('SET SESSION ' . $var . '=' . ($state[$key] === null ? 'NULL' : $pdo->quote((string) $state[$key])));
+                    }
                 }
-                $delimiter = $m[1];
-                $stmt = '';
-                continue;
-            }
-            $stmt .= $line;
-            if (self::endsWithDelimiter($stmt, $delimiter)) {
-                // 精确截除分隔符；rtrim(..., $delimiter) 会把多字符分隔符当字符集
-                // 逐字符误裁（如内容以 $ 结尾的 DELIMITER $$ 语句）
-                $sql = substr(trim($stmt), 0, -strlen($delimiter));
-                if ($sql !== '') {
-                    $pdo->query($sql);
-                    $count++;
-                }
-                $stmt = '';
+            } finally {
+                Settings::reset();
+                \Pafish\Core\Cache::clear();
             }
         }
-        if (trim($stmt) !== '') {
-            $pdo->query(trim($stmt));
-            $count++;
-        }
-        fclose($fp);
-    }
-
-    /** 判断语句是否以分隔符结束（扫描引号状态，字符串内的分号不拆句） */
-    private static function endsWithDelimiter(string $sql, string $delimiter): bool
-    {
-        $inSingle = $inDouble = $inBacktick = false;
-        $len = strlen($sql);
-        $escaped = false;
-        for ($i = 0; $i < $len; $i++) {
-            $ch = $sql[$i];
-            if ($escaped) {
-                $escaped = false;
-                continue;
-            }
-            if ($ch === '\\') {
-                $escaped = true;
-                continue;
-            }
-            if ($inSingle) {
-                if ($ch === "'") {
-                    $inSingle = false;
-                }
-                continue;
-            }
-            if ($inDouble) {
-                if ($ch === '"') {
-                    $inDouble = false;
-                }
-                continue;
-            }
-            if ($inBacktick) {
-                if ($ch === '`') {
-                    $inBacktick = false;
-                }
-                continue;
-            }
-            if ($ch === "'") {
-                $inSingle = true;
-            } elseif ($ch === '"') {
-                $inDouble = true;
-            } elseif ($ch === '`') {
-                $inBacktick = true;
-            }
-        }
-        if ($inSingle || $inDouble || $inBacktick) {
-            return false; // 字符串未闭合，语句未结束
-        }
-        return substr(rtrim($sql), -strlen($delimiter)) === $delimiter;
     }
 }

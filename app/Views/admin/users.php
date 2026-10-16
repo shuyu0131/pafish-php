@@ -69,9 +69,9 @@ $roleLabel = static function (string $role): string {
           <tr>
             <th class="admin-user-check-col"><input type="checkbox" id="adminUsersCheckAll" aria-label="全选用户"></th>
             <th>用户</th>
-            <th class="admin-user-role-col">角色</th>
+            <th class="admin-user-role-col admin-table-secondary">角色</th>
             <th class="admin-user-content-col">文章</th>
-            <th class="admin-list-date">最近活动</th>
+            <th class="admin-list-date admin-table-secondary">最近活动</th>
             <th class="admin-col-ops">操作</th>
           </tr>
         </thead>
@@ -96,12 +96,16 @@ $roleLabel = static function (string $role): string {
                     <?php if ($disabled): ?><span class="badge badge-danger">已禁用</span><?php endif; ?>
                   </div>
                   <div class="admin-muted admin-user-subline"><?= e($u['email']) ?></div>
+                  <div class="admin-table-mobile-meta">
+                    <span><?= e($roleLabel((string) $u['role'])) ?></span>
+                    <span title="最近活动：<?= e((string) ($u['last_active_at'] ?? '暂无记录')) ?>"><?= !empty($u['last_active_at']) ? e(date('Y-m-d', strtotime((string) $u['last_active_at']))) : '暂无记录' ?></span>
+                  </div>
                   </div>
                 </div>
               </td>
-              <td class="admin-user-role-col" data-label="角色"><?= e($roleLabel((string) $u['role'])) ?></td>
+              <td class="admin-user-role-col admin-table-secondary" data-label="角色"><?= e($roleLabel((string) $u['role'])) ?></td>
               <td class="admin-user-content-col" data-label="文章"><a href="<?= e(url_to('/admin/posts?author=' . $uid)) ?>"><?= (int) $u['post_count'] ?></a></td>
-              <td class="admin-list-date" data-label="最近活动"><span title="<?= e((string) ($u['last_active_at'] ?? '暂无记录')) ?>"><?= !empty($u['last_active_at']) ? e(date('Y-m-d', strtotime((string) $u['last_active_at']))) : '暂无记录' ?></span></td>
+              <td class="admin-list-date admin-table-secondary" data-label="最近活动"><span title="<?= e((string) ($u['last_active_at'] ?? '暂无记录')) ?>"><?= !empty($u['last_active_at']) ? e(date('Y-m-d', strtotime((string) $u['last_active_at']))) : '暂无记录' ?></span></td>
               <td data-label="操作" class="admin-col-ops">
                 <div class="admin-user-ops">
                   <a class="admin-icon-btn" href="<?= e(url_to('/admin/users/' . $uid . '/edit')) ?>" title="编辑用户" aria-label="编辑用户"><?= admin_icon('edit', 15) ?></a>

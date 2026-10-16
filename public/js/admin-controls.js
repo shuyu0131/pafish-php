@@ -19,6 +19,8 @@
   }
   function close(control) {
     if (!control) return;
+    clearTimeout(control._adminHoverTimer);
+    control._adminHoverOpen = false;
     control.classList.remove("is-open");
     var trigger = control.querySelector(".admin-control-trigger");
     if (trigger) trigger.setAttribute("aria-expanded", "false");
@@ -48,13 +50,14 @@
     if (!popup || !trigger) return;
     popup.classList.add("is-portal-open");
     popup.style.position = "fixed";
-    document.body.appendChild(popup);
+    (control.closest('.admin-modal-backdrop') || document.body).appendChild(popup);
     function reposition() {
       var rect = trigger.getBoundingClientRect();
-      var minWidth = popup.classList.contains('admin-date-panel') ? 272 : Math.max(rect.width, 120);
+      var minWidth = popup.classList.contains('admin-date-panel') ? 272 : Math.max(rect.width, popup.classList.contains('admin-paragraph-menu') ? 144 : 120);
       var maxWidth = Math.max(120, window.innerWidth - 16);
-      popup.style.minWidth = Math.min(minWidth, maxWidth) + "px";
-      popup.style.width = (popup.classList.contains("admin-date-panel") ? Math.min(272, maxWidth) : Math.min(minWidth, maxWidth)) + "px";
+      var width = Math.min(minWidth, maxWidth) + 'px';
+      popup.style.minWidth = width;
+      popup.style.width = width;
       popup.style.maxWidth = maxWidth + "px";
       var popupWidth = popup.offsetWidth || minWidth;
       var left = Math.max(8, Math.min(rect.left, window.innerWidth - popupWidth - 8));
@@ -75,16 +78,19 @@
     reposition();
     control._adminPopup = popup;
   }
-  function toggle(control) {
+  function open(control) {
     if (openControl && openControl !== control) close(openControl);
-    if (control.classList.contains("is-open")) close(control);
-    else {
+    if (!control.classList.contains("is-open")) {
       control.classList.add("is-open");
       var trigger = control.querySelector(".admin-control-trigger");
       if (trigger) trigger.setAttribute("aria-expanded", "true");
       openControl = control;
       portalPopup(control);
     }
+  }
+  function toggle(control) {
+    if (control.classList.contains('is-open')) close(control);
+    else open(control);
   }
   function syncState(source, target) {
     target.disabled = source.disabled;
@@ -94,6 +100,9 @@
 
   function initSelect(select) {
     if (select.dataset.adminControl || select.multiple || select.size > 1) return;
+    var explicitCommit = select.dataset.adminSelectCommit === 'explicit';
+    var preserveFocus = select.dataset.adminSelectPreserveFocus === 'true';
+    var paragraphStyle = select.dataset.adminSelectStyle === 'paragraph';
     select.dataset.adminControl = "select";
     var control = document.createElement("span");
     control.className = "admin-control admin-select-control";
@@ -111,16 +120,31 @@
     var menu = document.createElement("div");
     menu.className = "admin-control-menu";
     menu.setAttribute("role", "listbox");
+    menu.id = 'admin-select-menu-' + Math.random().toString(36).slice(2, 10);
+    menu.setAttribute('aria-label', trigger.getAttribute('aria-label'));
+    trigger.setAttribute('aria-controls', menu.id);
+    if (paragraphStyle) menu.classList.add('admin-paragraph-menu');
     control.appendChild(menu);
+    if (preserveFocus) {
+      // Formatting commands must not blur the textarea and hide its selection.
+      trigger.addEventListener('mousedown', function (event) { event.preventDefault(); });
+      menu.addEventListener('mousedown', function (event) { event.preventDefault(); });
+    }
 
     function sync() {
       var option = select.options[select.selectedIndex];
-      trigger.textContent = option ? option.textContent : "请选择";
+      if (paragraphStyle) {
+        if (!trigger.firstChild) trigger.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h12M9 5v14M5 19h8m4-8 3 3 3-3"/></svg>';
+        trigger.title = '段落格式：' + (option ? option.textContent : '正文');
+        trigger.setAttribute('aria-label', trigger.title);
+      } else trigger.textContent = option ? option.textContent : "请选择";
       syncState(select, trigger);
       Array.prototype.forEach.call(menu.children, function (item, index) {
         var selected = select.selectedIndex === index;
         item.classList.toggle("is-selected", selected);
         item.setAttribute("aria-selected", selected ? "true" : "false");
+        item.disabled = select.options[index].disabled;
+        item.hidden = select.options[index].hidden;
       });
     }
     Array.prototype.forEach.call(select.options, function (option, index) {
@@ -129,20 +153,61 @@
       item.className = "admin-control-option";
       item.setAttribute("role", "option");
       item.textContent = option.textContent;
+      if (paragraphStyle) {
+        item.dataset.paragraphLevel = option.value;
+      }
       item.disabled = option.disabled;
+      item.hidden = option.hidden;
       item.addEventListener("click", function () {
         if (option.disabled) return;
+        var focused = document.activeElement;
         select.selectedIndex = index;
         emit(select);
-        sync();
         close(control);
-        trigger.focus();
+        if (!preserveFocus && document.activeElement === focused) trigger.focus({preventScroll: true});
       });
       menu.appendChild(item);
     });
-    trigger.addEventListener("click", function () { if (!select.disabled) toggle(control); });
+    trigger.addEventListener("click", function () {
+      if (select.disabled) return;
+      if (control._adminHoverOpen) { clearTimeout(control._adminHoverTimer); control._adminHoverOpen = false; }
+      else toggle(control);
+    });
+    if (select.dataset.adminSelectHover === 'true') {
+      function hoverEnter(event) {
+        if (event.pointerType !== 'mouse' || !window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+        clearTimeout(control._adminHoverTimer);
+        if (select.disabled || control.classList.contains('is-open')) return;
+        control._adminHoverTimer = setTimeout(function () {
+          if (!select.disabled && control.isConnected) { open(control); control._adminHoverOpen = true; }
+        }, 100);
+      }
+      function hoverLeave(event) {
+        var next = event.relatedTarget;
+        if (next instanceof Node && (control.contains(next) || menu.contains(next))) return;
+        clearTimeout(control._adminHoverTimer);
+        if (control._adminHoverOpen) control._adminHoverTimer = setTimeout(function () { close(control); }, 180);
+      }
+      control.addEventListener('pointerenter', hoverEnter);
+      control.addEventListener('pointerleave', hoverLeave);
+      menu.addEventListener('pointerenter', hoverEnter);
+      menu.addEventListener('pointerleave', hoverLeave);
+      function pinMenu() { clearTimeout(control._adminHoverTimer); control._adminHoverOpen = false; }
+      control.addEventListener('keydown', pinMenu);
+      menu.addEventListener('keydown', pinMenu);
+    }
+    function enabledItems() { return Array.prototype.filter.call(menu.children, function (item) { return !item.disabled && !item.hidden; }); }
     trigger.addEventListener("keydown", function (event) {
-      if (event.key === "Escape") { close(control); return; }
+      if (explicitCommit && /^(ArrowDown|ArrowUp|Enter| )$/.test(event.key)) {
+        event.preventDefault();
+        if (!control.classList.contains('is-open')) toggle(control);
+        var enabled = enabledItems();
+        var current = menu.children[select.selectedIndex];
+        var next = enabled.indexOf(current) + (event.key === 'ArrowDown' ? 1 : event.key === 'ArrowUp' ? -1 : 0);
+        (enabled[Math.max(0, Math.min(next, enabled.length - 1))] || trigger).focus({preventScroll: true});
+        return;
+      }
+      if (event.key === "Escape" && control.classList.contains("is-open")) { event.preventDefault(); event.stopPropagation(); close(control); return; }
       if (event.key !== "ArrowDown" && event.key !== "ArrowUp" && event.key !== "Enter" && event.key !== " ") return;
       event.preventDefault();
       if (!control.classList.contains("is-open")) toggle(control);
@@ -150,9 +215,26 @@
       var direction = event.key === "ArrowUp" ? -1 : 1;
       var index = select.selectedIndex;
       do { index += direction; } while (index >= 0 && index < select.options.length && select.options[index].disabled);
-      if (index >= 0 && index < select.options.length) { select.selectedIndex = index; emit(select); sync(); }
+      if (index >= 0 && index < select.options.length) { select.selectedIndex = index; emit(select); }
     });
     select.addEventListener("change", sync);
+    select.addEventListener("input", sync);
+    if (explicitCommit) menu.addEventListener('keydown', function (event) {
+      if (event.key === 'Tab') { close(control); return; }
+      if (event.key === 'Enter' || event.key === ' ') {
+        var option = event.target.closest('.admin-control-option');
+        if (option && !option.disabled) { event.preventDefault(); option.click(); }
+        return;
+      }
+      if (!/^(ArrowDown|ArrowUp|Home|End)$/.test(event.key)) return;
+      event.preventDefault();
+      var enabled = enabledItems();
+      var index = enabled.indexOf(document.activeElement);
+      if (event.key === 'Home') index = 0;
+      else if (event.key === 'End') index = enabled.length - 1;
+      else index = Math.max(0, Math.min(index + (event.key === 'ArrowUp' ? -1 : 1), enabled.length - 1));
+      if (enabled[index]) enabled[index].focus({preventScroll: true});
+    });
     sync();
     // 只有触发器和菜单都建立完成后才隐藏原生控件，初始化中断时仍保留可用控件。
     select.classList.add("admin-native-control");
@@ -262,7 +344,9 @@
       actions.appendChild(clear); actions.appendChild(done); panel.appendChild(actions);
     }
     trigger.addEventListener("click", function () { if (!input.disabled) { view = parseDate(input.value) || new Date(); view.setDate(1); render(); toggle(control); } });
-    trigger.addEventListener("keydown", function (event) { if (event.key === "Escape") close(control); });
+    trigger.addEventListener("keydown", function (event) {
+      if (event.key === "Escape" && control.classList.contains("is-open")) { event.preventDefault(); event.stopPropagation(); close(control); }
+    });
     input.addEventListener("change", sync);
     sync();
     // 自定义日期面板完成后再隐藏原生输入，避免脚本异常造成字段消失。
@@ -286,5 +370,8 @@
       if (trigger) trigger.focus({ preventScroll: true });
     }
   });
+  document.addEventListener("pafish:controls-close", function () { if (openControl) close(openControl); });
+  document.addEventListener('pafish:controls-init', function (event) { init(event.target); });
+  document.addEventListener('pafish:controls-destroy', function (event) { if (openControl && event.target.contains(openControl)) close(openControl); });
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function () { init(document); }); else init(document);
 })();

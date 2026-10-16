@@ -1,9 +1,9 @@
 <?php
 /**
  * 导航菜单管理：
- * - 顶部新建表单（含「外部链接（新窗口打开）」复选框）
+ * - 新建与编辑复用弹窗（含「外部链接（新窗口打开）」复选框）
  * - 列表行：名称 + 「已隐藏」badge + 「外部」badge + url 可点击预览
- * - 操作：↑/↓ 上下移动（边界禁用）、显隐、编辑（行内展开）、删除（确认弹窗）
+ * - 操作：↑/↓ 上下移动（边界禁用）、显隐、编辑（弹窗）、删除（确认弹窗）
  * 变量：$items $role
  */
 $count = count($items);
@@ -20,40 +20,14 @@ foreach ($items as $n) {
       <h1 class="admin-h1">导航菜单</h1>
       <p class="admin-page-sub">配置顶部导航与移动端菜单（共 <?= $count ?> 项，含隐藏 <?= $hidden ?> 项）</p>
     </div>
-  </div>
-
-  <!-- 新建表单 -->
-  <div class="card admin-form-card">
-    <h2 class="admin-card-title">添加导航项</h2>
-    <form id="createForm" method="post" action="<?= e(url_to('/admin/nav/save')) ?>" novalidate>
-      <?= csrf_field() ?>
-      <div class="admin-form-grid">
-        <div class="admin-field">
-          <span class="label">名称 *</span>
-          <input class="input" type="text" name="label" placeholder="如：首页 / 关于" maxlength="100">
-        </div>
-        <div class="admin-field">
-          <span class="label">地址 *</span>
-          <input class="input" type="text" name="url" placeholder="/archives 或 https://…" maxlength="500">
-        </div>
-      </div>
-      <label class="admin-check-row">
-        <input type="checkbox" name="is_external" value="1" class="admin-check">
-        <span>外部链接（新窗口打开）</span>
-      </label>
-      <p class="admin-field-hint">地址填 / 开头为站内页面，填 http(s):// 为外部链接。菜单按顺序显示在顶部导航与移动端菜单。</p>
-      <div class="admin-cat-form-actions">
-        <button type="submit" class="btn btn-primary">添加导航项</button>
-      </div>
-      <div class="admin-editor-error" hidden></div>
-    </form>
+    <button type="button" class="btn btn-primary" data-entity-new="navModal"><?= admin_icon('plus', 15) ?>添加导航项</button>
   </div>
 
   <!-- 列表 -->
   <?php if ($count === 0): ?>
     <div class="admin-empty-list card">
       <?= admin_icon('menu', 32) ?>
-      <p>还没有导航项，在上方添加第一个</p>
+      <p>还没有导航项</p>
     </div>
   <?php else: ?>
     <div class="admin-table-wrap admin-order-table-wrap">
@@ -82,40 +56,41 @@ foreach ($items as $n) {
             <button type="button" class="admin-icon-btn" data-toggle title="<?= (int) $n['visible'] === 1 ? '隐藏' : '显示' ?>">
               <?= admin_icon((int) $n['visible'] === 1 ? 'eye' : 'eye-off', 15) ?>
             </button>
-            <button type="button" class="admin-icon-btn" data-edit title="编辑"><?= admin_icon('edit', 15) ?></button>
+            <button type="button" class="admin-icon-btn" data-entity-edit="navModal" title="编辑"><?= admin_icon('edit', 15) ?></button>
             <button type="button" class="admin-icon-btn admin-icon-danger" data-delete title="删除"><?= admin_icon('trash', 15) ?></button>
           </div></td>
         </tr>
-        <tr class="admin-list-edit-row" hidden><td colspan="4"><div class="admin-list-edit">
-            <form class="admin-inline-edit" method="post" novalidate>
-              <?= csrf_field() ?>
-              <div class="admin-form-grid">
-                <div class="admin-field">
-                  <span class="label">名称 *</span>
-                  <input class="input" type="text" name="label" maxlength="100">
-                </div>
-                <div class="admin-field">
-                  <span class="label">地址 *</span>
-                  <input class="input" type="text" name="url" maxlength="500">
-                </div>
-              </div>
-              <label class="admin-check-row">
-                <input type="checkbox" name="is_external" value="1" class="admin-check">
-                <span>外部链接（新窗口打开）</span>
-              </label>
-              <div class="admin-cat-form-actions">
-                <button type="submit" class="btn btn-primary">保存修改</button>
-                <button type="button" class="btn btn-ghost" data-edit-cancel>取消</button>
-              </div>
-              <div class="admin-editor-error" hidden></div>
-            </form>
-          </div></td></tr>
       <?php endforeach; ?>
         </tbody>
       </table>
     </div>
   <?php endif; ?>
 </div>
+
+<?php ob_start(); ?>
+<div class="admin-form-grid">
+        <div class="admin-field">
+          <label class="label" for="navLabel">名称 *</label>
+          <input class="input" type="text" name="label" placeholder="如：首页 / 关于" maxlength="100" id="navLabel" required>
+        </div>
+        <div class="admin-field">
+          <label class="label" for="navUrl">地址 *</label>
+          <input class="input" type="text" name="url" placeholder="/archives 或 https://…" maxlength="500" id="navUrl" required>
+        </div>
+      </div>
+      <label class="admin-check-row">
+        <input type="checkbox" name="is_external" value="1" class="admin-check">
+        <span>外部链接（新窗口打开）</span>
+      </label>
+<?php
+$entityFields = (string) ob_get_clean();
+$entityModalId = 'navModal';
+$entityFormId = 'createForm';
+$entityConfig = ['createTitle'=>'添加导航项', 'editTitle'=>'编辑导航项', 'savedMessage'=>'导航项已保存',
+    'savePath'=>'/admin/nav/save', 'basePath'=>'/admin/nav', 'fields'=>['label'=>'label','url'=>'url','is_external'=>'external']];
+require __DIR__ . '/partials/entity-modal.php';
+?>
+<script src="<?= e(asset_url('/js/admin-entity-forms.js')) ?>" defer></script>
 
 <?php $navCsrf = csrf_token(); ?>
 <script>
@@ -130,54 +105,6 @@ foreach ($items as $n) {
     fd.append("_csrf", CSRF);
     return fetch(url, { method: "POST", body: fd, headers: { "X-Requested-With": "XMLHttpRequest" } });
   }
-  function submitForm(form) {
-    var err = form.querySelector(".admin-editor-error");
-    err.hidden = true;
-    var fd = new FormData(form);
-    fd.set("_csrf", CSRF);
-    fetch(form.action, { method: "POST", body: fd, headers: { "X-Requested-With": "XMLHttpRequest" } })
-      .then(function (r) { return r.json(); })
-      .then(function (j) {
-        if (j && j.ok) pafishToastReload("导航项已保存", "success");
-        else { err.textContent = (j && j.error) || "保存失败"; err.hidden = false; }
-      })
-      .catch(function () { err.textContent = "网络错误"; err.hidden = false; });
-  }
-
-  document.getElementById("createForm").addEventListener("submit", function (e) {
-    e.preventDefault();
-    submitForm(e.target);
-  });
-
-  document.querySelectorAll("[data-edit]").forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      var row = btn.closest(".admin-list-row");
-      var editRow = row.nextElementSibling;
-      var box = editRow.querySelector(".admin-list-edit");
-      var open = !editRow.hidden;
-      document.querySelectorAll(".admin-list-edit-row").forEach(function (b) { b.hidden = true; });
-      if (open) return;
-      editRow.hidden = false;
-      var f = box.querySelector("form");
-      f.action = base + "/" + row.getAttribute("data-id") + "/save";
-      f.querySelector('[name="label"]').value = row.getAttribute("data-label");
-      f.querySelector('[name="url"]').value = row.getAttribute("data-url");
-      f.querySelector('[name="is_external"]').checked = row.getAttribute("data-external") === "1";
-      box.scrollIntoView({ behavior: "smooth", block: "center" });
-    });
-  });
-  document.querySelectorAll("[data-edit-cancel]").forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      btn.closest(".admin-list-edit-row").hidden = true;
-    });
-  });
-  document.querySelectorAll(".admin-inline-edit").forEach(function (form) {
-    form.addEventListener("submit", function (e) {
-      e.preventDefault();
-      submitForm(e.target);
-    });
-  });
-
   document.querySelectorAll("[data-toggle]").forEach(function (btn) {
     btn.addEventListener("click", function () {
       var row = btn.closest(".admin-list-row");

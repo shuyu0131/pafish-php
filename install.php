@@ -261,6 +261,10 @@ function inst_run(array $post, string $root): array
     if (mb_strlen($adminPass) < 8) {
         $errors[] = '管理员密码至少 8 位';
     }
+    // 安装器独立于应用自动加载，仍需遵守 bcrypt 的字节上限。
+    if (strlen($adminPass) > 72 || str_contains($adminPass, "\0")) {
+        $errors[] = '管理员密码过长或含无效字符，最多72字节';
+    }
     if ($adminPass !== $adminPass2) {
         $errors[] = '两次输入的密码不一致';
     }

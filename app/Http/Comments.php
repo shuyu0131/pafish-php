@@ -11,7 +11,7 @@ use Pafish\Core\Url;
 
 /**
  * 评论区数据：
- * 顶层评论分页（每页 20，置顶优先 + 时间正序）、回复树递归 5 层、
+ * 顶层评论分页（每页 20，置顶优先 + 时间正序）、完整加载回复并限制显示深度、
  * 父节点缺失的回复按顶层展示（不丢评论）
  */
 final class Comments
@@ -29,8 +29,9 @@ final class Comments
             "SELECT COUNT(*) FROM comments c WHERE {$base}",
             [$postId]
         );
+        $root = "(c.parent_id IS NULL OR NOT EXISTS (SELECT 1 FROM comments parent WHERE parent.id=c.parent_id AND parent.post_id=c.post_id AND parent.status='APPROVED'))";
         $topCount = (int) DB::value(
-            "SELECT COUNT(*) FROM comments c WHERE {$base} AND c.parent_id IS NULL",
+            "SELECT COUNT(*) FROM comments c WHERE {$base} AND {$root}",
             [$postId]
         );
 
@@ -39,29 +40,29 @@ final class Comments
         $topComments = DB::fetchAll(
             "SELECT {$columns} FROM comments c
              LEFT JOIN users u ON u.id = c.user_id
-             WHERE {$base} AND c.parent_id IS NULL
-             ORDER BY c.is_pinned DESC, c.created_at ASC
+             WHERE {$base} AND {$root}
+             ORDER BY c.is_pinned DESC, c.created_at ASC,c.id ASC
              LIMIT " . self::PAGE_SIZE . " OFFSET " . (($page - 1) * self::PAGE_SIZE),
             [$postId]
         );
 
-        // 递归加载整棵回复树（最多 5 层）
+        // Load every descendant of the paginated roots, in bounded query batches.
         $all = $topComments;
-        $batch = array_map(static fn (array $c): int => (int) $c['id'], $topComments);
-        for ($depth = 0; $depth < self::MAX_DEPTH && $batch !== []; $depth++) {
-            $ph = implode(',', array_fill(0, count($batch), '?'));
-            $kids = DB::fetchAll(
-                "SELECT {$columns} FROM comments c
-                 LEFT JOIN users u ON u.id = c.user_id
-                 WHERE {$base} AND c.parent_id IN ({$ph})
-                 ORDER BY c.created_at ASC",
-                array_merge([$postId], $batch)
-            );
-            if ($kids === []) {
-                break;
+        $seen = array_fill_keys(array_column($all, 'id'), true);
+        $batch = array_column($all, 'id');
+        while ($batch !== []) {
+            $next = [];
+            foreach (array_chunk($batch, 200) as $ids) {
+                $ph = implode(',', array_fill(0, count($ids), '?'));
+                $kids = DB::fetchAll("SELECT {$columns} FROM comments c LEFT JOIN users u ON u.id=c.user_id WHERE {$base} AND c.parent_id IN ({$ph}) ORDER BY c.created_at,c.id", array_merge([$postId], $ids));
+                foreach ($kids as $child) {
+                    if (isset($seen[$child['id']])) continue;
+                    $seen[$child['id']] = true;
+                    $all[] = $child;
+                    $next[] = $child['id'];
+                }
             }
-            $all = array_merge($all, $kids);
-            $batch = array_map(static fn (array $k): int => (int) $k['id'], $kids);
+            $batch = $next;
         }
 
         // 待审评论不进入公开统计或分页，只向评论者本人和管理员回显。
@@ -84,22 +85,39 @@ final class Comments
                 'replies' => [],
             ];
         }
-        $refs = [];
-        foreach ($nodes as $id => &$node) {
-            $refs[$id] = &$node;
+        $parents = [];
+        foreach ($all as $c) $parents[(string) $c['id']] = (string) ($c['parent_id'] ?? '');
+        // Defensive handling of historical corrupt parent chains, including visible pending nodes.
+        $checked = [];
+        foreach (array_keys($parents) as $id) {
+            $path = [];
+            $current = $id;
+            while ($current !== '' && isset($parents[$current]) && !isset($checked[$current])) {
+                if (isset($path[$current])) {
+                    $parents[$current] = '';
+                    break;
+                }
+                $path[$current] = true;
+                $current = $parents[$current];
+            }
+            $checked += $path;
         }
-        unset($node);
         $roots = [];
         foreach ($all as $c) {
             $id = (string) $c['id'];
-            $parentId = $c['parent_id'] !== null ? (string) $c['parent_id'] : '';
-            if ($parentId !== '' && isset($refs[$parentId])) {
-                $refs[$parentId]['replies'][] = &$refs[$id];
-            } else {
-                $roots[] = &$refs[$id];
+            $path = [];
+            $seen = [$id => true];
+            $parentId = $parents[$id];
+            while ($parentId !== '' && isset($nodes[$parentId]) && !isset($seen[$parentId])) {
+                $seen[$parentId] = true;
+                $path[] = $parentId;
+                $parentId = $parents[$parentId];
             }
+            // Keep max display depth without omitting or rewriting stored replies.
+            $parentId = $path === [] ? '' : $path[max(0, count($path) - self::MAX_DEPTH)];
+            if ($parentId !== '') $nodes[$parentId]['replies'][] = &$nodes[$id];
+            else $roots[] = &$nodes[$id];
         }
-        unset($refs);
 
         return [
             'roots' => $roots,

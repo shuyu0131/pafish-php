@@ -69,10 +69,10 @@ function api_url(string $path): string
     return Url::api($path);
 }
 
-/** 轻量 Markdown 编辑器不需要额外的全局资源。 */
+/** 编辑器与前台默认主题共用正文排版。 */
 function editor_head_extra(): string
 {
-    return '';
+    return '<link rel="stylesheet" href="' . e(asset_url('/css/content.css')) . '">';
 }
 
 /** 当前登录用户（数组或 null） */
@@ -188,6 +188,12 @@ function csrf_token(): string
     return Session::csrfToken();
 }
 
+/** 正文 → 安全 HTML；主题优先使用控制器提供的 $contentHtml。 */
+function content_html(string $content, string $format = 'markdown'): string
+{
+    return \Pafish\Services\Content::render($content, $format);
+}
+
 /** Markdown → HTML（ParsedownExtra，主题模板可直接调用） */
 function md(string $markdown): string
 {
@@ -209,13 +215,7 @@ function absolute_url(string $path = ''): string
  */
 function cache_list(string $key, callable $query): array
 {
-    $cached = \Pafish\Core\Cache::get($key);
-    if (is_array($cached)) return $cached;
-    $rows = $query();
-    if ($rows !== []) {
-        \Pafish\Core\Cache::set($key, $rows, 300);
-    }
-    return $rows;
+    return \Pafish\Core\Cache::remember($key, $query, 300, false);
 }
 
 /** 前台可见导航项（排序升序） */
@@ -294,12 +294,13 @@ function apply_filters(string $name, mixed $value, mixed ...$args): mixed
  * 正文过滤器是普通的内容变换，不参与拒绝或保存决策；非法返回值回退到原文。
  * context 使用 type/id/data，调用方可按需保留旧的 post/page 别名以兼容旧插件。
  */
-function apply_content_filters(string $markdown, array $context): string
+function apply_content_filters(string $content, array $context): string
 {
-    $filtered = apply_filters('filter_post_content', $markdown, $context);
+    $context['contentFormat'] ??= $context['data']['content_format'] ?? 'markdown';
+    $filtered = apply_filters('filter_post_content', $content, $context);
     if (!is_string($filtered)) {
-        \Pafish\Core\Logger::error('[pafish-filter] filter_post_content must return a Markdown string');
-        return $markdown;
+        \Pafish\Core\Logger::error('[pafish-filter] filter_post_content must return a content string');
+        return $content;
     }
     return $filtered;
 }
@@ -348,6 +349,7 @@ function admin_icon(string $name, int $size = 16, bool $fill = false): string
         'clock' => '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
         'trend' => '<polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>',
         'chevron' => '<path d="m6 9 6 6 6-6"/>',
+        'chevron-right' => '<path d="m9 6 6 6-6 6"/>',
         'trash' => '<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/>',
         'search' => '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
         'x' => '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',

@@ -14,6 +14,10 @@ use PDOStatement;
 final class DB
 {
     private static ?PDO $pdo = null;
+    private static int $savepointSequence = 0;
+    /** 每个受管事务/savepoint 独立排队；回滚的层不会发布副作用。 */
+    private static array $commitCallbacks = [];
+    private static bool $ownsTransaction = false;
 
     public static function pdo(): PDO
     {
@@ -96,19 +100,86 @@ final class DB
         return (int) self::pdo()->lastInsertId();
     }
 
+    /** 不为检查事务状态额外建立数据库连接。 */
+    public static function inTransaction(): bool
+    {
+        return self::$pdo !== null && self::$pdo->inTransaction();
+    }
+
+    /** 提交后副作用必须使用 DB::transaction 管理最外层提交。 */
+    public static function afterCommit(callable $callback): void
+    {
+        if (!self::inTransaction()) {
+            if (self::$commitCallbacks !== []) {
+                throw new \LogicException('业务事务已被提前结束，不能执行提交后操作');
+            }
+            $callback();
+            return;
+        }
+        if (!self::$ownsTransaction || self::$commitCallbacks === []) {
+            throw new \LogicException('提交后操作要求最外层使用 DB::transaction，不能使用 PDO 手工事务');
+        }
+        self::$commitCallbacks[array_key_last(self::$commitCallbacks)][] = $callback;
+    }
+
     public static function transaction(callable $fn): mixed
     {
         $pdo = self::pdo();
-        $pdo->beginTransaction();
+        $savepoint = $pdo->inTransaction() ? 'pafish_tx_' . ++self::$savepointSequence : null;
+        if ($savepoint !== null) {
+            $pdo->query('SAVEPOINT ' . $savepoint);
+        } else {
+            $pdo->beginTransaction();
+        }
+        if (self::$commitCallbacks === []) self::$ownsTransaction = $savepoint === null;
+        self::$commitCallbacks[] = [];
         try {
             $result = $fn();
-            $pdo->commit();
-            return $result;
+            if (!$pdo->inTransaction()) {
+                throw new \RuntimeException('业务事务已被提前结束；事务内不能执行 DDL 或手工提交');
+            }
+            if ($savepoint !== null) {
+                $pdo->query('RELEASE SAVEPOINT ' . $savepoint);
+            } else {
+                $pdo->commit();
+            }
         } catch (\Throwable $e) {
-            if ($pdo->inTransaction()) {
-                $pdo->rollBack();
+            array_pop(self::$commitCallbacks);
+            if (self::$commitCallbacks === []) self::$ownsTransaction = false;
+            try {
+                if ($pdo->inTransaction()) {
+                    if ($savepoint !== null) {
+                        $pdo->query('ROLLBACK TO SAVEPOINT ' . $savepoint);
+                        $pdo->query('RELEASE SAVEPOINT ' . $savepoint);
+                    } else {
+                        $pdo->rollBack();
+                    }
+                }
+            } catch (\Throwable) {
+                // InnoDB can already have rolled back the whole transaction (deadlock).
+                // Preserve the actual failure rather than replacing it with missing SAVEPOINT.
             }
             throw $e;
         }
+        $callbacks = array_pop(self::$commitCallbacks);
+        if (self::$commitCallbacks !== []) {
+            $parent = array_key_last(self::$commitCallbacks);
+            array_push(self::$commitCallbacks[$parent], ...$callbacks);
+        } else {
+            self::$ownsTransaction = false;
+            // 提交已成功，回调失败不能谎报业务回滚，也不能阻止后续失效回调。
+            foreach ($callbacks as $callback) {
+                try {
+                    $callback();
+                } catch (\Throwable $e) {
+                    try {
+                        Logger::error('[pafish-db] 提交后操作失败：' . $e->getMessage());
+                    } catch (\Throwable) {
+                        // 日志故障也不能改变已经完成的提交或阻断其他回调。
+                    }
+                }
+            }
+        }
+        return $result;
     }
 }

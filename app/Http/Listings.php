@@ -10,70 +10,70 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
- * 文章列表查询共享助手（分类/标签/搜索共用）
+ * 文章列表查询共享助手（首页/分类/标签/搜索共用）
  * 列表查询：per_page 设置（1-50）、已发布过滤、两级置顶排序
  */
 final class Listings
 {
-    /** 已发布过滤条件（不含 AND 前缀，SQL 片段） */
-    private const PUBLISHED = "p.status = 'PUBLISHED' AND p.deleted_at IS NULL AND (p.published_at IS NULL OR p.published_at <= NOW())";
-
     /**
      * 分页查询已发布文章（返回 [posts, total, perPage, pageNum]）
-     * @param string $extraWhere 附加条件（含 "AND" 或不含均可，无则 ''）
+     * @param string $extraWhere 内部 SQL 条件（不含前导 AND），值必须用 $params 绑定
+     * @param string $order 内部固定排序，不接受请求中的原始 SQL
+     * @param list<int> $categoryIds 分类及其后代；非空时使用分类内置顶顺序
      */
     public static function published(
         string $extraWhere,
         array $params,
         Request $request,
-        string $order = 'p.is_pinned DESC, p.published_at DESC'
+        string $order = 'p.is_pinned DESC, p.published_at DESC, p.id DESC',
+        ?int $perPage = null,
+        array $categoryIds = []
     ): array {
-        $perPage = min(50, max(1, (int) Settings::get('posts_per_page', '10')));
-        $pageNum = max(1, (int) ($request->getQueryParams()['page'] ?? 1));
+        $perPage = min(50, max(1, $perPage ?? (int) Settings::get('posts_per_page', '10')));
+        $page = $request->getQueryParams()['page'] ?? 1;
+        $pageNum = is_scalar($page) ? max(1, (int) $page) : 1;
+
+        $where = \Pafish\Services\Posts::publicWhere('p') . ($extraWhere !== '' ? " AND ({$extraWhere})" : '');
+        $index = '';
+        if ($categoryIds !== []) {
+            $categoryIds = array_values(array_unique(array_map('intval', $categoryIds)));
+            $placeholders = implode(',', array_fill(0, count($categoryIds), '?'));
+            $where .= " AND p.category_id IN ({$placeholders})";
+            $params = array_merge($params, $categoryIds);
+            $order = 'p.is_pinned DESC, p.category_pinned DESC, p.published_at DESC, p.id DESC';
+            // 多分类仍需合并排序；限定覆盖索引，避免优化器按发布时间索引回读大量正文。
+            $index = ' FORCE INDEX (idx_posts_category)';
+        }
+        $total = (int) DB::value("SELECT COUNT(*) FROM posts p{$index} WHERE {$where}", $params);
+        // 保持越界页为空；在乘法前判断，防止超大 page 导致 OFFSET 溢出。
+        if ($total === 0 || $pageNum > intdiv($total - 1, $perPage) + 1) {
+            return [[], $total, $perPage, $pageNum];
+        }
         $offset = ($pageNum - 1) * $perPage;
 
-        $where = self::PUBLISHED . ($extraWhere !== '' ? " AND ({$extraWhere})" : '');
-        $total = (int) DB::value("SELECT COUNT(*) FROM posts p WHERE {$where}", $params);
-
         $posts = DB::fetchAll(
-            "SELECT p.id, p.title, p.slug, p.excerpt, p.content, p.cover_url, p.custom_fields, p.published_at, p.author_id,
+            "SELECT p.id, p.title, p.slug, p.excerpt, p.content, p.content_format, p.cover_url, p.custom_fields, p.published_at, p.author_id,
                     p.is_pinned, p.category_pinned, p.password, p.external_url, p.view_count,
-                    p.like_count, p.favorite_count,
+                    p.like_count, p.favorite_count, p.allow_comments, p.seo_title, p.meta_description,
                     (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id AND c.status = 'APPROVED') AS comment_count,
                     COALESCE(NULLIF(u.nickname, ''), u.username) AS author_name, u.avatar_url AS author_avatar,
                     c.name AS category_name, c.slug AS category_slug
-             FROM posts p
+             FROM (
+                 SELECT p.id FROM posts p{$index}
+                 WHERE {$where}
+                 ORDER BY {$order}
+                 LIMIT {$perPage} OFFSET {$offset}
+             ) page_ids
+             JOIN posts p ON p.id = page_ids.id
              LEFT JOIN users u ON u.id = p.author_id
              LEFT JOIN categories c ON c.id = p.category_id
-             WHERE {$where}
-             ORDER BY {$order}
-             LIMIT {$perPage} OFFSET {$offset}",
+             ORDER BY {$order}",
             $params
         );
         $posts = HomeController::attachTags($posts);
 
         if ($posts !== []) {
-            $ids = array_map(static fn (array $post): int => (int) $post['id'], $posts);
-            $placeholders = implode(',', array_fill(0, count($ids), '?'));
-            $rows = DB::fetchAll(
-                "SELECT c.post_id, c.author_name, c.content, c.created_at
-                 FROM comments c
-                 WHERE c.post_id IN ({$placeholders}) AND c.status = 'APPROVED' AND c.parent_id IS NULL
-                 ORDER BY c.created_at DESC",
-                $ids
-            );
-            $recent = [];
-            foreach ($rows as $row) {
-                $postId = (int) $row['post_id'];
-                if (isset($recent[$postId]) && count($recent[$postId]) >= 6) {
-                    continue;
-                }
-                $recent[$postId][] = [
-                    'author_name' => (string) $row['author_name'],
-                    'content' => (string) $row['content'],
-                    'created_at' => (string) $row['created_at'],
-                ];
-            }
+            $recent = \Pafish\Services\Comments::recentForPosts(array_column($posts, 'id'));
             foreach ($posts as $index => $post) {
                 $posts[$index]['recent_comments'] = $recent[(int) $post['id']] ?? [];
             }

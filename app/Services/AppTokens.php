@@ -76,6 +76,13 @@ final class AppTokens
             WHERE id = ? AND user_id = ? AND revoked_at IS NULL', [$tokenId, $userId]) > 0;
     }
 
+    /** Remove only the current account's explicitly revoked device records. */
+    public static function deleteRevoked(int $userId, int $tokenId): bool
+    {
+        return DB::execute('DELETE FROM app_tokens
+            WHERE id = ? AND user_id = ? AND revoked_at IS NOT NULL', [$tokenId, $userId]) > 0;
+    }
+
     public static function revokeAll(int $userId): int
     {
         return DB::execute('UPDATE app_tokens SET revoked_at = NOW()

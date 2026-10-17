@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace Pafish\Http;
 
 use Pafish\Core\Auth;
+use Pafish\Core\Config;
+use Pafish\Core\Url;
 use Pafish\Services\AppTokens;
 use Pafish\Services\LoginService;
+use Pafish\Services\Settings;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -39,6 +42,7 @@ final class AppAuthController
             'accessToken' => $issued['token'],
             'expiresAt' => $issued['expiresAt'],
             'user' => $this->userPayload($user),
+            'site' => $this->sitePayload(),
         ]);
     }
 
@@ -46,7 +50,7 @@ final class AppAuthController
     {
         $auth = AppTokens::authenticate($request);
         if ($auth === null) return $this->unauthorized($response);
-        return $this->json($response, ['user' => $this->userPayload($auth['user'])]);
+        return $this->json($response, ['user' => $this->userPayload($auth['user']), 'site' => $this->sitePayload()]);
     }
 
     public function tokens(Request $request, Response $response): Response
@@ -89,7 +93,11 @@ final class AppAuthController
             'username' => (string) $user['username'],
             'nickname' => (string) ($user['nickname'] ?? ''),
             'role' => $role,
-            'avatarUrl' => $user['avatarUrl'] ?? $user['avatar_url'] ?? null,
+            // 与网页后台同一套头像回退：没设头像时给站点默认头像，客户端不再自造文字占位。
+            'avatarUrl' => \Pafish\Http\Comments::avatarUrl(
+                $user['avatarUrl'] ?? $user['avatar_url'] ?? null,
+                (string) ($user['email'] ?? '')
+            ),
             'capabilities' => Auth::capabilities($role),
         ];
     }
@@ -97,6 +105,24 @@ final class AppAuthController
     private function unauthorized(Response $response): Response
     {
         return $this->json($response, ['error' => '访问令牌无效、已过期或已撤销'], 401);
+    }
+
+    /**
+     * 连接页靠这一次调用同时验证令牌并拿到站点身份。
+     * timezone 是必需的：App 各接口的日期一律是站点本地时间的墙上时钟字符串。
+     */
+    private function sitePayload(): array
+    {
+        return [
+            'name' => \site_name(),
+            'subtitle' => (string) Settings::get('site_subtitle', ''),
+            'version' => \Pafish\Core\Version::current(),
+            'timezone' => (string) Config::get('timezone', 'Asia/Shanghai'),
+            // 站点图标：后台没设就用站点根目录的 favicon，客户端据此显示站点标识。
+            'iconUrl' => (string) Settings::get('site_icon', '') !== ''
+                ? (string) Settings::get('site_icon', '')
+                : Url::asset('/favicon.svg'),
+        ];
     }
 
     private function json(Response $response, array $data, int $status = 200): Response

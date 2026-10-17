@@ -133,6 +133,24 @@ final class PostsController extends AdminController
 
     // ---------- 编辑器 ----------
 
+    public static function templateOptions(): array
+    {
+        $options = ['default' => '默认模板'];
+        foreach (\Pafish\Services\Theme::postTemplates(\Pafish\Services\Theme::active()) as $template) {
+            $options[$template['name']] = $template['title'];
+        }
+        return $options;
+    }
+
+    private static function templateForSave(mixed $value, ?array $stored): string
+    {
+        $template = \Pafish\Services\Content::templateName($value);
+        if ($template !== ($stored['template'] ?? null) && !array_key_exists($template, self::templateOptions())) {
+            throw new \RuntimeException('所选文章模板不可用，请重新选择');
+        }
+        return $template;
+    }
+
     /** Markdown 批量导入页 */
     public function importPage(Request $request, Response $response): Response
     {
@@ -180,6 +198,15 @@ final class PostsController extends AdminController
                 $result = $this->savePost($body, $id > 0 ? $id : null);
                 Session::remember('post_save', $requestToken, $result);
             }
+        } catch (\PDOException $e) {
+            // 驱动异常只进日志：客户端拿到 SQLSTATE 与列名既是噪音，也泄露表结构。
+            \Pafish\Core\Logger::exception('文章保存失败', $e);
+            $message = '保存失败，请稍后重试';
+            if ($this->isAjax($request)) {
+                return $this->json($response, ['error' => $message], 500);
+            }
+            $this->flash('error', $message);
+            return $this->redirect($response, $id > 0 ? "/admin/posts/{$id}/edit" : '/admin/posts/new');
         } catch (\RuntimeException $e) {
             if ($this->isAjax($request)) {
                 return $this->json($response, ['error' => $e->getMessage()], 400);
@@ -338,6 +365,8 @@ final class PostsController extends AdminController
             }
         }
 
+        $template = self::templateForSave($body['template'] ?? ($stored['template'] ?? 'default'), $stored);
+
         $title = trim((string) ($body['title'] ?? ''));
         if ($title === '') {
             throw new \RuntimeException('标题不能为空');
@@ -469,6 +498,7 @@ final class PostsController extends AdminController
             'excerpt' => $excerpt,
             'content' => $content,
             'contentFormat' => $contentFormat,
+            'template' => $template,
             'status' => $status,
             'publishedAt' => $publishedAt,
             'categoryId' => $categoryId,
@@ -496,6 +526,7 @@ final class PostsController extends AdminController
                 }
             }
             $contentFormat = \Pafish\Services\Content::format($before['contentFormat'] ?? $contentFormat);
+            $template = self::templateForSave($before['template'] ?? $template, $stored);
             if ($contentFormat === 'html') $content = \Pafish\Services\Content::sanitize($content);
             // 正文为空只在「同时没有外链」时才非法：过滤器可能把外链补上或清掉，
             // 所以这里要用过滤后的值重新判断，不能沿用入口处的结论。
@@ -531,11 +562,11 @@ final class PostsController extends AdminController
             \Pafish\Services\EntityMeta::replace('post', $id, \Pafish\Services\EntityMeta::POST_FIELDS_SCOPE,
                 is_array($decodedFields = json_decode((string) $customFields, true)) ? $decodedFields : []);
             if ($extensionMeta !== null) \Pafish\Services\EntityMeta::saveEditorFields('post', $id, $extensionMeta);
-            DB::execute('UPDATE posts SET allow_comments=?,seo_title=?,meta_description=? WHERE id=?',
-                [(int) (bool) $allowComments,$seo['seo_title'],$seo['meta_description'],$id]);
+            DB::execute('UPDATE posts SET allow_comments=?,seo_title=?,meta_description=?,template=? WHERE id=?',
+                [(int) (bool) $allowComments,$seo['seo_title'],$seo['meta_description'],$template,$id]);
             self::replaceTags($id, $tagIds);
             \Pafish\Services\MediaReferences::sync('post', $id);
-            $payload = self::postPayload($id, $title, $slug, $status, $publishedAt, $categoryId, $externalUrl, $isPinned, $categoryPinned, $action, null, $seo + ['allow_comments' => $allowComments]);
+            $payload = self::postPayload($id, $title, $slug, $status, $publishedAt, $categoryId, $externalUrl, $isPinned, $categoryPinned, $action, null, $seo + ['allow_comments' => $allowComments, 'template' => $template]);
             \do_action('after_create_post', $payload);
         } else {
             $created = false;
@@ -567,14 +598,14 @@ final class PostsController extends AdminController
                     $categoryId, $now, $id,
                 ]
             );
-            DB::execute('UPDATE posts SET allow_comments=?,seo_title=?,meta_description=? WHERE id=?',
-                [(int) (bool) $allowComments,$seo['seo_title'],$seo['meta_description'],$id]);
+            DB::execute('UPDATE posts SET allow_comments=?,seo_title=?,meta_description=?,template=? WHERE id=?',
+                [(int) (bool) $allowComments,$seo['seo_title'],$seo['meta_description'],$template,$id]);
             \Pafish\Services\EntityMeta::replace('post', $id, \Pafish\Services\EntityMeta::POST_FIELDS_SCOPE,
                 is_array($decodedFields = json_decode((string) $customFields, true)) ? $decodedFields : []);
             if ($extensionMeta !== null) \Pafish\Services\EntityMeta::saveEditorFields('post', $id, $extensionMeta);
             self::replaceTags($id, $tagIds);
             \Pafish\Services\MediaReferences::sync('post', $id);
-            $payload = self::postPayload($id, $title, $slug, $status, $publishedAt, $categoryId, $externalUrl, $isPinned, $categoryPinned, $action, $previousStatus, $seo + ['allow_comments' => $allowComments]);
+            $payload = self::postPayload($id, $title, $slug, $status, $publishedAt, $categoryId, $externalUrl, $isPinned, $categoryPinned, $action, $previousStatus, $seo + ['allow_comments' => $allowComments, 'template' => $template]);
             \do_action('after_update_post', $payload);
         }
 
@@ -614,6 +645,7 @@ final class PostsController extends AdminController
 
         $html = $this->render('post-editor', [
             'post' => $initial,
+            'templateOptions' => self::templateOptions(),
             'isEdit' => $isEdit,
             'postId' => $isEdit ? (int) $post['id'] : 0,
             'catTree' => Categories::tree(),
@@ -665,6 +697,13 @@ final class PostsController extends AdminController
                     \do_action('after_purge_post', self::postPayloadFromRow($post));
                     break;
             }
+        } catch (\PDOException $e) {
+            \Pafish\Core\Logger::exception('文章操作失败', $e);
+            if ($this->isAjax($request)) {
+                return $this->json($response, ['error' => '操作失败，请稍后重试'], 500);
+            }
+            $this->flash('error', '操作失败，请稍后重试');
+            return $this->redirect($response, '/admin/posts');
         } catch (\Throwable $e) {
             if ($this->isAjax($request)) {
                 return $this->json($response, ['error' => $e->getMessage()], 400);
@@ -817,6 +856,7 @@ final class PostsController extends AdminController
             'allowComments' => (bool) ($controls['allow_comments'] ?? 1),
             'seoTitle' => (string) ($controls['seo_title'] ?? ''),
             'metaDescription' => (string) ($controls['meta_description'] ?? ''),
+            'template' => (string) ($controls['template'] ?? 'default'),
         ];
     }
 

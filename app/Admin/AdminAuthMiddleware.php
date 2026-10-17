@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pafish\Admin;
 
 use Pafish\Core\Auth;
+use Pafish\Core\RateLimiter;
 use Pafish\Core\RedirectException;
 use Pafish\Core\Session;
 use Pafish\Core\Url;
@@ -30,10 +31,29 @@ final class AdminAuthMiddleware
                 $response->getBody()->write(json_encode(['error' => '访问令牌无效、已过期或已撤销'], JSON_UNESCAPED_UNICODE));
                 return $response->withHeader('Content-Type', 'application/json; charset=UTF-8');
             }
-            if ($request->getMethod() !== 'POST'
+            $path = $request->getUri()->getPath();
+            $allowedPath = preg_match('~(?:^|/)admin/posts/(?:save|batch|[0-9]+/save)$~D', $path) === 1
+                || preg_match('~(?:^|/)admin/comments/(?:batch|[0-9]+/(?:status|reply|pin|delete))$~D', $path) === 1;
+            $body = $request->getParsedBody();
+            $batchOperation = is_array($body) ? (string) ($body['op'] ?? '') : '';
+            $safeBatchOperation = !str_ends_with($path, '/batch')
+                || (str_contains($path, '/posts/')
+                    ? in_array($batchOperation, ['publish', 'draft', 'pin', 'unpin'], true)
+                    : in_array($batchOperation, ['approve', 'spam', 'delete'], true));
+            if (!$allowedPath || $request->getMethod() !== 'POST'
                 || strtolower($request->getHeaderLine('X-Requested-With')) !== 'xmlhttprequest') {
                 $response = new \Slim\Psr7\Response(405);
-                $response->getBody()->write(json_encode(['error' => 'Bearer 令牌仅可调用后台 AJAX 写入接口'], JSON_UNESCAPED_UNICODE));
+                $response->getBody()->write(json_encode(['error' => 'Bearer 令牌不允许调用此后台接口'], JSON_UNESCAPED_UNICODE));
+                return $response->withHeader('Content-Type', 'application/json; charset=UTF-8');
+            }
+            if (!$safeBatchOperation) {
+                $response = new \Slim\Psr7\Response(403);
+                $response->getBody()->write(json_encode(['error' => 'Bearer 令牌不允许执行此批量操作'], JSON_UNESCAPED_UNICODE));
+                return $response->withHeader('Content-Type', 'application/json; charset=UTF-8');
+            }
+            if (!RateLimiter::allow('app-token-request', (string) $auth['tokenId'], 120, 60)) {
+                $response = new \Slim\Psr7\Response(429);
+                $response->getBody()->write(json_encode(['error' => '请求过于频繁，请稍后重试'], JSON_UNESCAPED_UNICODE));
                 return $response->withHeader('Content-Type', 'application/json; charset=UTF-8');
             }
             return Auth::withBearerUser((int) $auth['user']['id'], static fn (): Response => $handler->handle($request));

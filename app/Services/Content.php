@@ -9,6 +9,18 @@ final class Content
 {
     private static ?\HTMLPurifier $purifier = null;
 
+    /** 标识与主题文件解耦；导入时可保留暂未安装的主题布局。 */
+    public static function templateName(mixed $value): string
+    {
+        if (!is_string($value)) throw new \RuntimeException('模板名称必须是文本');
+        $value = trim($value);
+        if ($value === '') return 'default';
+        if (preg_match('/^[a-z0-9-]{1,40}$/D', $value) !== 1) {
+            throw new \RuntimeException('模板名称只能包含小写字母、数字和连字符，且不超过 40 个字符');
+        }
+        return $value;
+    }
+
     /** Empty values opt into generated metadata; omitted keys preserve an existing value. */
     public static function seoFields(array $data, array $existing = []): array
     {

@@ -113,6 +113,13 @@ function render(string $template, array $data = []): string
 {
     $context = $GLOBALS['pafish_tpl_ctx'] ?? [];
     $vars = array_merge($context, $data);
+    if ($template === 'page' && is_array($vars['page'] ?? null)) {
+        // 插件提供正文，主题负责布局；所有主题模板及首页页面走同一分发入口。
+        $vars['pluginHtml'] = '';
+        $GLOBALS['pafish_tpl_ctx'] = $vars;
+        $vars['pluginHtml'] = \Pafish\Services\Plugin::renderPageTemplate($vars['page']);
+        if ($vars['pluginHtml'] !== '') $vars['contentHtml'] = $vars['pluginHtml'];
+    }
     $GLOBALS['pafish_tpl_ctx'] = $vars;
     $file = Theme::template($template, $vars);
     extract($vars, EXTR_SKIP);

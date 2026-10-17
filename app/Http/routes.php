@@ -15,6 +15,8 @@ use Pafish\Http\RobotsController;
 use Pafish\Http\AuthPageController;
 use Pafish\Http\AuthApiController;
 use Pafish\Http\AppAuthController;
+use Pafish\Http\AppContentController;
+use Pafish\Http\AppTokenMiddleware;
 use Pafish\Http\CommentApiController;
 use Pafish\Http\ExtensionController;
 use Pafish\Http\UserController;
@@ -213,7 +215,9 @@ $app->group('/admin', function ($group) {
     $group->post('/profile/save', [ProfileController::class, 'save']);
     $group->post('/profile/avatar', [ProfileController::class, 'uploadAvatar']);
     $group->post('/profile/password', [ProfileController::class, 'changePassword']);
+    $group->post('/profile/app-token/create', [ProfileController::class, 'createAppToken']);
     $group->post('/profile/app-token/{id:[0-9]+}/revoke', [ProfileController::class, 'revokeAppToken']);
+    $group->post('/profile/app-token/{id:[0-9]+}/delete', [ProfileController::class, 'deleteAppToken']);
 
     // 数据备份（仅 ADMIN：创建/上传/下载/恢复/删除）
     $group->get('/backup', [BackupController::class, 'index']);
@@ -265,24 +269,30 @@ $app->group('/admin', function ($group) {
 $app->get('/editor-assets/{plugin:[a-z0-9_-]+}/{path:.*}', [\Pafish\Http\EditorAssetController::class, 'serve']);
 
 // 编辑器配套 API
-$app->post('/api/upload', [ApiController::class, 'upload']);
-$app->post('/api/upload/chunk', [ApiController::class, 'uploadChunk']);
-$app->get('/api/uploads', [ApiController::class, 'uploads']);
-$app->post('/api/md-preview', [ApiController::class, 'mdPreview']);
+$app->post('/api/upload', [ApiController::class, 'upload'])->add(AppTokenMiddleware::class);
+$app->post('/api/upload/chunk', [ApiController::class, 'uploadChunk'])->add(AppTokenMiddleware::class);
+$app->get('/api/uploads', [ApiController::class, 'uploads'])->add(AppTokenMiddleware::class);
+$app->post('/api/md-preview', [ApiController::class, 'mdPreview'])->add(AppTokenMiddleware::class);
 $app->post('/api/import-markdown', [ApiController::class, 'importMarkdown']);
 
 // 开放 API v1（X-API-Key 鉴权）
 $app->post('/api/app/auth/login', [AppAuthController::class, 'login']);
-$app->get('/api/app/auth/me', [AppAuthController::class, 'me']);
-$app->get('/api/app/auth/tokens', [AppAuthController::class, 'tokens']);
-$app->post('/api/app/auth/tokens/{id:[0-9]+}/revoke', [AppAuthController::class, 'revoke']);
-$app->post('/api/app/auth/logout', [AppAuthController::class, 'logout']);
+$app->get('/api/app/auth/me', [AppAuthController::class, 'me'])->add(AppTokenMiddleware::class);
+$app->get('/api/app/auth/tokens', [AppAuthController::class, 'tokens'])->add(AppTokenMiddleware::class);
+$app->post('/api/app/auth/tokens/{id:[0-9]+}/revoke', [AppAuthController::class, 'revoke'])->add(AppTokenMiddleware::class);
+$app->post('/api/app/auth/logout', [AppAuthController::class, 'logout'])->add(AppTokenMiddleware::class);
 
-// 公开只读 API v1（X-API-Key 鉴权）
+// 私有 App 管理读取：不复用返回 HTML 的 /admin 页面。
+$app->get('/api/app/posts', [AppContentController::class, 'posts'])->add(AppTokenMiddleware::class);
+$app->get('/api/app/posts/{id:[0-9]+}', [AppContentController::class, 'post'])->add(AppTokenMiddleware::class);
+$app->get('/api/app/stats', [AppContentController::class, 'stats'])->add(AppTokenMiddleware::class);
+$app->get('/api/app/comments', [AppContentController::class, 'comments'])->add(AppTokenMiddleware::class);
+
+// 公开只读 API v1（X-API-Key 鉴权；分类与标签同时接受 App 令牌，供编辑器选择器）
 $app->get('/api/v1/posts', [V1Controller::class, 'posts']);
 $app->get('/api/v1/posts/{slug}', [V1Controller::class, 'postDetail']);
-$app->get('/api/v1/categories', [V1Controller::class, 'categories']);
-$app->get('/api/v1/tags', [V1Controller::class, 'tags']);
+$app->get('/api/v1/categories', [V1Controller::class, 'categories'])->add(AppTokenMiddleware::class);
+$app->get('/api/v1/tags', [V1Controller::class, 'tags'])->add(AppTokenMiddleware::class);
 $app->get('/api/v1/comments', [V1Controller::class, 'comments']);
 $app->get('/api/v1/site', [V1Controller::class, 'siteInfo']);
 $app->get('/api/v1/pages', [V1Controller::class, 'pages']);

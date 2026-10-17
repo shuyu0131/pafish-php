@@ -17,6 +17,11 @@ final class ApiKey
     /** 校验请求；通过返回 null，失败返回 [status, error] */
     public static function check(Request $request): ?array
     {
+        // 一方客户端令牌（AppTokenMiddleware 验证、仅作用于本次请求）高于公开 API Key：
+        // 令牌持有者本身已是登录用户，而公开只读接口没有额外可泄露的数据。
+        if (Auth::isBearerAuthenticated()) {
+            return null;
+        }
         if (Settings::get('api_enabled', 'false') !== 'true') {
             return [401, '开放 API 未启用，请在后台站点设置中开启'];
         }

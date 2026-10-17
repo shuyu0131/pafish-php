@@ -5,6 +5,8 @@
  * 变量：$post $isEdit $postId $catTree $tags $tagIds $customFields $hasPassword $isScheduled $statusLabel
  */
 $extensionMetaFields = \Pafish\Services\EntityMeta::editorFields('post', (int) ($post['id'] ?? 0));
+$template = (string) ($post['template'] ?? 'default');
+$templateUnavailable = !array_key_exists($template, $templateOptions);
 $editorData = [
     'initial' => [
         'title' => (string) $post['title'],
@@ -12,6 +14,7 @@ $editorData = [
         'excerpt' => (string) $post['excerpt'],
         'content' => (string) $post['content'],
         'contentFormat' => (string) ($post['content_format'] ?? 'markdown'),
+        'template' => $template,
         'coverUrl' => (string) ($post['cover_url'] ?? ''),
         'categoryId' => $post['category_id'] ? (string) $post['category_id'] : '',
         'tagIds' => $tagIds,
@@ -150,6 +153,25 @@ $editorData = [
             <input class="input" id="fTagInput" placeholder="输入标签名，回车/逗号添加" maxlength="100">
             <div class="admin-tags-all" id="tagsAll"></div>
           </div>
+
+          <?php if (count($templateOptions) > 1 || $templateUnavailable): ?>
+          <div class="admin-field">
+            <label class="label" for="fTemplate">文章模板</label>
+            <select class="input" id="fTemplate" name="template">
+              <?php if ($templateUnavailable): ?>
+              <option value="<?= e($template) ?>" selected><?= e($template) ?>（暂不可用）</option>
+              <?php endif; ?>
+              <?php foreach ($templateOptions as $key => $label): ?>
+              <option value="<?= e($key) ?>" <?= $template === $key ? 'selected' : '' ?>><?= e($label) ?></option>
+              <?php endforeach; ?>
+            </select>
+            <?php if ($templateUnavailable): ?>
+            <span class="admin-field-hint">原模板暂不可用，前台按分类或默认布局显示；恢复主题后可继续使用。</span>
+            <?php endif; ?>
+          </div>
+          <?php else: ?>
+          <input type="hidden" id="fTemplate" name="template" value="default">
+          <?php endif; ?>
 
         </div>
 

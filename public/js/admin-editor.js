@@ -89,6 +89,7 @@
     content: $("#fContent"),
     template: $("#fTemplate"),
     coverUrl: $("#fCoverUrl"),
+    autoCover: $("#fAutoCover"),
     coverPreview: $("[data-cover-preview]"),
     coverImg: $("[data-cover-preview] img"),
     newCatWrap: $("[data-new-cat-wrap]"),
@@ -183,6 +184,7 @@
       document.getElementById('fContentFormat').value !== (initial.contentFormat || 'markdown') ||
       els.template.value !== (initial.template || "default") ||
       els.coverUrl.value !== (initial.coverUrl || "") ||
+      els.autoCover.checked !== !!initial.autoCover ||
       currentCategory !== (initial.categoryId || "") ||
       JSON.stringify(tagIds) !== JSON.stringify(initial.tagIds || []) ||
       newTagNames.length > 0 ||
@@ -244,6 +246,7 @@
     p.set("content_format", $("#fContentFormat").value);
     p.set("template", els.template.value);
     p.set("cover_url", els.coverUrl.value.trim());
+    p.set("auto_cover", els.autoCover.checked ? "1" : "0");
     p.set("category_id", currentCategory !== "" && currentCategory !== "__new__" ? currentCategory : "");
     p.set("new_category", currentCategory === "__new__" ? els.newCatInput.value.trim() : "");
     p.set("tag_ids", JSON.stringify(tagIds.map(Number)));
@@ -320,6 +323,12 @@
         lastSavedAt = nowTime();
         autosaveFailed = false;
         autoRequestToken = null;
+        // 自动提取后回填实际存储值；请求期间的新输入或移除操作不应被旧响应覆盖。
+        if (typeof d.coverUrl === "string" && els.coverUrl.value.trim() === savedPayload.get("cover_url") &&
+            (els.autoCover.checked ? "1" : "0") === savedPayload.get("auto_cover")) {
+          setCover(d.coverUrl);
+          savedPayload.set("cover_url", d.coverUrl);
+        }
         // 基线取发送时的快照；请求期间继续输入的内容仍视为未保存。
         autosavedPayload = savedPayload.toString();
       })
@@ -465,6 +474,9 @@
   }
 
   // ---------- 封面 ----------
+  function rememberAutoCover() {
+    try { localStorage.setItem("pafish_admin_auto_cover", els.autoCover.checked ? "1" : "0"); } catch (error) {}
+  }
   function setCover(url) {
     els.coverUrl.value = url;
     els.coverUrl.dispatchEvent(new Event("input", { bubbles: true }));
@@ -712,6 +724,8 @@
       els.scheduledAt.value = String(initial.publishedAt).slice(0, 16).replace(" ", "T");
     }
     renderCoverPreview();
+    try { els.autoCover.checked = localStorage.getItem("pafish_admin_auto_cover") === "1"; } catch (error) {}
+    initial.autoCover = els.autoCover.checked;
     renderTags();
     renderCatSelect();
     editorExtensions.forEach(function (extension) {
@@ -757,12 +771,15 @@
 
     // 封面
     els.coverUrl.addEventListener("input", renderCoverPreview);
+    els.autoCover.addEventListener("change", rememberAutoCover);
     els.coverImg.addEventListener("error", function () {
       els.coverPreview.hidden = true;
       $("[data-cover-empty]").hidden = false;
     });
     $("#btnCoverPicker").addEventListener("click", function () { openModal("cover"); });
     $("#btnCoverClear").addEventListener("click", function () {
+      els.autoCover.checked = false;
+      rememberAutoCover();
       setCover("");
     });
 

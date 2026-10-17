@@ -1,7 +1,7 @@
 {
   "name": "default",
   "title": "默认主题",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "apiVersion": 2,
   "injects": [],
   "systemTemplateFallback": ["index", "post", "page", "category", "tag", "search", "archives", "micro", "user"],
@@ -31,6 +31,13 @@
       "type": "checkbox",
       "group": "布局",
       "default": "1"
+    },
+    {
+      "key": "show_post_cover",
+      "label": "文章详情页显示封面",
+      "type": "checkbox",
+      "group": "布局",
+      "default": "0"
     },
     {
       "key": "show_related_posts",

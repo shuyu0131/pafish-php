@@ -180,7 +180,7 @@ try {
     $check('Core custom-field references are not counted twice during backfill rollout', $count($a) === 3);
     $check('Draft content protects its media', DB::value('SELECT status FROM posts WHERE id=?', [$id]) === 'DRAFT' && $count($a) > 0);
     $check('Reference deletion is rejected', $throws(fn () => Media::deleteUpload($a, null)));
-    $posts->savePost(['title' => 'Media fixture', 'slug' => 'media-fixture', 'content' => '<p><img src="/uploads/b.png"></p>', 'content_format' => 'html'], $id);
+    $posts->savePost(['title' => 'Media fixture', 'slug' => 'media-fixture', 'content' => '<p><img src="/uploads/b.png"></p>', 'content_format' => 'html', 'cover_url' => '', 'auto_cover' => '1'], $id);
     $check('Editing removes old roles and adds HTML media', $count($a) === 0 && $count($b) === 2);
     DB::execute('UPDATE posts SET deleted_at=NOW() WHERE id=?', [$id]);
     $check('Soft deletion retains media protection', $count($b) === 2);

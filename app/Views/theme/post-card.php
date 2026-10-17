@@ -9,8 +9,14 @@ $isExternal = trim((string) ($post['external_url'] ?? ''));
 $isPinned = (bool) ($post['is_pinned'] ?? false);
 $isCategoryPinned = (bool) ($post['category_pinned'] ?? false);
 $hasPassword = (bool) ($post['password'] ?? false);
+$coverUrl = \Pafish\Services\Content::safeImageUrl($post['cover_url'] ?? null);
 ?>
 <article class="post-card">
+  <?php if ($coverUrl !== null): ?>
+  <a class="post-card-cover" href="<?= e($isExternal !== '' ? $isExternal : url_to('/post/' . rawurlencode((string) $post['slug']))) ?>"<?= $isExternal !== '' ? ' target="_blank" rel="noopener noreferrer"' : '' ?> aria-label="<?= e($post['title']) ?>">
+    <img src="<?= e($coverUrl) ?>" alt="" loading="lazy" decoding="async">
+  </a>
+  <?php endif; ?>
   <h2 class="post-card-title">
     <?php if ($isPinned): ?><span class="post-badge">置顶</span><?php endif; ?>
     <?php if ($isCategoryPinned): ?><span class="post-badge post-badge-dim">分类置顶</span><?php endif; ?>

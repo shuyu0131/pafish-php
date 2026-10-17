@@ -75,7 +75,7 @@ get_header();
       <?php endif; ?>
     </header>
 
-    <?php if (!empty($post['cover_url'])): ?>
+    <?php if (theme_value('show_post_cover', '0') === '1' && !empty($post['cover_url'])): ?>
       <img src="<?= e($post['cover_url']) ?>" alt="<?= e($post['title']) ?>" class="post-cover">
     <?php endif; ?>
 

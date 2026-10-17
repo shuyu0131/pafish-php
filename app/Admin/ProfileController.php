@@ -29,6 +29,49 @@ final class ProfileController extends AdminController
         return $response;
     }
 
+    /** POST /admin/profile/app-token/create: plaintext is returned only at issuance. */
+    public function createAppToken(Request $request, Response $response): Response
+    {
+        $response = $response->withHeader('Cache-Control', 'no-store');
+        if (Auth::isBearerAuthenticated() || $request->hasHeader('Authorization')) {
+            return $this->json($response, ['error' => '请在网页个人资料中创建令牌'], 403);
+        }
+        Auth::requireLogin();
+        $body = $request->getParsedBody();
+        $body = is_array($body) ? $body : [];
+        $csrf = $body['_csrf'] ?? null;
+        if (!is_string($csrf) || !Session::verifyCsrf($csrf)) {
+            return $this->json($response, ['error' => '会话已过期，请刷新页面重试'], 419);
+        }
+        $deviceName = $body['device_name'] ?? null;
+        if (!is_string($deviceName) || trim($deviceName) === '' || mb_strlen($deviceName) > 100
+            || preg_match('/[\x00-\x1f\x7f]/u', $deviceName) !== 0) {
+            return $this->json($response, ['error' => '请输入 1-100 字的设备名称，不含控制字符'], 400);
+        }
+        $userId = (int) Auth::id();
+        if (!\Pafish\Core\RateLimiter::allow('profile-app-token', (string) $userId, 10, 600)) {
+            return $this->json($response, ['error' => '创建令牌过于频繁，请稍后重试'], 429);
+        }
+        $password = $body['current_password'] ?? null;
+        if (!is_string($password) || !password_verify($password, (string) (Auth::user()['password_hash'] ?? ''))) {
+            return $this->json($response, ['error' => '当前密码不正确'], 400);
+        }
+        try {
+            $issued = AppTokens::issue($userId, trim($deviceName));
+        } catch (\PDOException $e) {
+            error_log('Profile app token creation failed: ' . $e->getMessage());
+            return $this->json($response, ['error' => '创建失败，请稍后重试'], 500);
+        } catch (\RuntimeException $e) {
+            return $this->json($response, ['error' => $e->getMessage()], 400);
+        }
+        return $this->json($response, [
+            'ok' => true,
+            'id' => $issued['id'],
+            'accessToken' => $issued['token'],
+            'expiresAt' => $issued['expiresAt'],
+        ]);
+    }
+
     /** POST /admin/profile/app-token/{id}/revoke */
     public function revokeAppToken(Request $request, Response $response, array $args): Response
     {
@@ -40,6 +83,22 @@ final class ProfileController extends AdminController
         $tokenId = (int) ($args['id'] ?? 0);
         if ($tokenId < 1 || !AppTokens::revoke((int) Auth::id(), $tokenId)) {
             return $this->json($response, ['error' => '设备授权不存在或已撤销'], 404);
+        }
+        return $this->json($response, ['ok' => true]);
+    }
+
+    /** POST /admin/profile/app-token/{id}/delete */
+    public function deleteAppToken(Request $request, Response $response, array $args): Response
+    {
+        Auth::requireLogin();
+        $body = $request->getParsedBody();
+        $csrf = is_array($body) ? ($body['_csrf'] ?? null) : null;
+        if (!is_string($csrf) || !Session::verifyCsrf($csrf)) {
+            return $this->json($response, ['error' => '会话已过期，请刷新页面重试'], 419);
+        }
+        $tokenId = (int) ($args['id'] ?? 0);
+        if ($tokenId < 1 || !AppTokens::deleteRevoked((int) Auth::id(), $tokenId)) {
+            return $this->json($response, ['error' => '令牌记录不存在或尚未撤销'], 404);
         }
         return $this->json($response, ['ok' => true]);
     }

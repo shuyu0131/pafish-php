@@ -3519,6 +3519,10 @@ a.admin-overview-card:hover { border-color: var(--muted); }
   flex: 1;
   min-width: 160px;
 }
+.admin-app-token-form > .admin-form-actions { grid-column: 1 / -1; }
+.admin-app-token-devices { margin-top: 20px; }
+.admin-app-token-result > .admin-form-actions { margin-top: 12px; }
+.admin-app-token-result .input { min-width: 0; font-family: monospace; }
 .admin-avatar-edit {
   display: flex;
   align-items: center;

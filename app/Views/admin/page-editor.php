@@ -64,14 +64,21 @@ $template = $isEdit ? (string) $page['template'] : 'default';
                    placeholder="自动根据标题生成" maxlength="100">
             <span class="admin-field-hint">访问路径 /pages/地址；留空自动生成</span>
           </div>
-          <?php if (count($templateOptions) > 1): ?>
+          <?php $templateUnavailable = !array_key_exists($template, $templateOptions); ?>
+          <?php if (count($templateOptions) > 1 || $templateUnavailable): ?>
             <div class="admin-field">
               <label class="label" for="pageTemplate">模板</label>
               <select id="pageTemplate" name="template" class="input">
+                <?php if ($templateUnavailable): ?>
+                  <option value="<?= e($template) ?>" selected><?= e($template) ?>（暂不可用）</option>
+                <?php endif; ?>
                 <?php foreach ($templateOptions as $key => $label): ?>
                   <option value="<?= e($key) ?>" <?= $template === $key ? 'selected' : '' ?>><?= e($label) ?></option>
                 <?php endforeach; ?>
               </select>
+              <?php if ($templateUnavailable): ?>
+                <span class="admin-field-hint">原模板暂不可用，前台使用默认布局；保留此选项可在恢复主题或插件后继续使用。</span>
+              <?php endif; ?>
             </div>
           <?php else: ?>
             <input type="hidden" name="template" value="default">

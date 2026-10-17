@@ -12,7 +12,7 @@ $avatar = \Pafish\Http\Comments::avatarUrl($me['avatar_url'] ?? null, (string) (
   <div class="admin-page-head">
     <div>
       <h1 class="admin-h1">个人资料</h1>
-      <p class="admin-page-sub">头像、昵称与密码设置</p>
+      <p class="admin-page-sub">资料、密码与设备授权</p>
     </div>
   </div>
 
@@ -82,6 +82,35 @@ $avatar = \Pafish\Http\Comments::avatarUrl($me['avatar_url'] ?? null, (string) (
 
   <div class="card admin-form-card">
     <h2 class="admin-card-title">手机应用设备</h2>
+    <form id="appTokenForm" class="admin-form-grid admin-app-token-form" method="post" action="<?= e(url_to('/admin/profile/app-token/create')) ?>">
+      <?= csrf_field() ?>
+      <div class="admin-field">
+        <label class="label" for="appTokenDevice">设备名称</label>
+        <input class="input" id="appTokenDevice" name="device_name" type="text" placeholder="例如：我的手机" maxlength="100" required>
+      </div>
+      <div class="admin-field">
+        <label class="label" for="appTokenPassword">当前密码</label>
+        <input class="input" id="appTokenPassword" name="current_password" type="password" autocomplete="current-password" required>
+      </div>
+      <div class="admin-form-actions">
+        <p class="admin-editor-error" id="appTokenError" role="alert" hidden></p>
+        <button type="submit" class="btn btn-primary">创建令牌</button>
+      </div>
+    </form>
+    <div id="appTokenResult" class="admin-app-token-result" hidden>
+      <div class="admin-field">
+        <label class="label" for="appTokenValue">访问令牌</label>
+        <input class="input" id="appTokenValue" type="text" readonly autocomplete="off" spellcheck="false" aria-describedby="appTokenHint appTokenExpiry">
+        <p class="admin-field-hint" id="appTokenHint">完整令牌仅显示这一次，请复制到手机应用。有效期 90 天，可随时撤销。</p>
+        <p class="admin-field-hint" id="appTokenExpiry"></p>
+        <p class="admin-field-hint" id="appTokenCopyStatus" role="status" aria-live="polite"></p>
+      </div>
+      <div class="admin-form-actions">
+        <button type="button" id="appTokenCopy" class="btn btn-primary">复制令牌</button>
+        <button type="button" id="appTokenDone" class="btn btn-outline">完成</button>
+      </div>
+    </div>
+    <div id="appTokenDevices" class="admin-app-token-devices">
     <?php if ($appTokens === []): ?>
       <p class="admin-muted">尚无手机应用设备授权</p>
     <?php else: ?>
@@ -99,6 +128,8 @@ $avatar = \Pafish\Http\Comments::avatarUrl($me['avatar_url'] ?? null, (string) (
                 <td>
                   <?php if (!$revoked && !$expired): ?>
                     <button type="button" class="btn btn-ghost btn-sm" data-app-token-revoke="<?= (int) $token['id'] ?>" data-device-name="<?= e((string) $token['device_name']) ?>">撤销</button>
+                  <?php elseif ($revoked): ?>
+                    <button type="button" class="btn btn-ghost btn-sm" data-app-token-delete="<?= (int) $token['id'] ?>" data-device-name="<?= e((string) $token['device_name']) ?>">删除</button>
                   <?php else: ?>
                     <span class="admin-muted">—</span>
                   <?php endif; ?>
@@ -109,6 +140,7 @@ $avatar = \Pafish\Http\Comments::avatarUrl($me['avatar_url'] ?? null, (string) (
         </table>
       </div>
     <?php endif; ?>
+    </div>
   </div>
 </div>
 
@@ -134,14 +166,14 @@ $avatar = \Pafish\Http\Comments::avatarUrl($me['avatar_url'] ?? null, (string) (
         onOk(j);
       });
   }
-  function bind(formId, errId, onOk) {
+  function bind(formId, errId, onOk, pendingLabel) {
     var form = document.getElementById(formId);
     var errBox = document.getElementById(errId);
     form.addEventListener("submit", function (e) {
       e.preventDefault();
       errBox.hidden = true;
       var submit = form.querySelector("button[type=submit]");
-      if (submit) { submit.disabled = true; submit.dataset.label = submit.textContent; submit.textContent = "保存中…"; }
+      if (submit) { submit.disabled = true; submit.dataset.label = submit.textContent; submit.textContent = pendingLabel || "保存中…"; }
       post(form.action, new FormData(form), onOk)
         .catch(function (err) {
           errBox.textContent = err.message;
@@ -156,6 +188,47 @@ $avatar = \Pafish\Http\Comments::avatarUrl($me['avatar_url'] ?? null, (string) (
   // 资料保存：统一使用后台 toast
   bind("profileForm", "profileError", function () {
     if (typeof window.pafishToast === "function") window.pafishToast("个人资料已保存", "success");
+  });
+
+  var tokenForm = document.getElementById("appTokenForm");
+  var tokenResult = document.getElementById("appTokenResult");
+  var tokenValue = document.getElementById("appTokenValue");
+  var tokenCopyStatus = document.getElementById("appTokenCopyStatus");
+  bind("appTokenForm", "appTokenError", function (j) {
+    tokenForm.reset();
+    tokenValue.value = j.accessToken;
+    document.getElementById("appTokenExpiry").textContent = "到期时间：" + j.expiresAt;
+    tokenCopyStatus.textContent = "";
+    tokenForm.hidden = true;
+    document.getElementById("appTokenDevices").hidden = true;
+    tokenResult.hidden = false;
+    tokenValue.focus();
+    tokenValue.select();
+  }, "创建中…");
+  document.getElementById("appTokenCopy").addEventListener("click", function () {
+    function selectForCopy() {
+      tokenValue.focus();
+      tokenValue.select();
+      tokenCopyStatus.textContent = "请长按或使用系统复制操作复制已选令牌";
+    }
+    if (!navigator.clipboard || !navigator.clipboard.writeText) { selectForCopy(); return; }
+    navigator.clipboard.writeText(tokenValue.value).then(function () {
+      tokenCopyStatus.textContent = "令牌已复制";
+    }).catch(selectForCopy);
+  });
+  document.getElementById("appTokenDone").addEventListener("click", function () {
+    tokenValue.value = "";
+    location.reload();
+  });
+  window.addEventListener("pagehide", function () {
+    tokenValue.value = "";
+    tokenForm.reset();
+    tokenResult.hidden = true;
+    tokenForm.hidden = false;
+    document.getElementById("appTokenDevices").hidden = false;
+  });
+  window.addEventListener("pageshow", function (event) {
+    if (event.persisted) location.reload();
   });
 
   // 修改密码：前端先比对两次输入；成功后清空三框
@@ -216,20 +289,26 @@ $avatar = \Pafish\Http\Comments::avatarUrl($me['avatar_url'] ?? null, (string) (
     preview.src = /^(?:\/(?!\/)|https?:\/\/)/i.test(value) && !/[\x00-\x20\x7f\\]/.test(value) ? value : <?= json_encode(admin_gravatar((string) ($me['email'] ?? ''))) ?>;
   });
 
-  document.querySelectorAll("[data-app-token-revoke]").forEach(function (button) {
+  document.querySelectorAll("[data-app-token-revoke], [data-app-token-delete]").forEach(function (button) {
     button.addEventListener("click", function () {
       var label = button.dataset.deviceName || "该设备";
+      var deleting = button.hasAttribute("data-app-token-delete");
+      var action = deleting ? "delete" : "revoke";
+      var tokenId = deleting ? button.dataset.appTokenDelete : button.dataset.appTokenRevoke;
+      var prompt = deleting ? "删除“" + label + "”的已撤销令牌记录？" : "撤销“" + label + "”的手机应用授权？";
       var confirmAction = window.pafishConfirm
-        ? window.pafishConfirm("撤销“" + label + "”的手机应用授权？", { title: "撤销设备", accept: "撤销" })
-        : Promise.resolve(window.confirm("撤销“" + label + "”的手机应用授权？"));
+        ? window.pafishConfirm(prompt, { title: deleting ? "删除令牌" : "撤销设备", accept: deleting ? "删除" : "撤销" })
+        : Promise.resolve(window.confirm(prompt));
       confirmAction.then(function (ok) {
         if (!ok) return;
+        button.disabled = true;
         var fd = new FormData();
         fd.append("_csrf", CSRF);
-        post(<?= json_encode(url_to('/admin/profile/app-token/')) ?> + encodeURIComponent(button.dataset.appTokenRevoke) + "/revoke", fd, function () {
-          if (typeof window.pafishToastReload === "function") window.pafishToastReload("设备授权已撤销", "success");
+        post(<?= json_encode(url_to('/admin/profile/app-token/')) ?> + encodeURIComponent(tokenId) + "/" + action, fd, function () {
+          if (typeof window.pafishToastReload === "function") window.pafishToastReload(deleting ? "令牌记录已删除" : "设备授权已撤销", "success");
           else location.reload();
-        }).catch(function (err) { pafishNotify(err.message || "撤销失败", true); });
+        }).catch(function (err) { pafishNotify(err.message || (deleting ? "删除失败" : "撤销失败"), true); })
+          .finally(function () { button.disabled = false; });
       });
     });
   });

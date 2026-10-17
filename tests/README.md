@@ -34,8 +34,9 @@ php tests/run.php
 | `schema-contract.php` | 安装基线、迁移后结构与当前库的结构契约（支持 `--report`） |
 | `installer.php` | 安装向导回归：在随机临时数据库/目录中实际执行安装器并清理；可用 `PAFISH_INSTALL_TEST_USER` / `PAFISH_INSTALL_TEST_PASSWORD` 指定测试账号 |
 | `deployment-compat.php` | 两种文档根布局下的静态资源与部署兼容 |
+| `upgrade-check.php` | 更新成功/失败缓存、手动强制检查、真实中间件权限/CSRF 与只读工作台渲染；隔离更新源，不下载/安装；`--snapshots` 输出浏览器夹具 |
 | `auth-security.php` | 登录、会话、权限与安全边界 |
-| `app-tokens.php` | APP 用户令牌哈希、设备撤销、账号状态、角色即时生效、设备上限与旧插件卸载 |
+| `app-tokens.php` | APP 用户令牌、后台个人资料创建/撤销、密码确认、CSRF/身份隔离、限流与一次性密钥响应；`--snapshots` 输出页面夹具 |
 | `account-center.php` | 固定角色权限、默认后台中心与主题中心、个人数据隔离/分页、头像校验、编辑微语归属；`--snapshots` 输出本地视觉检查夹具 |
 | `error-handler.php` | 普通 404 不写应用错误日志，HTTP 状态、API JSON 与真实异常日志保持正确；使用独立临时日志目录 |
 | `http-stack.php` | 真实 Slim `App::handle()` 中间件栈：子目录路径、后台登录重定向、POST CSRF、站内重定向和 API 404 |
@@ -43,6 +44,8 @@ php tests/run.php
 | `transaction-cache.php` | 事务与缓存失效的交互 |
 | `extension-inventory.php` / `extension-references.php` | 扩展表归属盘点、references 外键声明与同步 |
 | `extension-core.php` | 统一 extension.php 入口的失败隔离、幂等启动与运行时清理 |
+| `page-templates.php` | 主题页面模板自动发现/解析、首页复用、动态正文分发、保存白名单及失效选择保留；隔离数据库与临时主题/插件 |
+| `post-templates.php` | 单篇文章模板发现/优先级、保存与自动保存、App 保留、导入导出、失效回退与幂等迁移；`--snapshots` 输出编辑页夹具 |
 
 ## 注意
 

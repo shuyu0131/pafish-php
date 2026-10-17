@@ -195,6 +195,7 @@ final class Migrator
             'content_format' => self::tableHasColumns($pdo, 'posts', ['content_format'])
                 && self::tableHasColumns($pdo, 'pages', ['content_format']),
             'pages_deleted_at' => self::tableHasColumns($pdo, 'pages', ['deleted_at']),
+            'post_templates' => self::tableHasColumns($pdo, 'posts', ['template']),
             'micro_statuses_content_format' => self::tableHasColumns($pdo, 'micro_statuses', ['content_format']),
             'micro_statuses_content_capacity' => in_array(self::columnType($pdo, 'micro_statuses', 'content'), ['mediumtext', 'longtext'], true),
             'entity_meta' => self::tableExists($pdo, 'entity_meta'),

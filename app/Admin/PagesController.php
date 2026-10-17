@@ -14,7 +14,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
  * 页面管理
- * - 列表 / 新建 / 编辑 / 保存；模板白名单校验；硬删除（无回收站）
+ * - 列表 / 新建 / 编辑 / 保存；可用模板校验；硬删除（无回收站）
  * - "设为首页"写入 settings.home_page_id（前台首页优先渲染该页面）
  */
 final class PagesController extends AdminController
@@ -34,7 +34,7 @@ final class PagesController extends AdminController
                 continue;
             }
             foreach (($desc['manifest']['pageTemplates'] ?? []) as $tpl) {
-                $options[$tpl['name']] = '插件 · ' . $tpl['title'];
+                $options[$tpl['name']] ??= '插件 · ' . $tpl['title'];
             }
         }
         return $options;
@@ -222,13 +222,16 @@ final class PagesController extends AdminController
 
         $status = ($body['status'] ?? '') === 'PUBLISHED' ? 'PUBLISHED' : 'DRAFT';
 
-        // 模板白名单：小写字母/数字/连字符，1-40 位；"default" 为系统默认模板保留名
-        $template = trim((string) ($body['template'] ?? ''));
+        // 新选择必须可用；主题切换或插件停用后允许原样保留历史选择。
+        $template = trim((string) ($body['template'] ?? ($stored['template'] ?? 'default')));
         if ($template === '') {
             $template = 'default';
         }
         if (!preg_match('/^[a-z0-9-]{1,40}$/', $template)) {
             throw new \RuntimeException('模板名称只能包含小写字母、数字和连字符');
+        }
+        if ($template !== ($stored['template'] ?? null) && !array_key_exists($template, self::templateOptions())) {
+            throw new \RuntimeException('所选页面模板不可用，请重新选择');
         }
 
         $contentFormat = \Pafish\Services\Content::format($body['content_format'] ?? ($id !== null ? (DB::value('SELECT content_format FROM pages WHERE id = ?', [$id]) ?: 'markdown') : 'markdown'));

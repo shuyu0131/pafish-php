@@ -52,7 +52,7 @@ final class Listings
         $offset = ($pageNum - 1) * $perPage;
 
         $posts = DB::fetchAll(
-            "SELECT p.id, p.title, p.slug, p.excerpt, p.content, p.content_format, p.cover_url, p.custom_fields, p.published_at, p.author_id,
+            "SELECT p.id, p.title, p.slug, p.excerpt, p.content, p.content_format, p.template, p.cover_url, p.custom_fields, p.published_at, p.author_id,
                     p.is_pinned, p.category_pinned, p.password, p.external_url, p.view_count,
                     p.like_count, p.favorite_count, p.allow_comments, p.seo_title, p.meta_description,
                     (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id AND c.status = 'APPROVED') AS comment_count,

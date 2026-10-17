@@ -894,16 +894,23 @@ final class Plugin
         return $out;
     }
 
-    /** 分发激活插件的前台页面模板。 */
+    /** 分发声明了当前模板的激活插件，返回动态正文，由主题承载布局。 */
     public static function renderPageTemplate(array $page): string
     {
+        $template = (string) ($page['template'] ?? 'default');
+        if ($template === 'default' || preg_match(self::TEMPLATE_NAME_PATTERN, $template) !== 1) return '';
+        // 同名时与后台选项保持一致，当前主题文件优先。
+        if (Theme::pageTemplateFile(Theme::active(), $template) !== null) return '';
         foreach (self::activeNames() as $name) {
+            $manifest = self::describe($name);
+            if ($manifest['error'] !== null
+                || !in_array($template, array_column($manifest['manifest']['pageTemplates'] ?? [], 'name'), true)) continue;
             $handler = ExtensionKernel::providerFor('plugin', $name, 'renderPageTemplate');
             if ($handler === null) {
                 continue;
             }
             try {
-                $html = $handler((string) ($page['template'] ?? 'default'), $page, self::context($name));
+                $html = $handler($template, $page, self::context($name));
                 if (is_string($html) && trim($html) !== '') {
                     return $html;
                 }

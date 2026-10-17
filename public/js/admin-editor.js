@@ -87,6 +87,7 @@
     slug: $("#fSlug"),
     excerpt: $("#fExcerpt"),
     content: $("#fContent"),
+    template: $("#fTemplate"),
     coverUrl: $("#fCoverUrl"),
     coverPreview: $("[data-cover-preview]"),
     coverImg: $("[data-cover-preview] img"),
@@ -180,6 +181,7 @@
       els.excerpt.value !== (initial.excerpt || "") ||
       editorValue() !== (initial.content || "") ||
       document.getElementById('fContentFormat').value !== (initial.contentFormat || 'markdown') ||
+      els.template.value !== (initial.template || "default") ||
       els.coverUrl.value !== (initial.coverUrl || "") ||
       currentCategory !== (initial.categoryId || "") ||
       JSON.stringify(tagIds) !== JSON.stringify(initial.tagIds || []) ||
@@ -240,6 +242,7 @@
     p.set("excerpt", els.excerpt.value.trim());
     p.set("content", editorValue());
     p.set("content_format", $("#fContentFormat").value);
+    p.set("template", els.template.value);
     p.set("cover_url", els.coverUrl.value.trim());
     p.set("category_id", currentCategory !== "" && currentCategory !== "__new__" ? currentCategory : "");
     p.set("new_category", currentCategory === "__new__" ? els.newCatInput.value.trim() : "");

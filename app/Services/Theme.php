@@ -425,6 +425,12 @@ final class Theme
                 return true;
             }
         }
+        $directory = realpath($dir);
+        foreach (scandir($dir) ?: [] as $entry) {
+            if (preg_match('/^(?:page-|post-template-)([a-z0-9-]{1,40})\.php$/D', $entry, $match) !== 1 || $match[1] === 'default') continue;
+            $file = realpath($dir . '/' . $entry);
+            if ($file !== false && dirname($file) === $directory && is_file($file) && is_readable($file)) return true;
+        }
         return false;
     }
 
@@ -666,14 +672,69 @@ final class Theme
         return array_values(array_unique($keys));
     }
 
-    /** 主题声明的页面模板（过滤后，不含 default） */
+    /** 当前主题根目录中的 page-*.php；清单仅提供可选显示名。 */
     public static function pageTemplates(string $name): array
+    {
+        return self::customTemplates($name, 'page-');
+    }
+
+    /** 文章自定义布局与分类覆盖文件分开命名，不要求清单声明。 */
+    public static function postTemplates(string $name): array
+    {
+        return self::customTemplates($name, 'post-template-');
+    }
+
+    private static function customTemplates(string $name, string $prefix): array
     {
         $desc = self::describe($name);
         if ($desc['error'] !== null) {
             return [];
         }
-        return $desc['manifest']['pageTemplates'] ?? [];
+        $labels = [];
+        foreach (($prefix === 'page-' ? ($desc['manifest']['pageTemplates'] ?? []) : []) as $decl) {
+            if (is_array($decl) && is_string($decl['name'] ?? null) && is_string($decl['title'] ?? null)) {
+                $labels[$decl['name']] = $decl['title'];
+            }
+        }
+        $templates = [];
+        foreach (scandir(self::root() . '/' . $name) ?: [] as $file) {
+            if (preg_match('/^' . preg_quote($prefix, '/') . '([a-z0-9-]{1,40})\.php$/D', $file, $match) !== 1) continue;
+            $key = $match[1];
+            $path = self::customTemplateFile($name, $key, $prefix);
+            if ($path === null) continue;
+            $title = $labels[$key] ?? '';
+            if ($title === '') {
+                $header = file_get_contents($path, false, null, 0, 8192);
+                // 只读取 PHP 文件头注释，不执行模板，也不从正文 HTML 提取标题。
+                if (is_string($header) && preg_match('/\A\s*<\?php\s*(?:declare\s*\(\s*strict_types\s*=\s*1\s*\)\s*;\s*)?\/\*([\s\S]*?)\*\//', $header, $comment) === 1
+                    && preg_match('/@name\h+([^\r\n*]+)/u', $comment[1], $label) === 1) {
+                    $title = trim($label[1]);
+                }
+            }
+            $templates[] = ['name' => $key, 'title' => mb_substr($title !== '' ? $title : $key, 0, 100)];
+        }
+        return $templates;
+    }
+
+    /** 只接受当前主题根目录的真实文件，拒绝目录穿越及指向目录外的链接。 */
+    public static function pageTemplateFile(string $theme, string $template): ?string
+    {
+        return self::customTemplateFile($theme, $template, 'page-');
+    }
+
+    public static function postTemplateFile(string $theme, string $template): ?string
+    {
+        return self::customTemplateFile($theme, $template, 'post-template-');
+    }
+
+    private static function customTemplateFile(string $theme, string $template, string $prefix): ?string
+    {
+        if (!self::isValidName($theme) || $template === 'default'
+            || preg_match(self::TEMPLATE_NAME_PATTERN, $template) !== 1) return null;
+        $directory = realpath(self::root() . '/' . $theme);
+        if ($directory === false) return null;
+        $file = realpath($directory . '/' . $prefix . $template . '.php');
+        return $file !== false && dirname($file) === $directory && is_file($file) && is_readable($file) ? $file : null;
     }
 
     /** 当前主题可用的组件区域；主题未声明时保留通用区域。 */
@@ -1089,10 +1150,20 @@ final class Theme
         }
 
         $baseCandidates = [$name];
+        if ($name === 'page') {
+            $template = $context['page']['template'] ?? 'default';
+            if (is_string($template) && self::pageTemplateFile(self::active(), $template) !== null) {
+                array_unshift($baseCandidates, 'page-' . $template);
+            }
+        }
         if ($name === 'post') {
             $categorySlug = $context['post']['category_slug'] ?? null;
             if (is_string($categorySlug) && preg_match('/^[a-z0-9_-]{1,50}$/', $categorySlug) === 1) {
                 array_unshift($baseCandidates, 'post-' . $categorySlug);
+            }
+            $template = $context['post']['template'] ?? 'default';
+            if (is_string($template) && self::postTemplateFile(self::active(), $template) !== null) {
+                array_unshift($baseCandidates, 'post-template-' . $template);
             }
         }
 
@@ -1104,7 +1175,7 @@ final class Theme
         $candidates = [];
         if (is_array($filtered)) {
             foreach ($filtered as $candidate) {
-                if (is_string($candidate) && preg_match(self::NAME_PATTERN, $candidate) === 1 && !in_array($candidate, $candidates, true)) {
+                if (is_string($candidate) && preg_match('/^[a-z0-9_-]{1,64}$/D', $candidate) === 1 && !in_array($candidate, $candidates, true)) {
                     $candidates[] = $candidate;
                 }
             }
@@ -1113,9 +1184,10 @@ final class Theme
             $candidates = $baseCandidates;
         }
 
+        $directory = realpath(self::root() . '/' . self::active());
         foreach ($candidates as $candidate) {
-            $themeFile = self::root() . '/' . self::active() . '/' . $candidate . '.php';
-            if (is_file($themeFile)) {
+            $themeFile = $directory === false ? false : realpath($directory . '/' . $candidate . '.php');
+            if ($themeFile !== false && dirname($themeFile) === $directory && is_file($themeFile) && is_readable($themeFile)) {
                 return $themeFile;
             }
         }

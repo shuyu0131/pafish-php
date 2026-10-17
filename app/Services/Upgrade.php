@@ -13,6 +13,7 @@ final class Upgrade
     // OutboundHttp 的统一响应上限为 16 MB，升级包上限必须与其一致。
     private const MAX_ZIP_BYTES = 16 * 1024 * 1024;
     private const CACHE_TTL = 86400; // 24h
+    private const FAILURE_CACHE_TTL = 900; // 失败后 15 分钟再自动重试
     private const CACHE_FILE = 'update_check.json';
     private const CACHE_SCHEMA = 3;
     private const STATE_FILE = 'upgrade_state.json';
@@ -52,7 +53,7 @@ final class Upgrade
         $cached = $force ? null : self::readCache();
         $meta = null;
         $error = '';
-        if ($cached !== null && is_array($cached['meta'] ?? null)) {
+        if ($cached !== null) {
             $meta = $cached['meta'];
             $error = (string) ($cached['error'] ?? '');
         } else {
@@ -757,7 +758,7 @@ final class Upgrade
         return Version::compare($a, $b);
     }
 
-    /** 读取检查缓存（24h TTL 内有效） */
+    /** 成功结果缓存 24h；失败结果短暂缓存，避免刷新工作台时反复请求。 */
     private static function readCache(): ?array
     {
         $path = PAFISH_ROOT . '/runtime/' . self::CACHE_FILE;
@@ -766,10 +767,13 @@ final class Upgrade
             return null;
         }
         $data = json_decode($raw, true);
-        if (!is_array($data) || !isset($data['at']) || (int) ($data['schema'] ?? 0) !== self::CACHE_SCHEMA) {
+        if (!is_array($data) || !isset($data['at']) || (int) ($data['schema'] ?? 0) !== self::CACHE_SCHEMA
+            || !array_key_exists('meta', $data) || ($data['meta'] !== null && !is_array($data['meta']))) {
             return null;
         }
-        if (time() - (int) $data['at'] > self::CACHE_TTL) {
+        $ttl = is_array($data['meta'] ?? null) ? self::CACHE_TTL : self::FAILURE_CACHE_TTL;
+        $age = time() - (int) $data['at'];
+        if ($age < 0 || $age >= $ttl) {
             return null;
         }
         return $data;

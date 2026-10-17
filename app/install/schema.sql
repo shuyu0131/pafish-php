@@ -60,6 +60,7 @@ CREATE TABLE IF NOT EXISTS posts (
   allow_comments  TINYINT(1)      NOT NULL DEFAULT 1 COMMENT '逐篇评论开关；全站开关优先，关闭仍展示历史评论',
   content         MEDIUMTEXT      NOT NULL COMMENT '正文或组件内容',
   content_format  VARCHAR(16)     NOT NULL DEFAULT 'markdown' COMMENT 'markdown/html，HTML 写入需净化',
+  template        VARCHAR(40)     NOT NULL DEFAULT 'default' COMMENT '文章模板标识；default 使用分类或默认布局',
   cover_url       VARCHAR(500)    NULL COMMENT '内容或分类封面地址',
   status          VARCHAR(20)     NOT NULL DEFAULT 'DRAFT' COMMENT 'DRAFT/PUBLISHED/SCHEDULED，公开还需检查软删除和时间',
   published_at    DATETIME        NULL COMMENT '发布时间；公开查询允许为空、未来时间不公开',

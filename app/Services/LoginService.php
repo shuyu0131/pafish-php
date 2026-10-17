@@ -40,7 +40,8 @@ final class LoginService
             return ['error' => $error, 'status' => $status];
         }
 
-        $user = DB::fetchOne('SELECT id, username, password_hash, role, disabled FROM users WHERE username = ?', [$username]);
+        // nickname/avatar_url 供 App 登录后直接渲染账号卡片，不必再补一次 /me。
+        $user = DB::fetchOne('SELECT id, username, nickname, avatar_url, password_hash, role, disabled FROM users WHERE username = ?', [$username]);
         if (!$user || !password_verify($password, (string) $user['password_hash'])) {
             return ['error' => '用户名或密码错误', 'status' => 401];
         }

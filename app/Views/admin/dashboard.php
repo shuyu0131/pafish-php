@@ -25,7 +25,7 @@
       <div class="admin-software-foot">
         <div><a href="https://www.pafish.cn" target="_blank" rel="noopener noreferrer">官方网站</a><a href="https://www.pafish.cn/docs" target="_blank" rel="noopener noreferrer">使用文档</a></div>
         <?php if (!empty($canUpgrade)): ?>
-          <button type="button" class="btn btn-outline btn-sm" id="dashboardUpgradeBtn"
+          <button type="button" class="btn <?= !empty($upgradeInfo['hasUpdate']) ? 'btn-primary' : 'btn-outline' ?> btn-sm" id="dashboardUpgradeBtn"
             data-latest="<?= e((string) ($upgradeInfo['latest'] ?? '')) ?>" data-has-update="<?= !empty($upgradeInfo['hasUpdate']) ? '1' : '0' ?>">
             <?= !empty($upgradeInfo['hasUpdate']) ? '发现新版本 v' . e((string) $upgradeInfo['latest']) : '检查更新' ?>
           </button>
@@ -70,6 +70,17 @@
   var latest = trigger.dataset.latest || "";
   var hasUpdate = trigger.dataset.hasUpdate === "1";
   var completed = false;
+  var manualCheckStarted = false;
+
+  function updateTrigger(j) {
+    latest = j.latest || "";
+    hasUpdate = !!j.hasUpdate && latest !== current;
+    trigger.dataset.latest = latest;
+    trigger.dataset.hasUpdate = hasUpdate ? "1" : "0";
+    trigger.classList.toggle("btn-primary", hasUpdate);
+    trigger.classList.toggle("btn-outline", !hasUpdate);
+    trigger.textContent = hasUpdate ? "发现新版本 v" + latest : "检查更新";
+  }
 
   function post(path, force) {
     var fd = new FormData();
@@ -79,6 +90,7 @@
       .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok || !j.ok) throw new Error(j.error || "操作失败"); return j; }); });
   }
   function open() {
+    manualCheckStarted = true;
     modal.hidden = false;
     if (window.pafishModalSync) window.pafishModalSync();
     message.textContent = "正在检查更新…";
@@ -90,12 +102,7 @@
     completed = false;
     post(<?= json_encode(url_to('/admin/upgrade/check')) ?>, true)
       .then(function (j) {
-        latest = j.latest || "";
-        hasUpdate = !!j.hasUpdate && latest !== current;
-        trigger.dataset.latest = latest;
-        trigger.dataset.hasUpdate = hasUpdate ? "1" : "0";
-        trigger.classList.toggle("btn-primary", hasUpdate);
-        trigger.textContent = hasUpdate ? "发现新版本 v" + latest : "检查更新";
+        updateTrigger(j);
         if (hasUpdate) {
           message.textContent = "发现新版本 v" + latest + "，可以开始更新。";
           if (j.notes) { notes.textContent = j.notes; notes.hidden = false; }
@@ -107,6 +114,13 @@
       .catch(function (e) { message.textContent = "检查更新失败"; error.textContent = e.message; error.hidden = false; });
   }
   trigger.addEventListener("click", open);
+  // 页面呈现后静默检查；自动检查使用服务端缓存，手动点击仍强制刷新。
+  window.setTimeout(function () {
+    if (manualCheckStarted) return;
+    post(<?= json_encode(url_to('/admin/upgrade/check')) ?>, false)
+      .then(function (j) { if (!manualCheckStarted) updateTrigger(j); })
+      .catch(function () { /* 自动检查失败不打断工作台，手动检查会显示错误。 */ });
+  }, 0);
   run.addEventListener("click", function () {
     if (!hasUpdate || completed || run.disabled) return;
     run.disabled = true;

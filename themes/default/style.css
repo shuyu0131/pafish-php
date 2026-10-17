@@ -538,6 +538,20 @@ input[type="radio"]:focus-visible {
   border-bottom: none;
 }
 
+.post-card-cover {
+  display: block;
+  margin-bottom: 1rem;
+  overflow: hidden;
+  border-radius: 4px;
+}
+.post-card-cover img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  max-height: 320px;
+  object-fit: cover;
+}
+
 .post-card-title {
   display: flex;
   flex-wrap: wrap;

@@ -46,6 +46,7 @@ php tests/run.php
 | `extension-core.php` | 统一 extension.php 入口的失败隔离、幂等启动与运行时清理 |
 | `page-templates.php` | 主题页面模板自动发现/解析、首页复用、动态正文分发、保存白名单及失效选择保留；隔离数据库与临时主题/插件 |
 | `post-templates.php` | 单篇文章模板发现/优先级、保存与自动保存、App 保留、导入导出、失效回退与幂等迁移；`--snapshots` 输出编辑页夹具 |
+| `post-covers.php` | 封面手动/自动选择、移除与 App 保留、列表与详情主题开关、媒体引用；`--snapshots` 输出浏览器夹具 |
 
 ## 注意
 

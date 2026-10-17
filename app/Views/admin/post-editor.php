@@ -189,6 +189,10 @@ $editorData = [
             </details>
             <button type="button" class="btn btn-ghost btn-sm" id="btnCoverClear" hidden>移除</button>
           </div>
+          <label class="admin-check">
+            <input type="checkbox" id="fAutoCover" name="auto_cover" value="1">
+            <span>自动使用正文首图</span>
+          </label>
         </div>
 
         <div class="card admin-form-card admin-editor-advanced-card">

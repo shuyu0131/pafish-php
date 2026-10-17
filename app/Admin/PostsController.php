@@ -216,7 +216,7 @@ final class PostsController extends AdminController
         }
 
         if ($this->isAjax($request)) {
-            return $this->json($response, ['ok' => true, 'id' => $result['id'], 'status' => $result['status']]);
+            return $this->json($response, ['ok' => true, 'id' => $result['id'], 'status' => $result['status'], 'coverUrl' => $result['coverUrl'] ?? '']);
         }
         $published = (string) ($result['status'] ?? '') === 'PUBLISHED';
         $this->flash('success', $published ? '文章已发布' : ($result['created'] ? '文章已保存' : '文章已更新'));
@@ -402,13 +402,15 @@ final class PostsController extends AdminController
             throw new \RuntimeException('别名已被使用，请更换');
         }
 
-        // 摘要和封面仅在为空时自动补全。
+        // 封面缺省时保留旧值；显式清空与自动取图是两个独立操作。
         $excerpt = trim((string) ($body['excerpt'] ?? ''));
-        $coverUrl = (string) \Pafish\Services\Content::imageUrl($body['cover_url'] ?? '');
+        $coverUrl = (string) \Pafish\Services\Content::imageUrl($body['cover_url'] ?? $stored['cover_url'] ?? '');
+        $autoCover = $body['auto_cover'] ?? '0';
+        if (!in_array($autoCover, [true, false, 1, 0, '1', '0'], true)) throw new \RuntimeException('自动封面选项无效');
         if ($excerpt === '') {
             $excerpt = self::extractSummary($content, 180, $contentFormat);
         }
-        if ($coverUrl === '') {
+        if ($coverUrl === '' && in_array($autoCover, [true, 1, '1'], true)) {
             try {
                 $coverUrl = (string) \Pafish\Services\Content::imageUrl((string) self::extractCover($content, $contentFormat));
             } catch (\RuntimeException) {
@@ -621,7 +623,7 @@ final class PostsController extends AdminController
             'extensions' => $extensions,
         ]);
 
-        return ['id' => $id, 'status' => $status, 'created' => $created];
+        return ['id' => $id, 'status' => $status, 'created' => $created, 'coverUrl' => $coverUrl];
     }
 
     private function renderEditor(Request $request, Response $response, ?array $post): Response

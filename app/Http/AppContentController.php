@@ -50,10 +50,8 @@ final class AppContentController
         $totalPages = max(1, (int) ceil($total / $perPage));
         $page = min($page, $totalPages);
         $offset = ($page - 1) * $perPage;
-        // 置顶优先：与后台列表的 pinned 排序一致，否则「置顶」在 App 里看不出效果。
         $rows = DB::fetchAll("SELECT id,title,slug,excerpt,cover_url,status,published_at,view_count,like_count,favorite_count,is_pinned,author_id,category_id,created_at,updated_at
-            FROM posts WHERE {$condition}
-            ORDER BY is_pinned DESC, updated_at DESC, id DESC LIMIT {$perPage} OFFSET {$offset}", $params);
+            FROM posts WHERE {$condition} ORDER BY updated_at DESC,id DESC LIMIT {$perPage} OFFSET {$offset}", $params);
         return $this->json($response, [
             'posts' => array_map(static fn (array $row): array => [
                 'id' => (int) $row['id'], 'title' => (string) $row['title'], 'slug' => (string) $row['slug'],

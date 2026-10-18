@@ -174,14 +174,6 @@ try {
     ));
     $comments = json_decode((string) $commentsResponse->getBody(), true);
     $check('App post listing includes drafts and remains author scoped', $list['total'] === 1 && $list['posts'][0]['status'] === 'DRAFT');
-    // 置顶排前：把较旧的一条置顶后，列表首项必须是它，否则「置顶」在 App 里没有可见效果。
-    DB::execute("UPDATE posts SET is_pinned = 1, updated_at = '2020-01-01 00:00:00' WHERE id = 2");
-    $pinnedFirst = json_decode((string) Auth::withBearerUser(1, fn () => $appContent->posts(
-        $factory->createServerRequest('GET', '/api/app/posts'), new Response()
-    ))->getBody(), true);
-    $check('Pinned articles come first in the app listing', ($pinnedFirst['posts'][0]['id'] ?? 0) === 2
-        && ($pinnedFirst['posts'][0]['pinned'] ?? false) === true);
-    DB::execute('UPDATE posts SET is_pinned = 0 WHERE id = 2');
     $check('App list clamps extreme page values without overflowing SQL offsets', $deepListResponse->getStatusCode() === 200 && $deepList['page'] === 1);
     $check('App post detail supplies editable content for owned articles', ($detail['post']['content'] ?? null) === 'body');
     $check('App post detail hides articles owned by another editor', $privateResponse->getStatusCode() === 404);

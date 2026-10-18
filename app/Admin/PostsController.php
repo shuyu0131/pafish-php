@@ -8,7 +8,6 @@ use Pafish\Core\DB;
 use Pafish\Core\Session;
 use Pafish\Core\Url;
 use Pafish\Services\Categories;
-use Pafish\Services\Settings;
 use Pafish\Services\Slug;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -280,10 +279,12 @@ final class PostsController extends AdminController
                     DB::execute("UPDATE posts SET status = 'DRAFT', published_at = NULL WHERE id IN ({$in}) AND deleted_at IS NULL", $ids);
                     break;
                 case 'pin':
-                    DB::execute("UPDATE posts SET is_pinned = 1 WHERE id IN ({$in})", $ids);
+                    // 置顶只是展示属性，不该刷新 updated_at：
+                    // updated_at 是列表默认排序键，刷新它会让「取消置顶」的文章继续排在最前。
+                    DB::execute("UPDATE posts SET is_pinned = 1, updated_at = updated_at WHERE id IN ({$in})", $ids);
                     break;
                 case 'unpin':
-                    DB::execute("UPDATE posts SET is_pinned = 0 WHERE id IN ({$in})", $ids);
+                    DB::execute("UPDATE posts SET is_pinned = 0, updated_at = updated_at WHERE id IN ({$in})", $ids);
                     break;
                 case 'delete':
                     DB::execute("UPDATE posts SET deleted_at = NOW() WHERE id IN ({$in}) AND deleted_at IS NULL", $ids);

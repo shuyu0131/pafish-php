@@ -12,7 +12,6 @@ final class Theme
     public const API_VERSION = 2;
     private const NAME_PATTERN = '/^[a-z0-9_-]{1,50}$/';
     private const TEMPLATE_NAME_PATTERN = '/^[a-z0-9-]{1,40}$/';
-    private const FIELD_TYPES = ['text', 'textarea', 'checkbox', 'select', 'color', 'switcher', 'radio', 'image'];
     private const ASSET_EXTENSIONS = [
         'css', 'js', 'mjs', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'avif', 'svg', 'ico',
         'woff', 'woff2', 'ttf', 'eot', 'otf', 'mp3', 'mp4', 'webm', 'ogg', 'wav',

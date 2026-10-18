@@ -143,22 +143,6 @@ final class Backup
         return $path;
     }
 
-    // ---------- 纯 PHP 兜底 ----------
-
-    /** Legacy/test adapter. The actual create() path never assembles the dump in memory. */
-    private static function exportPhp(): string
-    {
-        $stream = fopen('php://temp', 'w+');
-        if ($stream === false) throw new \RuntimeException('无法创建备份缓冲区');
-        try {
-            self::exportTo($stream);
-            rewind($stream);
-            $sql = stream_get_contents($stream);
-            if ($sql === false) throw new \RuntimeException('无法读取备份缓冲区');
-            return $sql;
-        } finally { fclose($stream); }
-    }
-
     /** Core + declared/registered extension tables; excludes unrelated shared-database tables. */
     private static function tableNames(): array
     {

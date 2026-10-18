@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Pafish\Admin;
 
 use Pafish\Core\Auth;
-use Pafish\Core\DB;
 use Pafish\Services\Mail;
 use Pafish\Services\Settings;
 use Psr\Http\Message\ResponseInterface as Response;

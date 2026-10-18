@@ -740,10 +740,6 @@
       var hid = form.querySelector('input[type="hidden"][data-sf-key="' + key + '"]');
       if (hid) { hid.value = value; }
     }
-    function readHidden(key) {
-      var hid = form.querySelector('input[type="hidden"][data-sf-key="' + key + '"]');
-      return hid ? hid.value : "";
-    }
 
     form.querySelectorAll('[data-sf-type="button_set"], [data-sf-type="palette"]').forEach(function (btn) {
       btn.addEventListener("click", function () {

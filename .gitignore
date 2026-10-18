@@ -21,6 +21,7 @@ Thumbs.db
 
 # 构建产物（发布包，随 GitHub Release 分发）
 /dist/
+/tests/
 
 # 发布包与变更记录不进入主系统仓库
 *.zip

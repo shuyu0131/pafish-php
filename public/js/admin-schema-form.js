@@ -26,6 +26,7 @@
   var HIDDEN_VALUE_TYPES = [
     "repeater", "spacing", "typography", "background", "border",
     "button_set-value", "palette-value", "image_select-value", "image_select-multi",
+    "checkboxes-value",
   ];
   /**
    * 提交时直接从隐藏域取值的类型。
@@ -35,6 +36,7 @@
    */
   var HIDDEN_COLLECT_TYPES = [
     "button_set-value", "palette-value", "image_select-value", "image_select-multi",
+    "checkboxes-value",
   ];
   /** 这些类型的值由各自的分组控件收集，通用循环要跳过 */
   var SKIP_IN_GENERIC_COLLECT = [
@@ -44,6 +46,7 @@
     "button_set", "button_set-value",
     "palette", "palette-value",
     "image_select", "image_select-value", "image_select-multi",
+    "checkboxes", "checkboxes-value",
     "comp-color", "comp-hex", "comp-part",
   ];
 
@@ -780,6 +783,21 @@
           btn.setAttribute("aria-checked", "true");
           setHidden(key, btn.dataset.sfValue || "");
         }
+        setDirty(true);
+        refreshShowIf();
+      });
+    });
+
+    form.querySelectorAll('[data-sf-type="checkboxes"]').forEach(function (box) {
+      box.addEventListener("change", function () {
+        var key = box.dataset.sfKey;
+        var wrap = box.closest(".admin-sf-checks");
+        if (!wrap) { return; }
+        var picked = [];
+        wrap.querySelectorAll('input[data-sf-type="checkboxes"]:checked').forEach(function (b) {
+          picked.push(b.dataset.sfValue || "");
+        });
+        setHidden(key, JSON.stringify(picked));
         setDirty(true);
         refreshShowIf();
       });

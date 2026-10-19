@@ -262,6 +262,7 @@ final class Plugin
                 }
                 $menu[] = [
                     'route' => (string) ($item['route'] ?? ''),
+                    'activePath' => (string) ($item['activePath'] ?? ''),
                     'label' => trim((string) ($item['label'] ?? '')),
                     'icon' => (string) ($item['icon'] ?? 'puzzle'),
                     'group' => (string) ($item['group'] ?? 'system'),
@@ -327,12 +328,14 @@ final class Plugin
                 return 'admin.menu 包含无效项';
             }
             $path = $item['route'] ?? null;
+            $activePath = $item['activePath'] ?? '';
             $label = trim((string) ($item['label'] ?? ''));
             $icon = (string) ($item['icon'] ?? 'puzzle');
             $group = (string) ($item['group'] ?? 'system');
             $capability = $item['capability'] ?? null;
             $order = $item['order'] ?? 100;
             if (!is_string($path) || ($path !== '/' && preg_match('#^/[a-z0-9_-]{1,50}(?:/[a-z0-9_-]{1,50})*$#', $path) !== 1)
+                || (!is_string($activePath) || ($activePath !== '' && preg_match('#^/admin/[a-z0-9_-]{1,50}(?:/[a-z0-9_-]{1,50})*$#', $activePath) !== 1))
                 || $label === '' || strlen($label) > 80
                 || preg_match(self::ADMIN_ICON_PATTERN, $icon) !== 1
                 || !in_array($group, self::ADMIN_MENU_GROUPS, true)
@@ -378,6 +381,7 @@ final class Plugin
                     if (($route['admin'] ?? false) && $route['method'] === 'GET' && $route['path'] === $item['route']) {
                         $items[] = [
                             'href' => $route['fullPath'],
+                            'activePath' => (string) ($item['activePath'] ?? ''),
                             'label' => $item['label'],
                             'icon' => $item['icon'],
                             'group' => $item['group'],

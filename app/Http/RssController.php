@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pafish\Http;
 
 use Pafish\Core\DB;
+use Pafish\Services\Posts;
 use Pafish\Services\Settings;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -20,10 +21,9 @@ final class RssController
     public function index(Request $request, Response $response): Response
     {
         $posts = DB::fetchAll(
-            "SELECT title, slug, excerpt, password, published_at FROM posts
-             WHERE status = 'PUBLISHED' AND deleted_at IS NULL
-               AND (published_at IS NULL OR published_at <= NOW())
-             ORDER BY published_at DESC
+            "SELECT p.title, p.slug, p.excerpt, p.password, p.published_at FROM posts p
+             WHERE " . Posts::publicWhere('p', false) . "
+             ORDER BY p.published_at DESC
              LIMIT " . self::FEED_LIMIT
         );
 

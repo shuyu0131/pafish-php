@@ -3,6 +3,7 @@ $themeTotal = count($themes);
 $themeActive = count(array_filter($themes, static fn (array $theme): bool => !empty($theme['active'])));
 ?>
 <div class="admin-stack admin-theme-page">
+  <div data-store-update-csrf="<?= e(csrf_token()) ?>" data-store-update-url="<?= e(url_to('/admin/store/update')) ?>" hidden></div>
   <div class="admin-page-head">
     <div>
       <h1 class="admin-h1">主题与外观</h1>
@@ -56,9 +57,13 @@ $themeActive = count(array_filter($themes, static fn (array $theme): bool => !em
               <?php if (($t['authorUrl'] ?? '') !== ''): ?><a href="<?= e($t['authorUrl']) ?>" target="_blank" rel="noopener noreferrer"><?= e($t['author'] !== '' ? $t['author'] : '未知作者') ?></a><?php else: ?><?= e($t['author'] !== '' ? $t['author'] : '未知作者') ?><?php endif; ?>
             </span>
             <?php if ($t['version'] !== ''): ?><span>v<?= e($t['version']) ?></span><?php endif; ?>
+            <?php if (is_array($t['update'] ?? null)): ?><span class="badge badge-accent">可更新至 v<?= e($t['update']['version']) ?></span><?php endif; ?>
           </p>
         </div>
         <div class="admin-installed-theme-actions">
+          <?php if (is_array($t['update'] ?? null)): ?>
+            <button type="button" class="btn btn-primary btn-sm admin-store-update" data-kind="theme" data-name="<?= e($t['name']) ?>" data-title="<?= e($t['title']) ?>" data-version="<?= e($t['update']['version']) ?>" data-local-version="<?= e($t['version']) ?>" data-changelog="<?= e($t['update']['changelog']) ?>">更新</button>
+          <?php endif; ?>
           <?php if ($t['active']): ?>
             <?php if ($t['settingsCount'] > 0): ?>
               <a class="btn btn-primary btn-sm" href="<?= e(url_to('/admin/appearance/' . rawurlencode($t['name']))) ?>">设置</a>
@@ -218,3 +223,4 @@ $themeActive = count(array_filter($themes, static fn (array $theme): bool => !em
 
 })();
 </script>
+<script src="<?= e(asset_url('/js/admin-app-updates.js')) ?>"></script>

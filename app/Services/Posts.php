@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pafish\Services;
 
 use Pafish\Core\DB;
+use Pafish\Core\Hooks;
 use Pafish\Core\Session;
 
 /** Shared public visibility and reading gate; does not grant editing permission. */
@@ -16,17 +17,29 @@ final class Posts
             && (int) ($post['allow_comments'] ?? 1) === 1;
     }
 
-    public static function publicWhere(string $alias = ''): string
+    public static function publicWhere(string $alias = '', bool $includeOwnedPrivate = true): string
     {
         if ($alias !== '' && !preg_match('/^[a-z][a-z0-9_]*$/iD', $alias)) throw new \InvalidArgumentException('Invalid SQL alias');
         $p = $alias === '' ? '' : $alias . '.';
-        return "{$p}status='PUBLISHED' AND {$p}deleted_at IS NULL AND ({$p}published_at IS NULL OR {$p}published_at<=NOW())";
+        $where = "{$p}status='PUBLISHED' AND {$p}deleted_at IS NULL AND ({$p}published_at IS NULL OR {$p}published_at<=NOW())";
+        $visibility = Hooks::applyFilters('posts_public_visibility_sql', '', [
+            'alias' => $alias,
+            'include_owned_private' => $includeOwnedPrivate,
+        ]);
+        if (is_string($visibility) && trim($visibility) !== '') {
+            $where .= ' AND (' . $visibility . ')';
+        }
+        return $where;
     }
 
     public static function isPublic(?array $post): bool
     {
-        return $post !== null && $post['status'] === 'PUBLISHED' && empty($post['deleted_at'])
+        $public = $post !== null && $post['status'] === 'PUBLISHED' && empty($post['deleted_at'])
             && ($post['published_at'] === null || $post['published_at'] <= date('Y-m-d H:i:s'));
+        if (!$public) {
+            return false;
+        }
+        return Hooks::applyDecisionFilters('post_is_public', true, $post) === true;
     }
 
     public static function requireReadable(?array $post, bool $sessionUnlock = false): array

@@ -3,8 +3,11 @@
  * 文章编辑器：
  * 正文为主，发布设置分组；保存操作在桌面头部、手机正文之后。
  * 变量：$post $isEdit $postId $catTree $tags $tagIds $customFields $hasPassword $isScheduled $statusLabel
+ *       $coverAuto（这篇是否开启自动取图兜底）$autoCoverUrl（自动取到的图，只作预览）
  */
 $extensionMetaFields = \Pafish\Services\EntityMeta::editorFields('post', (int) ($post['id'] ?? 0));
+$hasExtensionMeta = $extensionMetaFields !== [];
+$legacyCustomFieldsVisible = $customFields !== [] || !$hasExtensionMeta;
 $template = (string) ($post['template'] ?? 'default');
 $templateUnavailable = !array_key_exists($template, $templateOptions);
 $editorData = [
@@ -16,6 +19,8 @@ $editorData = [
         'contentFormat' => (string) ($post['content_format'] ?? 'markdown'),
         'template' => $template,
         'coverUrl' => (string) ($post['cover_url'] ?? ''),
+        'coverAuto' => (bool) ($coverAuto ?? false),
+        'autoCoverUrl' => (string) ($autoCoverUrl ?? ''),
         'categoryId' => $post['category_id'] ? (string) $post['category_id'] : '',
         'tagIds' => $tagIds,
         'isPinned' => (bool) $post['is_pinned'],
@@ -93,8 +98,8 @@ $editorData = [
         </div>
         </div>
 
-        <details class="card admin-advanced admin-editor-fields" id="customFieldsDetails">
-          <summary><?= admin_icon('chevron-right', 14) ?><span id="customFieldsTitle">自定义字段</span></summary>
+        <details class="card admin-advanced admin-editor-fields" id="customFieldsDetails"<?= $legacyCustomFieldsVisible ? '' : ' hidden' ?>>
+          <summary><?= admin_icon('chevron-right', 14) ?><span id="customFieldsTitle"><?= $hasExtensionMeta ? '旧版自定义字段' : '自定义字段' ?></span></summary>
           <section class="admin-advanced-body admin-custom-fields-field" aria-labelledby="customFieldsTitle">
             <div class="admin-editor-extra-head">
               <button type="button" class="btn btn-ghost admin-add-field" id="btnAddField"><?= admin_icon('plus', 14) ?>添加字段</button>
@@ -105,7 +110,7 @@ $editorData = [
         </details>
         <?php if ($extensionMetaFields !== []): ?>
         <details class="card admin-advanced admin-editor-fields" id="extensionMetaDetails">
-          <summary><?= admin_icon('chevron-right', 14) ?><span>扩展字段</span></summary>
+          <summary><?= admin_icon('chevron-right', 14) ?><span>主题自定义字段</span></summary>
           <section class="admin-advanced-body admin-extension-meta-fields">
             <?php foreach ($extensionMetaFields as $index => $field): ?>
               <?php $fieldId = 'extension-meta-' . $index; $value = (string) ($field['value'] ?? ''); ?>
@@ -125,6 +130,7 @@ $editorData = [
                 <?php else: ?>
                   <input class="input" type="<?= $field['type'] === 'number' ? 'number' : 'text' ?>" id="<?= e($fieldId) ?>" data-extension-meta data-meta-scope="<?= e($field['scope']) ?>" data-meta-key="<?= e($field['key']) ?>" value="<?= e($value) ?>" maxlength="<?= (int) ($field['maxLength'] ?? 10000) ?>" <?= !empty($field['required']) ? 'required' : '' ?>>
                 <?php endif; ?>
+                <?php if (!empty($field['desc'])): ?><p class="admin-field-hint"><?= e((string) $field['desc']) ?></p><?php endif; ?>
               </div>
             <?php endforeach; ?>
           </section>
@@ -177,7 +183,7 @@ $editorData = [
 
         <div class="card admin-form-card admin-editor-cover-card">
           <h2 class="admin-card-title">封面图</h2>
-          <button type="button" class="admin-cover-picker" id="btnCoverPicker" aria-label="选择或更换封面">
+          <button type="button" class="admin-cover-picker" id="btnCoverPicker" data-auto-cover="<?= e($autoCoverUrl ?? '') ?>" aria-label="选择或更换封面">
             <span class="admin-cover-empty" data-cover-empty><?= admin_icon('image', 24) ?><span>选择封面</span></span>
             <span class="admin-cover-preview" data-cover-preview hidden><img alt="封面预览"></span>
           </button>
@@ -190,7 +196,7 @@ $editorData = [
             <button type="button" class="btn btn-ghost btn-sm" id="btnCoverClear" hidden>移除</button>
           </div>
           <label class="admin-check">
-            <input type="checkbox" id="fAutoCover" name="auto_cover" value="1">
+            <input type="checkbox" id="fAutoCover" name="auto_cover" value="1"<?= !empty($coverAuto) ? ' checked' : '' ?>>
             <span>自动使用正文首图</span>
           </label>
         </div>

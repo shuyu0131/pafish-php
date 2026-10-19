@@ -216,7 +216,7 @@ final class PostsController extends AdminController
         }
 
         if ($this->isAjax($request)) {
-            return $this->json($response, ['ok' => true, 'id' => $result['id'], 'status' => $result['status'], 'coverUrl' => $result['coverUrl'] ?? '']);
+            return $this->json($response, ['ok' => true, 'id' => $result['id'], 'status' => $result['status'], 'coverUrl' => $result['coverUrl'] ?? '', 'coverAuto' => (bool) ($result['coverAuto'] ?? false)]);
         }
         $published = (string) ($result['status'] ?? '') === 'PUBLISHED';
         $this->flash('success', $published ? '文章已发布' : ($result['created'] ? '文章已保存' : '文章已更新'));
@@ -350,15 +350,61 @@ final class PostsController extends AdminController
             return $this->persistPost($body, $id);
         });
     }
-    private function persistPost(array $body, ?int $id = null): array
+
+    /** Save a front-end post for the authenticated owner; managers may edit other authors. */
+    public function saveForCurrentUser(array $body, ?int $id = null): array
+    {
+        if (!\Pafish\Core\Auth::check()) {
+            throw new \RuntimeException('请先登录');
+        }
+        $allowManagerEdit = \Pafish\Core\Auth::can('posts.manage');
+        return \Pafish\Services\MediaReferences::transaction(function () use ($body, $id, $allowManagerEdit): array {
+            return $this->persistPost($body, $id, $allowManagerEdit);
+        });
+    }
+
+    /** Front-end status changes preserve content and use the same lifecycle as admin operations. */
+    public function moderateForCurrentUser(int $id, string $operation): array
+    {
+        if (!\Pafish\Core\Auth::check()) throw new \RuntimeException('请先登录');
+        if (!in_array($operation, ['draft', 'publish', 'delete'], true)) throw new \InvalidArgumentException('操作无效');
+        return DB::transaction(static function () use ($id, $operation): array {
+            $manager = \Pafish\Core\Auth::can('posts.manage');
+            $post = DB::fetchOne(
+                'SELECT * FROM posts WHERE id=? AND deleted_at IS NULL' . ($manager ? '' : ' AND author_id=?') . ' FOR UPDATE',
+                $manager ? [$id] : [$id, (int) \Pafish\Core\Auth::id()]
+            );
+            if ($post === null) throw new \RuntimeException('文章不存在或无权操作');
+            if ($operation === 'delete') {
+                DB::execute('UPDATE posts SET deleted_at=NOW() WHERE id=?', [$id]);
+                $payload = self::postPayloadFromRow($post);
+                DB::afterCommit(static fn () => \do_action('after_delete_post', $payload));
+                return ['deleted' => true];
+            }
+            $status = $operation === 'draft' ? 'DRAFT' : 'PUBLISHED';
+            if ($post['status'] !== $status) {
+                DB::execute('UPDATE posts SET status=?,published_at=? WHERE id=?', [$status, $status === 'DRAFT' ? null : date('Y-m-d H:i:s'), $id]);
+                if ($status === 'PUBLISHED') {
+                    $saved = DB::fetchOne('SELECT * FROM posts WHERE id=?', [$id]);
+                    $payload = self::postPayloadFromRow($saved, 'publish', (string) $post['status']);
+                    DB::afterCommit(static fn () => \do_action('after_post_published', $payload));
+                }
+            }
+            return ['draft' => $status === 'DRAFT' ? 'y' : 'n'];
+        });
+    }
+
+    private function persistPost(array $body, ?int $id = null, bool $allowManagerEdit = false): array
     {
         $action = (string) ($body['action'] ?? 'draft');
+        $mayEditAnyAuthor = \Pafish\Core\Auth::isAdmin()
+            || ($allowManagerEdit && \Pafish\Core\Auth::can('posts.manage'));
         $stored = $id !== null ? DB::fetchOne('SELECT * FROM posts WHERE id = ? FOR UPDATE', [$id]) : null;
         if ($id !== null && $stored === null) throw new \RuntimeException('文章不存在');
         $seo = \Pafish\Services\Content::seoFields($body, $stored ?? []);
         $allowComments = $body['allow_comments'] ?? $stored['allow_comments'] ?? 1;
         if (!in_array($allowComments, [true,false,1,0,'1','0'], true)) throw new \RuntimeException('评论开关无效');
-        if ($id !== null && !\Pafish\Core\Auth::isAdmin()) {
+        if ($id !== null && !$mayEditAnyAuthor) {
             $owned = DB::fetchOne('SELECT id FROM posts WHERE id = ? AND author_id = ?', [$id, (int) \Pafish\Core\Auth::id()]);
             if ($owned === null) {
                 throw new \RuntimeException('无权编辑这篇文章');
@@ -383,7 +429,16 @@ final class PostsController extends AdminController
         $contentFormat = \Pafish\Services\Content::format($body['content_format'] ?? ($id !== null ? (DB::value('SELECT content_format FROM posts WHERE id = ?', [$id]) ?: 'markdown') : 'markdown'));
         $content = (string) ($body['content'] ?? '');
         if ($contentFormat === 'html') $content = \Pafish\Services\Content::sanitize($content);
-        if (trim($content) === '' && $externalUrl === '') {
+        $extensionMeta = null;
+        if (array_key_exists('extension_meta', $body)) {
+            $extensionMeta = is_array($body['extension_meta']) ? $body['extension_meta'] : json_decode((string) $body['extension_meta'], true);
+            if (!is_array($extensionMeta)) throw new \RuntimeException('扩展字段数据格式无效');
+        }
+        // An extension must explicitly attest that its structured fields carry the
+        // post body. Merely selecting a type or toggle must never bypass the
+        // ordinary non-empty-content check.
+        $hasExtensionContent = !empty($body['extension_content']);
+        if (trim($content) === '' && $externalUrl === '' && !$hasExtensionContent) {
             throw new \RuntimeException('内容不能为空（若这是纯外链条目，请填写外链地址）');
         }
         if (mb_strlen($content) > 16000000) {
@@ -402,21 +457,17 @@ final class PostsController extends AdminController
             throw new \RuntimeException('别名已被使用，请更换');
         }
 
-        // 封面缺省时保留旧值；显式清空与自动取图是两个独立操作。
+        // 自动取图偏好与封面来源分别保存：手动地址优先，自动封面不能变成手动输入。
+        // 缺省控件保留原有设置；关闭自动取图只清除派生封面，不影响手动封面。
         $excerpt = trim((string) ($body['excerpt'] ?? ''));
-        $coverUrl = (string) \Pafish\Services\Content::imageUrl($body['cover_url'] ?? $stored['cover_url'] ?? '');
-        $autoCover = $body['auto_cover'] ?? '0';
+        [$manualCover, $storedAutoCoverOn] = $stored !== null ? self::coverEditorState($stored) : ['', false, ''];
+        $coverUrl = (string) \Pafish\Services\Content::imageUrl($body['cover_url'] ?? $manualCover);
+        $autoCover = $body['auto_cover'] ?? $storedAutoCoverOn;
         if (!in_array($autoCover, [true, false, 1, 0, '1', '0'], true)) throw new \RuntimeException('自动封面选项无效');
+        $autoCoverOn = in_array($autoCover, [true, 1, '1'], true);
+        $coverAuto = false;
         if ($excerpt === '') {
             $excerpt = self::extractSummary($content, 180, $contentFormat);
-        }
-        if ($coverUrl === '' && in_array($autoCover, [true, 1, '1'], true)) {
-            try {
-                $coverUrl = (string) \Pafish\Services\Content::imageUrl((string) self::extractCover($content, $contentFormat));
-            } catch (\RuntimeException) {
-                // A relative image in the body must not create a cover relative to the admin URL.
-                $coverUrl = '';
-            }
         }
         if (mb_strlen($excerpt) > 500) {
             $excerpt = mb_substr($excerpt, 0, 500);
@@ -481,11 +532,6 @@ final class PostsController extends AdminController
 
         // 自定义字段（JSON 数组 [{key,value}]）
         $customFields = self::parseCustomFields((string) ($body['custom_fields'] ?? ''));
-        $extensionMeta = null;
-        if (array_key_exists('extension_meta', $body)) {
-            $extensionMeta = is_array($body['extension_meta']) ? $body['extension_meta'] : json_decode((string) $body['extension_meta'], true);
-            if (!is_array($extensionMeta)) throw new \RuntimeException('扩展字段数据格式无效');
-        }
 
         $authorId = \Pafish\Core\Auth::id();
         $now = date('Y-m-d H:i:s');
@@ -532,7 +578,7 @@ final class PostsController extends AdminController
             if ($contentFormat === 'html') $content = \Pafish\Services\Content::sanitize($content);
             // 正文为空只在「同时没有外链」时才非法：过滤器可能把外链补上或清掉，
             // 所以这里要用过滤后的值重新判断，不能沿用入口处的结论。
-            if (($content === '' && $externalUrl === '')
+            if (($content === '' && $externalUrl === '' && !$hasExtensionContent)
                 || mb_strlen($content) > 16000000 || $title === '' || mb_strlen($title) > 255
                 || $slug === '' || mb_strlen($slug) > 255
                 || mb_strlen($excerpt) > 500 || mb_strlen($externalUrl) > 500) {
@@ -543,6 +589,17 @@ final class PostsController extends AdminController
                 : DB::value('SELECT COUNT(*) FROM posts WHERE slug = ?', [$slug]) > 0;
             if ($slugConflict) {
                 throw new \RuntimeException('别名已被使用，请更换');
+            }
+        }
+
+        // 扩展可能在保存前改写正文；从最终入库内容提取，避免封面与正文首图不一致。
+        if ($coverUrl === '' && $autoCoverOn) {
+            try {
+                $coverUrl = (string) \Pafish\Services\Content::imageUrl((string) self::extractCover($content, $contentFormat));
+                $coverAuto = $coverUrl !== '';
+            } catch (\RuntimeException) {
+                // A relative image in the body must not create a cover relative to the admin URL.
+                $coverUrl = '';
             }
         }
 
@@ -569,12 +626,11 @@ final class PostsController extends AdminController
             self::replaceTags($id, $tagIds);
             \Pafish\Services\MediaReferences::sync('post', $id);
             $payload = self::postPayload($id, $title, $slug, $status, $publishedAt, $categoryId, $externalUrl, $isPinned, $categoryPinned, $action, null, $seo + ['allow_comments' => $allowComments, 'template' => $template]);
-            \do_action('after_create_post', $payload);
         } else {
             $created = false;
             $existing = DB::fetchOne(
-                'SELECT * FROM posts WHERE id = ?' . (!\Pafish\Core\Auth::isAdmin() ? ' AND author_id = ?' : ''),
-                \Pafish\Core\Auth::isAdmin() ? [$id] : [$id, (int) \Pafish\Core\Auth::id()]
+                'SELECT * FROM posts WHERE id = ?' . ($mayEditAnyAuthor ? '' : ' AND author_id = ?'),
+                $mayEditAnyAuthor ? [$id] : [$id, (int) \Pafish\Core\Auth::id()]
             );
             if (!$existing) {
                 throw new \RuntimeException('文章不存在');
@@ -608,8 +664,13 @@ final class PostsController extends AdminController
             self::replaceTags($id, $tagIds);
             \Pafish\Services\MediaReferences::sync('post', $id);
             $payload = self::postPayload($id, $title, $slug, $status, $publishedAt, $categoryId, $externalUrl, $isPinned, $categoryPinned, $action, $previousStatus, $seo + ['allow_comments' => $allowComments, 'template' => $template]);
-            \do_action('after_update_post', $payload);
         }
+
+        // 开关是逐篇偏好；来源单独记录，避免「手动封面 + 自动兜底」重开后丢失手动地址。
+        \Pafish\Services\EntityMeta::set('post', $id, \Pafish\Services\EntityMeta::scope('core'), 'auto_cover', $autoCoverOn ? '1' : '0');
+        \Pafish\Services\EntityMeta::set('post', $id, \Pafish\Services\EntityMeta::scope('core'), 'cover_source',
+            $coverAuto ? 'auto' : ($coverUrl !== '' ? 'manual' : 'none'));
+        \do_action($created ? 'after_create_post' : 'after_update_post', $payload);
 
         if ($status === 'PUBLISHED' && $previousStatus !== 'PUBLISHED') {
             $publishedPayload = $payload;
@@ -623,7 +684,7 @@ final class PostsController extends AdminController
             'extensions' => $extensions,
         ]);
 
-        return ['id' => $id, 'status' => $status, 'created' => $created, 'coverUrl' => $coverUrl];
+        return ['id' => $id, 'status' => $status, 'created' => $created, 'coverUrl' => $coverUrl, 'coverAuto' => $coverAuto];
     }
 
     private function renderEditor(Request $request, Response $response, ?array $post): Response
@@ -635,6 +696,9 @@ final class PostsController extends AdminController
             'password' => null, 'external_url' => null, 'category_id' => null,
         ];
         $customFields = $post ? \Pafish\Services\EntityMeta::postCustomFields((int) $post['id'], $post['custom_fields'] ?? null) : [];
+
+        // 封面地址框只装手动封面，自动取到的那张走预览
+        [$initial['cover_url'], $coverAuto, $autoCoverUrl] = $isEdit ? self::coverEditorState($post) : ['', false, ''];
 
         // 已选标签 id 集
         $tagIds = [];
@@ -654,6 +718,8 @@ final class PostsController extends AdminController
             'tags' => $tags,
             'tagIds' => $tagIds,
             'customFields' => $customFields,
+            'coverAuto' => $coverAuto,
+            'autoCoverUrl' => $autoCoverUrl,
             'hasPassword' => $isEdit && $initial['password'] !== null,
             'isScheduled' => $isEdit && $initial['status'] === 'SCHEDULED',
             'statusLabel' => self::STATUS_LABEL,
@@ -734,6 +800,34 @@ final class PostsController extends AdminController
             return html_entity_decode($m[1], ENT_QUOTES | ENT_HTML5, 'UTF-8');
         }
         return null;
+    }
+
+    /**
+     * 编辑器封面卡的三元状态：手动地址 / 自动取图偏好 / 自动取到的图。
+     *
+     * 旧数据未记录来源时，只在封面等于正文首图且没有明确关闭自动取图时推断为自动；
+     * 其余按手动封面保留。记录来源后不再用图片地址是否相同来猜测。
+     *
+     * @return array{0:string,1:bool,2:string}
+     */
+    private static function coverEditorState(array $post): array
+    {
+        $stored = trim((string) ($post['cover_url'] ?? ''));
+        $flag = \Pafish\Services\EntityMeta::get('post', (int) $post['id'], \Pafish\Services\EntityMeta::scope('core'), 'auto_cover');
+        $autoCoverOn = $flag === '1';
+        if ($stored === '') return ['', $autoCoverOn, ''];
+        $source = \Pafish\Services\EntityMeta::get('post', (int) $post['id'], \Pafish\Services\EntityMeta::scope('core'), 'cover_source');
+        if ($source === 'auto') return ['', $autoCoverOn, $stored];
+        if ($source === 'manual' || $source === 'none' || $flag === '0') return [$stored, $autoCoverOn, ''];
+        try {
+            $derived = (string) \Pafish\Services\Content::imageUrl(
+                (string) self::extractCover((string) ($post['content'] ?? ''), (string) ($post['content_format'] ?? 'markdown'))
+            );
+        } catch (\RuntimeException) {
+            $derived = '';
+        }
+        $isDerived = $derived !== '' && $derived === $stored;
+        return [$isDerived ? '' : $stored, $flag === null ? $isDerived : $autoCoverOn, $isDerived ? $stored : ''];
     }
 
     /** 标签解析：按名称匹配已有，否则新建（slug 去冲突），返回 id 数组。 */

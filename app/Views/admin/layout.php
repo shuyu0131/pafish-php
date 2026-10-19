@@ -17,7 +17,26 @@ $navHref = static function (array $item): string {
     $query = is_array($item['query'] ?? null) ? $item['query'] : [];
     return $query === [] ? $href : $href . (str_contains($href, '?') ? '&' : '?') . http_build_query($query);
 };
-$navActive = static function (array $item, string $currentPath) use ($currentQuery): bool {
+$extensionActivePath = '';
+foreach (($nav['groups'] ?? []) as $group) {
+    foreach (($group['items'] ?? []) as $navItem) {
+        $activePath = (string) ($navItem['activePath'] ?? '');
+        if ($activePath !== '' && ($currentPath === $activePath || str_starts_with($currentPath, rtrim($activePath, '/') . '/'))) {
+            $extensionActivePath = $activePath;
+            break 2;
+        }
+    }
+}
+$navActive = static function (array $item, string $currentPath) use ($currentQuery, $extensionActivePath): bool {
+    $activePath = (string) ($item['activePath'] ?? '');
+    if ($activePath !== '') {
+        $normalizedPath = $currentPath === '/' ? '/' : rtrim($currentPath, '/');
+        $normalizedActivePath = $activePath === '/' ? '/' : rtrim($activePath, '/');
+        return $normalizedPath === $normalizedActivePath || str_starts_with($normalizedPath, $normalizedActivePath . '/');
+    }
+    if ($extensionActivePath !== '' && str_starts_with($extensionActivePath, rtrim((string) ($item['href'] ?? ''), '/') . '/')) {
+        return false;
+    }
     $itemPath = (string) ($item['href'] ?? '');
     $normalizedPath = $currentPath === '/' ? '/' : rtrim($currentPath, '/');
     $normalizedItemPath = $itemPath === '/' ? '/' : rtrim($itemPath, '/');

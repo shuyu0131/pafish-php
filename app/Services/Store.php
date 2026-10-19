@@ -113,6 +113,34 @@ final class Store
         return is_string($v) && $v !== '' ? $v : null;
     }
 
+    /** 返回本地扩展中可从商店升级的条目，键为扩展名。 */
+    public static function updatesForInstalled(string $kind, array $installedVersions): array
+    {
+        if (!in_array($kind, array_keys(self::KIND_FILE), true)) {
+            return [];
+        }
+        $updates = [];
+        foreach (self::fetchCatalog($kind)['items'] as $item) {
+            $name = (string) ($item['name'] ?? '');
+            $localVersion = $installedVersions[$name] ?? null;
+            $latestVersion = trim((string) ($item['version'] ?? ''));
+            if (!is_string($localVersion) || $latestVersion === ''
+                || self::compareVersions($localVersion, $latestVersion) >= 0) {
+                continue;
+            }
+            try {
+                self::assertCompatible($item);
+            } catch (\RuntimeException) {
+                continue;
+            }
+            $updates[$name] = [
+                'version' => $latestVersion,
+                'changelog' => (string) ($item['changelog'] ?? ''),
+            ];
+        }
+        return $updates;
+    }
+
     /** 从商店安装（已安装 → 拒绝，提示直接更新） */
     public static function installFromStore(string $kind, string $name, string $base, array $item): array
     {

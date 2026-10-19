@@ -6,6 +6,7 @@ namespace Pafish\Http;
 
 use Pafish\Core\DB;
 use Pafish\Services\Plugin;
+use Pafish\Services\Posts;
 use Pafish\Services\ContentRepository;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -26,11 +27,10 @@ final class SitemapController
         }
 
         $posts = DB::fetchAll(
-            "SELECT slug, published_at, updated_at FROM posts
-             WHERE status = 'PUBLISHED' AND deleted_at IS NULL
-               AND (published_at IS NULL OR published_at <= NOW())
-               AND (password IS NULL OR password = '')
-             ORDER BY published_at DESC LIMIT 49998"
+            "SELECT p.slug, p.published_at, p.updated_at FROM posts p
+             WHERE " . Posts::publicWhere('p', false) . "
+               AND (p.password IS NULL OR p.password = '')
+             ORDER BY p.published_at DESC LIMIT 49998"
         );
         $categories = DB::fetchAll('SELECT slug FROM categories');
         $tags = DB::fetchAll('SELECT slug FROM tags');

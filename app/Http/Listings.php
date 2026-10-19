@@ -29,7 +29,12 @@ final class Listings
         ?int $perPage = null,
         array $categoryIds = []
     ): array {
-        $perPage = min(50, max(1, $perPage ?? (int) Settings::get('posts_per_page', '10')));
+        $resolvedPerPage = $perPage ?? (int) Settings::get('posts_per_page', '10');
+        $filteredPerPage = \Pafish\Core\Hooks::applyFilters('posts_per_page', $resolvedPerPage, [
+            'context' => 'list',
+            'per_page' => $perPage,
+        ]);
+        $perPage = min(50, max(1, (int) $filteredPerPage));
         $page = $request->getQueryParams()['page'] ?? 1;
         $pageNum = is_scalar($page) ? max(1, (int) $page) : 1;
 

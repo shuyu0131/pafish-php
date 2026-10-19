@@ -1,13 +1,13 @@
 {
   "name": "default",
   "title": "默认主题",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "apiVersion": 2,
   "injects": [],
   "systemTemplateFallback": ["index", "post", "page", "category", "tag", "search", "archives", "micro", "user"],
   "description": "pafish 默认主题。",
-  "author": "pafish",
-  "authorUrl": "https://www.pafish.cn",
+  "author": "纸鱼官方",
+  "authorUrl": "https://pafish.cn/developers/pafish",
   "homepage": "https://www.pafish.cn",
   "settings": [
     {

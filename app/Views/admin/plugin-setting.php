@@ -90,8 +90,10 @@ $canConfigure = $pluginActive && $manifest !== null && $error === null && $field
         </div>
       </form>
   <?php else: ?>
-    <?php /* 不可配置时（插件不可用 / 无设置项）：标题仍以普通页头出现 */ ?>
-    <div class="card admin-form-card"><div class="admin-page-head"><div><?= $headMain ?></div></div></div>
+    <?php /* 纯自定义工作区由插件负责标题与内容，避免出现空的通用设置卡片。 */ ?>
+    <?php if (!$hasCustomSettingsPage || $error !== null || !$pluginActive): ?>
+      <div class="card admin-form-card"><div class="admin-page-head"><div><?= $headMain ?></div></div></div>
+    <?php endif; ?>
     <?php if ($error === null && $manifest !== null): ?>
       <?php if (!$pluginActive): ?>
         <div class="card admin-empty">该插件当前未启用，请先 <a href="<?= e(url_to('/admin/plugins')) ?>">返回插件列表启用</a> 后再配置。</div>

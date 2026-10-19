@@ -258,13 +258,13 @@ final class PostController
     /** [上一篇, 下一篇]（按发布时间相邻） */
     private function neighbors(array $post): array
     {
-        $where = "status = 'PUBLISHED' AND deleted_at IS NULL AND (published_at IS NULL OR published_at <= NOW())";
+        $where = \Pafish\Services\Posts::publicWhere('p');
         $prev = DB::fetchOne(
-            "SELECT title, slug FROM posts WHERE {$where} AND (published_at < ? OR (published_at IS NULL AND id < ?)) ORDER BY published_at DESC LIMIT 1",
+            "SELECT p.title, p.slug FROM posts p WHERE {$where} AND (p.published_at < ? OR (p.published_at IS NULL AND p.id < ?)) ORDER BY p.published_at DESC LIMIT 1",
             [$post['published_at'], (int) $post['id']]
         );
         $next = DB::fetchOne(
-            "SELECT title, slug FROM posts WHERE {$where} AND (published_at > ? OR (published_at IS NULL AND id > ?)) ORDER BY published_at ASC LIMIT 1",
+            "SELECT p.title, p.slug FROM posts p WHERE {$where} AND (p.published_at > ? OR (p.published_at IS NULL AND p.id > ?)) ORDER BY p.published_at ASC LIMIT 1",
             [$post['published_at'], (int) $post['id']]
         );
         return [$prev, $next];
@@ -282,8 +282,7 @@ final class PostController
                        c.name AS category_name, c.slug AS category_slug
                 FROM posts p
                 LEFT JOIN categories c ON c.id = p.category_id
-                WHERE p.status = 'PUBLISHED' AND p.deleted_at IS NULL
-                  AND (p.published_at IS NULL OR p.published_at <= NOW())
+                WHERE " . \Pafish\Services\Posts::publicWhere('p') . "
                   AND p.id != ?";
         $or = [];
         if ($catId > 0) {

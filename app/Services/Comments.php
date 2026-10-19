@@ -13,7 +13,7 @@ final class Comments
     public const STATUSES = ['PENDING', 'APPROVED', 'REJECTED', 'SPAM', 'TRASH'];
 
     /** 列表卡片只取每篇最近六条顶层已审评论；不把热门文章的整段评论读回 PHP。 */
-    public static function recentForPosts(array $postIds): array
+    public static function recentForPosts(array $postIds, bool $includeReplyIds = false): array
     {
         $postIds = array_values(array_unique(array_filter(array_map('intval', $postIds), static fn (int $id): bool => $id > 0)));
         $recent = [];
@@ -23,11 +23,13 @@ final class Comments
                   WHERE c.post_id=? AND c.status='APPROVED' AND c.parent_id IS NULL
                   ORDER BY c.created_at DESC,c.id DESC LIMIT 6)");
             foreach (DB::fetchAll(implode(' UNION ALL ', $branches) . ' ORDER BY post_id,created_at DESC,id DESC', $ids) as $row) {
-                $recent[(int) $row['post_id']][] = [
+                $preview = [
                     'author_name' => (string) $row['author_name'],
                     'content' => (string) $row['content'],
                     'created_at' => (string) $row['created_at'],
                 ];
+                if ($includeReplyIds) $preview['id'] = (string) $row['id'];
+                $recent[(int) $row['post_id']][] = $preview;
             }
         }
         return $recent;

@@ -91,7 +91,7 @@ $renderField = function (array $field, array $values, ?string &$lastSection, boo
     // 点标签不会有任何反应。这类改用 <span>，样式一致，但不再谎称有关联。
     // backup 同理：它只有一排动作按钮，没有输入控件可关联。
     $isGroupControl = in_array($type, [
-        'radio', 'spacing', 'typography', 'repeater',
+        'radio', 'checkboxes', 'spacing', 'typography', 'repeater',
         'button_set', 'image_select', 'palette', 'background', 'border', 'backup',
     ], true);
     $labelHtml = $isGroupControl
@@ -164,6 +164,21 @@ $renderField = function (array $field, array $values, ?string &$lastSection, boo
             // 标签在左列，这里只放勾选框；id 让左侧 <label for> 能关联并点击切换
             echo '<label class="admin-sf-check"><input type="checkbox" id="sf-' . e($key) . '" data-sf-key="' . e($key)
                 . '" data-sf-type="checkbox"' . ($value === '1' ? ' checked' : '') . '></label>';
+            break;
+
+        case 'checkboxes':
+            $picked = json_decode($value !== '' ? $value : '[]', true);
+            $picked = is_array($picked) ? array_map('strval', $picked) : [];
+            echo '<div class="admin-sf-checks' . (!empty($field['inline']) ? ' is-inline' : '') . '">';
+            foreach ($options as $optValue => $optLabel) {
+                $on = in_array((string) $optValue, $picked, true);
+                echo '<label class="admin-sf-check"><input type="checkbox" data-sf-key="' . e($key)
+                    . '" data-sf-type="checkboxes" data-sf-value="' . e((string) $optValue) . '"'
+                    . ($on ? ' checked' : '') . '><span>' . e((string) $optLabel) . '</span></label>';
+            }
+            echo '<input type="hidden" data-sf-key="' . e($key) . '" data-sf-type="checkboxes-value" value="'
+                . e(json_encode($picked, JSON_UNESCAPED_UNICODE)) . '">';
+            echo '</div>';
             break;
 
         case 'switcher':

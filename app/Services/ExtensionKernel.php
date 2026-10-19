@@ -15,7 +15,7 @@ use Pafish\Core\Logger;
 final class ExtensionKernel
 {
     private const SETTING_TYPES = [
-        'text', 'textarea', 'checkbox', 'select', 'color', 'switcher', 'radio', 'image', 'password',
+        'text', 'textarea', 'checkbox', 'checkboxes', 'select', 'color', 'switcher', 'radio', 'image', 'password',
         // 展示型：不产生设置值，只用于排版说明（CSF 的 heading / subheading）
         'heading', 'subheading',
         // 数值型
@@ -40,7 +40,7 @@ final class ExtensionKernel
     private const DECORATIVE_TYPES = ['heading', 'subheading'];
 
     /** 值为 JSON 的复合类型，保存前按类型做结构化校验。 */
-    private const JSON_TYPES = ['spacing', 'typography', 'repeater', 'background', 'border'];
+    private const JSON_TYPES = ['spacing', 'typography', 'repeater', 'background', 'border', 'checkboxes'];
 
     /** 不含值、只做容器的类型（其子字段才是真实设置项）。 */
     private const CONTAINER_TYPES = ['group'];
@@ -70,7 +70,7 @@ final class ExtensionKernel
      * group 子字段另见 COMPOUND_INLINE_TYPES。
      */
     private const LEAF_TYPES = [
-        'text', 'textarea', 'checkbox', 'select', 'color', 'switcher',
+        'text', 'textarea', 'checkbox', 'checkboxes', 'select', 'color', 'switcher',
         'radio', 'image', 'password', 'slider',
         'button_set', 'image_select', 'palette', 'code',
     ];
@@ -483,7 +483,7 @@ final class ExtensionKernel
         // ---- 视觉选择型：button_set / image_select / palette ----
         // 三者共用同一份 options 语义（key => 显示内容），只是渲染方式不同：
         // button_set → 分段按钮，image_select → 图片缩略图，palette → 色块。
-        if (in_array($out['type'], ['button_set', 'image_select', 'palette'], true)) {
+        if (in_array($out['type'], ['button_set', 'image_select', 'palette', 'checkboxes'], true)) {
             if (!is_array($field['options'] ?? null) || $field['options'] === []) {
                 self::logRejectedSetting($field, $kind, $out['type'] . ' 的 options 为空');
                 return null;
@@ -887,6 +887,19 @@ final class ExtensionKernel
         $decoded = json_decode($value, true);
         if (!is_array($decoded)) {
             return $label . ' 的数据格式不正确（需为 JSON）';
+        }
+
+        if ($type === 'checkboxes') {
+            if (!array_is_list($decoded)) {
+                return $label . ' 的数据格式不正确（需为数组）';
+            }
+            $options = (array) ($field['options'] ?? []);
+            foreach ($decoded as $picked) {
+                if (!is_scalar($picked) || !array_key_exists((string) $picked, $options)) {
+                    return $label . ' 含未声明的选项「' . (is_scalar($picked) ? (string) $picked : '?') . '」';
+                }
+            }
+            return null;
         }
 
         if ($type === 'spacing') {

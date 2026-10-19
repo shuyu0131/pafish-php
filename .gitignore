@@ -49,6 +49,8 @@ Thumbs.db
 /enterprise-assets/
 /.design-review/
 /.mimosa/
+.mimosa/
+/LUMINA-MIGRATION-PLAN.md
 /.v2c/
 /.zcode/
 
@@ -60,7 +62,6 @@ Thumbs.db
 /public/theme-assets/
 /docs/*implementation*.md
 /scripts/port-lumina*.php
-/themes/lumina/
 /themes/lumina.zip
 /plugins/notify-hub/
 /plugins/notify-hub.zip

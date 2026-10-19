@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Pafish\Http;
 
 use Pafish\Core\DB;
+use Pafish\Services\Posts;
+use Pafish\Services\Theme;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -16,11 +18,20 @@ final class ArchiveController
 {
     public function index(Request $request, Response $response): Response
     {
+        // 主题可明确不提供归档页；此时按缺失模板处理，而不是落到系统模板。
+        $manifest = Theme::manifest(Theme::active()) ?? [];
+        $fallbacks = $manifest['systemTemplateFallback'] ?? null;
+        $supported = Theme::hasTemplate('archives')
+            || $fallbacks === null
+            || (is_array($fallbacks) && in_array('archives', $fallbacks, true));
+        if (!$supported) {
+            return Listings::notFound($response, '页面不存在');
+        }
+
         $posts = DB::fetchAll(
-            "SELECT title, slug, published_at FROM posts
-             WHERE status = 'PUBLISHED' AND deleted_at IS NULL
-               AND (published_at IS NULL OR published_at <= NOW())
-             ORDER BY published_at DESC"
+            "SELECT p.title, p.slug, p.published_at FROM posts p
+             WHERE " . Posts::publicWhere('p') . "
+             ORDER BY p.published_at DESC"
         );
 
         // 按年月分组

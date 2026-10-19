@@ -66,6 +66,8 @@ $app->get('/tag/{slug}', [TagController::class, 'show']);
 $app->get('/archives', [ArchiveController::class, 'index']);
 $app->get('/search', [SearchController::class, 'index']);
 $app->get('/user', [UserController::class, 'index']);
+$app->post('/user', [UserController::class, 'mutate']);
+$app->get('/user/card/{id:[0-9]+}', [UserController::class, 'card']);
 $app->get('/user/{route:[a-z0-9_-]{1,50}}', [UserController::class, 'index']);
 
 // 独立页面和站点订阅

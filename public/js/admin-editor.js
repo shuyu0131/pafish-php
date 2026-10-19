@@ -90,6 +90,7 @@
     template: $("#fTemplate"),
     coverUrl: $("#fCoverUrl"),
     autoCover: $("#fAutoCover"),
+    coverPicker: $("#btnCoverPicker"),
     coverPreview: $("[data-cover-preview]"),
     coverImg: $("[data-cover-preview] img"),
     newCatWrap: $("[data-new-cat-wrap]"),
@@ -323,11 +324,15 @@
         lastSavedAt = nowTime();
         autosaveFailed = false;
         autoRequestToken = null;
-        // 自动提取后回填实际存储值；请求期间的新输入或移除操作不应被旧响应覆盖。
+        // 回填实际存储值：自动取到的图只更新预览，不落进地址框。
+        // 请求期间的新输入或移除操作不应被旧响应覆盖。
         if (typeof d.coverUrl === "string" && els.coverUrl.value.trim() === savedPayload.get("cover_url") &&
             (els.autoCover.checked ? "1" : "0") === savedPayload.get("auto_cover")) {
-          setCover(d.coverUrl);
-          savedPayload.set("cover_url", d.coverUrl);
+          setAutoCoverUrl(d.coverAuto ? d.coverUrl : "");
+          if (!d.coverAuto) {
+            setCover(d.coverUrl);
+            savedPayload.set("cover_url", d.coverUrl);
+          }
         }
         // 基线取发送时的快照；请求期间继续输入的内容仍视为未保存。
         autosavedPayload = savedPayload.toString();
@@ -481,8 +486,13 @@
     els.coverUrl.value = url;
     els.coverUrl.dispatchEvent(new Event("input", { bubbles: true }));
   }
-  function renderCoverPreview() {
-    var v = els.coverUrl.value.trim();
+  // 自动取图的结果只当预览：一旦写进地址框，下次保存就会被当成手动封面存回去，
+  // 「自动使用正文首图」于是永远关不掉。
+  function setAutoCoverUrl(url) {
+    els.coverPicker.setAttribute("data-auto-cover", url || "");
+    renderCoverPreview();
+  }
+  function coverUrlValid(v) {
     // Plain text (including browser-autofilled usernames) must not become a relative image request.
     var valid = /^(?:\/(?!\/)|https?:\/\/)/i.test(v) && !/[\x00-\x20\x7f\\]/.test(v);
     if (valid && v.charAt(0) !== "/") {
@@ -491,10 +501,17 @@
         valid = !!parsed.hostname && !parsed.username && !parsed.password;
       } catch (error) { valid = false; }
     }
+    return valid;
+  }
+  function renderCoverPreview() {
+    var v = els.coverUrl.value.trim();
+    var auto = v === "" && els.autoCover.checked ? (els.coverPicker.getAttribute("data-auto-cover") || "") : "";
+    var shown = v !== "" ? v : auto;
+    var valid = coverUrlValid(shown);
     $("[data-cover-empty]").hidden = valid;
-    $("#btnCoverClear").hidden = !v;
+    $("#btnCoverClear").hidden = !v && !auto;
     if (valid) {
-      if (els.coverImg.getAttribute("src") !== v) els.coverImg.src = v;
+      if (els.coverImg.getAttribute("src") !== shown) els.coverImg.src = shown;
       els.coverPreview.hidden = false;
     } else {
       els.coverPreview.hidden = true;
@@ -723,8 +740,13 @@
     if (DATA.isScheduled && els.scheduledAt.value === "" && initial.publishedAt) {
       els.scheduledAt.value = String(initial.publishedAt).slice(0, 16).replace(" ", "T");
     }
-    renderCoverPreview();
-    try { els.autoCover.checked = localStorage.getItem("pafish_admin_auto_cover") === "1"; } catch (error) {}
+    // 已有文章以服务端记录的开关为准，新建才沿用上次的选择
+    if (isEdit) {
+      els.autoCover.checked = !!initial.coverAuto;
+    } else {
+      try { els.autoCover.checked = localStorage.getItem("pafish_admin_auto_cover") === "1"; } catch (error) {}
+    }
+    setAutoCoverUrl(initial.autoCoverUrl || "");
     initial.autoCover = els.autoCover.checked;
     renderTags();
     renderCatSelect();
@@ -771,7 +793,7 @@
 
     // 封面
     els.coverUrl.addEventListener("input", renderCoverPreview);
-    els.autoCover.addEventListener("change", rememberAutoCover);
+    els.autoCover.addEventListener("change", function () { rememberAutoCover(); renderCoverPreview(); });
     els.coverImg.addEventListener("error", function () {
       els.coverPreview.hidden = true;
       $("[data-cover-empty]").hidden = false;
@@ -780,6 +802,7 @@
     $("#btnCoverClear").addEventListener("click", function () {
       els.autoCover.checked = false;
       rememberAutoCover();
+      setAutoCoverUrl("");
       setCover("");
     });
 

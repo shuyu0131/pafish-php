@@ -6,6 +6,7 @@ namespace Pafish\Admin;
 
 use Pafish\Services\Theme;
 use Pafish\Services\ExtensionLinks;
+use Pafish\Services\Store;
 use Pafish\Core\Url;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -47,6 +48,18 @@ final class AppearanceController extends AdminController
                 )),
                 'active' => $name === $active,
             ];
+        }
+        try {
+            $updates = Store::updatesForInstalled('theme', array_column($themes, 'version', 'name'));
+            foreach ($themes as &$theme) {
+                $theme['update'] = $updates[$theme['name']] ?? null;
+            }
+            unset($theme);
+        } catch (\Throwable) {
+            foreach ($themes as &$theme) {
+                $theme['update'] = null;
+            }
+            unset($theme);
         }
         $response->getBody()->write($this->render('appearance', [
             'themes' => $themes,

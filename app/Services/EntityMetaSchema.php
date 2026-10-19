@@ -31,6 +31,9 @@ final class EntityMetaSchema
                 }
                 $seen[$key] = true;
                 if (array_key_exists('required', $field) && !is_bool($field['required'])) return "meta.{$subject}.{$key}.required 必须是布尔值";
+                if (array_key_exists('desc', $field) && (!is_string($field['desc']) || mb_strlen($field['desc']) > 300)) {
+                    return "meta.{$subject}.{$key}.desc 必须是最多 300 字的字符串";
+                }
                 if (array_key_exists('maxLength', $field) && (!is_int($field['maxLength']) || $field['maxLength'] < 1 || $field['maxLength'] > 10000)) {
                     return "meta.{$subject}.{$key}.maxLength 必须在 1 到 10000 之间";
                 }
@@ -86,6 +89,7 @@ final class EntityMetaSchema
                         : (string) ($field['default'] ?? ''),
                 ];
                 if (isset($field['maxLength'])) $normalized['maxLength'] = $field['maxLength'];
+                if (isset($field['desc']) && trim((string) $field['desc']) !== '') $normalized['desc'] = trim((string) $field['desc']);
                 if (($normalized['type'] ?? '') === 'select') {
                     $normalized['options'] = array_map('strval', $field['options']);
                     $normalized['default'] = (string) ($field['default'] ?? array_key_first($field['options']));

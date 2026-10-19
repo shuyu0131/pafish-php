@@ -8,6 +8,7 @@ use Pafish\Core\DB;
 use Pafish\Services\Settings;
 use Pafish\Services\Theme;
 use Pafish\Services\ContentRepository;
+use Pafish\Services\ExtensionKernel;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -18,6 +19,13 @@ final class HomeController
 {
     public function index(Request $request, Response $response): Response
     {
+        $query = $request->getQueryParams();
+        $authorValue = $query['author'] ?? null;
+        if (is_scalar($authorValue) && ctype_digit((string) $authorValue) && (int) $authorValue > 0) {
+            $authorPage = ExtensionKernel::providerFor('theme', Theme::active(), 'authorTimeline');
+            if (is_callable($authorPage)) return $authorPage($request, $response, (int) $authorValue);
+        }
+
         // 后台"页面管理 → 设为首页"优先
         $homePageId = (string) Settings::get('home_page_id', '');
         if (ctype_digit($homePageId)) {
@@ -66,6 +74,7 @@ final class HomeController
                 'url' => Listings::og($request, '首页')['url'],
             ],
             'posts' => $posts,
+            'lumina_list_kind' => 'home',
             'pageNum' => $pageNum,
             'totalPages' => $totalPages,
             'listBaseUrl' => url_to('/'),
@@ -98,4 +107,5 @@ final class HomeController
         unset($post);
         return $posts;
     }
+
 }

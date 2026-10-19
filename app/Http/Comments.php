@@ -77,8 +77,11 @@ final class Comments
             $nodes[(string) $c['id']] = [
                 'id' => (string) $c['id'],
                 'authorName' => (string) ($c['nickname'] ?: $c['author_name']),
+                // Explicit identity for themes that mark the article author's replies.
+                'userId' => $c['user_id'] !== null ? (string) (int) $c['user_id'] : '',
                 'avatar' => self::avatarUrl($c['avatar_url'], (string) $c['author_email']),
                 'content' => (string) $c['content'],
+                'createdAt' => (string) $c['created_at'],
                 'createdAtLabel' => \format_date($c['created_at'], 'yyyy-MM-dd HH:mm'),
                 'isPinned' => (int) $c['is_pinned'] === 1,
                 'isPending' => $c['status'] === 'PENDING',

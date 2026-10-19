@@ -3,6 +3,7 @@ $pluginTotal = count($plugins);
 $pluginActive = count(array_filter($plugins, static fn (array $plugin): bool => !empty($plugin['active'])));
 ?>
 <div class="admin-stack admin-extension-page admin-plugin-page admin-detail-page">
+  <div data-store-update-csrf="<?= e(csrf_token()) ?>" data-store-update-url="<?= e(url_to('/admin/store/update')) ?>" hidden></div>
   <div class="admin-page-head">
     <div>
       <h1 class="admin-h1">插件管理</h1>
@@ -86,9 +87,13 @@ $pluginActive = count(array_filter($plugins, static fn (array $plugin): bool => 
                 <td class="admin-col-sm admin-plugin-secondary" data-label="版本">
                   <?php if ($p['version'] !== ''): ?>v<?= e($p['version']) ?><?php endif; ?>
                   <div class="admin-muted" style="font-size: 11px;">API v<?= (int) $p['apiVersion'] ?></div>
+                  <?php if (is_array($p['update'] ?? null)): ?><span class="badge badge-accent">可更新至 v<?= e($p['update']['version']) ?></span><?php endif; ?>
                 </td>
                 <td class="admin-col-ops" data-label="操作">
                   <div class="admin-row-ops">
+                    <?php if (is_array($p['update'] ?? null)): ?>
+                      <button type="button" class="btn btn-primary btn-sm admin-store-update" data-kind="plugin" data-name="<?= e($p['name']) ?>" data-title="<?= e($p['title']) ?>" data-version="<?= e($p['update']['version']) ?>" data-local-version="<?= e($p['version']) ?>" data-changelog="<?= e($p['update']['changelog']) ?>">更新</button>
+                    <?php endif; ?>
                     <?php if ($p['active'] && $p['settingsCount'] > 0): ?>
                       <a class="btn btn-sm btn-primary" href="<?= e(url_to('/admin/plugins/' . rawurlencode($p['name']))) ?>">设置</a>
                     <?php endif; ?>
@@ -259,3 +264,4 @@ $pluginActive = count(array_filter($plugins, static fn (array $plugin): bool => 
   });
 })();
 </script>
+<script src="<?= e(asset_url('/js/admin-app-updates.js')) ?>"></script>

@@ -7,6 +7,7 @@ namespace Pafish\Admin;
 use Pafish\Services\Plugin;
 use Pafish\Services\PluginSettingException;
 use Pafish\Services\ExtensionLinks;
+use Pafish\Services\Store;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Psr\Http\Message\UploadedFileInterface;
@@ -37,6 +38,18 @@ final class PluginsController extends AdminController
                     + (in_array('plugin_setting', (array) ($m['injects'] ?? []), true) ? 1 : 0),
                 'active' => Plugin::isActive($name),
             ];
+        }
+        try {
+            $updates = Store::updatesForInstalled('plugin', array_column($plugins, 'version', 'name'));
+            foreach ($plugins as &$plugin) {
+                $plugin['update'] = $updates[$plugin['name']] ?? null;
+            }
+            unset($plugin);
+        } catch (\Throwable) {
+            foreach ($plugins as &$plugin) {
+                $plugin['update'] = null;
+            }
+            unset($plugin);
         }
         $response->getBody()->write($this->render('plugins', [
             'plugins' => $plugins,

@@ -5217,6 +5217,14 @@ a.admin-overview-card:hover { border-color: var(--muted); }
   border-radius: 3px;
   vertical-align: middle;
 }
+.admin-sf-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+}
+.admin-sf-checks.is-inline {
+  flex-direction: row;
+}
 .admin-sf-check {
   display: inline-flex;
   align-items: center;
@@ -6085,7 +6093,25 @@ input[type="radio"] {
 .admin-topbar-account:hover { color: var(--accent); }
 
 .admin-theme-settings { gap: 20px; }
-.admin-plugin-settings-page { gap: 20px; max-width: 820px; }
+.admin-plugin-settings-page { gap: 20px; width: 100%; max-width: none; }
+.admin-plugin-settings-page > .admin-plain-form { width: 100%; max-width: 820px; }
+.admin-plugin-workspace { width: 100%; gap: 20px; }
+.admin-plugin-workspace > .admin-page-head { margin-bottom: 0; }
+.admin-plugin-workspace > .admin-tabs { margin-bottom: 0; border-bottom: 0; }
+.admin-ai-provider-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(260px, .65fr);
+  align-items: start;
+  gap: 24px;
+}
+.admin-ai-provider-card,
+.admin-ai-provider-form,
+.admin-ai-provider-list { gap: 18px; }
+.admin-ai-provider-form .admin-form-grid { gap: 16px; }
+.admin-ai-provider-list .admin-empty { margin: 0; }
+@media (max-width: 900px) {
+  .admin-ai-provider-layout { grid-template-columns: minmax(0, 1fr); }
+}
 .admin-system-settings-page {
   width: 100%;
   max-width: none;

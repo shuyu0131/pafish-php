@@ -22,6 +22,10 @@ final class ContentTransfer
         foreach ($posts as &$post) {
             $post['tags'] = $tagMap[(int) ($post['id'] ?? 0)] ?? [];
             $post['custom_fields'] = EntityMeta::postCustomFields((int) $post['id'], $post['custom_fields'] ?? null);
+            foreach (['auto_cover', 'cover_source'] as $key) {
+                $value = EntityMeta::get('post', (int) $post['id'], 'core', $key);
+                if ($value !== null) $post[$key] = $value;
+            }
         }
         unset($post);
         return ['format' => 'pafish-content', 'version' => 1, 'exportedAt' => date(DATE_ATOM), 'categories' => $categories, 'tags' => $tags, 'pages' => $pages, 'posts' => $posts];
@@ -135,6 +139,20 @@ final class ContentTransfer
         if ($contentFormat === 'html') $row['content'] = Content::sanitize((string) ($row['content'] ?? ''));
         $existing = DB::fetchOne('SELECT * FROM posts WHERE slug = ?', [$slug]);
         if ($existing && $mode === 'skip') return;
+        $autoCover = null;
+        if (array_key_exists('auto_cover', $row)) {
+            if (!in_array($row['auto_cover'], [true, false, 1, 0, '1', '0'], true)) throw new \RuntimeException('自动封面选项无效');
+            $autoCover = in_array($row['auto_cover'], [true, 1, '1'], true) ? '1' : '0';
+        }
+        $coverSource = null;
+        if (array_key_exists('cover_source', $row)) {
+            if (!in_array($row['cover_source'], ['auto', 'manual', 'none'], true)) throw new \RuntimeException('封面来源无效');
+            $coverSource = $row['cover_source'];
+        } elseif ($existing && array_key_exists('cover_url', $row)
+            && (string) ($row['cover_url'] ?? '') !== (string) ($existing['cover_url'] ?? '')) {
+            // 旧包替换了封面，不能沿用被替换图片的自动来源，否则编辑时可能误清新封面。
+            $coverSource = trim((string) ($row['cover_url'] ?? '')) !== '' ? 'manual' : 'none';
+        }
         $template = Content::templateName($row['template'] ?? $existing['template'] ?? 'default');
         $seo = Content::seoFields($row, $existing ?? []);
         $allowComments = $row['allow_comments'] ?? $existing['allow_comments'] ?? 1;
@@ -152,6 +170,8 @@ final class ContentTransfer
         $customFields = $row['custom_fields'] ?? [];
         if (is_string($customFields)) $customFields = json_decode($customFields, true) ?? [];
         EntityMeta::replace('post', $postId, EntityMeta::POST_FIELDS_SCOPE, is_array($customFields) ? $customFields : []);
+        if ($autoCover !== null) EntityMeta::set('post', $postId, 'core', 'auto_cover', $autoCover);
+        if ($coverSource !== null) EntityMeta::set('post', $postId, 'core', 'cover_source', $coverSource);
         MediaReferences::sync('post', $postId);
         DB::execute('DELETE FROM post_tags WHERE post_id = ?', [$postId]);
         foreach (($row['tags'] ?? []) as $tag) { $slugTag = is_array($tag) ? (string) ($tag['slug'] ?? '') : (string) $tag; if (isset($tagIds[$slugTag])) DB::execute('INSERT IGNORE INTO post_tags (post_id, tag_id) VALUES (?, ?)', [$postId, $tagIds[$slugTag]]); }

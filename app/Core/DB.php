@@ -62,6 +62,20 @@ final class DB
     public static function query(string $sql, array $params = []): PDOStatement
     {
         $stmt = self::pdo()->prepare($sql);
+        if ($stmt === false) {
+            $error = self::pdo()->errorInfo();
+            $message = $error[2] ?? null;
+            if (!is_string($message) || $message === '') {
+                $message = sprintf(
+                    '数据库无法预处理查询 (SQLSTATE %s, driver code %s)',
+                    (string) ($error[0] ?? 'unknown'),
+                    (string) ($error[1] ?? 'unknown')
+                );
+            }
+            $exception = new PDOException($message);
+            $exception->errorInfo = $error;
+            throw $exception;
+        }
         $stmt->execute($params);
         return $stmt;
     }

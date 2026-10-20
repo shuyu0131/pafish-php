@@ -6,6 +6,10 @@ pafish 使用 PHP 与 MySQL，提供浏览器安装向导、完整的内容后�
 
 [官网](https://www.pafish.cn) · [使用文档](https://www.pafish.cn/docs) · [应用商店](https://www.pafish.cn/store) · [Gitee](https://gitee.com/shuyugit/pafish-php) · [GitHub](https://github.com/shuyu0131/pafish-php)
 
+## 1.2.3 更新
+
+- 修复部分 MySQL 环境下的评论预览查询兼容问题，并完善数据库预处理失败时的错误处理。
+
 ## 1.2.2 更新
 
 - 文章按篇保存自动取正文首图选项，手动封面与自动封面分别处理，修正取消勾选和自动保存后的封面显示。

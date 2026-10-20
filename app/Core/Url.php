@@ -94,8 +94,7 @@ final class Url
     public static function asset(string $path): string
     {
         $path = ltrim($path, '/');
-        $prefix = self::publicIsDocumentRoot() ? '' : '/public';
-        $url = self::base() . $prefix . '/' . $path;
+        $url = self::publicPath($path);
         $pathOnly = explode('?', $path, 2)[0];
         $file = dirname(__DIR__, 2) . '/public/' . $pathOnly;
         if (!is_file($file)) {
@@ -105,6 +104,14 @@ final class Url
         // 避免旧站点保留同一时间戳的 CSS/JS 时继续命中旧资源。
         return $url . (str_contains($path, '?') ? '&' : '?')
             . 'v=' . rawurlencode(Version::current() . '-' . (string) filemtime($file));
+    }
+
+    /** 静态文件 URL，不附加缓存版本参数；上传地址会持久化，需保持稳定。 */
+    public static function publicPath(string $path): string
+    {
+        $path = ltrim($path, '/');
+        $prefix = self::publicIsDocumentRoot() ? '' : '/public';
+        return self::base() . $prefix . '/' . $path;
     }
 
     /** 判断 Web 文档根是否直接指向项目的 public/ 目录。 */

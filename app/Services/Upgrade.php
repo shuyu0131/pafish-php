@@ -12,7 +12,7 @@ final class Upgrade
     private const DEFAULT_GITEE_REPO = 'shuyugit/pafish-php';
     // OutboundHttp 的统一响应上限为 16 MB，升级包上限必须与其一致。
     private const MAX_ZIP_BYTES = 16 * 1024 * 1024;
-    private const CACHE_TTL = 86400; // 24h
+    private const CACHE_TTL = 3600; // 自动检查最多延迟 1 小时发现新 Release
     private const FAILURE_CACHE_TTL = 900; // 失败后 15 分钟再自动重试
     private const CACHE_FILE = 'update_check.json';
     private const CACHE_SCHEMA = 3;
@@ -44,7 +44,7 @@ final class Upgrade
     }
 
     /**
-     * 检查更新：读远程元数据 → 与当前版本比较。force=true 跳过 24h 缓存。
+     * 检查更新：读远程元数据 → 与当前版本比较。force=true 跳过自动检查缓存。
      * 返回：['hasUpdate'=>bool, 'current'=>, 'latest'=>, 'notes'=>, 'zip'=>, 'error'?=>]
      */
     public static function check(bool $force = false): array
@@ -758,7 +758,7 @@ final class Upgrade
         return Version::compare($a, $b);
     }
 
-    /** 成功结果缓存 24h；失败结果短暂缓存，避免刷新工作台时反复请求。 */
+    /** 成功结果缓存 1h；失败结果短暂缓存，避免刷新工作台时反复请求。 */
     private static function readCache(): ?array
     {
         $path = PAFISH_ROOT . '/runtime/' . self::CACHE_FILE;

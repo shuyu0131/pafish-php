@@ -18,11 +18,17 @@ final class Comments
         $postIds = array_values(array_unique(array_filter(array_map('intval', $postIds), static fn (int $id): bool => $id > 0)));
         $recent = [];
         foreach (array_chunk($postIds, 50) as $ids) {
-            $branches = array_fill(0, count($ids),
-                "(SELECT c.id,c.post_id,c.author_name,c.content,c.created_at FROM comments c
-                  WHERE c.post_id=? AND c.status='APPROVED' AND c.parent_id IS NULL
-                  ORDER BY c.created_at DESC,c.id DESC LIMIT 6)");
-            foreach (DB::fetchAll(implode(' UNION ALL ', $branches) . ' ORDER BY post_id,created_at DESC,id DESC', $ids) as $row) {
+            // MySQL 5.7 supports this bounded per-post query consistently with native prepares.
+            $rows = [];
+            foreach ($ids as $id) {
+                array_push($rows, ...DB::fetchAll(
+                    "SELECT id,post_id,author_name,content,created_at FROM comments
+                     WHERE post_id=? AND status='APPROVED' AND parent_id IS NULL
+                     ORDER BY created_at DESC,id DESC LIMIT 6",
+                    [$id]
+                ));
+            }
+            foreach ($rows as $row) {
                 $preview = [
                     'author_name' => (string) $row['author_name'],
                     'content' => (string) $row['content'],

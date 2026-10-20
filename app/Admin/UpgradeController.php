@@ -11,7 +11,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 /**
  * 系统更新（仅 ADMIN）：
  * - GET /admin/upgrade：旧入口重定向到工作台
- * - POST /admin/upgrade/check：检查更新（JSON，force 跳过 24h 缓存）
+ * - POST /admin/upgrade/check：检查更新（JSON，force 跳过自动检查缓存）
  * - POST /admin/upgrade/run：执行更新（下载→校验→备份→覆盖→upgrade.php，失败自动回滚）
  */
 final class UpgradeController extends AdminController

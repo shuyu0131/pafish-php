@@ -220,7 +220,7 @@ final class Upload
         if (@file_put_contents($dir . '/' . $name, $buffer) === false) {
             throw new \RuntimeException('保存文件失败，请检查 uploads 目录权限');
         }
-        return \Pafish\Core\Url::to('/uploads/' . $name);
+        return \Pafish\Core\Url::publicPath('uploads/' . $name);
     }
 
     private static function storeLocalFromPath(string $path, string $ext): string
@@ -240,7 +240,7 @@ final class Upload
         stream_copy_to_stream($source, $target);
         fclose($source);
         fclose($target);
-        return \Pafish\Core\Url::to('/uploads/' . $name);
+        return \Pafish\Core\Url::publicPath('uploads/' . $name);
     }
 
     /** GD 压缩：返回 [buffer, width, height]；失败返回 null（回退原图） */

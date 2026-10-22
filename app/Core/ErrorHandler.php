@@ -17,6 +17,12 @@ use Throwable;
  */
 final class ErrorHandler extends SlimErrorHandler
 {
+    /** 错误处理中不再懒加载渲染器，避免升级期间的加载失败遮住原始异常。 */
+    protected function writeToErrorLog(): void
+    {
+        $this->logError((string) $this->exception);
+    }
+
     protected function respond(): ResponseInterface
     {
         $status = $this->exception instanceof HttpException ? $this->exception->getCode() : 500;
@@ -68,7 +74,7 @@ final class ErrorHandler extends SlimErrorHandler
         if ($status === 404) {
             return;
         }
-        // Slim 的 PlainTextErrorRenderer 输出不含请求 URI，补上方法与路径定位来源。
+        // 异常文本不含请求 URI，补上方法与路径定位来源。
         $uri = $this->request->getUri()->getPath();
         $query = Logger::redactQuery($this->request->getUri()->getQuery());
         if ($query !== '') {

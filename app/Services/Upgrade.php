@@ -139,6 +139,8 @@ final class Upgrade
             self::writeState($root, 'validating');
             self::verifySha256($buffer, (string) ($info['sha256'] ?? ''));
             self::validatePackage($tmpZip);
+            self::writeState($root, 'checking_permissions');
+            self::assertPackageWritable($tmpZip, $root);
             // 3. 备份（排除 public/uploads、backups、runtime；旧根目录 config.php 一并备份）
             self::writeState($root, 'backing_up');
             try {
@@ -165,6 +167,8 @@ final class Upgrade
             self::runUpgradeScript($root);
             self::writeState($root, 'completed');
         } catch (\Throwable $e) {
+            // 先保存最初失败原因；即使恢复过程或错误页加载失败，仍可定位触发点。
+            \Pafish\Core\Logger::exception('system upgrade failure', $e);
             // 校验/下载/备份阶段失败：备份目录可能不存在或未完成
             $restored = false;
             if ($backupReady && is_dir($bak) && self::isEmptyDir($bak) === false) {
@@ -448,7 +452,35 @@ final class Upgrade
         }
     }
 
-    /** 核心文件必须存在，避免不完整备份被用于清空并回滚站点。 */
+    /** 替换前检查包内目标路径，失败时站点文件仍保持原样。 */
+    private static function assertPackageWritable(string $tmpZip, string $root): void
+    {
+        $zip = new \ZipArchive();
+        if ($zip->open($tmpZip) !== true) throw new \RuntimeException('无法读取更新包');
+        try {
+            if (!is_dir($root) || !is_writable($root)) throw new \RuntimeException('站点根目录不可写，尚未替换任何程序文件');
+            for ($i = 0; $i < $zip->numFiles; $i++) {
+                $entry = str_replace('\\', '/', (string) $zip->getNameIndex($i));
+                if (str_ends_with($entry, '/') || $entry === 'pafish') continue;
+                $relative = substr($entry, strlen('pafish/'));
+                if (in_array($relative, ['runtime/.gitkeep', 'backups/.gitkeep', 'public/uploads/.gitkeep'], true)) continue;
+                $segments = explode('/', $relative);
+                $path = rtrim($root, '/\\');
+                foreach ($segments as $index => $segment) {
+                    $path .= '/' . $segment;
+                    clearstatcache(true, $path);
+                    if (is_link($path)) throw new \RuntimeException('更新目标包含符号链接：' . $relative . '，尚未替换任何程序文件');
+                    if (!file_exists($path)) break;
+                    $last = $index === count($segments) - 1;
+                    if (($last && !is_file($path)) || (!$last && !is_dir($path)) || !is_writable($path)) {
+                        throw new \RuntimeException('更新目标不可写或类型冲突：' . $relative . '，尚未替换任何程序文件');
+                    }
+                }
+            }
+        } finally { $zip->close(); }
+    }
+
+    /** 核心文件必须存在，避免不完整备份被用于恢复站点。 */
     private static function hasCoreFiles(string $root): bool
     {
         return is_file($root . '/index.php') && is_file($root . '/app/bootstrap.php');

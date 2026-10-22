@@ -44,7 +44,20 @@ final class UpgradeController extends AdminController
             $result = Upgrade::run();
             return $this->json($response, $result);
         } catch (\Throwable $e) {
-            return $this->json($response, ['error' => $e->getMessage()], 400);
+            // 将最近一次升级状态一并返回，后台才能区分“预检未执行”“已回滚”
+            // 和“回滚也失败”，避免统一显示成已经恢复。
+            $state = Upgrade::state();
+            $diagnostic = null;
+            if (is_array($state) && ($state['phase'] ?? '') === 'failed') {
+                $diagnostic = array_intersect_key($state, array_flip([
+                    'failed_phase', 'failed_path', 'files_modified', 'rollback_completed',
+                    'rollback_error', 'database_restore_error', 'target', 'package_sha256',
+                ]));
+            }
+            return $this->json($response, [
+                'error' => $e->getMessage(),
+                'upgradeState' => $diagnostic,
+            ], 400);
         }
     }
 }

@@ -87,7 +87,16 @@
     fd.append("_csrf", csrf);
     if (force) fd.append("force", "1");
     return fetch(path, { method: "POST", body: fd, headers: { "X-Requested-With": "XMLHttpRequest" } })
-      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok || !j.ok) throw new Error(j.error || "操作失败"); return j; }); });
+      .then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (j) {
+          if (!r.ok || !j.ok) {
+            var err = new Error(j.error || "操作失败");
+            err.upgradeState = j.upgradeState || null;
+            throw err;
+          }
+          return j;
+        });
+      });
   }
   function open() {
     manualCheckStarted = true;
@@ -137,7 +146,32 @@
         run.onclick = function () { window.location.reload(); };
         cancel.textContent = "稍后刷新";
       })
-      .catch(function (e) { message.textContent = "更新失败，系统已恢复原版本"; error.textContent = e.message; error.hidden = false; run.disabled = false; run.textContent = "重试更新"; });
+      .catch(function (e) {
+        var state = e.upgradeState || {};
+        // 预检失败不会动程序文件；迁移失败可能已经完成回滚，不能再用一句
+        // 固定文案掩盖两者差异。
+        if (state.failed_phase === "checking_permissions") {
+          message.textContent = "更新未执行：目标路径权限预检未通过";
+        } else if (state.files_modified === false) {
+          message.textContent = "更新未执行，程序文件未改动";
+        } else if (state.rollback_completed === true) {
+          message.textContent = "更新失败，程序文件已恢复原版本";
+        } else if (state.rollback_completed === false) {
+          message.textContent = "更新失败，自动恢复未完成";
+        } else {
+          message.textContent = "更新失败，请查看错误详情";
+        }
+        var details = [e.message];
+        if (state.failed_phase) details.push("失败阶段：" + state.failed_phase);
+        if (state.failed_path) details.push("失败路径：" + state.failed_path);
+        if (state.rollback_error) details.push("恢复异常：" + state.rollback_error);
+        if (state.database_restore_error) details.push("数据库恢复异常：" + state.database_restore_error);
+        if (state.package_sha256) details.push("安装包 SHA-256：" + state.package_sha256);
+        error.textContent = details.join("\n");
+        error.hidden = false;
+        run.disabled = false;
+        run.textContent = "重试更新";
+      });
   });
 })();
 </script>

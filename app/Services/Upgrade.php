@@ -18,6 +18,8 @@ final class Upgrade
     private const CACHE_SCHEMA = 3;
     private const STATE_FILE = 'upgrade_state.json';
     private static string $deleteFailure = '';
+    private static string $lastFailurePath = '';
+    private static string $stateWriteFailure = '';
 
     // ---------- 公开 ----------
 
@@ -87,7 +89,7 @@ final class Upgrade
     }
 
     /**
-     * 执行更新：下载 → 校验 → 备份 → 清空 → 解压 → upgrade.php → 完成/回滚。
+     * 执行更新：下载 → 校验 → 预检 → 私有暂存解压 → 备份 → 原子合并 → upgrade.php → 完成/回滚。
      * 返回：['ok'=>true, 'current'=>, 'latest'=>]；失败抛异常（已回滚）
      */
     public static function run(): array
@@ -111,45 +113,73 @@ final class Upgrade
         // 写入失败、备份不完整），flock 在 PHP 进程间互斥，抢不到锁直接拒绝
         $lockPath = $root . '/runtime/upgrade.lock';
         $lock = @fopen($lockPath, 'c');
-        if ($lock === false || !flock($lock, LOCK_EX | LOCK_NB)) {
-            if (is_resource($lock)) {
-                fclose($lock);
-            }
+        // 锁文件打不开（runtime 不可写、被占用）与真的已有任务在跑是两种问题，
+        // 分开报错，避免让人去找并不存在的另一个更新任务。
+        if ($lock === false) {
+            throw new \RuntimeException('无法创建更新锁文件 ' . $lockPath . '，请确认 runtime 目录可写');
+        }
+        if (!flock($lock, LOCK_EX | LOCK_NB)) {
+            fclose($lock);
             throw new \RuntimeException('已有更新任务正在进行中，请稍后再试');
         }
         $zipUrl = self::resolveZipUrl((string) $info['zip']);
         $tmpZip = tempnam(sys_get_temp_dir(), 'pfup');
         $bak = $root . '/runtime/.upgrade-bak-' . bin2hex(random_bytes(4));
+        $stage = $root . '/runtime/.upgrade-stage-' . bin2hex(random_bytes(8));
         $backupReady = false;
         $dbBackup = null;
         $dbMigrationStarted = false;
-        self::writeState($root, 'starting', ['target' => (string)$info['latest']]);
+        $filesModified = false;
+        $phase = 'starting';
+        $packageHash = '';
+        self::$lastFailurePath = '';
         try {
+            // 状态文件是故障恢复的唯一应用层现场记录。若 runtime 只能创建锁文件、
+            // 却不能可靠地写入状态，就不要继续覆盖程序文件。
+            self::writeStateOrThrow($root, $phase, ['target' => (string)$info['latest']]);
             if ($tmpZip === false) {
                 throw new \RuntimeException('无法创建临时文件');
             }
             // 1. 下载
-            self::writeState($root, 'downloading', ['target' => (string)$info['latest']]);
+            $phase = 'downloading';
+            self::writeStateOrThrow($root, $phase, ['target' => (string)$info['latest']]);
             $result = self::httpGet($zipUrl);
             $buffer = (string) ($result['content'] ?? '');
             if ($buffer === '' || @file_put_contents($tmpZip, $buffer) === false) {
                 throw new \RuntimeException('无法写入更新包临时文件');
             }
             // 2. 校验（元数据声明 sha256 时先验哈希，防下载篡改/损坏）
-            self::writeState($root, 'validating');
+            $phase = 'validating';
+            self::writeStateOrThrow($root, $phase, ['target' => (string)$info['latest']]);
             self::verifySha256($buffer, (string) ($info['sha256'] ?? ''));
             self::validatePackage($tmpZip);
-            self::writeState($root, 'checking_permissions');
-            self::assertPackageWritable($tmpZip, $root);
+            $packageHash = hash('sha256', $buffer);
+            // 与站点内容完全相同的文件无需解压、覆盖或备份；vendor 等目录在小版本间
+            // 通常不变，跳过它们可省去大部分磁盘写入和删除。
+            [$changedEntries, $unchangedFiles, $hasUpgradeScript, $newPackageFiles] = self::packageChanges($tmpZip, $root);
+            // 2.5 只预检确实要写入的包内路径；未变化文件不需要 PHP-FPM 对其目录有写权限。
+            $phase = 'checking_permissions';
+            self::writeStateOrThrow($root, $phase, ['target' => (string)$info['latest'], 'package_sha256' => $packageHash]);
+            self::assertPackageWritable($tmpZip, $root, $changedEntries);
+            self::$lastFailurePath = '';
+            // 先解压到 runtime 私有目录；压缩包解压失败时还没有执行数据库或站点文件写入。
+            $phase = 'extracting';
+            self::writeStateOrThrow($root, $phase, ['target' => (string)$info['latest'], 'package_sha256' => $packageHash]);
+            self::extractPackage($tmpZip, $root, $changedEntries, $stage);
+            // 回滚前会校验备份中的核心文件，因此核心文件即使未变化也始终备份。
+            unset($unchangedFiles['index.php'], $unchangedFiles['app/bootstrap.php']);
             // 3. 备份（排除 public/uploads、backups、runtime；旧根目录 config.php 一并备份）
-            self::writeState($root, 'backing_up');
+            $phase = 'backing_up';
+            self::writeStateOrThrow($root, $phase, ['target' => (string)$info['latest'], 'package_sha256' => $packageHash]);
             try {
                 $dbBackup = Backup::create();
             } catch (\Throwable $e) {
                 throw new \RuntimeException('更新前数据库备份失败：' . $e->getMessage());
             }
-            if (!self::copyDirFiltered($root, $bak, self::BACKUP_EXCLUDE_DIRS)) {
-                throw new \RuntimeException('更新失败：无法完整备份站点（备份保留在 ' . $bak . '）');
+            if (!self::copyDirFiltered($root, $bak, self::BACKUP_EXCLUDE_DIRS, $unchangedFiles)) {
+                throw new \RuntimeException('更新失败：无法完整备份站点'
+                    . (self::$lastFailurePath !== '' ? '，失败路径：' . self::$lastFailurePath : '')
+                    . '（备份保留在 ' . $bak . '）');
             }
             if (!self::hasCoreFiles($bak)) {
                 throw new \RuntimeException('更新失败：站点备份不完整（备份保留在 ' . $bak . '）');
@@ -159,29 +189,46 @@ final class Upgrade
             // 这样不会触碰 .well-known、上传目录、主题插件或站点自行创建的目录，
             // 因此证书挑战文件不会阻塞正常升级。
             // 旧文件如确实需要移除，应由发行包内 upgrade.php 显式处理。
-            self::writeState($root, 'replacing_files', ['database_backup' => $dbBackup]);
-            // 5. 解压覆盖（剥掉 pafish/ 顶层）
-            self::extractPackage($tmpZip, $root);
+            $phase = 'replacing_files';
+            self::writeStateOrThrow($root, $phase, ['target' => (string)$info['latest'], 'package_sha256' => $packageHash, 'database_backup' => $dbBackup]);
+            // 在 runtime 中使用每次更新独占的临时目录，避免覆盖/删除站点自己的 pafish/ 目录。
+            if ($changedEntries !== []) {
+                $filesModified = true;
+                self::mergePackageStage($stage, $root);
+            }
             // 6. 执行包内迁移脚本 upgrade.php（执行后删除）
-            $dbMigrationStarted = is_file($root . '/upgrade.php');
-            self::runUpgradeScript($root);
-            self::writeState($root, 'completed');
+            $dbMigrationStarted = $hasUpgradeScript;
+            $phase = 'migrating';
+            self::writeStateOrThrow($root, $phase, ['target' => (string)$info['latest'], 'package_sha256' => $packageHash, 'database_backup' => $dbBackup]);
+            self::runUpgradeScript($root, $hasUpgradeScript);
+            $phase = 'completed';
+            self::writeStateOrThrow($root, $phase, ['target' => (string)$info['latest'], 'package_sha256' => $packageHash]);
         } catch (\Throwable $e) {
             // 先保存最初失败原因；即使恢复过程或错误页加载失败，仍可定位触发点。
             \Pafish\Core\Logger::exception('system upgrade failure', $e);
-            self::writeState($root, 'failed', [
+            $failureState = [
                 'message' => $e->getMessage(),
+                'failed_phase' => $phase,
+                'failed_path' => self::relativeFailurePath($root),
+                'files_modified' => $filesModified,
+                'target' => (string)$info['latest'],
+                'package_sha256' => $packageHash !== '' ? $packageHash : null,
                 'database_backup' => $dbBackup,
                 'file_backup' => $backupReady ? $bak : null,
-            ]);
+            ];
+            self::writeState($root, 'failed', $failureState);
             // 校验/下载/备份阶段失败：备份目录可能不存在或未完成
             $restored = false;
             if ($backupReady && is_dir($bak) && self::isEmptyDir($bak) === false) {
                 try {
-                    self::rollback($root, $bak);
+                    self::rollback($root, $bak, $newPackageFiles);
                     $restored = true;
                 } catch (\Throwable $re) {
-                    self::writeState($root, 'failed', ['message' => $e->getMessage() . '；文件恢复失败：' . $re->getMessage(), 'file_backup' => $bak, 'database_backup' => $dbBackup]);
+                    $failureState['message'] = $e->getMessage() . '；文件恢复失败：' . $re->getMessage();
+                    $failureState['rollback_error'] = $re->getMessage();
+                    $failureState['rollback_completed'] = false;
+                    $failureState['file_backup'] = $bak;
+                    self::writeState($root, 'failed', $failureState);
                     throw new \RuntimeException($e->getMessage()
                         . '；自动回滚也失败：' . $re->getMessage()
                         . '（备份保留在 ' . $bak . '，请手动恢复）');
@@ -191,16 +238,24 @@ final class Upgrade
                 try {
                     Backup::restore($dbBackup);
                 } catch (\Throwable $dbError) {
-                    self::writeState($root, 'failed', [
-                        'message' => $e->getMessage() . '；数据库恢复失败：' . $dbError->getMessage(),
-                        'database_backup' => $dbBackup,
-                    ]);
+                    $failureState['message'] = $e->getMessage() . '；数据库恢复失败：' . $dbError->getMessage();
+                    $failureState['database_restore_error'] = $dbError->getMessage();
+                    $failureState['rollback_completed'] = $restored;
+                    self::writeState($root, 'failed', $failureState);
                     throw new \RuntimeException($e->getMessage() . '；数据库自动恢复失败：' . $dbError->getMessage() . '；数据库备份：backups/' . $dbBackup);
                 }
             }
-            self::writeState($root, 'failed', ['message' => $e->getMessage(), 'file_backup' => $backupReady ? $bak : null, 'database_backup' => $dbBackup]);
+            $failureState['rollback_completed'] = $restored;
+            self::writeState($root, 'failed', $failureState);
             throw new \RuntimeException($e->getMessage() . ($restored ? '（已恢复旧版本文件）' : '') . ($dbBackup ? '；数据库安全备份：backups/' . $dbBackup : ''));
         } finally {
+            if (is_link($stage) || file_exists($stage)) {
+                try {
+                    self::removeUpgradeStage($stage);
+                } catch (\Throwable $stagingError) {
+                    \Pafish\Core\Logger::exception('system upgrade staging cleanup failure', $stagingError);
+                }
+            }
             @unlink($tmpZip);
             if (is_dir($bak) && self::isEmptyDir($bak)) {
                 self::rmDir($bak);
@@ -371,10 +426,44 @@ final class Upgrade
 
     private static function writeState(string $root, string $phase, array $extra = []): void
     {
-        @file_put_contents($root . '/runtime/' . self::STATE_FILE, json_encode([
+        self::$stateWriteFailure = '';
+        $path = $root . '/runtime/' . self::STATE_FILE;
+        $json = json_encode([
             'phase' => $phase,
             'at' => date('c'),
-        ] + $extra, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), LOCK_EX);
+        ] + $extra, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if (!is_string($json)) {
+            self::$stateWriteFailure = '更新状态无法编码';
+            return;
+        }
+        $tmp = $path . '.tmp-' . bin2hex(random_bytes(4));
+        $written = @file_put_contents($tmp, $json, LOCK_EX);
+        if ($written !== strlen($json) || !@rename($tmp, $path)) {
+            @unlink($tmp);
+            self::$stateWriteFailure = 'runtime/' . self::STATE_FILE . '（' . self::pathModeDetails(dirname($path)) . '）';
+        }
+    }
+
+    /** 状态无法可靠落盘时停止更新，避免失败后没有任何可诊断现场。 */
+    private static function writeStateOrThrow(string $root, string $phase, array $extra = []): void
+    {
+        self::writeState($root, $phase, $extra);
+        if (self::$stateWriteFailure !== '') {
+            throw new \RuntimeException('无法记录更新状态：' . self::$stateWriteFailure . '，尚未替换任何程序文件');
+        }
+    }
+
+    /** 让后台状态只暴露站点内的相对位置，不把服务器绝对路径写入响应。 */
+    private static function relativeFailurePath(string $root): ?string
+    {
+        if (self::$lastFailurePath === '') {
+            return null;
+        }
+        $prefix = rtrim($root, '/\\') . '/';
+        if (str_starts_with(self::$lastFailurePath, $prefix)) {
+            return substr(self::$lastFailurePath, strlen($prefix));
+        }
+        return '[系统临时文件]';
     }
 
     /** 下载 zip 地址（Gitee Release 包和 .sha256 文件） */
@@ -458,36 +547,102 @@ final class Upgrade
     }
 
     /** 替换前检查包内目标路径，失败时站点文件仍保持原样。 */
-    private static function assertPackageWritable(string $tmpZip, string $root): void
+    private static function assertPackageWritable(string $tmpZip, string $root, ?array $entries = null): void
     {
         $zip = new \ZipArchive();
         if ($zip->open($tmpZip) !== true) throw new \RuntimeException('无法读取更新包');
         try {
-            if (!is_dir($root) || !is_writable($root)) throw new \RuntimeException('站点根目录不可写，尚未替换任何程序文件');
+            if (!is_dir($root)) throw new \RuntimeException('站点根目录不存在，尚未替换任何程序文件');
+            $selected = $entries === null ? null : array_fill_keys($entries, true);
             for ($i = 0; $i < $zip->numFiles; $i++) {
-                $entry = str_replace('\\', '/', (string) $zip->getNameIndex($i));
+                $rawEntry = (string) $zip->getNameIndex($i);
+                if ($selected !== null && !isset($selected[$rawEntry])) continue;
+                $entry = str_replace('\\', '/', $rawEntry);
                 if (str_ends_with($entry, '/') || $entry === 'pafish') continue;
                 $relative = substr($entry, strlen('pafish/'));
                 if (in_array($relative, ['runtime/.gitkeep', 'backups/.gitkeep', 'public/uploads/.gitkeep'], true)) continue;
-                $segments = explode('/', $relative);
-                $path = rtrim($root, '/\\');
-                foreach ($segments as $index => $segment) {
-                    $path .= '/' . $segment;
-                    clearstatcache(true, $path);
-                    if (is_link($path)) throw new \RuntimeException('更新目标包含符号链接：' . $relative . '，尚未替换任何程序文件');
-                    if (!file_exists($path)) break;
-                    $last = $index === count($segments) - 1;
-                    if (($last && !is_file($path)) || (!$last && !is_dir($path))) {
-                        throw new \RuntimeException('更新目标不可写或类型冲突：' . $relative . '，尚未替换任何程序文件');
-                    }
-                    // Atomic replacement renames a completed temporary file into the
-                    // destination directory; the existing file's mode is irrelevant.
-                    if (($last ? !is_writable(dirname($path)) : !is_writable($path))) {
-                        throw new \RuntimeException('更新目标目录不可写：' . $relative . '，尚未替换任何程序文件');
-                    }
+                self::$lastFailurePath = $root . '/' . $relative;
+                $parent = self::writableTargetDir($root, $relative);
+                if ($parent === null) {
+                    throw new \RuntimeException('更新目标不可写或类型冲突：' . $relative . '，尚未替换任何程序文件');
+                }
+                if (!is_writable($parent)) {
+                    throw new \RuntimeException('更新目标目录不可写：' . $relative . '（目录 ' . $parent . '，' . self::pathModeDetails($parent) . '），尚未替换任何程序文件');
                 }
             }
         } finally { $zip->close(); }
+    }
+
+    /** 返回权限位、属主和当前 PHP 有效用户，便于直接修复部署权限。 */
+    private static function pathModeDetails(string $path): string
+    {
+        clearstatcache(true, $path);
+        $mode = @fileperms($path);
+        $owner = @fileowner($path);
+        $group = @filegroup($path);
+        return 'mode=' . (is_int($mode) ? substr(sprintf('%o', $mode), -4) : 'unknown')
+            . ', owner=' . self::accountName($owner, false)
+            . ', group=' . self::accountName($group, true)
+            . ', uid=' . (is_int($owner) ? (string)$owner : 'unknown')
+            . ', gid=' . (is_int($group) ? (string)$group : 'unknown')
+            . ', php_user=' . self::processAccountName();
+    }
+
+    private static function accountName(mixed $id, bool $group): string
+    {
+        if (!is_int($id)) {
+            return 'unknown';
+        }
+        $lookup = $group ? 'posix_getgrgid' : 'posix_getpwuid';
+        if (function_exists($lookup)) {
+            $record = @$lookup($id);
+            if (is_array($record)) {
+                $name = $group ? ($record['name'] ?? '') : ($record['name'] ?? '');
+                if (is_string($name) && $name !== '') {
+                    return $name;
+                }
+            }
+        }
+        return (string) $id;
+    }
+
+    private static function processAccountName(): string
+    {
+        if (function_exists('posix_geteuid')) {
+            return self::accountName((int) @posix_geteuid(), false);
+        }
+        return 'unknown';
+    }
+
+    /**
+     * 返回实际接收写入的目录；符号链接或类型冲突返回 null。
+     * 只有真正写入的那一层目录需要可写——中间层目录即使只读，也不影响
+     * 原子替换（先写同目录临时文件再 rename，目标文件自身权限无关）。
+     */
+    private static function writableTargetDir(string $root, string $relative): ?string
+    {
+        $segments = explode('/', $relative);
+        $last = count($segments) - 1;
+        $dir = rtrim($root, '/\\');
+        $path = $dir;
+        foreach ($segments as $index => $segment) {
+            $path .= '/' . $segment;
+            clearstatcache(true, $path);
+            if (is_link($path)) {
+                return null;
+            }
+            if (!file_exists($path)) {
+                break; // 目标尚不存在：最近的已存在祖先目录就是接收写入的目录
+            }
+            if ($index === $last) {
+                return is_file($path) ? dirname($path) : null;
+            }
+            if (!is_dir($path)) {
+                return null;
+            }
+            $dir = $path;
+        }
+        return $dir;
     }
 
     /** 核心文件必须存在，避免不完整备份被用于恢复站点。 */
@@ -496,34 +651,138 @@ final class Upgrade
         return is_file($root . '/index.php') && is_file($root . '/app/bootstrap.php');
     }
 
-    /** 解压更新包：extractTo 根目录（生成 pafish/），合并到根后删除 pafish/ */
-    private static function extractPackage(string $tmpZip, string $root): void
+    /** 清理解压器在 runtime 中为本次更新创建的专用临时目录。 */
+    private static function removeUpgradeStage(string $stage): void
+    {
+        if (!is_link($stage) && !file_exists($stage)) {
+            return;
+        }
+        self::$deleteFailure = '';
+        $removed = is_dir($stage) && !is_link($stage)
+            ? self::rmDir($stage)
+            : self::rmRemove($stage, false);
+        if (!$removed) {
+            throw new \RuntimeException('无法清理本次更新临时目录 ' . $stage . self::deleteFailureSuffix());
+        }
+    }
+
+    /**
+     * 比较更新包与站点现有文件，返回 [需要解压的条目, 内容相同的相对路径集合]。
+     * 内容相同的文件覆盖后不会改变站点，回滚时也无需恢复。
+     */
+    private static function packageChanges(string $tmpZip, string $root): array
     {
         $zip = new \ZipArchive();
         if ($zip->open($tmpZip) !== true) {
+            throw new \RuntimeException('无法读取更新包');
+        }
+        $changed = [];
+        $unchanged = [];
+        $newFiles = [];
+        $hasUpgradeScript = false;
+        clearstatcache();
+        try {
+            for ($i = 0; $i < $zip->numFiles; $i++) {
+                $entry = (string) $zip->getNameIndex($i);
+                $normalized = str_replace('\\', '/', $entry);
+                $relative = (string) substr(rtrim($normalized, '/'), strlen('pafish/'));
+                if ($relative === '') {
+                    continue;
+                }
+                $target = $root . '/' . $relative;
+                if (str_ends_with($normalized, '/')) {
+                    if (!is_dir($target)) {
+                        $changed[] = $entry;
+                    }
+                    continue;
+                }
+                if (in_array($relative, ['runtime/.gitkeep', 'backups/.gitkeep', 'public/uploads/.gitkeep'], true)) {
+                    continue;
+                }
+                $targetExists = file_exists($target) || is_link($target);
+                if ($relative === 'upgrade.php') {
+                    $hasUpgradeScript = true;
+                    // 迁移入口必须随每次发行包重新落地并执行，即使旧站点残留了同名内容。
+                    $changed[] = $entry;
+                    if (!$targetExists) {
+                        $newFiles[] = $relative;
+                    }
+                    continue;
+                }
+                $stat = $zip->statIndex($i);
+                if (is_file($target) && !is_link($target) && is_array($stat)
+                    && @filesize($target) === (int) $stat['size']
+                    && @file_get_contents($target) === $zip->getFromIndex($i)) {
+                    $unchanged[$relative] = true;
+                } else {
+                    $changed[] = $entry;
+                    if (!$targetExists) {
+                        $newFiles[] = $relative;
+                    }
+                }
+            }
+        } finally {
+            $zip->close();
+        }
+        return [$changed, $unchanged, $hasUpgradeScript, $newFiles];
+    }
+
+    /** 把更新包解压到本次更新独占的 runtime 临时目录，不修改站点程序文件。 */
+    private static function extractPackage(string $tmpZip, string $root, ?array $entries = null, ?string $stage = null): void
+    {
+        if ($entries === []) {
+            return; // 包内文件与站点完全一致，无需替换
+        }
+        $stage ??= $root . '/runtime/.upgrade-stage-' . bin2hex(random_bytes(8));
+        $runtime = realpath(rtrim($root, '/\\') . DIRECTORY_SEPARATOR . 'runtime');
+        $stageParent = realpath(dirname($stage));
+        $sameRuntime = is_string($runtime) && is_string($stageParent)
+            && (DIRECTORY_SEPARATOR === '\\' ? strcasecmp($runtime, $stageParent) === 0 : $runtime === $stageParent);
+        if (!$sameRuntime) {
+            throw new \RuntimeException('更新临时目录位置无效');
+        }
+        if (file_exists($stage) || is_link($stage) || !@mkdir($stage, 0700)) {
+            self::$lastFailurePath = $stage;
+            throw new \RuntimeException('无法创建更新临时目录：' . $stage . '（' . self::pathModeDetails(dirname($stage)) . '）');
+        }
+        $zip = new \ZipArchive();
+        if ($zip->open($tmpZip) !== true) {
+            self::$lastFailurePath = $tmpZip;
             throw new \RuntimeException('更新包无法解压');
         }
-        if (!$zip->extractTo($root)) {
+        if (!($entries === null ? $zip->extractTo($stage) : $zip->extractTo($stage, $entries))) {
             @$zip->close();
-            throw new \RuntimeException('更新包解压失败');
+            self::$lastFailurePath = $stage;
+            throw new \RuntimeException('更新包解压失败，临时目录：' . $stage);
         }
         @$zip->close();
-        $pafishDir = $root . '/pafish';
+        $pafishDir = $stage . '/pafish';
         if (!is_dir($pafishDir)) {
+            self::$lastFailurePath = $pafishDir;
             throw new \RuntimeException('更新包缺少 pafish/ 目录');
         }
-        // 合并 pafish/* → 根（存在目录跳过，文件覆盖）
-        if (!self::mergeDir($pafishDir, $root)) {
-            throw new \RuntimeException('更新包文件合并失败');
+    }
+
+    /** 原子合并已预检并解压的更新包文件。 */
+    private static function mergePackageStage(string $stage, string $root): void
+    {
+        $pafishDir = $stage . '/pafish';
+        if (!is_dir($pafishDir)) {
+            self::$lastFailurePath = $pafishDir;
+            throw new \RuntimeException('更新临时目录缺少 pafish/ 文件');
         }
-        if (!self::rmDir($pafishDir)) {
-            throw new \RuntimeException('无法清理更新包临时目录');
+        self::$lastFailurePath = '';
+        if (!self::mergeDir($pafishDir, $root)) {
+            throw new \RuntimeException('更新包文件合并失败' . (self::$lastFailurePath !== '' ? '：' . self::$lastFailurePath : ''));
         }
     }
 
     /** 执行包内迁移脚本 upgrade.php（若存在；执行后删除）。脚本可用 $pdo / PAFISH_ROOT */
-    private static function runUpgradeScript(string $root): void
+    private static function runUpgradeScript(string $root, bool $includedInPackage): void
     {
+        if (!$includedInPackage) {
+            return;
+        }
         $script = $root . '/upgrade.php';
         if (!is_file($script)) {
             return;
@@ -536,16 +795,47 @@ final class Upgrade
     }
 
     /** 覆盖恢复旧文件；不清空站点、不删除备份，失败或重复调用仍可继续恢复。 */
-    private static function rollback(string $root, string $bak): void
+    private static function rollback(string $root, string $bak, array $newPackageFiles = []): void
     {
         if (!self::hasCoreFiles($bak)) {
             throw new \RuntimeException('备份不完整，无法安全恢复');
         }
+        self::$lastFailurePath = '';
         if (!self::copyDirFiltered($bak, $root, [])) {
-            throw new \RuntimeException('无法从备份恢复文件');
+            throw new \RuntimeException('无法从备份恢复文件'
+                . (self::$lastFailurePath !== '' ? '，失败路径：' . self::$lastFailurePath : ''));
         }
+        self::removeCreatedPackageFiles($root, $newPackageFiles);
         if (!self::hasCoreFiles($root)) {
             throw new \RuntimeException('恢复后缺少核心文件');
+        }
+    }
+
+    /** 回滚时删除本次更新新增的程序文件，避免新旧版本文件混杂。 */
+    private static function removeCreatedPackageFiles(string $root, array $relativeFiles): void
+    {
+        foreach (array_unique($relativeFiles) as $relative) {
+            $relative = str_replace('\\', '/', (string) $relative);
+            $segments = explode('/', $relative);
+            if ($relative === '' || str_starts_with($relative, '/') || str_contains($relative, ':')
+                || in_array('.', $segments, true) || in_array('..', $segments, true)) {
+                throw new \RuntimeException('新增文件回滚路径无效：' . $relative);
+            }
+            $path = rtrim($root, '/\\') . '/' . $relative;
+            if (is_link($path)) {
+                if (!self::rmRemove($path, false)) {
+                    self::$lastFailurePath = $path;
+                    throw new \RuntimeException('无法删除更新新增的符号链接：' . $relative);
+                }
+            } elseif (is_file($path)) {
+                if (!self::rmRemove($path, false)) {
+                    self::$lastFailurePath = $path;
+                    throw new \RuntimeException('无法删除更新新增的文件：' . $relative);
+                }
+            } elseif (file_exists($path)) {
+                self::$lastFailurePath = $path;
+                throw new \RuntimeException('更新新增文件回滚时发现类型冲突：' . $relative);
+            }
         }
     }
 
@@ -602,22 +892,25 @@ final class Upgrade
         return true;
     }
 
-    /** 复制目录（跳过排除前缀相对路径；目录跳过创建，文件覆盖） */
-    private static function copyDirFiltered(string $src, string $dst, array $exclude): bool
+    /** 复制目录（跳过排除前缀相对路径与 $skipFiles 中的文件；目录跳过创建，文件覆盖） */
+    private static function copyDirFiltered(string $src, string $dst, array $exclude, array $skipFiles = []): bool
     {
-        return self::copyRecursive($src, $dst, '', $exclude);
+        return self::copyRecursive($src, $dst, '', $exclude, $skipFiles);
     }
 
-    private static function copyRecursive(string $src, string $dst, string $rel, array $exclude): bool
+    private static function copyRecursive(string $src, string $dst, string $rel, array $exclude, array $skipFiles = []): bool
     {
         if (!is_dir($src)) {
+            self::$lastFailurePath = $src;
             return false;
         }
         if (!is_dir($dst) && !@mkdir($dst, 0755, true)) {
+            self::$lastFailurePath = $dst;
             return false;
         }
         $items = @scandir($src);
         if ($items === false) {
+            self::$lastFailurePath = $src;
             return false;
         }
         foreach ($items as $name) {
@@ -638,9 +931,11 @@ final class Upgrade
             $from = $src . '/' . $name;
             $to = $dst . '/' . $name;
             if (is_dir($from)) {
-                if (!self::copyRecursive($from, $to, $childRel, $exclude)) {
+                if (!self::copyRecursive($from, $to, $childRel, $exclude, $skipFiles)) {
                     return false;
                 }
+            } elseif (isset($skipFiles[$childRel])) {
+                continue;
             } elseif (!self::copyFile($from, $to)) {
                 return false;
             }
@@ -653,6 +948,7 @@ final class Upgrade
     {
         $items = @scandir($src);
         if ($items === false) {
+            self::$lastFailurePath = $src;
             return false;
         }
         foreach ($items as $name) {
@@ -663,6 +959,7 @@ final class Upgrade
             $to = $dst . '/' . $name;
             if (is_dir($from)) {
                 if (!is_dir($to) && !@mkdir($to, 0755, true)) {
+                    self::$lastFailurePath = $to;
                     return false;
                 }
                 if (!self::mergeDir($from, $to)) {
@@ -679,17 +976,21 @@ final class Upgrade
     private static function copyFile(string $from, string $to): bool
     {
         if (!is_file($from) || is_link($from) || is_dir($to) || is_link($to)) {
+            self::$lastFailurePath = $to;
             return false;
         }
         $tmp = @tempnam(dirname($to), '.pafish-copy-');
         if ($tmp === false) {
+            self::$lastFailurePath = $to;
             return false;
         }
         try {
             if (realpath(dirname($tmp)) !== realpath(dirname($to))) {
+                self::$lastFailurePath = $to;
                 return false;
             }
             if (!@copy($from, $tmp)) {
+                self::$lastFailurePath = $to;
                 return false;
             }
             $mode = @fileperms($to);
@@ -699,8 +1000,11 @@ final class Upgrade
             }
             if (PHP_OS_FAMILY === 'Windows' && is_file($to)) {
                 @chmod($to, 0666);
-                return @rename($tmp, $to);
+                if (@rename($tmp, $to)) {
+                    return true;
+                }
             }
+            self::$lastFailurePath = $to;
             return false;
         } finally {
             @unlink($tmp);

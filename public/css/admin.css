@@ -1874,6 +1874,11 @@ input[type="radio"]:focus-visible {
   font-size: 13px;
 }
 
+.admin-upgrade-modal .admin-modal-error {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .admin-modal-actions {
   display: flex;
   align-items: center;

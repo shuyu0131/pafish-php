@@ -242,7 +242,9 @@ final class OutboundHttp
         $candidates[] = 'C:/Program Files/Common Files/SSL/cert.pem';
 
         foreach ($candidates as $candidate) {
-            if (is_file($candidate) && is_readable($candidate)) {
+            // These optional fallbacks may be outside PHP-FPM's open_basedir.
+            // A failed probe is expected; keep it out of the PHP error log.
+            if (@is_file($candidate) && @is_readable($candidate)) {
                 $path = $candidate;
                 return $path;
             }

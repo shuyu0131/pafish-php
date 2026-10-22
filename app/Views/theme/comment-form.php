@@ -9,6 +9,8 @@
  *           $captchaEnabled、$needReview
  */
 $postId = (int) ($postId ?? 0);
+$targetType = (string) ($targetType ?? 'post');
+$targetId = (int) ($targetId ?? $postId);
 $parentId = $parentId !== null ? (string) $parentId : '';
 $compact = !empty($compact);
 $user = $user ?? null;
@@ -20,6 +22,8 @@ $needCaptcha = !$loggedIn && $captchaEnabled;
 <form class="comment-form<?= $compact ? ' compact' : '' ?>"
       data-comment-form
       data-post-id="<?= $postId ?>"
+      data-target-type="<?= e($targetType) ?>"
+      data-target-id="<?= $targetId ?>"
       data-parent-id="<?= e($parentId) ?>"
       data-logged-in="<?= $loggedIn ? '1' : '0' ?>">
   <?php if ($loggedIn): ?>
@@ -34,10 +38,14 @@ $needCaptcha = !$loggedIn && $captchaEnabled;
     </div>
   <?php endif; ?>
 
+  <div class="comment-honeypot" aria-hidden="true"><label>网站<input name="website" type="text" tabindex="-1" autocomplete="off"></label></div>
+
   <textarea class="input comment-textarea" name="content" placeholder="写下你的想法…" maxlength="2000" required></textarea>
 
   <?= \Pafish\Services\Plugin::renderInjection('comment_form', [
       'postId' => $postId,
+      'targetType' => $targetType,
+      'targetId' => $targetId,
       'parentId' => $parentId !== '' ? $parentId : null,
       'compact' => $compact,
       'loggedIn' => $loggedIn,

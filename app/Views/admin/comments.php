@@ -66,7 +66,7 @@ $listUrl = url_to('/admin/comments') . '?status=' . $status . $querySuffix;
         </thead>
         <tbody>
           <?php foreach ($items as $c): ?>
-            <tr class="admin-comment-card" data-comment="<?= (int) $c['id'] ?>" data-ip="<?= e($c['ip'] ?? '') ?>">
+            <tr class="admin-comment-card" data-comment="<?= (int) $c['id'] ?>" data-ip="<?= e($c['ip'] ?? '') ?>" data-email="<?= e($c['author_email'] ?? '') ?>">
               <td class="admin-col-check" data-label="选择"><input type="checkbox" class="comment-row-check" value="<?= (int) $c['id'] ?>" aria-label="选择评论 <?= (int) $c['id'] ?>"></td>
               <td data-label="评论">
                 <div class="admin-comment-head">
@@ -77,7 +77,7 @@ $listUrl = url_to('/admin/comments') . '?status=' . $status . $querySuffix;
                 </div>
                 <div class="admin-comment-content"><?= e($c['content']) ?></div>
                 <div class="admin-table-mobile-meta admin-comment-mobile-meta">
-                  <a href="<?= e(url_to('/post/' . $c['post_slug'])) ?>" target="_blank" rel="noopener"><?= e($c['post_title']) ?></a>
+                  <a href="<?= e(url_to($c['target_path'])) ?>" target="_blank" rel="noopener"><?= e($c['post_title']) ?></a>
                   <time><?= e(format_date($c['created_at'], 'yyyy-MM-dd HH:mm')) ?></time>
                 </div>
                 <details class="admin-comment-details">
@@ -93,6 +93,7 @@ $listUrl = url_to('/admin/comments') . '?status=' . $status . $querySuffix;
                       <button type="button" class="btn btn-sm btn-ghost admin-icon-danger" data-delete-ip="<?= e($c['ip']) ?>">按 IP 删除</button>
                       <button type="button" class="btn btn-sm btn-ghost" data-block-ip="<?= e($c['ip']) ?>">拉黑 IP</button>
                     <?php endif; ?>
+                    <?php if (filter_var((string) ($c['author_email'] ?? ''), FILTER_VALIDATE_EMAIL) !== false): ?><button type="button" class="btn btn-sm btn-ghost" data-block-email="<?= e($c['author_email']) ?>">拉黑邮箱</button><?php endif; ?>
                   </div>
                 </details>
                 <div class="admin-comment-replybox" hidden>
@@ -100,8 +101,8 @@ $listUrl = url_to('/admin/comments') . '?status=' . $status . $querySuffix;
                   <div class="admin-comment-reply-actions"><button type="button" class="btn btn-sm btn-primary" data-reply-submit="<?= (int) $c['id'] ?>">回复</button><button type="button" class="btn btn-sm btn-ghost" data-reply-cancel>取消</button></div>
                 </div>
               </td>
-              <td data-label="文章" class="admin-comment-post admin-table-secondary">
-                <a href="<?= e(url_to('/post/' . $c['post_slug'])) ?>" target="_blank" rel="noopener"><?= e($c['post_title']) ?></a>
+              <td data-label="内容" class="admin-comment-post admin-table-secondary">
+                <a href="<?= e(url_to($c['target_path'])) ?>" target="_blank" rel="noopener"><?= e($c['post_title']) ?></a>
               </td>
               <td data-label="时间" class="admin-table-secondary admin-comment-time"><?= e(format_date($c['created_at'], 'yyyy-MM-dd HH:mm')) ?></td>
               <td data-label="操作" class="admin-col-ops">
@@ -274,6 +275,18 @@ $listUrl = url_to('/admin/comments') . '?status=' . $status . $querySuffix;
         return post(listUrl + "/block-ip", { ip: ip })
         .then(function (r) { return jsonOrAlert(r, "操作失败"); })
         .then(function (j) { if (j) pafishNotify("已拉黑 " + ip, false); });
+      });
+    });
+  });
+
+  document.querySelectorAll("[data-block-email]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var email = btn.getAttribute("data-block-email");
+      (window.pafishConfirm ? window.pafishConfirm("拉黑该邮箱？之后它提交的评论将被拒绝（403）。", { title: "拉黑邮箱" }) : Promise.resolve(window.confirm("确认拉黑？"))).then(function (ok) {
+        if (!ok) return;
+        return post(listUrl + "/block-email", { email: email })
+        .then(function (r) { return jsonOrAlert(r, "操作失败"); })
+        .then(function (j) { if (j) pafishNotify("已拉黑 " + email, false); });
       });
     });
   });

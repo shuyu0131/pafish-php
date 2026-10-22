@@ -10,7 +10,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
  * 数据备份：仅 ADMIN
- * - 立即备份（mysqldump CLI 优先 / 纯 PHP 兜底）/ 上传 SQL / 列表 / 下载 / 恢复 / 删除
+ * - 立即备份（纯 PHP + PDO）/ 上传 SQL / 列表 / 下载 / 恢复 / 删除
  * - 恢复前自动创建安全备份，需输入文件名二次确认（前端）
  * - upload-* 文件不可删除
  */

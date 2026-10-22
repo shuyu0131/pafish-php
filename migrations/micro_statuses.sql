@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS micro_statuses (
   id           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   content      TEXT            NOT NULL,
   media_json   TEXT            NULL,
-  status       VARCHAR(20)     NOT NULL DEFAULT 'DRAFT',
+  status       VARCHAR(20)     NOT NULL DEFAULT 'PUBLISHED',
   published_at DATETIME        NULL,
   is_pinned    TINYINT(1)      NOT NULL DEFAULT 0,
   is_private   TINYINT(1)      NOT NULL DEFAULT 0,

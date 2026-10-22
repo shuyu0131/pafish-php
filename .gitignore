@@ -28,8 +28,12 @@ Thumbs.db
 *.zip
 /CHANGELOG.md
 
-# 主系统只携带默认主题与内置 Sitemap；其他扩展由商店/独立包分发
+# 主系统携带默认主题、内置 Sitemap 和 AI Foundation；其他扩展由商店/独立包分发
 /plugins/*
+!/plugins/ai_foundation/
+!/plugins/ai_foundation/**
+/plugins/ai_foundation/tests/
+/plugins/ai_foundation/TESTING.md
 !/plugins/sitemap/
 !/plugins/sitemap/**
 /themes/*

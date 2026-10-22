@@ -13,6 +13,7 @@ $themeActive = count(array_filter($themes, static fn (array $theme): bool => !em
       <button type="button" class="btn btn-primary" data-open-install="#theme-install">安装主题</button>
     </div>
   </div>
+  <?php if (($catalogNotice ?? '') !== ''): ?><p class="admin-muted" role="status"><?= e($catalogNotice) ?></p><?php endif; ?>
 
   <div class="admin-resource-toolbar">
     <div class="admin-tabs admin-resource-tabs" role="tablist" aria-label="主题筛选">

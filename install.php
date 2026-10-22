@@ -199,6 +199,15 @@ function inst_checks(string $root): array
         '当前 ' . ini_get('upload_max_filesize') . '（修改 php.ini 后需重启 Web 服务）',
         $uploadMax < 10
     );
+    // 安装向导自身不依赖 vendor，但装完后的前台必须有它。源码包解压出来没有这个目录，
+    // 安装会顺利完成、首页却直接 500（日志：Failed opening required .../vendor/autoload.php），
+    // 所以这里按阻塞项拦下，而不是等到装完才发现。
+    $autoload = $root . '/vendor/autoload.php';
+    $checks[] = inst_check_result(
+        is_file($autoload),
+        '运行依赖 vendor/autoload.php',
+        is_file($autoload) ? '已包含' : '缺失：请使用官网下载页的发行包（已含依赖），或在站点根目录执行 composer install --no-dev'
+    );
     return $checks;
 }
 
@@ -468,6 +477,10 @@ function inst_seed(PDO $pdo, string $siteName, string $adminUser, string $adminE
         'site_description' => '纸鱼博客是一个极简风格的博客系统',
         'comments_enabled' => 'true',
         'comments_need_review' => 'true',
+        'comments_honeypot_enabled' => 'true',
+        'blocked_ips' => '[]',
+        'blocked_emails' => '[]',
+        'comment_spam_keywords' => '[]',
         'posts_per_page' => '10',
         'allow_registration' => 'true',
         'active_theme' => 'default',

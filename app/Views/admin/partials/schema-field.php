@@ -74,7 +74,7 @@ $renderField = function (array $field, array $values, ?string &$lastSection, boo
 
     // 布局分两类：
     //  - 行式（admin-sf-row）：标签在左列、控件在右列。表单更短、右侧不再大片留白，
-    //    也是 emlog / WordPress 设置页的通行形态。
+    //    也是主流设置页面的通行形态。
     //  - 整块（admin-sf-block）：group / repeater / backup 自身是复合区块，占满整行。
     $isBlock = in_array($type, ['group', 'repeater', 'backup'], true);
     $wrapClass = 'admin-sf-field'

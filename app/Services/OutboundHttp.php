@@ -9,6 +9,22 @@ final class OutboundHttp
 {
     public static function get(string $url, int $maxBytes = 512000, array $headers = []): string
     {
+        $result = self::fetch($url, $maxBytes, $headers);
+        if ($result['status'] < 200 || $result['status'] >= 300) {
+            throw new \RuntimeException('目标返回 HTTP ' . $result['status']);
+        }
+        return $result['body'];
+    }
+
+    /**
+     * 与 get() 相同的安全校验与重定向处理，但返回状态码和响应头而不因非 2xx 抛错。
+     *
+     * ETag 条件请求要靠它：304 Not Modified 不是失败，而是一次成功的「没变」应答。
+     *
+     * @return array{status:int, body:string, headers:array<string,string>}
+     */
+    public static function fetch(string $url, int $maxBytes = 512000, array $headers = []): array
+    {
         $currentUrl = trim($url);
         for ($redirect = 0; $redirect <= 3; $redirect++) {
             $result = self::request('GET', $currentUrl, '', $headers, $maxBytes, 20, true);
@@ -24,26 +40,30 @@ final class OutboundHttp
                 $currentUrl = self::resolveRedirectUrl($currentUrl, $location);
                 continue;
             }
-            if ($status < 200 || $status >= 300) {
-                throw new \RuntimeException('目标返回 HTTP ' . $status);
-            }
-            return (string) $result['body'];
+            return [
+                'status' => $status,
+                'body' => (string) ($result['body'] ?? ''),
+                'headers' => (array) ($result['headers'] ?? []),
+            ];
         }
         throw new \RuntimeException('目标重定向失败');
     }
 
     /**
      * 受控 HTTP 请求。调用方可检查 HTTP 状态码；网络错误仍抛出异常。
+     * @param string|array<string,mixed> $body
+     * @param callable(string):void|null $onChunk Optional response-body callback, useful for SSE.
      * @return array{status:int,body:string,headers?:array<string,string>}
      */
     public static function request(
         string $method,
         string $url,
-        string $body = '',
+        string|array $body = '',
         array $headers = [],
         int $maxBytes = 512000,
         int $timeout = 20,
         bool $captureHeaders = false,
+        ?callable $onChunk = null,
     ): array {
         $parts = parse_url(trim($url));
         $scheme = strtolower((string) ($parts['scheme'] ?? ''));
@@ -99,11 +119,14 @@ final class OutboundHttp
             CURLOPT_USERAGENT => 'pafish-extension-fetch/1.0',
             CURLOPT_HTTPHEADER => array_merge(['Accept: text/html,application/xhtml+xml;q=0.9,*/*;q=0.1'], $curlHeaders),
             CURLOPT_RESOLVE => self::resolveEntries($host, $port, $ips),
-            CURLOPT_WRITEFUNCTION => static function ($curl, string $chunk) use (&$buffer, $maxBytes): int {
+            CURLOPT_WRITEFUNCTION => static function ($curl, string $chunk) use (&$buffer, $maxBytes, $onChunk): int {
                 if (strlen($buffer) + strlen($chunk) > $maxBytes) {
                     return 0;
                 }
                 $buffer .= $chunk;
+                if ($onChunk !== null) {
+                    $onChunk($chunk);
+                }
                 return strlen($chunk);
             },
         ]);

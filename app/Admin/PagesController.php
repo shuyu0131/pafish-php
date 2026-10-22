@@ -148,14 +148,17 @@ final class PagesController extends AdminController
     {
         $this->guardAdmin();
         $id = (int) ($args['id'] ?? 0);
-        \Pafish\Services\MediaReferences::transaction(static function () use ($id): void {
+        $commentEvents = [];
+        \Pafish\Services\MediaReferences::transaction(static function () use ($id, &$commentEvents): void {
             if ((string) Settings::get('home_page_id', '') === (string) $id) {
                 Settings::remove('home_page_id');
             }
+            if ($id > 0) $commentEvents = \Pafish\Services\Comments::deleteForPage($id);
             if ($id > 0) \Pafish\Services\EntityMeta::deleteSubject('page', $id);
             DB::execute('DELETE FROM pages WHERE id = ?', [$id]);
             if ($id > 0) \Pafish\Services\MediaReferences::forget('page', $id);
         });
+        \Pafish\Services\Comments::emit($commentEvents);
         if ($this->isAjax($request)) {
             return $this->json($response, ['ok' => true]);
         }
@@ -235,14 +238,16 @@ final class PagesController extends AdminController
         }
 
         $contentFormat = \Pafish\Services\Content::format($body['content_format'] ?? ($id !== null ? (DB::value('SELECT content_format FROM pages WHERE id = ?', [$id]) ?: 'markdown') : 'markdown'));
+        $allowComments = $body['allow_comments'] ?? $stored['allow_comments'] ?? 1;
+        if (!in_array($allowComments, [true, false, 1, 0, '1', '0'], true)) throw new \RuntimeException('评论开关无效');
         $content = (string) ($body['content'] ?? '');
         if (mb_strlen($content) > 16000000) throw new \RuntimeException('内容过长');
         if ($contentFormat === 'html') $content = \Pafish\Services\Content::sanitize($content);
 
         if ($id !== null) {
             DB::execute(
-                'UPDATE pages SET title = ?, slug = ?, content = ?, content_format = ?, status = ?, template = ?, seo_title=?, meta_description=?, updated_at = NOW() WHERE id = ?',
-                [$title, $slug, $content, $contentFormat, $status, $template, $seo['seo_title'], $seo['meta_description'], $id]
+                'UPDATE pages SET title = ?, slug = ?, content = ?, content_format = ?, status = ?, template = ?, allow_comments=?, seo_title=?, meta_description=?, updated_at = NOW() WHERE id = ?',
+                [$title, $slug, $content, $contentFormat, $status, $template, (int) (bool) $allowComments, $seo['seo_title'], $seo['meta_description'], $id]
             );
             return ['id' => $id, 'created' => false];
         }
@@ -250,9 +255,9 @@ final class PagesController extends AdminController
         // 新建：发布时记录 published_at
         $publishedAt = $status === 'PUBLISHED' ? date('Y-m-d H:i:s') : null;
         DB::execute(
-            'INSERT INTO pages (title, slug, content, content_format, status, template, published_at, seo_title, meta_description, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())',
-            [$title, $slug, $content, $contentFormat, $status, $template, $publishedAt, $seo['seo_title'], $seo['meta_description']]
+            'INSERT INTO pages (title, slug, content, content_format, status, template, published_at, allow_comments, seo_title, meta_description, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())',
+            [$title, $slug, $content, $contentFormat, $status, $template, $publishedAt, (int) (bool) $allowComments, $seo['seo_title'], $seo['meta_description']]
         );
         return ['id' => (int) DB::pdo()->lastInsertId(), 'created' => true];
     }

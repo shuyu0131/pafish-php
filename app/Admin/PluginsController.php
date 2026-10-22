@@ -39,8 +39,11 @@ final class PluginsController extends AdminController
                 'active' => Plugin::isActive($name),
             ];
         }
+        $catalogNotice = '';
         try {
-            $updates = Store::updatesForInstalled('plugin', array_column($plugins, 'version', 'name'));
+            $catalog = Store::catalog('plugin', 'read');
+            $catalogNotice = $catalog->notice;
+            $updates = Store::updatesForInstalled('plugin', array_column($plugins, 'version', 'name'), $catalog);
             foreach ($plugins as &$plugin) {
                 $plugin['update'] = $updates[$plugin['name']] ?? null;
             }
@@ -53,6 +56,7 @@ final class PluginsController extends AdminController
         }
         $response->getBody()->write($this->render('plugins', [
             'plugins' => $plugins,
+            'catalogNotice' => $catalogNotice,
         ], '插件管理'));
         return $response;
     }

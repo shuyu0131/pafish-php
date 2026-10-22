@@ -22,8 +22,8 @@ sort($allCategories);
     </div>
   </div>
   <p class="admin-backup-msg" id="storeMsg" hidden></p>
-  <?php if ($catError !== ''): ?>
-    <p class="admin-backup-msg admin-backup-msg-error" id="storeCatError"><?= e($catError) ?></p>
+  <?php if (($catalogNotice ?? '') !== ''): ?>
+    <p class="admin-backup-msg admin-backup-msg-error" id="storeCatError"><?= e($catalogNotice) ?></p>
   <?php endif; ?>
 
   <div class="admin-store-source">
@@ -106,7 +106,9 @@ sort($allCategories);
                 <?php if ($item['installed']): ?><span>本地 v<?= e($item['localVersion']) ?></span><?php endif; ?>
               </div>
               <div class="admin-theme-ops">
-                <?php if ($item['installed']): ?>
+                <?php if (empty($cat['installable'])): ?>
+                  <span class="badge">目录暂不可用</span>
+                <?php elseif ($item['installed']): ?>
                   <?php if ($item['updateAvailable']): ?>
                     <button type="button" class="btn btn-primary btn-sm admin-store-update" data-kind="<?= e($kind) ?>" data-name="<?= e($item['name']) ?>" data-title="<?= e($item['title']) ?>" data-version="<?= e($item['version']) ?>" data-local-version="<?= e($item['localVersion']) ?>" data-changelog="<?= e($item['changelog'] ?? '') ?>">更新到 v<?= e($item['version']) ?></button>
                   <?php else: ?>
@@ -201,8 +203,11 @@ sort($allCategories);
       var fd = new FormData();
       fd.append("_csrf", CSRF);
       post("/admin/store/refresh", fd)
-        .then(function() {
-          persistMsg("✓ 已刷新官方应用目录", false);
+        .then(function(j) {
+          // 失败原因已由服务端记入缓存并渲染到页面提示行，这里不再弹成功提示。
+          if (!j.error) {
+            persistMsg("✓ 已刷新官方应用目录", false);
+          }
           location.reload();
         })
         .catch(function(err) {

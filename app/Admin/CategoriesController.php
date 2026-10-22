@@ -25,7 +25,7 @@ final class CategoriesController extends AdminController
         $this->guardAdmin();
         $tree = Categories::tree();
         $counts = [];
-        foreach (DB::fetchAll('SELECT category_id, COUNT(*) AS c FROM posts WHERE category_id IS NOT NULL GROUP BY category_id') as $row) {
+        foreach (DB::fetchAll('SELECT category_id, COUNT(*) AS c FROM posts WHERE category_id IS NOT NULL AND deleted_at IS NULL GROUP BY category_id') as $row) {
             $counts[(int) $row['category_id']] = (int) $row['c'];
         }
         // 编辑某分类时，其父级下拉需禁用"自身 + 全部后代"（后端 save 仍 BFS 双保险）

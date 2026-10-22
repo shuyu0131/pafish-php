@@ -24,8 +24,8 @@ final class SettingsController extends AdminController
     private const ALLOWED_KEYS = [
         'site_name', 'site_subtitle', 'site_description', 'site_icp',
         'seo_title_order', 'seo_title_separator',
-        'comments_enabled', 'comments_need_review', 'comments_captcha_enabled',
-        'posts_per_page', 'blocked_ips',
+        'comments_enabled', 'comments_need_review', 'comments_captcha_enabled', 'comments_honeypot_enabled',
+        'posts_per_page', 'blocked_ips', 'blocked_emails', 'comment_spam_keywords',
         'md_allow_raw_html',
         'upload_max_mb',
         'allow_registration', 'require_email_verify',
@@ -68,6 +68,15 @@ final class SettingsController extends AdminController
         foreach (self::ALLOWED_KEYS as $key) {
             if (array_key_exists($key, $body)) {
                 $value = (string) $body[$key];
+                if (in_array($key, ['blocked_ips', 'blocked_emails', 'comment_spam_keywords'], true)) {
+                    try {
+                        $value = json_encode(self::normalizeCommentList($value, $key), JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+                    } catch (\InvalidArgumentException $e) {
+                        if ($this->isAjax($request)) return $this->json($response, ['error' => $e->getMessage()], 400);
+                        $this->flash('error', $e->getMessage());
+                        return $this->redirect($response, '/admin/settings#settings-content');
+                    }
+                }
                 // 敏感值不回显到页面；空值表示保持现有值。
                 if (in_array($key, ['store_account_token', 'smtp_pass'], true) && trim($value) === '') {
                     continue;
@@ -82,6 +91,39 @@ final class SettingsController extends AdminController
         }
         $this->flash('success', '设置已保存');
         return $this->redirect($response, '/admin/settings');
+    }
+
+    private static function normalizeCommentList(string $raw, string $key): array
+    {
+        $decoded = json_decode($raw, true);
+        $items = is_array($decoded)
+            ? $decoded
+            : preg_split($key === 'comment_spam_keywords' ? '/[,，\r\n]+/' : '/[,，\s]+/', $raw);
+        if (!is_array($items)) $items = [];
+        if (count($items) > 500) throw new \InvalidArgumentException('单个评论规则列表最多包含 500 项');
+
+        $normalized = [];
+        foreach ($items as $item) {
+            if (!is_string($item) && !is_numeric($item)) throw new \InvalidArgumentException('评论规则列表格式无效');
+            $item = trim((string) $item);
+            if ($item === '') continue;
+            if ($key === 'blocked_ips') {
+                if (filter_var($item, FILTER_VALIDATE_IP) === false) throw new \InvalidArgumentException('IP 黑名单中包含无效地址');
+                $item = strtolower($item);
+            } elseif ($key === 'blocked_emails') {
+                $item = strtolower($item);
+                if (str_starts_with($item, '@')) {
+                    $domain = substr($item, 1);
+                    if (filter_var('check@' . $domain, FILTER_VALIDATE_EMAIL) === false) throw new \InvalidArgumentException('邮箱黑名单只接受完整邮箱或 @example.com 形式的域名');
+                } elseif (filter_var($item, FILTER_VALIDATE_EMAIL) === false) {
+                    throw new \InvalidArgumentException('邮箱黑名单中包含无效地址');
+                }
+            } else {
+                if (mb_strlen($item, 'UTF-8') > 120) throw new \InvalidArgumentException('单条关键词最多 120 个字符');
+            }
+            $normalized[] = $item;
+        }
+        return array_values(array_unique($normalized));
     }
 
     /** POST /admin/settings/test-smtp：用表单当前值发送测试邮件（未保存也能测） */

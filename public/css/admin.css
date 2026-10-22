@@ -4303,10 +4303,9 @@ a.admin-overview-card:hover { border-color: var(--muted); }
 }
 
 /* ---- 单栏「平铺」模式：设置项少的页面（如插件配置）用 ----
-   这回到 emlog 那种形态：从下往上顺次列出分节，不再有左侧分组导航。
+   从下往上顺次列出分节，不再有左侧分组导航。
    为什么需要它：分组导航是给"分组多到需要索引"的页面（主题设置）用的；
-   插件配置往往只有一两个分组，硬加一个侧栏反而是**为了对齐而牺牲易用**——
-   用户反馈「我们原来那种 emlog 式的完全够用」就是这个意思。
+   插件配置往往只有一两个分组，硬加一个侧栏反而是**为了对齐而牺牲易用**。
 
    实现上不是删掉导航，而是把它降级成"分组标题内联"：
    每个分组渲染成一条小节标题，直接排在表单里。
@@ -4339,7 +4338,7 @@ a.admin-overview-card:hover { border-color: var(--muted); }
 .admin-schema-form.is-expanded .admin-sf-group > .admin-sf-group-title {
   display: block;
 }
-/* 平铺模式与「展开全部」态的分组标题：emlog 那种「加粗小节标题 + 一条底线」，
+/* 平铺模式与「展开全部」态的分组标题：「加粗小节标题 + 一条底线」，
    不是卡片、不带图标、不参与交互——它就是内容的目录。 */
 .admin-sf-layout-flat .admin-sf-group > .admin-sf-group-title,
 .admin-schema-form.is-expanded .admin-sf-group > .admin-sf-group-title {
@@ -4419,7 +4418,7 @@ a.admin-overview-card:hover { border-color: var(--muted); }
   text-align: left;
 }
 /* 朴素模式不画字段之间的横线：那套"每行一条发丝线"是面板形态的一部分，
-   普通表单靠留白分隔即可（emlog 的插件设置页也是这样）。 */
+   普通表单靠留白分隔即可。 */
 .admin-plain-form .admin-sf-group > * + * {
   border-top: 0;
 }

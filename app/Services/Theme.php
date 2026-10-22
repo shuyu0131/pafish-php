@@ -1192,7 +1192,7 @@ final class Theme
         }
         $manifest = self::manifest(self::active());
         $fallbacks = $manifest['systemTemplateFallback'] ?? null;
-        if (in_array($name, self::PAGE_TEMPLATES, true) && is_array($fallbacks) && !in_array($name, $fallbacks, true)) {
+        if ($name !== 'micro' && in_array($name, self::PAGE_TEMPLATES, true) && is_array($fallbacks) && !in_array($name, $fallbacks, true)) {
             throw new \RuntimeException('当前主题未提供页面模板：' . $name);
         }
         foreach ($candidates as $candidate) {

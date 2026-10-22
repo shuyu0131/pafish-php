@@ -295,7 +295,7 @@ final class V1Controller
         return $this->json($response, ['tags' => $tags]);
     }
 
-    /** GET /api/v1/comments?postId=2&page=1&perPage=50 */
+    /** GET /api/v1/comments?postId=2&page=1&perPage=50 (pageId also supported) */
     public function comments(Request $request, Response $response): Response
     {
         $fail = ApiKey::check($request);
@@ -304,25 +304,27 @@ final class V1Controller
         }
 
         $sp = $request->getQueryParams();
-        $postIdRaw = trim((string) ($sp['postId'] ?? ''));
-        if (!preg_match('/^\d+$/', $postIdRaw)) {
-            return $this->json($response, ['error' => '缺少有效的 postId 参数'], 400);
+        $targetType = isset($sp['pageId']) ? 'page' : 'post';
+        $targetIdRaw = trim((string) ($targetType === 'page' ? $sp['pageId'] : ($sp['postId'] ?? '')));
+        if (!preg_match('/^\d+$/', $targetIdRaw)) {
+            return $this->json($response, ['error' => '缺少有效的 postId 或 pageId 参数'], 400);
         }
-        $postId = (int) $postIdRaw;
+        $targetId = (int) $targetIdRaw;
         $page = max(1, (int) ($sp['page'] ?? 1));
         $perPage = min(self::COMMENTS_MAX_PER_PAGE, max(1, (int) ($sp['perPage'] ?? 50)));
 
         try {
-            \Pafish\Services\Posts::findReadable($postId);
+            \Pafish\Services\Comments::target($targetType, $targetId, sessionUnlock: false);
         } catch (\DomainException $e) {
             return $this->json($response, ['error' => $e->getMessage()], $e->getCode());
         }
 
-        $where = 'post_id = ? AND status = ?';
-        $params = [$postId, 'APPROVED'];
+        $targetColumn = $targetType === 'post' ? 'post_id' : 'page_id';
+        $where = "{$targetColumn} = ? AND status = ?";
+        $params = [$targetId, 'APPROVED'];
         $total = (int) DB::value("SELECT COUNT(*) FROM comments WHERE {$where}", $params);
         $rows = DB::fetchAll(
-            "SELECT id, post_id, parent_id, author_name, content, created_at, is_pinned
+            "SELECT id, post_id, page_id, parent_id, author_name, content, created_at, is_pinned
              FROM comments
              WHERE {$where}
              ORDER BY is_pinned DESC, created_at ASC
@@ -332,7 +334,8 @@ final class V1Controller
         $tz = new \DateTimeZone((string) Config::get('timezone', 'Asia/Shanghai'));
         $comments = array_map(static fn (array $c): array => [
             'id' => (string) $c['id'],
-            'postId' => (string) $c['post_id'],
+            'postId' => $c['post_id'] !== null ? (string) $c['post_id'] : null,
+            'pageId' => $c['page_id'] !== null ? (string) $c['page_id'] : null,
             'parentId' => $c['parent_id'] !== null ? (string) $c['parent_id'] : null,
             'authorName' => $c['author_name'],
             'content' => $c['content'],
@@ -343,6 +346,8 @@ final class V1Controller
         ], $rows);
 
         return $this->json($response, [
+            'targetType' => $targetType,
+            'targetId' => (string) $targetId,
             'comments' => $comments,
             'total' => $total,
             'page' => $page,

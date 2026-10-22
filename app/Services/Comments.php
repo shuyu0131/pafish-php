@@ -6,6 +6,7 @@ namespace Pafish\Services;
 
 use Pafish\Core\Auth;
 use Pafish\Core\DB;
+use Pafish\Services\Settings;
 
 /** Comment lifecycle and bounded previews; writes serialize on the article row, retain real FKs. */
 final class Comments
@@ -41,26 +42,45 @@ final class Comments
         return $recent;
     }
 
+    public static function target(string $type, int $id, bool $lock = false, bool $sessionUnlock = true): array
+    {
+        if ($id < 1 || !in_array($type, ['post', 'page'], true)) throw new \DomainException('评论目标不存在', 404);
+        if ($type === 'post') return Posts::findReadable($id, $sessionUnlock, $lock);
+        $page = DB::fetchOne("SELECT * FROM pages WHERE id=? AND status='PUBLISHED' AND deleted_at IS NULL AND (published_at IS NULL OR published_at<=NOW())" . ($lock ? ' FOR UPDATE' : ''), [$id]);
+        if ($page === null) throw new \DomainException('页面不存在', 404);
+        return $page;
+    }
+
+    public static function targetOpen(string $type, array $target): bool
+    {
+        return (string) Settings::get('comments_enabled', 'true') !== 'false'
+            && !empty($target['allow_comments']);
+    }
+
     public static function create(array $data): int
     {
         return DB::transaction(static function () use ($data): int {
-            $post = Posts::findReadable((int) $data['post_id'], true, true);
-            if (!Posts::commentsOpen($post)) throw new \DomainException('此文章已关闭评论', 403);
+            $type = (string) ($data['target_type'] ?? 'post');
+            $targetId = (int) ($data['target_id'] ?? $data['post_id'] ?? 0);
+            $target = self::target($type, $targetId, true);
+            if (!self::targetOpen($type, $target)) throw new \DomainException('此内容已关闭评论', 403);
+            $targetColumn = $type === 'post' ? 'post_id' : 'page_id';
             $parentId = empty($data['parent_id']) ? null : (int) $data['parent_id'];
             $seen = [];
             for ($id = $parentId; $id !== null;) {
                 if (isset($seen[$id])) throw new \DomainException('评论回复关系异常', 409);
                 $seen[$id] = true;
-                $parent = DB::fetchOne('SELECT post_id,status,parent_id FROM comments WHERE id=? FOR UPDATE', [$id]);
-                if (!$parent || (int) $parent['post_id'] !== (int) $post['id'] || $parent['status'] !== 'APPROVED') {
-                    throw new \DomainException('只能回复当前文章已通过的评论', 400);
+                $parent = DB::fetchOne('SELECT post_id,page_id,status,parent_id FROM comments WHERE id=? FOR UPDATE', [$id]);
+                if (!$parent || (int) ($parent[$targetColumn] ?? 0) !== $targetId || $parent['status'] !== 'APPROVED') {
+                    throw new \DomainException('只能回复当前内容下已通过的评论', 400);
                 }
                 $id = $parent['parent_id'] === null ? null : (int) $parent['parent_id'];
             }
             if (!in_array($data['status'], self::STATUSES, true)) throw new \InvalidArgumentException('评论状态无效');
             if (trim((string) $data['content']) === '') throw new \DomainException('回复内容不能为空', 400);
-            DB::execute('INSERT INTO comments (post_id,author_name,author_email,user_id,content,status,parent_id,notify_reply,ip) VALUES (?,?,?,?,?,?,?,?,?)', [
-                (int) $post['id'], $data['author_name'], $data['author_email'], $data['user_id'] ?? null,
+            DB::execute('INSERT INTO comments (post_id,page_id,author_name,author_email,user_id,content,status,parent_id,notify_reply,ip) VALUES (?,?,?,?,?,?,?,?,?,?)', [
+                $type === 'post' ? $targetId : null, $type === 'page' ? $targetId : null,
+                $data['author_name'], $data['author_email'], $data['user_id'] ?? null,
                 $data['content'], $data['status'], $parentId, !empty($data['notify_reply']) ? 1 : 0, $data['ip'] ?? null,
             ]);
             return DB::lastInsertId();
@@ -91,7 +111,9 @@ final class Comments
                 if (!isset($selected[$id]) || $row['status'] === $status) continue;
                 DB::execute('UPDATE comments SET status=? WHERE id=?', [$status, $id]);
                 $events[] = ['hook'=>'after_comment_status','data'=>[
-                    'id'=>(string) $id, 'postId'=>(string) $row['post_id'], 'from'=>$row['status'], 'to'=>$status,
+                    'id'=>(string) $id, 'postId'=>$row['post_id'] !== null ? (string) $row['post_id'] : null,
+                    'pageId'=>$row['page_id'] !== null ? (string) $row['page_id'] : null,
+                    'targetType'=>$row['page_id'] !== null ? 'page' : 'post', 'from'=>$row['status'], 'to'=>$status,
                 ]];
             }
             return $events;
@@ -121,6 +143,18 @@ final class Comments
         });
     }
 
+    public static function deleteForPage(int $pageId): array
+    {
+        return DB::transaction(static function () use ($pageId): array {
+            if (!Auth::isAdmin() || !DB::fetchOne('SELECT id FROM pages WHERE id=? FOR UPDATE', [$pageId])) {
+                throw new \DomainException('无权删除页面评论', 403);
+            }
+            $rows = [];
+            foreach (DB::fetchAll('SELECT * FROM comments WHERE page_id=? ORDER BY id FOR UPDATE', [$pageId]) as $row) $rows[(int) $row['id']] = $row;
+            return self::deleteRows($rows, array_fill_keys(array_keys($rows), true));
+        });
+    }
+
     private static function deleteRows(array $rows, array $selected): array
     {
         $events = [];
@@ -137,7 +171,10 @@ final class Comments
                 EntityMeta::deleteSubject('comment', (int) $id);
                 DB::execute('DELETE FROM comments WHERE id=?', [$id]);
                 $events[] = ['hook'=>'after_comment_delete','data'=>[
-                    'id'=>(string) $id, 'postId'=>(string) $rows[$id]['post_id'], 'authorName'=>$rows[$id]['author_name'],
+                    'id'=>(string) $id, 'postId'=>$rows[$id]['post_id'] !== null ? (string) $rows[$id]['post_id'] : null,
+                    'pageId'=>$rows[$id]['page_id'] !== null ? (string) $rows[$id]['page_id'] : null,
+                    'targetType'=>$rows[$id]['page_id'] !== null ? 'page' : 'post',
+                    'authorName'=>$rows[$id]['author_name'],
                 ]];
                 unset($selected[$id]);
             }
@@ -154,12 +191,14 @@ final class Comments
             $content = trim($content);
             if ($content === '') throw new \DomainException('回复内容不能为空', 400);
             $events = self::moderate([$parentId], 'APPROVED');
-            DB::execute('INSERT INTO comments (post_id,author_name,author_email,user_id,content,status,parent_id) VALUES (?,?,?,?,?,?,?)', [
-                $parent['post_id'], $user['nickname'] ?: $user['username'], '', $user['id'], $content, 'APPROVED', $parentId,
+            DB::execute('INSERT INTO comments (post_id,page_id,author_name,author_email,user_id,content,status,parent_id) VALUES (?,?,?,?,?,?,?,?)', [
+                $parent['post_id'], $parent['page_id'], $user['nickname'] ?: $user['username'], '', $user['id'], $content, 'APPROVED', $parentId,
             ]);
             $id = DB::lastInsertId();
             $events[] = ['hook'=>'after_comment_reply','data'=>[
-                'id'=>(string) $id,'postId'=>(string) $parent['post_id'],'parentId'=>(string) $parentId,
+                'id'=>(string) $id,'postId'=>$parent['post_id'] !== null ? (string) $parent['post_id'] : null,
+                'pageId'=>$parent['page_id'] !== null ? (string) $parent['page_id'] : null,
+                'targetType'=>$parent['page_id'] !== null ? 'page' : 'post','parentId'=>(string) $parentId,
                 'content'=>$content,'author'=>$user['nickname'] ?: $user['username'],
             ]];
             return $events;
@@ -186,15 +225,26 @@ final class Comments
         $ids = array_values(array_unique(array_map('intval', $ids)));
         if ($ids === [] || min($ids) < 1) throw new \DomainException('评论编号无效', 400);
         $ph = implode(',', array_fill(0, count($ids), '?'));
-        $targets = DB::fetchAll("SELECT id,post_id FROM comments WHERE id IN ({$ph})", $ids);
+        $targets = DB::fetchAll("SELECT id,post_id,page_id FROM comments WHERE id IN ({$ph})", $ids);
         if (count($targets) !== count($ids)) throw new \DomainException('评论不存在或无权管理', 403);
-        $postIds = array_values(array_unique(array_column($targets, 'post_id')));
-        sort($postIds, SORT_NUMERIC);
         $rows = [];
-        foreach ($postIds as $postId) {
-            $post = DB::fetchOne('SELECT id,author_id FROM posts WHERE id=? FOR UPDATE', [$postId]);
-            if (!$post || (!Auth::isAdmin() && (int) $post['author_id'] !== Auth::id())) throw new \DomainException('无权管理评论', 403);
-            foreach (DB::fetchAll('SELECT * FROM comments WHERE post_id=? ORDER BY id FOR UPDATE', [$postId]) as $row) $rows[(int) $row['id']] = $row;
+        $targetsByKey = [];
+        foreach ($targets as $target) {
+            $type = $target['page_id'] !== null ? 'page' : 'post';
+            $targetId = (int) ($target[$type . '_id']);
+            $targetsByKey[$type . ':' . $targetId] = [$type, $targetId];
+        }
+        ksort($targetsByKey, SORT_STRING);
+        foreach ($targetsByKey as [$type, $targetId]) {
+            if ($type === 'page' && !Auth::isAdmin()) throw new \DomainException('无权管理评论', 403);
+            if ($type === 'post') {
+                $post = DB::fetchOne('SELECT id,author_id FROM posts WHERE id=? FOR UPDATE', [$targetId]);
+                if (!$post || (!Auth::isAdmin() && (int) $post['author_id'] !== Auth::id())) throw new \DomainException('无权管理评论', 403);
+            } else {
+                if (!DB::fetchOne('SELECT id FROM pages WHERE id=? FOR UPDATE', [$targetId])) throw new \DomainException('页面不存在', 404);
+            }
+            $column = $type === 'post' ? 'post_id' : 'page_id';
+            foreach (DB::fetchAll("SELECT * FROM comments WHERE {$column}=? ORDER BY id FOR UPDATE", [$targetId]) as $row) $rows[(int) $row['id']] = $row;
         }
         foreach ($ids as $id) if (!isset($rows[$id])) throw new \DomainException('评论已变更，请刷新后重试', 409);
         return $rows;

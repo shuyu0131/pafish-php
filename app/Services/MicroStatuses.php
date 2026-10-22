@@ -183,7 +183,7 @@ final class MicroStatuses
             'id' => $id !== null ? (string) $id : null,
             'content' => trim((string) ($input['content'] ?? '')),
             'contentFormat' => Content::format($input['content_format'] ?? ($existing['content_format'] ?? 'markdown')),
-            'status' => ($input['status'] ?? self::DRAFT) === self::PUBLISHED ? self::PUBLISHED : self::DRAFT,
+            'status' => ($input['status'] ?? ($existing['status'] ?? self::PUBLISHED)) === self::PUBLISHED ? self::PUBLISHED : self::DRAFT,
             'publishedAt' => self::normalizeDate($input['published_at'] ?? $input['publishedAt'] ?? null),
             'isPinned' => self::truthy($input['is_pinned'] ?? $input['isPinned'] ?? false),
             'isPrivate' => self::truthy($input['is_private'] ?? $input['isPrivate'] ?? false),
@@ -212,7 +212,7 @@ final class MicroStatuses
         if (mb_strlen($payload['content']) > self::MAX_CONTENT) {
             throw new \RuntimeException('内容不能超过 ' . self::MAX_CONTENT . ' 个字符');
         }
-        $payload['status'] = ($payload['status'] ?? self::DRAFT) === self::PUBLISHED ? self::PUBLISHED : self::DRAFT;
+        $payload['status'] = ($payload['status'] ?? ($existing['status'] ?? self::PUBLISHED)) === self::PUBLISHED ? self::PUBLISHED : self::DRAFT;
         $payload['publishedAt'] = self::normalizeDate($payload['publishedAt'] ?? null);
         $payload['isPinned'] = self::truthy($payload['isPinned'] ?? false);
         $payload['isPrivate'] = self::truthy($payload['isPrivate'] ?? false);

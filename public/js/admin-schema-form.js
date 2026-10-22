@@ -61,7 +61,7 @@
     var form = document.getElementById(opts.formId);
     if (!form) { return null; }
 
-    // 平铺模式（emlog 式单栏设置页）：所有分组同屏顺排，没有分组导航。
+    // 平铺模式（单栏设置页）：所有分组同屏顺排，没有分组导航。
     // 此时 hash 路由必须整体让开——从分组导航版留下的 #tab=xxx 会把其余分组
     // 全部隐藏，页面上只剩一个分组，看起来就像"设置项丢了"。
     var flatMode = !!form.querySelector(".admin-sf-layout-flat");

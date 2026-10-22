@@ -1,0 +1,107 @@
+{
+  "name": "ai_foundation",
+  "title": "AI Foundation",
+  "version": "0.1.2",
+  "apiVersion": 2,
+  "description": "统一管理 OpenAI 兼容聊天模型，并为其他插件提供文本生成能力。",
+  "author": "纸鱼官方",
+  "authorUrl": "https://pafish.cn/developers/pafish",
+  "builtin": true,
+  "category": "AI",
+  "keywords": "ai, llm, model, openai",
+  "injects": ["plugin_setting"],
+  "schema": {
+    "tables": [
+      {
+        "name": "models",
+        "columns": [
+          { "name": "id", "type": "bigint", "unsigned": true, "autoIncrement": true },
+          { "name": "name", "type": "string", "default": "" },
+          { "name": "provider", "type": "string", "default": "openai-compatible" },
+          { "name": "type", "type": "string", "default": "chat" },
+          { "name": "purpose", "type": "string", "default": "general" },
+          { "name": "base_url", "type": "string", "default": "" },
+          { "name": "model", "type": "string", "default": "" },
+          { "name": "api_key", "type": "text", "nullable": true },
+          { "name": "is_default", "type": "bool", "default": 0 },
+          { "name": "created_at", "type": "datetime", "default": "CURRENT_TIMESTAMP" },
+          { "name": "updated_at", "type": "datetime", "default": "CURRENT_TIMESTAMP" }
+        ],
+        "primary": ["id"],
+        "indexes": [
+          { "name": "is_default", "columns": ["is_default"] },
+          { "name": "type_purpose", "columns": ["type", "purpose"] }
+        ]
+      },
+      {
+        "name": "usage_log",
+        "columns": [
+          { "name": "id", "type": "bigint", "unsigned": true, "autoIncrement": true },
+          { "name": "model_id", "type": "bigint", "default": 0 },
+          { "name": "caller_plugin", "type": "string", "default": "" },
+          { "name": "prompt_tokens", "type": "int", "default": 0 },
+          { "name": "completion_tokens", "type": "int", "default": 0 },
+          { "name": "total_tokens", "type": "int", "default": 0 },
+          { "name": "created_at", "type": "datetime", "default": "CURRENT_TIMESTAMP" }
+        ],
+        "primary": ["id"],
+        "indexes": [
+          { "name": "model_created", "columns": ["model_id", "created_at"] },
+          { "name": "created_at", "columns": ["created_at"] }
+        ]
+      },
+      {
+        "name": "quota_settings",
+        "columns": [
+          { "name": "id", "type": "int", "unsigned": true, "autoIncrement": true },
+          { "name": "hourly_calls_limit", "type": "int", "default": 1000 },
+          { "name": "daily_tokens_limit", "type": "int", "default": 100000 },
+          { "name": "max_tokens_per_call", "type": "int", "default": 4000 },
+          { "name": "updated_at", "type": "datetime", "default": "CURRENT_TIMESTAMP" }
+        ],
+        "primary": ["id"]
+      },
+      {
+        "name": "quota_reservations",
+        "columns": [
+          { "name": "id", "type": "string", "default": "" },
+          { "name": "reserved_tokens", "type": "bigint", "unsigned": true, "default": 0 },
+          { "name": "created_at", "type": "datetime", "default": "CURRENT_TIMESTAMP" }
+        ],
+        "primary": ["id"],
+        "indexes": [
+          { "name": "created_at", "columns": ["created_at"] }
+        ]
+      },
+      {
+        "name": "registered_functions",
+        "columns": [
+          { "name": "id", "type": "bigint", "unsigned": true, "autoIncrement": true },
+          { "name": "name", "type": "string", "default": "" },
+          { "name": "description", "type": "text", "nullable": true },
+          { "name": "parameters_schema", "type": "text", "nullable": true },
+          { "name": "provider_plugin", "type": "string", "default": "" },
+          { "name": "provider_name", "type": "string", "default": "" },
+          { "name": "side_effect", "type": "bool", "default": 0 },
+          { "name": "is_enabled", "type": "bool", "default": 1 },
+          { "name": "created_at", "type": "datetime", "default": "CURRENT_TIMESTAMP" }
+        ],
+        "primary": ["id"],
+        "indexes": [
+          { "name": "name_unique", "columns": ["name"], "unique": true },
+          { "name": "is_enabled", "columns": ["is_enabled"] },
+          { "name": "provider_plugin", "columns": ["provider_plugin"] }
+        ]
+      }
+    ]
+  },
+  "routes": [
+    { "method": "GET", "path": "/", "handler": "home", "auth": "login", "response": "redirect", "admin": true, "capability": "settings.manage" },
+    { "method": "POST", "path": "/manage", "handler": "manage", "auth": "login", "response": "json", "admin": true, "capability": "settings.manage" }
+  ],
+  "admin": {
+    "menu": [
+      { "route": "/", "activePath": "/admin/plugins/ai_foundation", "label": "AI Foundation", "icon": "sparkles", "group": "system", "capability": "settings.manage", "order": 60 }
+    ]
+  }
+}

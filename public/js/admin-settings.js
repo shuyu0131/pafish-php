@@ -73,6 +73,10 @@
     form.querySelectorAll('input[type=checkbox]').forEach(function (box) { data.set(box.name, box.checked ? 'true' : 'false'); });
     var ips = String(data.get('blocked_ips') || '').split(/[,，\s]+/).map(function (ip) { return ip.trim(); }).filter(Boolean);
     data.set('blocked_ips', JSON.stringify(Array.from(new Set(ips))));
+    var emails = String(data.get('blocked_emails') || '').split(/[,，\s]+/).map(function (email) { return email.trim().toLowerCase(); }).filter(Boolean);
+    data.set('blocked_emails', JSON.stringify(Array.from(new Set(emails))));
+    var keywords = String(data.get('comment_spam_keywords') || '').split(/[,，\r\n]+/).map(function (word) { return word.trim(); }).filter(Boolean);
+    data.set('comment_spam_keywords', JSON.stringify(Array.from(new Set(keywords))));
     saving = true;
     saveBtn.disabled = true;
     saveBtn.textContent = '保存中…';

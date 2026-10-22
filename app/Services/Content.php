@@ -63,6 +63,24 @@ final class Content
         }
     }
 
+    /** Audio/video sources accept only HTTP(S) URLs or valid site-relative paths. */
+    public static function mediaUrl(mixed $value): ?string
+    {
+        if (!is_string($value)) throw new \RuntimeException('媒体地址必须是文本');
+        $value = trim($value);
+        if ($value === '') return null;
+        if (mb_strlen($value) > 2048 || preg_match('/[\x00-\x20\x7f\\\\]/', $value)) {
+            throw new \RuntimeException('媒体地址无效');
+        }
+        if (\Pafish\Core\Url::isLocalPath($value)) return $value;
+        $parts = parse_url($value);
+        if (!is_array($parts) || !in_array(strtolower((string) ($parts['scheme'] ?? '')), ['http', 'https'], true)
+            || empty($parts['host']) || isset($parts['user']) || isset($parts['pass'])) {
+            throw new \RuntimeException('媒体地址仅支持站内路径或 HTTP/HTTPS 地址');
+        }
+        return $value;
+    }
+
     public static function format(mixed $format): string
     {
         if (!is_string($format) || !in_array($format, ['markdown', 'html'], true)) {
@@ -77,11 +95,26 @@ final class Content
             $config = \HTMLPurifier_Config::createDefault();
             $config->set('Core.Encoding', 'UTF-8');
             $config->set('Cache.DefinitionImpl', null);
-            $config->set('HTML.Allowed', 'p[style],br,h1[style],h2[style],h3[style],h4[style],h5,h6,strong,b,em,i,u,s,del,sub,sup,span[style],blockquote,ul,ol[start],li,pre,code[class],a[href|title|target|rel],img[src|alt|title|width|height],table,thead,tbody,tfoot,tr,th[colspan|rowspan|scope|style],td[colspan|rowspan|style],hr');
+            $config->set('HTML.Allowed', 'p[style],br,h1[style],h2[style],h3[style],h4[style],h5,h6,strong,b,em,i,u,s,del,sub,sup,span[style],blockquote,ul,ol[start],li,pre,code[class],a[href|title|target|rel],img[src|alt|title|width|height],audio[src|controls|loop|muted|preload],video[src|poster|controls|loop|muted|playsinline|preload],source[src|type],table,thead,tbody,tfoot,tr,th[colspan|rowspan|scope|style],td[colspan|rowspan|style],hr');
             $config->set('CSS.AllowedProperties', ['color', 'background-color', 'text-align', 'text-decoration', 'font-size', 'font-weight']);
             $config->set('URI.AllowedSchemes', ['http' => true, 'https' => true, 'mailto' => true, 'tel' => true]);
             $config->set('Attr.AllowedFrameTargets', ['_blank']);
             $config->set('HTML.TargetBlank', true);
+            $config->set('HTML.DefinitionID', 'pafish-media-elements');
+            $config->set('HTML.DefinitionRev', 1);
+            if ($definition = $config->maybeGetRawHTMLDefinition()) {
+                $definition->addElement('audio', 'Block', 'Flow', 'Common', [
+                    'src' => 'URI', 'controls' => 'Bool', 'loop' => 'Bool',
+                    'muted' => 'Bool', 'preload' => 'Enum#none,metadata,auto',
+                ]);
+                $definition->addElement('video', 'Block', 'Flow', 'Common', [
+                    'src' => 'URI', 'poster' => 'URI', 'controls' => 'Bool', 'loop' => 'Bool',
+                    'muted' => 'Bool', 'playsinline' => 'Bool', 'preload' => 'Enum#none,metadata,auto',
+                ]);
+                $definition->addElement('source', 'Inline', 'Empty', 'Common', [
+                    'src' => 'URI', 'type' => 'Text',
+                ]);
+            }
             self::$purifier = new \HTMLPurifier($config);
         }
         return self::$purifier->purify($html);

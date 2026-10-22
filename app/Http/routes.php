@@ -167,6 +167,7 @@ $app->group('/admin', function ($group) {
     $group->post('/comments/{id}/delete', [CommentsController::class, 'delete']);
     $group->post('/comments/delete-by-ip', [CommentsController::class, 'deleteByIp']);
     $group->post('/comments/block-ip', [CommentsController::class, 'blockIp']);
+    $group->post('/comments/block-email', [CommentsController::class, 'blockEmail']);
 
     // 友情链接（列表 / 保存 / 删除 / 显隐 / 上下移动）
     $group->get('/links', [LinksController::class, 'index']);

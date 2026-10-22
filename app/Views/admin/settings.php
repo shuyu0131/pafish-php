@@ -13,15 +13,17 @@ $textVal = static function (string $key, string $default = '') use ($all): strin
     return (string) ($all[$key] ?? $default);
 };
 
-// IP 黑名单：存储 JSON 数组，逗号分隔文本展示
-$ipsText = '';
-try {
-    $ips = json_decode((string) ($all['blocked_ips'] ?? '[]'), true);
-    if (is_array($ips)) {
-        $ipsText = implode(', ', $ips);
+$listText = static function (string $key, string $separator = ', ') use ($all): string {
+    try {
+        $items = json_decode((string) ($all[$key] ?? '[]'), true, 512, JSON_THROW_ON_ERROR);
+        return is_array($items) ? implode($separator, array_filter($items, 'is_string')) : '';
+    } catch (\Throwable) {
+        return '';
     }
-} catch (\Throwable) {
-}
+};
+$ipsText = $listText('blocked_ips');
+$emailsText = $listText('blocked_emails');
+$keywordsText = $listText('comment_spam_keywords', "\n");
 ?>
 <div class="admin-stack admin-system-settings-page">
   <div class="admin-page-head">
@@ -125,6 +127,10 @@ try {
         <input type="checkbox" name="comments_captcha_enabled" value="true" <?= $boolVal('comments_captcha_enabled', 'true') ? 'checked' : '' ?>>
         <span>游客评论需输入图形验证码（已登录用户免验证码）</span>
       </label>
+      <label class="admin-check-row">
+        <input type="checkbox" name="comments_honeypot_enabled" value="true" <?= $boolVal('comments_honeypot_enabled', 'true') ? 'checked' : '' ?>>
+        <span>启用无感反垃圾蜜罐（推荐）</span>
+      </label>
       <div class="admin-form-grid">
         <div class="admin-field admin-field-narrow">
           <label class="label" for="setting-posts_per_page">每页文章数</label>
@@ -134,6 +140,16 @@ try {
           <label class="label" for="setting-blocked_ips">IP 黑名单</label>
           <textarea class="input admin-input-block" id="setting-blocked_ips" name="blocked_ips" rows="3" placeholder="如：1.2.3.4, 5.6.7.8（逗号或换行分隔）"><?= e($ipsText) ?></textarea>
           <p class="admin-field-hint">拉黑后该 IP 无法再提交评论；也可在评论审核页按 IP 一键拉黑。</p>
+        </div>
+        <div class="admin-field">
+          <label class="label" for="setting-blocked_emails">邮箱黑名单</label>
+          <textarea class="input admin-input-block" id="setting-blocked_emails" name="blocked_emails" rows="3" placeholder="visitor@example.com, @example.net"><?= e($emailsText) ?></textarea>
+          <p class="admin-field-hint">可填完整邮箱地址或 @example.com 域名；命中后评论会被拒绝，也可在评论详情中一键拉黑。</p>
+        </div>
+        <div class="admin-field">
+          <label class="label" for="setting-comment_spam_keywords">垃圾评论关键词</label>
+          <textarea class="input admin-input-block" id="setting-comment_spam_keywords" name="comment_spam_keywords" rows="4" placeholder="每行一条关键词"><?= e($keywordsText) ?></textarea>
+          <p class="admin-field-hint">游客评论内容包含任一关键词时会进入垃圾评论，仍可在评论审核中复核；匹配不区分英文字母大小写。</p>
         </div>
       </div>
     </div>

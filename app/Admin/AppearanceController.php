@@ -49,8 +49,11 @@ final class AppearanceController extends AdminController
                 'active' => $name === $active,
             ];
         }
+        $catalogNotice = '';
         try {
-            $updates = Store::updatesForInstalled('theme', array_column($themes, 'version', 'name'));
+            $catalog = Store::catalog('theme', 'read');
+            $catalogNotice = $catalog->notice;
+            $updates = Store::updatesForInstalled('theme', array_column($themes, 'version', 'name'), $catalog);
             foreach ($themes as &$theme) {
                 $theme['update'] = $updates[$theme['name']] ?? null;
             }
@@ -63,6 +66,7 @@ final class AppearanceController extends AdminController
         }
         $response->getBody()->write($this->render('appearance', [
             'themes' => $themes,
+            'catalogNotice' => $catalogNotice,
         ], '主题与外观'));
         return $response;
     }

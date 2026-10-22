@@ -41,6 +41,11 @@ final class HomeController
                     'page' => $page,
                 ]);
                 $description = $page['meta_description'] ?: (string) Settings::get('site_description', '');
+                $commentPage = max(1, (int) ($query['cpage'] ?? 1));
+                $commentsEnabled = (string) Settings::get('comments_enabled', 'true') !== 'false';
+                $comments = $commentsEnabled
+                    ? Comments::section((int) $page['id'], $commentPage, 'page')
+                    : ['roots' => [], 'total' => 0, 'totalPages' => 1];
                 $response->getBody()->write(render('page', [
                     'title' => $page['title'],
                     'seoTitle' => $page['seo_title'] ?: $page['title'],
@@ -52,6 +57,14 @@ final class HomeController
                     ],
                     'page' => $page,
                     'contentHtml' => \content_html($content, (string) ($page['content_format'] ?? 'markdown')),
+                    'commentBaseUrl' => \url_to('/'),
+                    'commentsEnabled' => $commentsEnabled,
+                    'commentsOpen' => $commentsEnabled && !empty($page['allow_comments']),
+                    'needReview' => (string) Settings::get('comments_need_review', 'true') !== 'false',
+                    'commentPage' => $commentPage,
+                    'commentRoots' => $comments['roots'],
+                    'commentTotal' => $comments['total'],
+                    'commentTotalPages' => $comments['totalPages'],
                 ]));
                 return $response;
             }

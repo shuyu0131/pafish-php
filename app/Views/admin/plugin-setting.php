@@ -6,7 +6,7 @@
  *
  * 这里是**普通表单**，不是主题设置页那种"选项面板"：
  * 标签在上、控件在下，分组降级成小节标题，没有左侧导航、没有吸顶条、没有搜索框，
- * 也没有「有设置已修改」那条未保存胶囊（emlog 的插件设置页同样没有）。
+ * 也没有「有设置已修改」那条未保存胶囊。
  * 插件配置一般十几项，套面板会让每一项都要先找分组——比直接顺排还慢。
  * 字段渲染、校验、show_if、repeater 仍与主题设置页共用同一份实现
  * （partials/ + admin-schema-form.js），外壳也共用 .admin-plain-form。
@@ -76,7 +76,7 @@ $canConfigure = $pluginActive && $manifest !== null && $error === null && $field
                  顺序在窄屏换行后也保持一致。
                  这里**不放**「有设置已修改」那条橙色胶囊：它属主题设置页的
                  面板形态（配置几十项、改一项不容易记住），插件设置页是十来项
-                 的朴素表单，emlog 的插件设置页也没有这一条。 */ ?>
+                 的朴素表单，不需要这一条。 */ ?>
         <div class="admin-sf-footer">
           <div class="admin-sf-actions">
             <?php if ($supportsNotificationTest): ?>
@@ -134,9 +134,8 @@ $canConfigure = $pluginActive && $manifest !== null && $error === null && $field
   var NAME = <?= json_encode($pluginName) ?>;
   var msg = document.getElementById("pluginSettingMsg");
 
-  /* 结果提示优先走全局顶部居中的提示条（与 emlog 后台自带的 cocoMessage 同位置，
-     长页面滚到底保存也能看到）；#pluginSettingMsg 是同一个位置上的页内兜底，
-     照 emlog 把插件设置页的提示块渲染在表单上方的做法，供没有 toast 时落位。 */
+  /* 结果提示优先走全局顶部居中的提示条（长页面滚到底保存也能看到）；
+     #pluginSettingMsg 是同一个位置上的页内兜底，渲染在表单上方，供没有 toast 时落位。 */
   function showMsg(text, isError) {
     if (typeof window.pafishToast === "function") {
       window.pafishToast(text, isError ? "error" : "success");

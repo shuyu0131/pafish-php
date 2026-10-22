@@ -7,13 +7,15 @@
  *           $needReview、$captchaEnabled（comments_captcha_enabled）、$user
  */
 $postId = (int) ($postId ?? 0);
+$targetType = (string) ($targetType ?? 'post');
+$targetId = (int) ($targetId ?? $postId);
 $commentPage = max(1, (int) ($commentPage ?? 1));
 $commentTotal = (int) ($commentTotal ?? 0);
 $commentTotalPages = max(1, (int) ($commentTotalPages ?? 1));
 $needReview = $needReview ?? true;
 $captchaEnabled = $captchaEnabled ?? true;
 $user = $user ?? null;
-$baseUrl = \url_to('/post/' . rawurlencode((string) ($post['slug'] ?? '')));
+$baseUrl = (string) ($commentBaseUrl ?? \url_to(($targetType === 'page' ? '/pages/' : '/post/') . rawurlencode((string) ($post['slug'] ?? ''))));
 $sep = str_contains($baseUrl, '?') ? '&' : '?';
 ?>
 <section id="comments" class="comment-section" data-comment-section data-need-review="<?= $needReview ? '1' : '0' ?>">
@@ -22,18 +24,22 @@ $sep = str_contains($baseUrl, '?') ? '&' : '?';
   <?php if ($commentsOpen ?? true): ?>
   <?= render_partial('comment-form', [
       'postId' => $postId,
+      'targetType' => $targetType,
+      'targetId' => $targetId,
       'parentId' => null,
       'user' => $user,
       'captchaEnabled' => $captchaEnabled,
       'needReview' => $needReview,
   ]) ?>
   <?php else: ?>
-    <p class="comment-empty">此文章已关闭评论</p>
+    <p class="comment-empty">此内容已关闭评论</p>
   <?php endif; ?>
 
   <?= render_partial('comment-thread', [
       'nodes' => $commentRoots ?? [],
       'postId' => $postId,
+      'targetType' => $targetType,
+      'targetId' => $targetId,
       'user' => $user,
       'captchaEnabled' => $captchaEnabled,
       'needReview' => $needReview,
@@ -148,6 +154,8 @@ $sep = str_contains($baseUrl, '?') ? '&' : '?';
     e.preventDefault();
 
     var postId = form.dataset.postId;
+    var targetType = form.dataset.targetType || 'post';
+    var targetId = form.dataset.targetId || postId;
     var parentId = form.dataset.parentId || null;
     var errorEl = form.querySelector('.comment-error');
     var messageEl = form.querySelector('.comment-message');
@@ -163,7 +171,10 @@ $sep = str_contains($baseUrl, '?') ? '&' : '?';
 
     var body = {
       postId: postId,
+      targetType: targetType,
+      targetId: targetId,
       parentId: parentId,
+      website: (form.querySelector('[name="website"]') || {}).value || '',
       content: form.querySelector('[name="content"]').value,
       notifyReply: !!(form.querySelector('[name="notifyReply"]') || {}).checked,
     };

@@ -15,8 +15,31 @@ final class Store
     private const NAME_PATTERN = '/^[a-z0-9_-]{1,50}$/';
     private const MAX_ZIP_BYTES = 10 * 1024 * 1024;
     private const KIND_FILE = ['theme' => 'themes.json', 'plugin' => 'plugins.json'];
-    private const CATALOG_CACHE_TTL = 300;
-    private const CATALOG_CACHE_VERSION = 4;
+
+    /** 目录在该秒数内视为新鲜：直接用缓存，不发网络请求。 */
+    private const CATALOG_FRESH_TTL = 60;
+
+    /**
+     * 缓存最大可用龄：超过后即使过期也不许再当兜底数据用。
+     * 没有上限的话，一份三个月前的目录会被当成「上次成功获取的目录」继续渲染
+     * 更新按钮，点下去必然下载失败。
+     */
+    private const CATALOG_STALE_MAX_AGE = 7 * 86400;
+
+    /**
+     * 失败退避阶梯（秒）：连续失败时逐级拉长。
+     * 目录拉取是 curl 20 秒超时 + 最多 3 次重定向，失败一次最坏阻塞几十秒；
+     * 不退避的话，商店宕机期间管理员每刷一次后台就重付一次代价。
+     */
+    private const CATALOG_FAIL_BACKOFF = [60, 300, 1800];
+
+    private const CATALOG_CACHE_VERSION = 5;
+
+    /** 账号状态缓存：官网侧要按令牌查库，比目录接口贵得多。 */
+    private const ACCOUNT_CACHE_TTL = 300;
+
+    /** 账号接口不可达后的重试间隔（比成功缓存短，避免故障恢复后长时间显示旧状态）。 */
+    private const ACCOUNT_FAIL_BACKOFF = 60;
 
     /** 返回商店地址。 */
     public static function baseUrl(): string
@@ -28,6 +51,9 @@ final class Store
         return self::OFFICIAL_STORE_URL;
     }
 
+    /** @var array{key: string, state: array}|null 请求内复用，避免一次安装动作重复查两次官网。 */
+    private static ?array $accountMemo = null;
+
     /** 查询当前绑定的官方商城账号及已购应用。 */
     public static function account(): ?array
     {
@@ -35,13 +61,43 @@ final class Store
         return $state['status'] === 'bound' ? $state['data'] : null;
     }
 
-    /** 查询账号绑定状态，区分未绑定、令牌失效和官方源不可达。 */
-    public static function accountStatus(): array
+    /**
+     * 查询账号绑定状态，区分未绑定、令牌失效和官方源不可达。
+     *
+     * 结果同时落在请求内备忘和 runtime 文件缓存：官网这个接口要按令牌查库、
+     * 必然带 Authorization 头，既不会被任何中间层缓存，也不该在每次打开商店页
+     * 以及随后的安装/更新里重复请求。
+     */
+    public static function accountStatus(bool $forceRefresh = false): array
     {
         $token = trim((string) Settings::get('store_account_token', ''));
         if ($token === '') {
+            self::$accountMemo = null;
             return ['status' => 'unbound', 'data' => null];
         }
+        $key = substr(hash('sha256', $token), 0, 16);
+        if (!$forceRefresh && self::$accountMemo !== null && self::$accountMemo['key'] === $key) {
+            return self::$accountMemo['state'];
+        }
+        $cached = self::readAccountCache($key);
+        if (!$forceRefresh && $cached !== null && (time() - $cached['at']) <= self::accountTtl($cached['state'])) {
+            self::$accountMemo = ['key' => $key, 'state' => $cached['state']];
+            return $cached['state'];
+        }
+        $state = self::fetchAccountState($token);
+        self::writeAccountCache($key, $state);
+        self::$accountMemo = ['key' => $key, 'state' => $state];
+        return $state;
+    }
+
+    /** 不可达状态只缓存短时间，故障恢复后不必等满 5 分钟才看到真实状态。 */
+    private static function accountTtl(array $state): int
+    {
+        return ($state['status'] ?? '') === 'unreachable' ? self::ACCOUNT_FAIL_BACKOFF : self::ACCOUNT_CACHE_TTL;
+    }
+
+    private static function fetchAccountState(string $token): array
+    {
         try {
             $result = OutboundHttp::request('GET', self::baseUrl() . '/api/store/account', '', ['Authorization: Bearer ' . $token, 'Accept: application/json'], 512000, 12);
         } catch (\Throwable) {
@@ -58,6 +114,34 @@ final class Store
         return ['status' => 'bound', 'data' => $data];
     }
 
+    /** @return array{at: int, state: array}|null */
+    private static function readAccountCache(string $key): ?array
+    {
+        $raw = @file_get_contents(PAFISH_ROOT . '/runtime/store_account_' . $key . '.json');
+        if ($raw === false) {
+            return null;
+        }
+        $data = json_decode($raw, true);
+        if (!is_array($data) || !isset($data['at']) || !is_array($data['state'] ?? null)
+            || !isset($data['state']['status'])) {
+            return null;
+        }
+        return ['at' => (int) $data['at'], 'state' => $data['state']];
+    }
+
+    private static function writeAccountCache(string $key, array $state): void
+    {
+        $dir = PAFISH_ROOT . '/runtime';
+        $path = $dir . '/store_account_' . $key . '.json';
+        // 换令牌后会留下旧文件：写入时顺手清掉其余的，避免 runtime 里堆积含账号信息的残留。
+        foreach ((array) glob($dir . '/store_account_*.json') as $stale) {
+            if (is_string($stale) && $stale !== $path) {
+                @unlink($stale);
+            }
+        }
+        self::atomicWrite($path, ['v' => 1, 'at' => time(), 'state' => $state]);
+    }
+
     /** 与核心、升级器使用同一套版本比较规则。 */
     public static function compareVersions(string $a, string $b): int
     {
@@ -65,36 +149,123 @@ final class Store
     }
 
     /**
-     * 拉取目录：缓存（5 分钟）优先 → 官方源（www.pafish.cn）→ 远程失败回退本地内置源 public/store。
-     * 返回 ['items' => 条目数组, 'base' => 源地址（远程=官网，本地兜底=''）, 'error'? => 回退原因]
+     * 读取商店目录。
+     *
+     * @param 'read'|'refresh' $intent
+     *        read    —— 列表页：优先用缓存，允许过期数据兜底，失败后按阶梯退避；
+     *        refresh —— 安装/更新/手动刷新：必须尽量取到最新，且不受退避限制。
      */
-    public static function fetchCatalog(string $kind): array
+    public static function catalog(string $kind, string $intent = 'read'): StoreCatalog
     {
+        if (!in_array($kind, array_keys(self::KIND_FILE), true)) {
+            return StoreCatalog::empty('不支持的应用类型');
+        }
+        $force = $intent === 'refresh';
         $base = self::baseUrl();
-        $label = '官方商店';
-        $cached = self::readCatalogCache($kind);
-        if ($cached !== null) {
-            return ['items' => $cached, 'base' => $base];
+        $cache = self::readCatalogCache($kind);
+        $items = is_array($cache['items'] ?? null) ? $cache['items'] : [];
+        $at = (int) ($cache['at'] ?? 0);
+        $fail = is_array($cache['fail'] ?? null) ? $cache['fail'] : null;
+        $age = $at > 0 ? max(0, time() - $at) : PHP_INT_MAX;
+        $usable = $items !== [] && $age <= self::CATALOG_STALE_MAX_AGE;
+
+        if (!$force && $items !== [] && $age <= self::CATALOG_FRESH_TTL) {
+            return StoreCatalog::cached($items, $base, $at);
         }
+
+        $wait = $force ? 0 : self::backoffRemaining($fail);
+        if ($wait > 0) {
+            return self::degrade($kind, $usable ? $items : [], $usable ? $at : null, $base, '此前的目录请求失败，正在退避', $wait);
+        }
+
+        $reason = '';
         try {
-            $items = self::parseRuntimeCatalog(
-                self::httpGet($base . '/api/runtime-store/v1/catalog?kind=' . rawurlencode($kind)),
-                $kind
-            );
-            self::writeCatalogCache($kind, $items);
-            return ['items' => $items, 'base' => $base];
+            $url = $base . '/api/runtime-store/v1/catalog?kind=' . rawurlencode($kind);
+            $etag = (string) ($cache['etag'] ?? '');
+            $response = OutboundHttp::fetch($url, self::MAX_ZIP_BYTES, $etag !== '' ? ['If-None-Match: ' . $etag] : []);
+            $status = (int) ($response['status'] ?? 0);
+            if ($status === 304 && $items !== [] && $etag !== '') {
+                // 目录未变更：沿用本地数据，只把获取时间推进，省掉整份目录的传输。
+                self::writeCatalogCache($kind, $items, time(), null, $etag);
+                return StoreCatalog::remote($items, $base, time());
+            }
+            if ($status < 200 || $status >= 300) {
+                throw new \RuntimeException('目标返回 HTTP ' . $status);
+            }
+            $fetched = self::parseRuntimeCatalog($response['body'], $kind);
+            self::writeCatalogCache($kind, $fetched, null, null, (string) ($response['headers']['etag'] ?? ''));
+            return StoreCatalog::remote($fetched, $base, time());
         } catch (\Throwable $e) {
-            $fallbackHint = $label . '目录获取失败：' . $e->getMessage();
+            $reason = $e->getMessage();
+            $fail = self::nextFailure($fail);
+            // 保留原有 items、它们真正的获取时间，以及仍然有效的 ETag：
+            // 写入 time() 会让过期数据伪装成新鲜数据，丢掉 ETag 会让下次白白重下整份目录。
+            self::writeCatalogCache($kind, $items, $at > 0 ? $at : null, $fail, (string) ($cache['etag'] ?? ''));
         }
-        // 回退：本地内置商店（public/store，zip 本地直读）
+
+        return self::degrade(
+            $kind,
+            $usable ? $items : [],
+            $usable ? $at : null,
+            $base,
+            '目录获取失败：' . $reason,
+            self::backoffRemaining($fail)
+        );
+    }
+
+    /**
+     * 远程拿不到时的降级结果：过期缓存优先，其次内置商店，最后空。
+     *
+     * 这个顺序是有意的——内置商店随包分发，通常只有一两条；
+     * 一份几天前的真实目录远比「看起来像空商店」有用。
+     */
+    private static function degrade(string $kind, array $items, ?int $at, string $base, string $reason, int $retryAfter): StoreCatalog
+    {
+        if ($items !== [] && $at !== null) {
+            return StoreCatalog::stale($items, $base, $at, $reason, $retryAfter);
+        }
+        $hint = $reason;
+        if ($retryAfter > 0) {
+            $hint .= '，约 ' . $retryAfter . ' 秒后重试';
+        }
+        $local = self::readLocalCatalog($kind);
+        if ($local !== []) {
+            return StoreCatalog::local($local, $hint);
+        }
+        return StoreCatalog::empty($hint);
+    }
+
+    /** 累加连续失败计数，供退避阶梯使用。 */
+    private static function nextFailure(?array $fail): array
+    {
         return [
-            'items' => self::readLocalCatalog($kind),
-            'base' => '',
-            'error' => $fallbackHint . '，已回退内置商店（public/store）',
+            'count' => (int) ($fail['count'] ?? 0) + 1,
+            'at' => time(),
         ];
     }
 
-    /** 清除本地目录缓存，供后台在官网审核发布后立即拉取最新上架结果。 */
+    /** 当前还需等待多少秒才能重试；0 表示可以立即请求。 */
+    private static function backoffRemaining(?array $fail): int
+    {
+        $count = (int) ($fail['count'] ?? 0);
+        $last = (int) ($fail['at'] ?? 0);
+        if ($count <= 0 || $last <= 0) {
+            return 0;
+        }
+        $index = min($count - 1, count(self::CATALOG_FAIL_BACKOFF) - 1);
+        return max(0, $last + self::CATALOG_FAIL_BACKOFF[$index] - time());
+    }
+
+    /**
+     * @deprecated 使用 catalog()，它同时给出数据来源与新鲜度。
+     * @return array{items: array, base: string, error?: string}
+     */
+    public static function fetchCatalog(string $kind, bool $forceRefresh = false): array
+    {
+        return self::catalog($kind, $forceRefresh ? 'refresh' : 'read')->toArray();
+    }
+
+    /** 清除本地目录缓存（含失败记录），供后台强制重新拉取。 */
     public static function clearCatalogCache(): void
     {
         foreach (array_keys(self::KIND_FILE) as $kind) {
@@ -113,14 +284,23 @@ final class Store
         return is_string($v) && $v !== '' ? $v : null;
     }
 
-    /** 返回本地扩展中可从商店升级的条目，键为扩展名。 */
-    public static function updatesForInstalled(string $kind, array $installedVersions): array
+    /**
+     * 返回本地扩展中可从商店升级的条目，键为扩展名。
+     *
+     * @param StoreCatalog|null $catalog 复用调用方已取到的目录，避免同一次请求重复拉取。
+     */
+    public static function updatesForInstalled(string $kind, array $installedVersions, ?StoreCatalog $catalog = null): array
     {
         if (!in_array($kind, array_keys(self::KIND_FILE), true)) {
             return [];
         }
+        $catalog ??= self::catalog($kind);
+        // 过期缓存只用于展示，不能据此给出更新入口；远程目录恢复后再重新计算。
+        if (!$catalog->isInstallable()) {
+            return [];
+        }
         $updates = [];
-        foreach (self::fetchCatalog($kind)['items'] as $item) {
+        foreach ($catalog->items as $item) {
             $name = (string) ($item['name'] ?? '');
             $localVersion = $installedVersions[$name] ?? null;
             $latestVersion = trim((string) ($item['version'] ?? ''));
@@ -222,7 +402,11 @@ final class Store
         }
     }
 
-    /** 读取目录缓存。 */
+    /**
+     * 读取目录缓存原始内容：不做新鲜度判断，由 catalog() 决定怎么用。
+     *
+     * @return array{items: array, at: int, fail: array|null}|null
+     */
     private static function readCatalogCache(string $kind): ?array
     {
         $path = PAFISH_ROOT . '/runtime/store_catalog_' . $kind . '.json';
@@ -231,10 +415,8 @@ final class Store
             return null;
         }
         $data = json_decode($raw, true);
-        if (!is_array($data) || (int)($data['v'] ?? 0) !== self::CATALOG_CACHE_VERSION || !isset($data['at']) || !is_array($data['items'] ?? null)) {
-            return null;
-        }
-        if (time() - (int) $data['at'] > self::CATALOG_CACHE_TTL) {
+        if (!is_array($data) || (int)($data['v'] ?? 0) !== self::CATALOG_CACHE_VERSION
+            || !isset($data['at']) || !is_array($data['items'] ?? null)) {
             return null;
         }
         // A catalog cached before text normalization may still contain legacy
@@ -248,13 +430,61 @@ final class Store
             $item['changelog'] = self::plainText($item['changelog'] ?? '');
         }
         unset($item);
-        return $data['items'];
+        return [
+            'items' => $data['items'],
+            'at' => (int) $data['at'],
+            'fail' => is_array($data['fail'] ?? null) ? $data['fail'] : null,
+            'etag' => is_string($data['etag'] ?? null) ? $data['etag'] : '',
+        ];
     }
 
-    private static function writeCatalogCache(string $kind, array $items): void
+    /**
+     * 写入目录缓存。
+     *
+     * @param int|null $at   数据真正的获取时间；失败路径必须传入旧值，不能用 time()
+     * @param array|null $fail 连续失败记录；成功时为 null（清空退避）
+     * @param string $etag   官方源返回的 ETag，用于下次条件请求
+     */
+    private static function writeCatalogCache(string $kind, array $items, ?int $at = null, ?array $fail = null, string $etag = ''): void
     {
-        $path = PAFISH_ROOT . '/runtime/store_catalog_' . $kind . '.json';
-        @file_put_contents($path, json_encode(['v' => self::CATALOG_CACHE_VERSION, 'at' => time(), 'items' => $items], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), LOCK_EX);
+        $payload = ['v' => self::CATALOG_CACHE_VERSION, 'at' => $at ?? time(), 'items' => $items];
+        if ($fail !== null) {
+            $payload['fail'] = $fail;
+        }
+        if ($etag !== '') {
+            $payload['etag'] = $etag;
+        }
+        self::atomicWrite(PAFISH_ROOT . '/runtime/store_catalog_' . $kind . '.json', $payload);
+    }
+
+    /**
+     * 原子写 JSON：先写同目录临时文件，再 rename 覆盖。
+     *
+     * 不能用 file_put_contents + LOCK_EX——那只锁写入方，读者仍可能读到写了一半的
+     * 文件，json_decode 失败后会被当成「缓存损坏」，结果又去打一次网络。
+     *
+     * Windows 上读者短暂持有文件句柄会让 rename 拿到 Access denied（实测并发下约两成），
+     * 所以这里重试几次；仍然失败就放弃这次写入。丢掉一次更新远好过写出一份半截缓存：
+     * 读不到的旧缓存是完整可用的，写坏的缓存只会触发额外的网络请求。
+     */
+    private static function atomicWrite(string $path, array $payload): void
+    {
+        $json = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if ($json === false) {
+            return;
+        }
+        $tmp = $path . '.' . bin2hex(random_bytes(4)) . '.tmp';
+        if (@file_put_contents($tmp, $json, LOCK_EX) === false) {
+            @unlink($tmp);
+            return;
+        }
+        for ($attempt = 0; $attempt < 5; $attempt++) {
+            if (@rename($tmp, $path)) {
+                return;
+            }
+            usleep(2000);
+        }
+        @unlink($tmp);
     }
 
     /**

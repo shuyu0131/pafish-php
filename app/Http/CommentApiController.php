@@ -8,6 +8,7 @@ use Pafish\Core\Auth;
 use Pafish\Core\DB;
 use Pafish\Core\Session;
 use Pafish\Services\Captcha;
+use Pafish\Services\CommentSpamProtection;
 use Pafish\Services\Notify;
 use Pafish\Services\Settings;
 use Pafish\Http\Responses;
@@ -47,6 +48,13 @@ final class CommentApiController
             return $this->json($response, ['error' => '评论功能已关闭'], 403);
         }
 
+        $body = $request->getParsedBody() ?? [];
+        if (!is_array($body)) $body = [];
+        if ((string) Settings::get('comments_honeypot_enabled', 'true') !== 'false'
+            && CommentSpamProtection::honeypotTriggered($body)) {
+            return $this->json($response, ['ok' => true]);
+        }
+
         // 反垃圾前置检查：无 UA 或疑似爬虫一律拒绝；同一 IP 限速
         $ua = (string) ($request->getHeaderLine('User-Agent') ?? '');
         if ($ua === '' || preg_match('/bot|crawler|spider|robot|slurp|crawling/i', $ua)) {
@@ -61,12 +69,9 @@ final class CommentApiController
             }
         } catch (\Throwable) {
         }
-        if (self::isCommentTooFast($ip)) {
-            return $this->json($response, ['error' => '评论太频繁，请稍后再试'], 429);
-        }
-
-        $body = $request->getParsedBody() ?? [];
-        $postId = (string) ($body['postId'] ?? '');
+        $targetType = (string) ($body['targetType'] ?? 'post');
+        if (!in_array($targetType, ['post', 'page'], true)) return $this->json($response, ['error' => '评论目标无效'], 400);
+        $targetIdRaw = (string) ($body['targetId'] ?? $body['postId'] ?? '');
 
         // 登录检测：已登录用户自动使用登录身份（服务端强制，忽略 body 伪造的昵称/邮箱）
         // 未登录游客必须通过图形验证码（后台可关闭）
@@ -100,28 +105,40 @@ final class CommentApiController
         // 勾选"有新回复邮件通知我"：有人回复这条评论时给评论者发邮件
         $notifyReply = ($body['notifyReply'] ?? false) === true;
 
-        if ($postId === '' || $name === '' || $content === '') {
+        if ($targetIdRaw === '' || !ctype_digit($targetIdRaw) || $name === '' || $content === '') {
             return $this->json($response, ['error' => '昵称和评论内容不能为空'], 400);
         }
         if (!preg_match('/^[^@\s]+@[^@\s]+\.[^@\s]+$/', $email)) {
             return $this->json($response, ['error' => '邮箱格式不正确'], 400);
         }
+        $isAdminUser = $sessionUser !== null && (string) ($sessionUser['role'] ?? '') === 'ADMIN';
+        if (!$isAdminUser && CommentSpamProtection::isEmailBlocked($email)) {
+            return $this->json($response, ['error' => '评论提交被拒绝'], 403);
+        }
 
         try {
-            $post = \Pafish\Services\Posts::findReadable((int) $postId, true);
+            $target = \Pafish\Services\Comments::target($targetType, (int) $targetIdRaw);
+            if (!\Pafish\Services\Comments::targetOpen($targetType, $target)) throw new \DomainException('此内容已关闭评论', 403);
         } catch (\DomainException $e) {
             return $this->json($response, ['error' => $e->getMessage()], $e->getCode());
+        }
+
+        // Rejected targets (for example, pages with comments disabled) must not
+        // consume the quota for a later valid submission from the same visitor.
+        if (self::isCommentTooFast($ip)) {
+            return $this->json($response, ['error' => '评论太频繁，请稍后再试'], 429);
         }
 
         // 回复校验：父评论必须存在、属于同一篇文章且已通过审核
         $parentId = null;
         $parentEmail = null;
+        $targetColumn = $targetType === 'post' ? 'post_id' : 'page_id';
         if ($parentIdRaw !== '') {
             $parent = DB::fetchOne(
-                'SELECT id, post_id, status, author_email, user_id FROM comments WHERE id = ?',
+                'SELECT id, post_id, page_id, status, author_email, user_id FROM comments WHERE id = ?',
                 [(int) ($parentIdRaw ?: 0)]
             );
-            if (!$parent || (int) $parent['post_id'] !== (int) $post['id']) {
+            if (!$parent || (int) ($parent[$targetColumn] ?? 0) !== (int) $targetIdRaw) {
                 return $this->json($response, ['error' => '回复的评论不存在'], 400);
             }
             if ($parent['status'] !== 'APPROVED') {
@@ -133,23 +150,29 @@ final class CommentApiController
 
         // 重复检测：同一文章 + 昵称 + 内容在 1 小时内只允许提交一次
         $dup = DB::fetchOne(
-            'SELECT id FROM comments
-             WHERE post_id = ? AND author_name = ? AND content = ? AND created_at >= ?',
-            [(int) $post['id'], $name, $content, date('Y-m-d H:i:s', time() - 3600)]
+            "SELECT id FROM comments
+             WHERE {$targetColumn} = ? AND author_name = ? AND content = ? AND created_at >= ?",
+            [(int) $targetIdRaw, $name, $content, date('Y-m-d H:i:s', time() - 3600)]
         );
         if ($dup) {
             return $this->json($response, ['error' => '请勿重复提交相同评论'], 429);
         }
 
         $needReview = (string) Settings::get('comments_need_review', 'true') !== 'false';
+        $matchedSpamKeyword = $userId === null && !$isAdminUser
+            ? CommentSpamProtection::matchingKeyword($content)
+            : null;
         $commentDecision = \apply_decision_filters('before_comment_submit', [
             'allowed' => true,
-            'status' => $needReview ? 'PENDING' : 'APPROVED',
+            'status' => $matchedSpamKeyword !== null ? 'SPAM' : ($needReview ? 'PENDING' : 'APPROVED'),
             'httpStatus' => 403,
             'error' => '评论提交被安全策略拒绝',
         ], [
-            'postId' => (string) $post['id'],
-            'postTitle' => (string) $post['title'],
+            'postId' => $targetType === 'post' ? (string) $target['id'] : null,
+            'pageId' => $targetType === 'page' ? (string) $target['id'] : null,
+            'targetType' => $targetType,
+            'targetId' => (string) $target['id'],
+            'postTitle' => (string) $target['title'],
             'author' => $name,
             'email' => $email,
             'content' => $content,
@@ -166,12 +189,15 @@ final class CommentApiController
         if ($sessionUser !== null && (string) ($sessionUser['role'] ?? '') === 'ADMIN') {
             $commentStatus = 'APPROVED';
         }
-        if (!in_array($commentStatus, ['PENDING', 'APPROVED', 'REJECTED'], true)) {
+        if ($matchedSpamKeyword !== null) {
+            $commentStatus = 'SPAM';
+        }
+        if (!in_array($commentStatus, ['PENDING', 'APPROVED', 'REJECTED', 'SPAM'], true)) {
             $commentStatus = $needReview ? 'PENDING' : 'APPROVED';
         }
         try {
             $commentId = \Pafish\Services\Comments::create([
-                'post_id'=>(int) $post['id'], 'author_name'=>$name, 'author_email'=>$email,
+                'target_type'=>$targetType, 'target_id'=>(int) $target['id'], 'author_name'=>$name, 'author_email'=>$email,
                 'user_id'=>$userId, 'content'=>$content, 'status'=>$commentStatus,
                 'parent_id'=>$parentId, 'notify_reply'=>$notifyReply, 'ip'=>$ip === 'unknown' ? null : $ip,
             ]);
@@ -188,13 +214,14 @@ final class CommentApiController
 
         // 仅发送可选邮件提醒。
         $isReply = $parentId !== null;
-        $isAdminComment = $sessionUser !== null && (string) ($sessionUser['role'] ?? '') === 'ADMIN';
-        if (!$isAdminComment) {
+        $isAdminComment = $isAdminUser;
+        if (!$isAdminComment && $commentStatus !== 'SPAM') {
             Notify::sendCommentEmail([
                 'commenter' => $name,
                 'isReply' => $isReply,
-                'postTitle' => $post['title'],
-                'postSlug' => $post['slug'],
+                'postTitle' => $target['title'],
+                'postSlug' => $target['slug'],
+                'targetType' => $targetType,
                 'commentId' => $commentId,
                 'content' => $content,
             ]);
@@ -205,8 +232,9 @@ final class CommentApiController
                     'toEmail' => $parentEmail,
                     'replier' => $name,
                     'replyContent' => $content,
-                    'postTitle' => $post['title'],
-                    'postSlug' => $post['slug'],
+                    'postTitle' => $target['title'],
+                    'postSlug' => $target['slug'],
+                    'targetType' => $targetType,
                     'commentId' => $parentId,
                 ]);
             }
@@ -215,7 +243,9 @@ final class CommentApiController
         // 钩子：评论提交成功
         \do_action('after_comment_submit', [
             'id' => (string) $commentId,
-            'postId' => (string) $post['id'],
+            'postId' => $targetType === 'post' ? (string) $target['id'] : null,
+            'pageId' => $targetType === 'page' ? (string) $target['id'] : null,
+            'targetType' => $targetType,
             'author' => $name,
             'email' => $email,
             'content' => $content,

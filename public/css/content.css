@@ -1,4 +1,5 @@
 /* 正文的共用排版：默认主题、编辑器预览与可视化编辑器使用同一套规则。 */
+.comment-honeypot { position: absolute !important; left: -10000px !important; width: 1px !important; height: 1px !important; overflow: hidden !important; }
 .pafish-content {
   color: var(--fg, #333);
   font: 16px/1.8 var(--font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif);
@@ -67,14 +68,28 @@
 .pafish-content .hljs-symbol, .pafish-content .hljs-meta { color: var(--danger, #b4543f); }
 .pafish-content .hljs-emphasis { font-style: italic; }
 .pafish-content .hljs-strong { font-weight: 600; }
-.pafish-content img, .pafish-content video { display: block; max-width: 100%; height: auto; margin: 1em 0; }
-.pafish-content audio { max-width: 100%; }
+.pafish-content img, .pafish-content video, .pafish-content audio { display: block; max-width: 100%; height: auto; margin: 1em 0; }
 .pafish-content mark { padding: .1em .25em; background: var(--accent-soft, #eef4fb); color: inherit; }
 .pafish-content hr { margin: 1.5em 0; border: 0; border-top: 1px solid var(--border, #ddd); }
 .pafish-content .md-table-wrap { max-width: 100%; margin: 1em 0; overflow-x: auto; }
 .pafish-content table { width: 100%; border-collapse: collapse; font-size: .9375em; }
 .pafish-content th, .pafish-content td { min-width: 80px; padding: .5em .75em; border: 1px solid var(--border, #ddd); text-align: left; }
 .pafish-content th { background: var(--bg-soft, #f6f6f6); font-weight: 600; }
+.micro-page { max-width: 760px; margin-inline: auto; padding: 32px 24px 64px; }
+.micro-page-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 14px; margin-bottom: 26px; padding-bottom: 18px; border-bottom: 1px solid var(--border, #ddd); }
+.micro-page-head p, .micro-page-head h1, .micro-page-head span { margin: 0; }
+.micro-page-head p, .micro-page-head span { color: var(--muted, #777); font-size: 13px; }
+.micro-page-head h1 { color: var(--title, var(--fg, #333)); font-size: 26px; font-weight: 500; }
+.micro-list { display: grid; gap: 0; }
+.micro-card { padding: 22px 0; border-bottom: 1px solid var(--border, #ddd); }
+.micro-card:first-child { padding-top: 0; }
+.micro-card-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; color: var(--muted, #777); font-size: 13px; }
+.micro-card-head strong { color: var(--fg, #333); font-weight: 500; }
+.micro-card-head time { margin-right: auto; }
+.micro-card-content { margin-top: 12px; line-height: 1.8; }
+.micro-card-content > :first-child { margin-top: 0; }
+.micro-page-empty { padding: 36px 0; color: var(--muted, #777); text-align: center; }
+@media (max-width: 600px) { .micro-page { padding: 24px 16px 48px; } }
 @media (max-width: 600px) {
   .pafish-content { font-size: 15px; }
   .pafish-content h1 { font-size: 1.6em; }

@@ -7,12 +7,14 @@
  */
 $nodes = $nodes ?? [];
 $postId = (int) ($postId ?? 0);
+$targetType = (string) ($targetType ?? 'post');
+$targetId = (int) ($targetId ?? $postId);
 $needReview = $needReview ?? true;
 $user = $user ?? null;
 $captchaEnabled = $captchaEnabled ?? true;
 $commentsOpen = $commentsOpen ?? true;
 
-$renderItem = function (array $node, int $depth) use (&$renderItem, $postId, $needReview, $user, $captchaEnabled, $commentsOpen): void {
+$renderItem = function (array $node, int $depth) use (&$renderItem, $postId, $targetType, $targetId, $needReview, $user, $captchaEnabled, $commentsOpen): void {
     $id = e((string) $node['id']);
     ?>
     <div id="comment-<?= $id ?>" class="comment-item">
@@ -40,6 +42,8 @@ $renderItem = function (array $node, int $depth) use (&$renderItem, $postId, $ne
         <div class="comment-reply-box" hidden>
           <?= render_partial('comment-form', [
               'postId' => $postId,
+              'targetType' => $targetType,
+              'targetId' => $targetId,
               'parentId' => $node['id'],
               'compact' => true,
               'user' => $user,

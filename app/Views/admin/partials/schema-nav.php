@@ -15,7 +15,7 @@
 $tabs = $built['tabs'];
 $panes = $built['panes'];
 $hasNav = $built['hasNav'];
-// 平铺模式（emlog 式单栏）：把分组导航降级成"内联的分组标题"。
+// 平铺模式（单栏顺排）：把分组导航降级成"内联的分组标题"。
 // 由调用方通过 $flat 传入；默认关闭，主题设置页仍是左侧两级导航。
 $flat = !empty($flat);
 $useNav = $hasNav && !$flat;
@@ -55,7 +55,7 @@ foreach ($tabs as $tab) {
       </button>
     <?php endif; ?>
     <?php foreach ($panes as $i => $pane): ?>
-      <?php /* 平铺模式：所有分组都显示，各自带一条小节标题（emlog 式）。
+      <?php /* 平铺模式：所有分组都显示，各自带一条小节标题。
              非平铺模式：只显示首个分组，其余靠导航切换。 */ ?>
       <section class="admin-sf-group<?= (!$flat && $i > 0) ? ' hidden' : '' ?>"
                data-sf-group="<?= e($pane['name']) ?>" aria-label="<?= e($pane['name']) ?>">

@@ -3,7 +3,7 @@
 if (($mode ?? 'list') === 'editor'):
   $m = is_array($micro ?? null) ? $micro : [];
   $id = (int) ($m['id'] ?? 0);
-  $status = (string) ($m['status'] ?? 'DRAFT');
+  $status = (string) ($m['status'] ?? 'PUBLISHED');
   $content = \Pafish\Services\MicroStatuses::contentWithMedia(
     (string) ($m['content'] ?? ''),
     is_array($m['media'] ?? null) ? $m['media'] : [],

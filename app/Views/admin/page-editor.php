@@ -64,6 +64,11 @@ $template = $isEdit ? (string) $page['template'] : 'default';
                    placeholder="自动根据标题生成" maxlength="100">
             <span class="admin-field-hint">访问路径 /pages/地址；留空自动生成</span>
           </div>
+          <input type="hidden" name="allow_comments" value="0">
+          <label class="admin-check">
+            <input type="checkbox" id="fAllowComments" name="allow_comments" value="1" <?= ($page['allow_comments'] ?? 1) ? 'checked' : '' ?>>
+            <span>允许评论</span>
+          </label>
           <?php $templateUnavailable = !array_key_exists($template, $templateOptions); ?>
           <?php if (count($templateOptions) > 1 || $templateUnavailable): ?>
             <div class="admin-field">

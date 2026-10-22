@@ -47,7 +47,7 @@ final class CommentsController extends AdminController
 
         $scope = $this->editorScope();
         $total = (int) DB::value(
-            'SELECT COUNT(*) FROM comments c JOIN posts scope_post ON scope_post.id = c.post_id WHERE 1=1' . $statusFilter . $postFilter . $scope['sql'],
+            'SELECT COUNT(*) FROM comments c LEFT JOIN posts scope_post ON scope_post.id = c.post_id WHERE 1=1' . $statusFilter . $postFilter . $scope['sql'],
             array_merge($statusParams, $postParams, $scope['params'])
         );
         $pages = max(1, (int) ceil($total / $perPage));
@@ -55,12 +55,16 @@ final class CommentsController extends AdminController
 
         // 每条评论带文章标题 + 父评论作者（楼中楼「回复 @xx」徽标）
         $items = DB::fetchAll(
-            'SELECT c.*, p.title AS post_title, p.slug AS post_slug, parent.author_name AS parent_name
+            "SELECT c.*, COALESCE(p.title, pg.title) AS post_title, COALESCE(p.slug, pg.slug) AS post_slug,
+                    CASE WHEN c.page_id IS NULL THEN 'post' ELSE 'page' END AS target_type,
+                    CASE WHEN c.page_id IS NULL THEN CONCAT('/post/',p.slug) ELSE CONCAT('/pages/',pg.slug) END AS target_path,
+                    parent.author_name AS parent_name
              FROM comments c
              LEFT JOIN posts p ON p.id = c.post_id
+             LEFT JOIN pages pg ON pg.id = c.page_id
              LEFT JOIN comments parent ON parent.id = c.parent_id
-             JOIN posts scope_post ON scope_post.id = c.post_id
-             WHERE 1=1' . $statusFilter . $postFilter . $scope['sql'] . '
+             LEFT JOIN posts scope_post ON scope_post.id = c.post_id
+             WHERE 1=1" . $statusFilter . $postFilter . $scope['sql'] . '
              ORDER BY c.created_at DESC
              LIMIT ' . $perPage . ' OFFSET ' . (($page - 1) * $perPage),
             array_merge($statusParams, $postParams, $scope['params'])
@@ -173,7 +177,7 @@ final class CommentsController extends AdminController
         $ip = trim((string) ($request->getParsedBody()['ip'] ?? ''));
         if ($ip === '') return $this->json($response, ['error'=>'参数错误'], 400);
         $scope = $this->editorScope();
-        $ids = DB::fetchAll('SELECT comments.id FROM comments JOIN posts scope_post ON scope_post.id=comments.post_id WHERE comments.ip=?' . $scope['sql'], array_merge([$ip], $scope['params']));
+        $ids = DB::fetchAll('SELECT c.id FROM comments c LEFT JOIN posts scope_post ON scope_post.id=c.post_id WHERE c.ip=?' . $scope['sql'], array_merge([$ip], $scope['params']));
         try {
             $events = $ids === [] ? [] : \Pafish\Services\Comments::delete(array_column($ids, 'id'));
             \Pafish\Services\Comments::emit($events);
@@ -187,8 +191,8 @@ final class CommentsController extends AdminController
         // IP 黑名单影响全站，不应由仅管理自己内容的编辑设置。
         $this->guardAdmin();
         $ip = trim((string) ($request->getParsedBody()['ip'] ?? ''));
-        if ($ip === '') {
-            return $this->json($response, ['error' => '参数错误'], 400);
+        if (filter_var($ip, FILTER_VALIDATE_IP) === false) {
+            return $this->json($response, ['error' => 'IP 地址无效'], 400);
         }
         $list = json_decode((string) Settings::get('blocked_ips', '[]'), true);
         if (!is_array($list)) {
@@ -201,6 +205,24 @@ final class CommentsController extends AdminController
         return $this->json($response, ['ok' => true]);
     }
 
+    /** POST /admin/comments/block-email：将评论邮箱加入全站黑名单。 */
+    public function blockEmail(Request $request, Response $response): Response
+    {
+        $this->guardAdmin();
+        $email = strtolower(trim((string) ($request->getParsedBody()['email'] ?? '')));
+        if (filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
+            return $this->json($response, ['error' => '邮箱地址无效'], 400);
+        }
+        $list = json_decode((string) Settings::get('blocked_emails', '[]'), true);
+        if (!is_array($list)) $list = [];
+        $list = array_values(array_filter($list, 'is_string'));
+        if (!in_array($email, $list, true)) {
+            $list[] = $email;
+            Settings::set('blocked_emails', json_encode($list, JSON_UNESCAPED_UNICODE));
+        }
+        return $this->json($response, ['ok' => true]);
+    }
+
     /** 各状态计数（Tab 徽标） */
     private function statusCounts(int $postId = 0): array
     {
@@ -208,7 +230,7 @@ final class CommentsController extends AdminController
         $scope = $this->editorScope();
         $postFilter = $postId > 0 ? ' AND c.post_id = ?' : '';
         $postParams = $postId > 0 ? [$postId] : [];
-        $rows = DB::fetchAll('SELECT c.status, COUNT(*) AS n FROM comments c JOIN posts scope_post ON scope_post.id = c.post_id WHERE 1=1' . $postFilter . $scope['sql'] . ' GROUP BY c.status', array_merge($postParams, $scope['params']));
+        $rows = DB::fetchAll('SELECT c.status, COUNT(*) AS n FROM comments c LEFT JOIN posts scope_post ON scope_post.id = c.post_id WHERE 1=1' . $postFilter . $scope['sql'] . ' GROUP BY c.status', array_merge($postParams, $scope['params']));
         foreach (self::STATUSES as $s) {
             $out[$s] = 0;
         }
@@ -220,11 +242,11 @@ final class CommentsController extends AdminController
         return $out;
     }
 
-    /** 编辑只能管理自己文章下的评论；管理员管理全站。 */
+    /** 编辑只能管理自己文章下的评论；管理员也能管理页面评论。 */
     private function editorScope(): array
     {
         if (Auth::isAdmin()) return ['sql' => '', 'params' => []];
-        return ['sql' => ' AND scope_post.author_id = ?', 'params' => [(int) Auth::id()]];
+        return ['sql' => ' AND c.page_id IS NULL AND scope_post.author_id = ?', 'params' => [(int) Auth::id()]];
     }
 
 }

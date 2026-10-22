@@ -23,12 +23,13 @@ final class StoreController extends AdminController
     {
         $this->guardAdmin();
         $cats = [];
-        $error = '';
+        $notices = [];
         $accountState = Store::accountStatus();
         $account = $accountState['data'];
         foreach (self::KINDS as $kind) {
-            $cat = Store::fetchCatalog($kind);
-            foreach ($cat['items'] as &$item) {
+            $catalog = Store::catalog($kind, 'read');
+            $items = $catalog->items;
+            foreach ($items as &$item) {
                 $local = Store::getInstalledVersion($kind, $item['name']);
                 $item['installed'] = $local !== null;
                 $item['localVersion'] = $local ?? '';
@@ -44,15 +45,19 @@ final class StoreController extends AdminController
                 }
             }
             unset($item);
-            if (isset($cat['error']) && $cat['error'] !== '') {
-                $error = (string) $cat['error'];
+            if ($catalog->notice !== '' && !in_array($catalog->notice, $notices, true)) {
+                $notices[] = $catalog->notice;
             }
-            $cats[$kind] = $cat;
+            $cats[$kind] = [
+                'items' => $items,
+                'base' => $catalog->base,
+                'installable' => $catalog->isInstallable(),
+            ];
         }
         $response->getBody()->write($this->render('store', [
             'themeCat' => $cats['theme'],
             'pluginCat' => $cats['plugin'],
-            'catError' => $error,
+            'catalogNotice' => implode('；', $notices),
             'storeUrl' => Store::baseUrl(),
             'storeAccount' => $account,
             'storeAccountStatus' => $accountState['status'],
@@ -60,12 +65,20 @@ final class StoreController extends AdminController
         return $response;
     }
 
-    /** POST /admin/store/refresh：清除目录缓存，由页面重新请求官方运行时目录。 */
+    /** POST /admin/store/refresh：清除目录缓存并立即重新拉取，把失败原因交回页面。 */
     public function refresh(Request $request, Response $response): Response
     {
         $this->guardAdmin();
         Store::clearCatalogCache();
-        return $this->json($response, ['ok' => true]);
+        $notices = [];
+        foreach (self::KINDS as $kind) {
+            $catalog = Store::catalog($kind, 'refresh');
+            if ($catalog->notice !== '' && !in_array($catalog->notice, $notices, true)) {
+                $notices[] = $catalog->notice;
+            }
+        }
+        // ok 仍为 true：缓存已被清空是既成事实，error 只表示这次抓取没成功。
+        return $this->json($response, ['ok' => true, 'error' => implode('；', $notices)]);
     }
 
     /** POST /admin/store/install：从商店安装 */
@@ -79,13 +92,16 @@ final class StoreController extends AdminController
             return $this->json($response, ['error' => '无效的类型'], 400);
         }
         try {
-            $cat = Store::fetchCatalog($kind);
-            $item = self::findItem($cat['items'], $name);
+            $catalog = Store::catalog($kind, 'refresh');
+            if (!$catalog->isInstallable()) {
+                throw new \RuntimeException('商店目录暂不可用，请稍后重试或检查服务器能否访问官方商店');
+            }
+            $item = $catalog->find($name);
             if ($item === null) {
                 throw new \RuntimeException('商店中不存在该条目');
             }
             self::assertPurchaseAccess($kind, $item);
-            $result = Store::installFromStore($kind, $name, (string) $cat['base'], $item);
+            $result = Store::installFromStore($kind, $name, $catalog->base, $item);
             return $this->json($response, [
                 'ok' => true,
                 'name' => $result['name'],
@@ -108,13 +124,16 @@ final class StoreController extends AdminController
             return $this->json($response, ['error' => '无效的类型'], 400);
         }
         try {
-            $cat = Store::fetchCatalog($kind);
-            $item = self::findItem($cat['items'], $name);
+            $catalog = Store::catalog($kind, 'refresh');
+            if (!$catalog->isInstallable()) {
+                throw new \RuntimeException('商店目录暂不可用，请稍后重试或检查服务器能否访问官方商店');
+            }
+            $item = $catalog->find($name);
             if ($item === null) {
                 throw new \RuntimeException('商店中不存在该条目');
             }
             self::assertPurchaseAccess($kind, $item);
-            $result = Store::updateFromStore($kind, $name, (string) $cat['base'], $item);
+            $result = Store::updateFromStore($kind, $name, $catalog->base, $item);
             return $this->json($response, [
                 'ok' => true,
                 'name' => $result['name'],
@@ -124,17 +143,6 @@ final class StoreController extends AdminController
         } catch (\Throwable $e) {
             return $this->json($response, ['error' => $e->getMessage()], 400);
         }
-    }
-
-    /** 在目录条目中按名称查找 */
-    private static function findItem(array $items, string $name): ?array
-    {
-        foreach ($items as $item) {
-            if (($item['name'] ?? '') === $name) {
-                return $item;
-            }
-        }
-        return null;
     }
 
     /** 付费包只允许已绑定且已购买的官网账号安装或更新，避免绕过界面直接请求下载。 */

@@ -14,6 +14,8 @@
     link: '<path d="M10 13a5 5 0 0 0 7.1 0l2-2A5 5 0 0 0 12 3.9l-1.1 1.1M14 11a5 5 0 0 0-7.1 0l-2 2A5 5 0 0 0 12 20.1l1.1-1.1"/>',
     hr: '<path d="M5 12h14"/>',
     media: '<rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>',
+    audio: '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
+    video: '<rect width="18" height="14" x="3" y="5" rx="2"/><path d="m10 9 5 3-5 3z"/>',
     undo: '<path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/>',
     redo: '<path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7"/>',
     edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
@@ -152,6 +154,63 @@
       if (token && token.type === 'link') editElement(token);
       else editElement({type: 'link', format: htmlSource ? 'html' : 'markdown', start: source.selectionStart,
         end: source.selectionEnd, label: source.value.slice(source.selectionStart, source.selectionEnd), url: '', title: '', fresh: true});
+    }
+    function mediaUrl(value) {
+      var url = String(value || '').trim();
+      if (!url || url.length > 2048 || /[\\\u0000-\u0020\u007f]/.test(url) || /^\/\//.test(url)) return null;
+      if (/^https?:\/\//i.test(url)) return url;
+      return url.charAt(0) === '/' ? url : null;
+    }
+    function mediaHtml(type, url) {
+      var player = document.createElement(type);
+      player.controls = true;
+      player.preload = 'metadata';
+      if (type === 'video') player.playsInline = true;
+      var sourceNode = document.createElement('source');
+      sourceNode.src = url;
+      player.appendChild(sourceNode);
+      return player.outerHTML;
+    }
+    function insertMediaEmbed(type) {
+      if (mode === 'preview') return;
+      var originalValue = source.value;
+      var rangeStart = source.selectionStart;
+      var rangeEnd = source.selectionEnd;
+      var dialog = document.createElement('dialog');
+      dialog.className = 'admin-editor-element-dialog';
+      dialog.setAttribute('aria-label', type === 'audio' ? '插入音乐' : '插入视频');
+      var form = document.createElement('form');
+      form.method = 'dialog';
+      var heading = document.createElement('div'); heading.className = 'admin-editor-element-heading';
+      var title = document.createElement('h3'); title.textContent = type === 'audio' ? '插入音乐' : '插入视频';
+      var close = document.createElement('button'); close.type = 'button'; close.className = 'admin-markdown-tool'; close.setAttribute('aria-label', '关闭'); close.innerHTML = icon('close');
+      heading.append(title, close); form.appendChild(heading);
+      var fieldLabel = document.createElement('label'); fieldLabel.className = 'admin-editor-element-field';
+      var caption = document.createElement('span'); caption.textContent = '媒体地址';
+      var input = document.createElement('input'); input.className = 'input'; input.type = 'url'; input.required = true; input.autocomplete = 'off'; input.spellcheck = false;
+      input.placeholder = 'https://example.com/' + (type === 'audio' ? 'music.mp3' : 'video.mp4') + ' 或 /uploads/…';
+      fieldLabel.append(caption, input); form.appendChild(fieldLabel);
+      var hint = document.createElement('p'); hint.className = 'admin-field-hint'; hint.textContent = type === 'audio' ? '支持 MP3、OGG、WAV 等浏览器可播放的音频地址。' : '支持 MP4、WebM 等浏览器可播放的视频地址。'; form.appendChild(hint);
+      var error = document.createElement('p'); error.className = 'admin-editor-element-error'; error.setAttribute('role', 'alert'); error.hidden = true; form.appendChild(error);
+      var actions = document.createElement('div'); actions.className = 'admin-editor-element-actions';
+      var cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'btn btn-ghost'; cancel.textContent = '取消';
+      var save = document.createElement('button'); save.type = 'submit'; save.className = 'btn btn-primary'; save.textContent = '插入';
+      actions.append(cancel, save); form.appendChild(actions); dialog.appendChild(form); root.appendChild(dialog); elementDialog = dialog;
+      function dismiss(restore) { closeElementDialog(restore); }
+      close.addEventListener('click', function () { dismiss(true); });
+      cancel.addEventListener('click', function () { dismiss(true); });
+      dialog.addEventListener('cancel', function (event) { event.preventDefault(); dismiss(true); });
+      form.addEventListener('submit', function (event) {
+        event.preventDefault(); event.stopPropagation();
+        var url = mediaUrl(input.value);
+        if (!url) { error.textContent = '请输入 HTTP/HTTPS 地址或以 / 开头的站内媒体路径'; error.hidden = false; input.focus(); return; }
+        if (source.value !== originalValue) { error.textContent = '正文已变化，请重新选择插入位置'; error.hidden = false; return; }
+        var value = mediaHtml(type, url);
+        source.setSelectionRange(rangeStart, rangeEnd);
+        insert(value);
+        dismiss(true);
+      });
+      dialog.showModal(); input.focus();
     }
 
     // A token always carries a source range. Never replace by URL: duplicate images are common.
@@ -677,6 +736,8 @@
       picker.addEventListener("change", function () { upload(picker.files && picker.files[0]); });
       picker.click();
     }, null, "admin-markdown-media");
+    addGroupButton(".admin-markdown-insert-group", "audio", "插入音乐", function () { insertMediaEmbed('audio'); }, null, "admin-markdown-audio");
+    addGroupButton(".admin-markdown-insert-group", "video", "插入视频", function () { insertMediaEmbed('video'); }, null, "admin-markdown-video");
     [
       ["edit", "编辑"], ["split", "分栏预览"], ["preview", "预览"]
     ].forEach(function (entry) {

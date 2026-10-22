@@ -72,6 +72,15 @@ final class Upgrade
         $current = Version::current();
         $cached = self::readCache();
         if ($cached === null || !is_array($cached['meta'] ?? null)) {
+            // 当前缓存无效或已过期，尝试 fallback 到旧的成功缓存（24 小时内）
+            $stale = self::readCache(true);
+            if ($stale !== null && is_array($stale['meta'] ?? null)) {
+                // 有旧缓存可用，标记为陈旧
+                $result = self::resultFromMeta($stale['meta'], $current, '');
+                $result['stale'] = true;
+                $result['staleAge'] = time() - (int) ($stale['at'] ?? time());
+                return $result;
+            }
             return ['hasUpdate' => false, 'current' => $current, 'error' => ''];
         }
         return self::resultFromMeta($cached['meta'], $current, (string) ($cached['error'] ?? ''));
@@ -121,8 +130,9 @@ final class Upgrade
             }
             // 1. 下载
             self::writeState($root, 'downloading', ['target' => (string)$info['latest']]);
-            $buffer = self::httpGet($zipUrl);
-            if (@file_put_contents($tmpZip, $buffer) === false) {
+            $result = self::httpGet($zipUrl);
+            $buffer = (string) ($result['content'] ?? '');
+            if ($buffer === '' || @file_put_contents($tmpZip, $buffer) === false) {
                 throw new \RuntimeException('无法写入更新包临时文件');
             }
             // 2. 校验（元数据声明 sha256 时先验哈希，防下载篡改/损坏）
@@ -144,8 +154,8 @@ final class Upgrade
             }
             $backupReady = true;
             // 4. 直接覆盖核心文件，不预先清空站点目录。
-            // 这和 Emlog 的升级方式一致：不会触碰 .well-known、上传目录、主题插件
-            // 或站点自行创建的目录，因此证书挑战文件不会阻塞正常升级。
+            // 这样不会触碰 .well-known、上传目录、主题插件或站点自行创建的目录，
+            // 因此证书挑战文件不会阻塞正常升级。
             // 旧文件如确实需要移除，应由发行包内 upgrade.php 显式处理。
             self::writeState($root, 'replacing_files', ['database_backup' => $dbBackup]);
             try {
@@ -197,10 +207,24 @@ final class Upgrade
             flock($lock, LOCK_UN);
             fclose($lock);
         }
-        // 7. 成功：删除备份、清静态缓存
-        self::rmDir($bak);
+        // 7. 成功：重命名备份（保留 7 天）、清静态缓存
+        $keepName = 'before-v' . $info['latest'] . '-' . date('Ymd-His');
+        $keepPath = $root . '/backups/' . $keepName;
+        if (!rename($bak, $keepPath)) {
+            // 重命名失败不阻断升级成功，记录但继续
+            error_log('pafish-upgrade: 无法重命名备份 ' . $bak . ' 到 ' . $keepPath);
+        }
+        // 清理 7 天前的旧备份
+        foreach ((array) glob($root . '/backups/before-v*') as $old) {
+            if (is_dir($old) && filemtime($old) < time() - 7 * 86400) {
+                self::rmDir($old);
+            }
+        }
         self::resetCache();
         @unlink($root . '/runtime/' . self::STATE_FILE);
+        if (function_exists('opcache_reset')) {
+            @opcache_reset();
+        }
         // 当前 PHP 请求仍加载着升级前的 Version 常量；返回安装包目标版本，
         // 让更新接口和前端成功提示反映实际已安装的版本。
         return ['ok' => true, 'current' => (string) $info['latest'], 'latest' => (string) $info['latest']];
@@ -253,7 +277,8 @@ final class Upgrade
     /** 从 Gitee Release 组装更新元数据。 */
     private static function loadGiteeMeta(string $repo): array
     {
-        $raw = json_decode(self::httpGet('https://gitee.com/api/v5/repos/' . $repo . '/releases/latest'), true);
+        $result = self::httpGet('https://gitee.com/api/v5/repos/' . $repo . '/releases/latest');
+        $raw = json_decode((string) ($result['content'] ?? ''), true);
         if (!is_array($raw)) {
             throw new \RuntimeException('Gitee Release 响应格式不正确');
         }
@@ -262,31 +287,58 @@ final class Upgrade
             throw new \RuntimeException('Gitee Release 版本号不正确');
         }
         $version = $m[1];
+        $zip = '';
+        $digest = '';
+        $digestUrl = '';
+
         foreach ((array) ($raw['assets'] ?? []) as $asset) {
-            if (!is_array($asset) || (string) ($asset['name'] ?? '') !== 'pafish-php-v' . $version . '.zip') {
+            if (!is_array($asset)) {
                 continue;
             }
-            $zip = trim((string) ($asset['browser_download_url'] ?? $asset['download_url'] ?? ''));
-            $safePath = '#^https://gitee\\.com/' . preg_quote($repo, '#')
-                . '/releases/download/v' . preg_quote($version, '#')
-                . '/pafish-php-v' . preg_quote($version, '#') . '\\.zip(?:\\?.*)?$#i';
-            if (preg_match($safePath, $zip) !== 1) {
-                throw new \RuntimeException('Gitee Release 安装包地址不安全');
+            $name = (string) ($asset['name'] ?? '');
+            if ($name === 'pafish-php-v' . $version . '.zip') {
+                $zip = trim((string) ($asset['browser_download_url'] ?? $asset['download_url'] ?? ''));
+                $safePath = '#^https://gitee\\.com/' . preg_quote($repo, '#')
+                    . '/releases/download/v' . preg_quote($version, '#')
+                    . '/pafish-php-v' . preg_quote($version, '#') . '\\.zip(?:\\?.*)?$#i';
+                if (preg_match($safePath, $zip) !== 1) {
+                    throw new \RuntimeException('Gitee Release 安装包地址不安全');
+                }
+                $digest = strtolower(trim((string) ($asset['sha256'] ?? $asset['digest'] ?? '')));
+                if (str_starts_with($digest, 'sha256:')) {
+                    $digest = substr($digest, 7);
+                }
+            } elseif ($name === 'pafish-php-v' . $version . '.zip.sha256') {
+                $digestUrl = trim((string) ($asset['browser_download_url'] ?? ''));
             }
-            $digest = strtolower(trim((string) ($asset['sha256'] ?? $asset['digest'] ?? '')));
-            if (str_starts_with($digest, 'sha256:')) {
-                $digest = substr($digest, 7);
-            }
-            return [
-                'version' => $version,
-                'notes' => (string) ($raw['body'] ?? $raw['description'] ?? ''),
-                'zip' => $zip,
-                'min_version' => '',
-                'sha256' => preg_match('/^[0-9a-f]{64}$/', $digest) === 1 ? $digest : '',
-                'source' => 'gitee',
-            ];
         }
-        throw new \RuntimeException('Gitee Release 缺少匹配的 pafish-php 安装包');
+
+        if ($zip === '') {
+            throw new \RuntimeException('Gitee Release 缺少匹配的 pafish-php 安装包');
+        }
+
+        // 如果 zip 资产本身没有 sha256 字段（Gitee API 不提供），尝试获取 .sha256 文件
+        if ($digest === '' && $digestUrl !== '') {
+            try {
+                $result = self::httpGet($digestUrl);
+                if ((int) ($result['status'] ?? 0) === 200) {
+                    // 标准 sha256sum 格式: "abc123...  pafish-php-v1.2.3.zip\n"
+                    $parts = preg_split('/\s+/', trim((string) ($result['content'] ?? '')), 2);
+                    $digest = strtolower(trim((string) ($parts[0] ?? '')));
+                }
+            } catch (\Throwable $e) {
+                // .sha256 文件获取失败不阻断升级（向后兼容），仅记录
+            }
+        }
+
+        return [
+            'version' => $version,
+            'notes' => (string) ($raw['body'] ?? $raw['description'] ?? ''),
+            'zip' => $zip,
+            'min_version' => '',
+            'sha256' => preg_match('/^[0-9a-f]{64}$/', $digest) === 1 ? $digest : '',
+            'source' => 'gitee',
+        ];
     }
 
     private static function giteeRepo(): string
@@ -324,10 +376,11 @@ final class Upgrade
         ] + $extra, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), LOCK_EX);
     }
 
-    /** 下载 zip 地址（元数据 zip 是相对路径，相对元数据目录解析） */
-    private static function httpGet(string $url): string
+    /** 下载 zip 地址（Gitee Release 包和 .sha256 文件） */
+    private static function httpGet(string $url): array
     {
-        return OutboundHttp::get($url, self::MAX_ZIP_BYTES, ['Accept: application/json, application/zip']);
+        $content = OutboundHttp::get($url, self::MAX_ZIP_BYTES, ['Accept: application/json, application/zip, text/plain']);
+        return ['status' => 200, 'content' => $content];
     }
 
     /** 元数据声明 sha256 时校验下载完整性（旧元数据无该字段则跳过） */
@@ -759,7 +812,7 @@ final class Upgrade
     }
 
     /** 成功结果缓存 1h；失败结果短暂缓存，避免刷新工作台时反复请求。 */
-    private static function readCache(): ?array
+    private static function readCache(bool $stale = false): ?array
     {
         $path = PAFISH_ROOT . '/runtime/' . self::CACHE_FILE;
         $raw = @file_get_contents($path);
@@ -772,6 +825,13 @@ final class Upgrade
             return null;
         }
         $ttl = is_array($data['meta'] ?? null) ? self::CACHE_TTL : self::FAILURE_CACHE_TTL;
+        if ($stale) {
+            // stale 模式：只回退成功结果，最多接受 24 小时陈旧数据
+            if (!is_array($data['meta'] ?? null)) {
+                return null;
+            }
+            $ttl = 86400;
+        }
         $age = time() - (int) $data['at'];
         if ($age < 0 || $age >= $ttl) {
             return null;

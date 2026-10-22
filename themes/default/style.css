@@ -1504,12 +1504,6 @@ input[type="radio"]:focus-visible {
   letter-spacing: 1px;
   color: var(--title);
 }
-.page-updated {
-  margin-top: 0.75rem;
-  font-size: 0.75rem;
-  color: var(--muted);
-}
-
 /* ============ 认证页（登录/注册/找回密码，独立居中卡片） ============ */
 .auth-body {
   background: var(--bg);
@@ -1658,6 +1652,7 @@ input[type="radio"]:focus-visible {
 }
 
 /* ---- 表单 ---- */
+.comment-honeypot { position: absolute !important; left: -10000px !important; width: 1px !important; height: 1px !important; overflow: hidden !important; }
 .comment-form {
   margin-top: 1.5rem;
   display: flex;

@@ -43,13 +43,14 @@ final class Notify
             return;
         }
         try {
-            $postUrl = \absolute_url('/post/' . rawurlencode((string) $ctx['postSlug']));
+            $prefix = ($ctx['targetType'] ?? 'post') === 'page' ? '/pages/' : '/post/';
+            $postUrl = \absolute_url($prefix . rawurlencode((string) $ctx['postSlug']));
             $adminUrl = \absolute_url('/admin/comments?status=PENDING');
             Mail::send(
                 $to,
                 '收到新' . ($ctx['isReply'] ? '回复' : '评论') . '：《' . $ctx['postTitle'] . '》',
                 implode("\n", [
-                    $ctx['commenter'] . ' 在文章《' . $ctx['postTitle'] . '》下发表了' . ($ctx['isReply'] ? '回复' : '评论') . '：',
+                    $ctx['commenter'] . ' 在内容《' . $ctx['postTitle'] . '》下发表了' . ($ctx['isReply'] ? '回复' : '评论') . '：',
                     '',
                     (string) $ctx['content'],
                     '',
@@ -72,7 +73,7 @@ final class Notify
     {
         try {
             $threadUrl = \absolute_url(
-                '/post/' . rawurlencode((string) $input['postSlug']) . '#comment-' . $input['commentId']
+                (($input['targetType'] ?? 'post') === 'page' ? '/pages/' : '/post/') . rawurlencode((string) $input['postSlug']) . '#comment-' . $input['commentId']
             );
             Mail::send(
                 $input['toEmail'],

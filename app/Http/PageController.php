@@ -28,6 +28,11 @@ final class PageController
         $seoTitle = $page['seo_title'] ?: $page['title'];
 
         $pageId = (string) ($page['id'] ?? '');
+        $commentPage = max(1, (int) ($request->getQueryParams()['cpage'] ?? 1));
+        $commentsEnabled = (string) \Pafish\Services\Settings::get('comments_enabled', 'true') !== 'false';
+        $comments = $commentsEnabled
+            ? \Pafish\Http\Comments::section((int) $page['id'], $commentPage, 'page')
+            : ['roots' => [], 'total' => 0, 'totalPages' => 1];
         $content = \apply_content_filters((string) ($page['content'] ?? ''), [
             'type' => 'page',
             'id' => $pageId,
@@ -43,6 +48,13 @@ final class PageController
             'og' => Listings::og($request, $seoTitle, $desc, []),
             'page' => $page,
             'contentHtml' => \content_html($content, (string) ($page['content_format'] ?? 'markdown')),
+            'commentsEnabled' => $commentsEnabled,
+            'commentsOpen' => $commentsEnabled && !empty($page['allow_comments']),
+            'needReview' => (string) \Pafish\Services\Settings::get('comments_need_review', 'true') !== 'false',
+            'commentPage' => $commentPage,
+            'commentRoots' => $comments['roots'],
+            'commentTotal' => $comments['total'],
+            'commentTotalPages' => $comments['totalPages'],
         ]));
         return $response;
     }

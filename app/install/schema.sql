@@ -142,6 +142,7 @@ CREATE TABLE IF NOT EXISTS pages (
   content_format VARCHAR(16)    NOT NULL DEFAULT 'markdown' COMMENT 'markdown/html，HTML 写入需净化',
   status       VARCHAR(20)     NOT NULL DEFAULT 'DRAFT' COMMENT '所属业务状态',
   template     VARCHAR(50)     NOT NULL DEFAULT 'default' COMMENT '页面模板标识',
+  allow_comments TINYINT(1)    NOT NULL DEFAULT 1 COMMENT '是否接受新评论；仍受全站开关控制',
   published_at DATETIME        NULL COMMENT '发布时间；公开查询允许为空、未来时间不公开',
   deleted_at   DATETIME        NULL COMMENT '软删除时间；为空表示未删除',
   created_at   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -157,7 +158,7 @@ CREATE TABLE IF NOT EXISTS micro_statuses (
   content      MEDIUMTEXT      NOT NULL COMMENT '正文或组件内容',
   content_format VARCHAR(16)   NOT NULL DEFAULT 'markdown' COMMENT 'markdown/html，HTML 写入需净化',
   media_json   TEXT            NULL COMMENT '微语媒体列表 JSON',
-  status       VARCHAR(20)     NOT NULL DEFAULT 'DRAFT' COMMENT '所属业务状态',
+  status       VARCHAR(20)     NOT NULL DEFAULT 'PUBLISHED' COMMENT '所属业务状态',
   published_at DATETIME        NULL COMMENT '发布时间；公开查询允许为空、未来时间不公开',
   is_pinned    TINYINT(1)      NOT NULL DEFAULT 0 COMMENT '是否置顶',
   is_private   TINYINT(1)      NOT NULL DEFAULT 0 COMMENT '是否仅自己可见',
@@ -215,7 +216,8 @@ CREATE TABLE IF NOT EXISTS widgets (
 -- 评论（楼中楼自关联）
 CREATE TABLE IF NOT EXISTS comments (
   id           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '记录主键',
-  post_id      BIGINT UNSIGNED NOT NULL COMMENT '文章 ID',
+  post_id      BIGINT UNSIGNED NULL COMMENT '文章 ID；文章或页面评论目标之一',
+  page_id      BIGINT UNSIGNED NULL COMMENT '自定义页面 ID；文章或页面评论目标之一',
   author_name  VARCHAR(100)    NOT NULL COMMENT '访客填写的评论昵称',
   author_email VARCHAR(255)    NOT NULL COMMENT '访客填写的邮箱，不公开返回',
   content      TEXT            NOT NULL COMMENT '正文或组件内容',
@@ -228,8 +230,10 @@ CREATE TABLE IF NOT EXISTS comments (
   created_at   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   PRIMARY KEY (id),
   KEY idx_comments_post_status (post_id, status, parent_id, created_at, id),
+  KEY idx_comments_page_status (page_id, status, parent_id, created_at, id),
   KEY idx_comments_status_created (status, created_at),
   CONSTRAINT fk_comments_post   FOREIGN KEY (post_id)   REFERENCES posts (id)     ON DELETE CASCADE,
+  CONSTRAINT fk_comments_page   FOREIGN KEY (page_id)   REFERENCES pages (id)     ON DELETE CASCADE,
   CONSTRAINT fk_comments_parent FOREIGN KEY (parent_id) REFERENCES comments (id)  ON DELETE CASCADE,
   CONSTRAINT fk_comments_user   FOREIGN KEY (user_id)   REFERENCES users (id)     ON DELETE SET NULL
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT='文章评论、回复与审核';

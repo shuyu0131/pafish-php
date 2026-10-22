@@ -20,19 +20,21 @@ final class Comments
     private const MAX_DEPTH = 5; // 楼中楼最多 5 层，防深链滥用
 
     /** 构建评论区完整数据：roots（树）+ total + totalPages */
-    public static function section(int $postId, int $page): array
+    public static function section(int $targetId, int $page, string $type = 'post'): array
     {
+        if (!in_array($type, ['post', 'page'], true)) throw new \InvalidArgumentException('评论目标无效');
         $page = max(1, $page);
+        $targetColumn = $type === 'post' ? 'post_id' : 'page_id';
 
-        $base = "c.post_id = ? AND c.status = 'APPROVED'";
+        $base = "c.{$targetColumn} = ? AND c.status = 'APPROVED'";
         $total = (int) DB::value(
             "SELECT COUNT(*) FROM comments c WHERE {$base}",
-            [$postId]
+            [$targetId]
         );
-        $root = "(c.parent_id IS NULL OR NOT EXISTS (SELECT 1 FROM comments parent WHERE parent.id=c.parent_id AND parent.post_id=c.post_id AND parent.status='APPROVED'))";
+        $root = "(c.parent_id IS NULL OR NOT EXISTS (SELECT 1 FROM comments parent WHERE parent.id=c.parent_id AND parent.{$targetColumn}=c.{$targetColumn} AND parent.status='APPROVED'))";
         $topCount = (int) DB::value(
             "SELECT COUNT(*) FROM comments c WHERE {$base} AND {$root}",
-            [$postId]
+            [$targetId]
         );
 
         // 顶层评论分页（置顶优先，其余按时间正序）
@@ -43,7 +45,7 @@ final class Comments
              WHERE {$base} AND {$root}
              ORDER BY c.is_pinned DESC, c.created_at ASC,c.id ASC
              LIMIT " . self::PAGE_SIZE . " OFFSET " . (($page - 1) * self::PAGE_SIZE),
-            [$postId]
+            [$targetId]
         );
 
         // Load every descendant of the paginated roots, in bounded query batches.
@@ -54,7 +56,7 @@ final class Comments
             $next = [];
             foreach (array_chunk($batch, 200) as $ids) {
                 $ph = implode(',', array_fill(0, count($ids), '?'));
-                $kids = DB::fetchAll("SELECT {$columns} FROM comments c LEFT JOIN users u ON u.id=c.user_id WHERE {$base} AND c.parent_id IN ({$ph}) ORDER BY c.created_at,c.id", array_merge([$postId], $ids));
+                $kids = DB::fetchAll("SELECT {$columns} FROM comments c LEFT JOIN users u ON u.id=c.user_id WHERE {$base} AND c.parent_id IN ({$ph}) ORDER BY c.created_at,c.id", array_merge([$targetId], $ids));
                 foreach ($kids as $child) {
                     if (isset($seen[$child['id']])) continue;
                     $seen[$child['id']] = true;
@@ -66,7 +68,7 @@ final class Comments
         }
 
         // 待审评论不进入公开统计或分页，只向评论者本人和管理员回显。
-        $pending = self::visiblePending($postId, $columns);
+        $pending = self::visiblePending($targetId, $targetColumn, $columns);
         if ($pending !== []) {
             $all = array_merge($all, $pending);
         }
@@ -149,15 +151,15 @@ final class Comments
     }
 
     /** 仅管理员、登录评论者本人或当前访客会话可见的待审评论。 */
-    private static function visiblePending(int $postId, string $columns): array
+    private static function visiblePending(int $targetId, string $targetColumn, string $columns): array
     {
         if (Auth::isAdmin()) {
             return DB::fetchAll(
                 "SELECT {$columns} FROM comments c
                  LEFT JOIN users u ON u.id = c.user_id
-                 WHERE c.post_id = ? AND c.status = 'PENDING'
+                 WHERE c.{$targetColumn} = ? AND c.status = 'PENDING'
                  ORDER BY c.created_at ASC",
-                [$postId]
+                [$targetId]
             );
         }
 
@@ -166,9 +168,9 @@ final class Comments
             return DB::fetchAll(
                 "SELECT {$columns} FROM comments c
                  LEFT JOIN users u ON u.id = c.user_id
-                 WHERE c.post_id = ? AND c.status = 'PENDING' AND c.user_id = ?
+                 WHERE c.{$targetColumn} = ? AND c.status = 'PENDING' AND c.user_id = ?
                  ORDER BY c.created_at ASC",
-                [$postId, $viewerId]
+                [$targetId, $viewerId]
             );
         }
 
@@ -183,9 +185,9 @@ final class Comments
         return DB::fetchAll(
             "SELECT {$columns} FROM comments c
              LEFT JOIN users u ON u.id = c.user_id
-             WHERE c.post_id = ? AND c.status = 'PENDING' AND c.id IN ({$placeholders})
+             WHERE c.{$targetColumn} = ? AND c.status = 'PENDING' AND c.id IN ({$placeholders})
              ORDER BY c.created_at ASC",
-            array_merge([$postId], $ids)
+            array_merge([$targetId], $ids)
         );
     }
 }

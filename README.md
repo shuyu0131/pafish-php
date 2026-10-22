@@ -6,27 +6,16 @@ pafish 使用 PHP 与 MySQL，提供浏览器安装向导、完整的内容后�
 
 [官网](https://www.pafish.cn) · [使用文档](https://www.pafish.cn/docs) · [应用商店](https://www.pafish.cn/store) · [Gitee](https://gitee.com/shuyugit/pafish-php) · [GitHub](https://github.com/shuyu0131/pafish-php)
 
-## 1.2.3 更新
-
-- 修复部分 MySQL 环境下的评论预览查询兼容问题，并完善数据库预处理失败时的错误处理。
-- 本地媒体地址根据站点文档根目录生成，兼容项目根目录、`public/` 目录和子目录部署。
-- 后台自动检查新版本的缓存时长缩短为一小时。
-
-## 1.2.2 更新
-
-- 文章按篇保存自动取正文首图选项，手动封面与自动封面分别处理，修正取消勾选和自动保存后的封面显示。
-- 插件与主题列表支持显示更新按钮，并可直接完成更新。
-- 调整插件设置页布局、分组控件和菜单高亮，完善默认主题移动端导航与侧栏显示。
-- 完善主题扩展接口，主题可自行提供用户中心与内容展示逻辑。
-
-发行包包含默认主题和 Sitemap 插件，其他主题与插件通过应用商店或独立安装包提供。
+发行包包含默认主题、Sitemap 插件与内置 AI Foundation 插件，其他主题与插件通过应用商店或独立安装包提供。各版本更新内容请查看仓库发行版说明。
 
 ## 快速开始
 
-1. 从[官网下载页](https://www.pafish.cn/download)获取最新发行包。
+1. 从[官网下载页](https://www.pafish.cn/download)获取最新发行包，或在本仓库的 **发行版 / Releases** 里下载 `pafish-php-vX.Y.Z.zip`。
 2. 将压缩包上传到网站目录并解压，把 `pafish/` 目录内的文件放到站点根目录。
 3. 访问 `https://你的域名/install.php`，按向导填写数据库和管理员信息。
 4. 安装完成后删除 `install.php`，登录后台开始创建内容。
+
+> 仓库页上的「克隆/下载 → 下载 ZIP」得到的是源码快照，`vendor/`（Composer 依赖）不在版本控制里，装完首页会 500。请勿用源码 ZIP 部署，认准发行版里的同名 zip 并用附带的 `.sha256` 校验。
 
 发行包已包含运行所需的 PHP 依赖，生产部署无需执行 Composer。
 安装器将数据库配置写入 `runtime/config.php`，基础安装只需为 PHP 运行账户开放 `runtime/`、`public/uploads/` 与 `backups/` 的写入权限；使用大文件分片上传还需要 `storage/`。若要从后台安装或更新主题/插件，还需开放对应的 `themes/`、`plugins/` 目录；在线升级需要程序文件可写，建议仅在执行升级时按需授权。
@@ -115,6 +104,7 @@ php /www/wwwroot/你的站点/cron.php
 
 - 中文搜索无结果：建议使用 MySQL 5.7.6+；不支持全文索引时系统会回退到普通查询。
 - 应用安装失败：确认上传限制满足要求，并检查站点目录的写入权限。
+- 装完首页 500，日志提示 `Failed opening required .../vendor/autoload.php`：用的是源码包（仓库里 `vendor/` 不纳入版本控制），不是发行包。请改用官网下载页的发行包，或在站点根目录执行 `composer install --no-dev` 后重新访问。
 - 计划文章未发布：确认已配置 `cron.php` 计划任务。
 - 找不到更新：确认服务器可以访问 Gitee。
 

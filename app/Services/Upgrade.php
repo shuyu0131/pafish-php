@@ -158,29 +158,21 @@ final class Upgrade
             // 因此证书挑战文件不会阻塞正常升级。
             // 旧文件如确实需要移除，应由发行包内 upgrade.php 显式处理。
             self::writeState($root, 'replacing_files', ['database_backup' => $dbBackup]);
-            try {
-                // 5. 解压覆盖（剥掉 pafish/ 顶层）
-                self::extractPackage($tmpZip, $root);
-                // 6. 执行包内迁移脚本 upgrade.php（执行后删除）
-                $dbMigrationStarted = is_file($root . '/upgrade.php');
-                self::runUpgradeScript($root);
-                self::writeState($root, 'completed');
-            } catch (\Throwable $e) {
-                try {
-                    self::rollback($root, $bak);
-                } catch (\Throwable $re) {
-                    throw new \RuntimeException('更新失败：' . $e->getMessage()
-                        . '；自动回滚也失败：' . $re->getMessage()
-                        . '（备份保留在 ' . $bak . '，请手动恢复）');
-                }
-                throw new \RuntimeException('更新失败：' . $e->getMessage() . '（已恢复旧版本）');
-            }
+            // 5. 解压覆盖（剥掉 pafish/ 顶层）
+            self::extractPackage($tmpZip, $root);
+            // 6. 执行包内迁移脚本 upgrade.php（执行后删除）
+            $dbMigrationStarted = is_file($root . '/upgrade.php');
+            self::runUpgradeScript($root);
+            self::writeState($root, 'completed');
         } catch (\Throwable $e) {
             // 校验/下载/备份阶段失败：备份目录可能不存在或未完成
+            $restored = false;
             if ($backupReady && is_dir($bak) && self::isEmptyDir($bak) === false) {
                 try {
                     self::rollback($root, $bak);
+                    $restored = true;
                 } catch (\Throwable $re) {
+                    self::writeState($root, 'failed', ['message' => $e->getMessage() . '；文件恢复失败：' . $re->getMessage(), 'file_backup' => $bak, 'database_backup' => $dbBackup]);
                     throw new \RuntimeException($e->getMessage()
                         . '；自动回滚也失败：' . $re->getMessage()
                         . '（备份保留在 ' . $bak . '，请手动恢复）');
@@ -197,8 +189,8 @@ final class Upgrade
                     throw new \RuntimeException($e->getMessage() . '；数据库自动恢复失败：' . $dbError->getMessage() . '；数据库备份：backups/' . $dbBackup);
                 }
             }
-            self::writeState($root, 'failed', ['message' => $e->getMessage(), 'database_backup' => $dbBackup]);
-            throw new \RuntimeException($e->getMessage() . ($dbBackup ? '；数据库安全备份：backups/' . $dbBackup : ''));
+            self::writeState($root, 'failed', ['message' => $e->getMessage(), 'file_backup' => $backupReady ? $bak : null, 'database_backup' => $dbBackup]);
+            throw new \RuntimeException($e->getMessage() . ($restored ? '（已恢复旧版本文件）' : '') . ($dbBackup ? '；数据库安全备份：backups/' . $dbBackup : ''));
         } finally {
             @unlink($tmpZip);
             if (is_dir($bak) && self::isEmptyDir($bak)) {
@@ -501,14 +493,11 @@ final class Upgrade
         }
     }
 
-    /** 回滚：清空当前非保留项 → 从备份整体复制回根 → 删备份（失败抛异常，备份保留） */
+    /** 覆盖恢复旧文件；不清空站点、不删除备份，失败或重复调用仍可继续恢复。 */
     private static function rollback(string $root, string $bak): void
     {
         if (!self::hasCoreFiles($bak)) {
             throw new \RuntimeException('备份不完整，无法安全恢复');
-        }
-        if (!self::clearRoot($root, false)) {
-            throw new \RuntimeException('无法清理当前文件' . self::deleteFailureSuffix());
         }
         if (!self::copyDirFiltered($bak, $root, [])) {
             throw new \RuntimeException('无法从备份恢复文件');
@@ -516,7 +505,6 @@ final class Upgrade
         if (!self::hasCoreFiles($root)) {
             throw new \RuntimeException('恢复后缺少核心文件');
         }
-        self::rmDir($bak);
     }
 
     /** 清空核心文件；正常升级保留已安装主题/插件，回滚时清理后从备份恢复。 */
@@ -645,19 +633,36 @@ final class Upgrade
         return true;
     }
 
-    /** 覆盖文件；先直接复制，失败时再清除只读位并重试。 */
+    /** 先完整写入同目录临时文件，再原子替换，复制失败不截断原文件。 */
     private static function copyFile(string $from, string $to): bool
     {
-        if (!is_file($from) || is_dir($to)) {
+        if (!is_file($from) || is_link($from) || is_dir($to) || is_link($to)) {
             return false;
         }
-        if (@copy($from, $to)) {
-            return true;
+        $tmp = @tempnam(dirname($to), '.pafish-copy-');
+        if ($tmp === false) {
+            return false;
         }
-        if (is_file($to)) {
-            @chmod($to, 0666);
+        try {
+            if (realpath(dirname($tmp)) !== realpath(dirname($to))) {
+                return false;
+            }
+            if (!@copy($from, $tmp)) {
+                return false;
+            }
+            $mode = @fileperms($to);
+            @chmod($tmp, is_int($mode) ? ($mode & 0777) : 0644);
+            if (@rename($tmp, $to)) {
+                return true;
+            }
+            if (PHP_OS_FAMILY === 'Windows' && is_file($to)) {
+                @chmod($to, 0666);
+                return @rename($tmp, $to);
+            }
+            return false;
+        } finally {
+            @unlink($tmp);
         }
-        return @copy($from, $to);
     }
 
     /** 目录是否为空 */

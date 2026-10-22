@@ -169,6 +169,11 @@ final class Upgrade
         } catch (\Throwable $e) {
             // 先保存最初失败原因；即使恢复过程或错误页加载失败，仍可定位触发点。
             \Pafish\Core\Logger::exception('system upgrade failure', $e);
+            self::writeState($root, 'failed', [
+                'message' => $e->getMessage(),
+                'database_backup' => $dbBackup,
+                'file_backup' => $backupReady ? $bak : null,
+            ]);
             // 校验/下载/备份阶段失败：备份目录可能不存在或未完成
             $restored = false;
             if ($backupReady && is_dir($bak) && self::isEmptyDir($bak) === false) {
@@ -472,8 +477,13 @@ final class Upgrade
                     if (is_link($path)) throw new \RuntimeException('更新目标包含符号链接：' . $relative . '，尚未替换任何程序文件');
                     if (!file_exists($path)) break;
                     $last = $index === count($segments) - 1;
-                    if (($last && !is_file($path)) || (!$last && !is_dir($path)) || !is_writable($path)) {
+                    if (($last && !is_file($path)) || (!$last && !is_dir($path))) {
                         throw new \RuntimeException('更新目标不可写或类型冲突：' . $relative . '，尚未替换任何程序文件');
+                    }
+                    // Atomic replacement renames a completed temporary file into the
+                    // destination directory; the existing file's mode is irrelevant.
+                    if (($last ? !is_writable(dirname($path)) : !is_writable($path))) {
+                        throw new \RuntimeException('更新目标目录不可写：' . $relative . '，尚未替换任何程序文件');
                     }
                 }
             }

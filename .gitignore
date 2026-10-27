@@ -61,6 +61,7 @@ Thumbs.db
 # 本地开发资产：不随源码仓库发布
 /deploy_*.sh
 /test_*.php
+/developer/theme-exercise/
 /public/*visual-check*.html
 # 旧版本主题静态镜像，不再生成
 /public/theme-assets/

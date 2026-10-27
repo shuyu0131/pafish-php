@@ -42,14 +42,16 @@ $needCaptcha = !$loggedIn && $captchaEnabled;
 
   <textarea class="input comment-textarea" name="content" placeholder="写下你的想法…" maxlength="2000" required></textarea>
 
-  <?= \Pafish\Services\Plugin::renderInjection('comment_form', [
+  <?php $commentInjectContext = [
       'postId' => $postId,
       'targetType' => $targetType,
       'targetId' => $targetId,
       'parentId' => $parentId !== '' ? $parentId : null,
       'compact' => $compact,
       'loggedIn' => $loggedIn,
-  ]) ?>
+  ]; ?>
+  <?= \Pafish\Services\Theme::renderInjection('comment_form', $commentInjectContext) ?>
+  <?= \Pafish\Services\Plugin::renderInjection('comment_form', $commentInjectContext) ?>
 
   <?php if ($needCaptcha): ?>
     <div class="comment-captcha">

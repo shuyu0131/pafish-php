@@ -8,6 +8,7 @@ use Pafish\Core\DB;
 use Pafish\Services\Plugin;
 use Pafish\Services\Posts;
 use Pafish\Services\ContentRepository;
+use Pafish\Services\Theme;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -36,9 +37,10 @@ final class SitemapController
         $tags = DB::fetchAll('SELECT slug FROM tags');
         $pages = array_map(static fn (array $page): array => ['slug' => $page['slug'], 'updated_at' => $page['updated_at']], ContentRepository::publishedPages());
 
-        $urls = [
-            ['/archives', null, 'daily', 0.8],
-        ];
+        $urls = [];
+        if (Theme::hasArchivePage()) {
+            $urls[] = ['/archives', null, 'daily', 0.8];
+        }
         foreach ($posts as $p) {
             $urls[] = [
                 '/post/' . rawurlencode((string) $p['slug']),

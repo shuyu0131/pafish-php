@@ -33,15 +33,21 @@ pafish 使用 PHP 与 MySQL，提供浏览器安装向导、完整的内容后�
 
 ## 应用商店
 
-主题负责呈现，插件负责功能。管理员可以在后台的“应用商店”中查看、安装、更新或回滚官方应用，不需要为应用单独寻找下载地址。
+主题可以把模板、设置、路由和与主题体验紧密相关的功能做成一个自包含产品；插件适合需要跨主题复用、独立启停或独立升级的功能。核心提供所有主题和插件共用的系统能力与基础实体。管理员可以在后台的“应用商店”中查看、安装、更新或回滚官方应用，不需要为应用单独寻找下载地址。
 
 应用包使用清单文件描述名称、版本、兼容环境和设置项。安装前会校验包结构与 PHP 版本，更新前会创建备份，失败时自动恢复原版本。
 
 ## 主题开发
 
-主题采用 PHP 模板优先的方式。把 `header.php`、`footer.php`、`index.php`、`post.php` 等需要覆盖的模板放入 `themes/<主题名>/` 即可；未提供的模板继续使用系统默认模板，但可选展示项只在主题清单明确声明后开启。主题可以额外提供 `user.php`，通过 `/user/{route}` 自定义用户中心；没有该模板时该入口返回 404。系统默认账户中心统一使用 `/admin`，核心不提供固定的前台个人中心。`theme.json`、设置 schema、页面模板、组件区域和扩展路由按主题需要声明。主题封面使用根目录的 `preview.jpg`；需要钩子、注入或业务路由时再提供 `extension.php`。
+主题采用 PHP 模板优先的方式。把 `header.php`、`footer.php`、`index.php`、`post.php` 等需要覆盖的模板放入 `themes/<主题名>/` 即可；未提供的模板继续使用系统默认模板，但可选展示项只在主题清单明确声明后开启。主题可以额外提供 `user.php`，通过 `/user/{route}` 自定义用户中心；没有该模板时该入口返回 404。系统默认账户中心统一使用 `/admin`，核心不提供固定的前台个人中心。`theme.json`、设置 schema、页面模板、组件区域和扩展路由按主题需要声明。主题封面使用根目录的 `preview.jpg`；需要钩子、注入、业务路由或主题自有业务流程时再提供 `extension.php`。与主题体验紧密耦合的功能可以随主题交付；需要跨主题复用、独立启停或不随主题切换的能力，再考虑拆成插件。
 
-插件使用 `extension.php` 入口；主题只有在需要动态业务时才提供该入口。入口返回注册闭包，闭包接收 `ExtensionContext`，可调用 `$ctx->on()`、`$ctx->filter()`、`$ctx->route()`、`$ctx->settings()`、`$ctx->inject()` 和 `$ctx->lifecycle()`，并通过 `$ctx->getData()`、`$ctx->setData()`、`$ctx->getSettings()`、`$ctx->setSettings()` 管理自己的数据。路由、设置、前台注入和生命周期会自动接入现有管线。主题目录中的 `index.php`、`theme.php`、`helpers.php` 等文件仅作为模板或由 `extension.php` 显式组织的业务实现，不再作为独立扩展入口自动加载。主题负责展示和主题选项，会员、支付、订单等业务应放在插件中。
+从零创建一个不依赖系统主体页面模板的主题，可复制 [`developer/theme-starter/pafish-starter`](developer/theme-starter/pafish-starter/) 到 `themes/<主题名>/`，并把 `theme.json` 中的 `name` 改成目录名。它覆盖首页、文章、页面、分类、标签、搜索、归档、微语和用户中心，关闭隐式主体模板回退，并提供独立的响应式样式、局部组件和登录页样式。已有主题继续使用原来的兼容回退规则。开发时从项目根目录运行 `php developer/check-theme.php themes/<主题名> --strict-partials`，可检查 manifest、设置字段、主体模板、PHP 语法、静态资源以及局部模板是否仍回退到系统目录。
+
+模板变量的字段形状、可空性与密码文章/用户中心的条件行为见 [`developer/theme-data-contract.json`](developer/theme-data-contract.json)；按场景查找模板、辅助函数、钩子、注入点和主题/插件边界见[主题 API 速查](developer/theme-api-reference.md)。主题检查器也会校验此共享契约，并可用 `--trace` 追踪默认模板解析和资源引用。
+
+插件使用 `extension.php` 入口；主题也可以在需要钩子、注入、路由、生命周期或主题自有业务流程时提供该入口。入口返回注册闭包，闭包接收 `ExtensionContext`，可调用 `$ctx->on()`、`$ctx->filter()`、`$ctx->route()`、`$ctx->settings()`、`$ctx->inject()` 和 `$ctx->lifecycle()`，并通过 `$ctx->getData()`、`$ctx->setData()`、`$ctx->getSettings()`、`$ctx->setSettings()` 管理自己的数据。路由、设置、前台注入和生命周期会自动接入现有管线。主题目录中的 `index.php`、`theme.php`、`helpers.php` 等文件仅作为模板或由 `extension.php` 显式组织的业务实现，不再作为独立扩展入口自动加载。功能归属按产品需要选择：主题可完整承载与自身体验紧密相关的流程；需要跨主题复用、独立启停/升级，或不应随主题切换而变化的功能更适合做成插件。
+
+插件和主题的普通业务记录可通过 `$ctx->putRecord()`、`$ctx->getRecord()`、`$ctx->listRecords()`、`$ctx->deleteRecord()` 使用核心共用存储，数据按扩展身份隔离，单条 JSON 对象最多 256 KiB，并支持游标分页和版本冲突检测。需要字段过滤/排序索引、复杂关联或数据库强约束时，再声明扩展自有表。数据归属跟随功能归属：主题紧密关联的设置和记录可以归主题；跨主题共用的能力可以归插件；所有功能共用的基础实体由核心管理。设计边界与后续演进路线见[统一扩展数据模型](EXTENSION_DATA_MODEL.md)。
 
 ## 环境要求
 

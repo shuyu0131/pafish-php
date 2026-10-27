@@ -1,0 +1,248 @@
+<?php
+/**
+ * 评论区容器（系统默认模板；主题可覆盖 themes/{active}/comment-section.php）
+ * 评论区：
+ * 顶部表单 → 楼中楼树 → 顶层评论分页（?cpage=N#comments）
+ * 可用数据：$postId、$commentPage、$commentRoots、$commentTotal、$commentTotalPages、
+ *           $needReview、$captchaEnabled（comments_captcha_enabled）、$user
+ */
+$postId = (int) ($postId ?? 0);
+$targetType = (string) ($targetType ?? 'post');
+$targetId = (int) ($targetId ?? $postId);
+$commentPage = max(1, (int) ($commentPage ?? 1));
+$commentTotal = (int) ($commentTotal ?? 0);
+$commentTotalPages = max(1, (int) ($commentTotalPages ?? 1));
+$needReview = $needReview ?? true;
+$captchaEnabled = $captchaEnabled ?? true;
+$user = $user ?? null;
+$baseUrl = (string) ($commentBaseUrl ?? \url_to(($targetType === 'page' ? '/pages/' : '/post/') . rawurlencode((string) ($post['slug'] ?? ''))));
+$sep = str_contains($baseUrl, '?') ? '&' : '?';
+?>
+<section id="comments" class="comment-section" data-comment-section data-need-review="<?= $needReview ? '1' : '0' ?>">
+  <h2 class="comment-heading">评论 <span class="comment-total">(<?= $commentTotal ?>)</span></h2>
+
+  <?php if ($commentsOpen ?? true): ?>
+  <?= render_partial('comment-form', [
+      'postId' => $postId,
+      'targetType' => $targetType,
+      'targetId' => $targetId,
+      'parentId' => null,
+      'user' => $user,
+      'captchaEnabled' => $captchaEnabled,
+      'needReview' => $needReview,
+  ]) ?>
+  <?php else: ?>
+    <p class="comment-empty">此内容已关闭评论</p>
+  <?php endif; ?>
+
+  <?= render_partial('comment-thread', [
+      'nodes' => $commentRoots ?? [],
+      'postId' => $postId,
+      'targetType' => $targetType,
+      'targetId' => $targetId,
+      'user' => $user,
+      'captchaEnabled' => $captchaEnabled,
+      'needReview' => $needReview,
+      'commentsOpen' => $commentsOpen ?? true,
+  ]) ?>
+
+  <?php if ($commentTotalPages > 1): ?>
+    <nav class="comment-pager" aria-label="评论分页">
+      <?php if ($commentPage > 1): ?>
+        <a class="btn btn-sm" href="<?= e($baseUrl . $sep . 'cpage=' . ($commentPage - 1) . '#comments') ?>">上一页</a>
+      <?php endif; ?>
+      <span class="comment-pager-now"><?= $commentPage ?> / <?= $commentTotalPages ?></span>
+      <?php if ($commentPage < $commentTotalPages): ?>
+        <a class="btn btn-sm" href="<?= e($baseUrl . $sep . 'cpage=' . ($commentPage + 1) . '#comments') ?>">下一页</a>
+      <?php endif; ?>
+    </nav>
+  <?php endif; ?>
+</section>
+
+<script>
+/* 评论区交互：
+ * 验证码获取/刷新、提交、点赞乐观更新、回复展开收起 */
+(function () {
+  'use strict';
+  if (window.__pafishCommentSectionBound) return;
+  window.__pafishCommentSectionBound = true;
+
+  function postJSON(url, body) {
+    return fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }).then(function (r) { return r.json(); });
+  }
+
+  function collectPluginFields(form) {
+    var plugins = {};
+    new FormData(form).forEach(function (value, key) {
+      var m = /^plugins\[([a-z0-9_-]+)\]\[([a-z0-9_-]+)\]$/.exec(key);
+      if (!m || typeof value !== 'string') return;
+      if (!plugins[m[1]]) plugins[m[1]] = {};
+      plugins[m[1]][m[2]] = value;
+    });
+    return plugins;
+  }
+
+  // ---- 验证码：每个表单独立获取（游客 + 开启验证码时） ----
+  function needCaptcha(form) {
+    return form.dataset.loggedIn !== '1' && form.querySelector('[data-captcha-refresh]') !== null;
+  }
+  function fetchCaptcha(form, then) {
+    if (!document.body.contains(form) || form.dataset.captchaLoading === '1' || form.dataset.captchaRetryTimer) return;
+    var box = form.querySelector('.comment-captcha-svg');
+    var status = form.querySelector('[data-captcha-status]');
+    var input = form.querySelector('[name="captchaAnswer"]');
+    var refreshButtons = form.querySelectorAll('[data-captcha-refresh]');
+    var hasCaptcha = !!form.dataset.captchaToken;
+    form.dataset.captchaLoading = '1';
+    if (box && !hasCaptcha) {
+      box.setAttribute('aria-busy', 'true');
+      box.textContent = '加载中…';
+    }
+    if (status && !hasCaptcha) { status.hidden = true; status.textContent = ''; }
+    refreshButtons.forEach(function (button) { button.disabled = true; });
+    return fetch(pafishApi('/captcha'))
+      .then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (d) {
+          if (!r.ok) {
+            var error = new Error((d && d.error) || '验证码加载失败，请稍后重试');
+            error.status = r.status;
+            error.retryAfter = Number((d && d.retryAfter) || r.headers.get('Retry-After') || 1);
+            throw error;
+          }
+          return d;
+        });
+      })
+      .then(function (d) {
+        if (d && document.body.contains(form)) {
+          form.dataset.captchaToken = d.token;
+          if (box) box.innerHTML = d.svg;
+          if (input) input.value = '';
+          if (status) { status.hidden = true; status.textContent = ''; }
+          if (then) then();
+        }
+      })
+      .catch(function (err) {
+        if (err.status === 429 && document.body.contains(form)) {
+          var delay = Math.max(1, err.retryAfter || 1) * 1000 + 100;
+          form.dataset.captchaRetryTimer = String(window.setTimeout(function () {
+            delete form.dataset.captchaRetryTimer;
+            fetchCaptcha(form);
+          }, delay));
+          return;
+        }
+        if (box) box.textContent = '验证码暂不可用';
+        if (status) { status.textContent = err.message || '验证码加载失败，请点击换一张'; status.hidden = false; }
+      })
+      .finally(function () {
+        delete form.dataset.captchaLoading;
+        if (box) box.setAttribute('aria-busy', 'false');
+        refreshButtons.forEach(function (button) { button.disabled = false; });
+      });
+  }
+  function refreshCaptcha(form) {
+    fetchCaptcha(form);
+  }
+
+  // ---- 提交 ----
+  document.addEventListener('submit', function (e) {
+    var form = e.target;
+    if (!form.matches('[data-comment-form]')) return;
+    e.preventDefault();
+
+    var postId = form.dataset.postId;
+    var targetType = form.dataset.targetType || 'post';
+    var targetId = form.dataset.targetId || postId;
+    var parentId = form.dataset.parentId || null;
+    var errorEl = form.querySelector('.comment-error');
+    var messageEl = form.querySelector('.comment-message');
+    var submitBtn = form.querySelector('.comment-submit');
+
+    function showError(msg) {
+      errorEl.textContent = msg;
+      errorEl.hidden = false;
+      messageEl.hidden = true;
+    }
+    errorEl.hidden = true;
+    messageEl.hidden = true;
+
+    var body = {
+      postId: postId,
+      targetType: targetType,
+      targetId: targetId,
+      parentId: parentId,
+      website: (form.querySelector('[name="website"]') || {}).value || '',
+      content: form.querySelector('[name="content"]').value,
+      notifyReply: !!(form.querySelector('[name="notifyReply"]') || {}).checked,
+    };
+    if (form.dataset.loggedIn === '1') {
+      // 已登录：身份由服务端强制，不提交昵称邮箱
+    } else {
+      body.name = form.querySelector('[name="name"]').value;
+      body.email = form.querySelector('[name="email"]').value;
+      body.captchaToken = form.dataset.captchaToken || '';
+      body.captchaAnswer = (form.querySelector('[name="captchaAnswer"]') || {}).value || '';
+    }
+    var pluginFields = collectPluginFields(form);
+    if (Object.keys(pluginFields).length) body.plugins = pluginFields;
+
+    submitBtn.disabled = true;
+    var label = submitBtn.textContent;
+    submitBtn.textContent = '提交中…';
+
+    postJSON(pafishApi('/comments'), body).then(function (res) {
+      if (!res.ok) {
+        showError(res.error || '提交失败');
+        // 验证码错误（或作废）时刷新验证码，方便重新输入
+        if ((res.error || '').indexOf('验证码') !== -1) refreshCaptcha(form);
+        return;
+      }
+      location.reload();
+    }).catch(function () {
+      showError('网络错误，请重试');
+    }).finally(function () {
+      submitBtn.disabled = false;
+      submitBtn.textContent = label;
+    });
+  });
+
+  // ---- 验证码：进入页面/展开回复表单时获取；点击刷新 ----
+  function initCaptcha(form) {
+    if (!needCaptcha(form)) return;
+    var hiddenReply = form.closest('.comment-reply-box[hidden]');
+    if (hiddenReply) return;
+    fetchCaptcha(form);
+  }
+  document.querySelectorAll('[data-comment-form]').forEach(initCaptcha);
+  document.addEventListener('pafish:pjax:after', function () {
+    document.querySelectorAll('[data-comment-form]').forEach(initCaptcha);
+  });
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-captcha-refresh]');
+    if (btn) {
+      e.preventDefault();
+      refreshCaptcha(btn.closest('[data-comment-form]'));
+    }
+  });
+
+  // ---- 回复：展开/收起回复表单 ----
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-reply-toggle]');
+    if (!btn) return;
+    var item = btn.closest('.comment-item');
+    var box = item.querySelector('.comment-reply-box');
+    if (box.hidden) {
+      box.hidden = false;
+      btn.textContent = '取消回复';
+      initCaptcha(box.querySelector('[data-comment-form]'));
+    } else {
+      box.hidden = true;
+      btn.textContent = '回复';
+    }
+  });
+
+})();
+</script>

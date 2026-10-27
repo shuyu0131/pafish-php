@@ -211,6 +211,7 @@ abstract class AdminController
         }
         if ($role === 'USER') {
             $accountItems = [
+                ['href' => '/admin', 'query' => ['section' => 'posts'], 'label' => '我的投稿', 'icon' => 'file-text'],
                 ['href' => '/admin', 'query' => ['section' => 'comments'], 'label' => '我的评论', 'icon' => 'message'],
                 ['href' => '/admin', 'query' => ['section' => 'favorites'], 'label' => '我的收藏', 'icon' => 'star'],
                 ['href' => '/admin', 'query' => ['section' => 'likes'], 'label' => '我的点赞', 'icon' => 'heart'],
@@ -234,8 +235,10 @@ abstract class AdminController
             "SELECT COUNT(*) FROM comments c JOIN posts p ON p.id = c.post_id WHERE c.status = 'PENDING' AND p.deleted_at IS NULL{$postScope}",
             $postParams
         );
+        $pendingPosts = (int) DB::value("SELECT COUNT(*) FROM posts WHERE status='PENDING' AND deleted_at IS NULL");
         $badges = [
             '/admin/comments' => $pendingComments,
+            '/admin/posts' => Auth::isAdmin() ? $pendingPosts : 0,
         ];
         foreach ($nav['top'] as &$item) {
             $item['badge'] = (int) ($badges[$item['href']] ?? 0);

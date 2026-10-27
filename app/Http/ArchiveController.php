@@ -18,13 +18,8 @@ final class ArchiveController
 {
     public function index(Request $request, Response $response): Response
     {
-        // 主题可明确不提供归档页；此时按缺失模板处理，而不是落到系统模板。
-        $manifest = Theme::manifest(Theme::active()) ?? [];
-        $fallbacks = $manifest['systemTemplateFallback'] ?? null;
-        $supported = Theme::hasTemplate('archives')
-            || $fallbacks === null
-            || (is_array($fallbacks) && in_array('archives', $fallbacks, true));
-        if (!$supported) {
+        // 归档页是可选入口；导航与 Sitemap 使用同一可用性规则。
+        if (!Theme::hasArchivePage()) {
             return Listings::notFound($response, '页面不存在');
         }
 

@@ -23,15 +23,23 @@ final class UserController
         }
         if (!Theme::hasTemplate('user')) return Listings::notFound($response, '页面不存在');
 
-        $user = Auth::user() ?? [];
+        $user = \current_user() ?? [];
         $userId = (int) ($user['id'] ?? 0);
         $manifest = Theme::manifest(Theme::active()) ?? [];
         $needed = $userId > 0 ? ($manifest['userData'] ?? []) : [];
         $public = "status='PUBLISHED' AND deleted_at IS NULL AND (published_at IS NULL OR published_at<=NOW())";
         $posts = in_array('posts', $needed, true) ? DB::fetchAll(
-            "SELECT id,title,slug,excerpt,cover_url,published_at,view_count,like_count,favorite_count
+            "SELECT id,title,slug,
+                    CASE WHEN password IS NOT NULL AND password <> '' THEN '' ELSE excerpt END AS excerpt,
+                    cover_url,published_at,view_count,like_count,favorite_count,
+                    (password IS NOT NULL AND password <> '') AS is_password_protected
              FROM posts WHERE author_id=? AND {$public} ORDER BY published_at DESC,id DESC LIMIT 30", [$userId]
         ) : [];
+        foreach ($posts as &$post) {
+            $post['cover_url'] = \Pafish\Services\Content::safeImageUrl($post['cover_url'] ?? null);
+            $post['is_password_protected'] = (bool) ($post['is_password_protected'] ?? false);
+        }
+        unset($post);
         $stats = in_array('stats', $needed, true) ? [
             'posts' => (int) DB::value("SELECT COUNT(*) FROM posts WHERE author_id=? AND {$public}", [$userId]),
             'views' => (int) DB::value("SELECT COALESCE(SUM(view_count),0) FROM posts WHERE author_id=? AND {$public}", [$userId]),

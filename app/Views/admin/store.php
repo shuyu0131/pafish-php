@@ -42,16 +42,16 @@ sort($allCategories);
     <button type="button" class="btn btn-ghost btn-sm" id="storeRefresh">刷新目录</button>
   </div>
 
-  <div class="admin-tabs" role="tablist">
-    <button type="button" class="admin-tab is-active" data-kind="theme" role="tab">主题（<?= count($themeCat['items']) ?>）</button>
-    <button type="button" class="admin-tab" data-kind="plugin" role="tab">插件（<?= count($pluginCat['items']) ?>）</button>
+  <div class="admin-tabs admin-store-kind-tabs" role="tablist" aria-label="应用类型">
+    <button type="button" class="admin-tab is-active" data-kind="theme" role="tab" aria-selected="true">主题 <span class="admin-tab-count">(<?= count($themeCat['items']) ?>)</span></button>
+    <button type="button" class="admin-tab" data-kind="plugin" role="tab" aria-selected="false">插件 <span class="admin-tab-count">(<?= count($pluginCat['items']) ?>)</span></button>
   </div>
 
   <div class="admin-store-filter-row">
-    <div class="admin-store-view-tabs" role="tablist" aria-label="应用状态">
-      <button type="button" class="admin-store-view-tab is-active" data-store-state="all" role="tab" aria-selected="true">全部</button>
-      <button type="button" class="admin-store-view-tab" data-store-state="installed" role="tab" aria-selected="false">已安装</button>
-      <button type="button" class="admin-store-view-tab" data-store-state="upgradeable" role="tab" aria-selected="false">可更新</button>
+    <div class="admin-tabs admin-status-tabs admin-store-view-tabs" role="tablist" aria-label="应用状态">
+      <button type="button" class="admin-tab is-active" data-store-state="all" role="tab" aria-selected="true">全部</button>
+      <button type="button" class="admin-tab" data-store-state="installed" role="tab" aria-selected="false">已安装</button>
+      <button type="button" class="admin-tab" data-store-state="upgradeable" role="tab" aria-selected="false">可更新</button>
     </div>
     <div class="admin-store-toolbar<?= $allCategories ? '' : ' is-single' ?>">
       <input type="search" id="storeSearch" class="input admin-store-search" placeholder="搜索已上架的主题与插件…" autocomplete="off">
@@ -218,14 +218,16 @@ sort($allCategories);
   }
 
   // ========== Tab 切换 ==========
-  var tabs = document.querySelectorAll(".admin-tab");
+  var tabs = document.querySelectorAll(".admin-store-kind-tabs .admin-tab");
   var panes = document.querySelectorAll(".admin-store-pane");
 
   tabs.forEach(function(tab) {
     tab.addEventListener("click", function() {
       tabs.forEach(function(t) { t.classList.remove("is-active"); });
+      tabs.forEach(function(t) { t.setAttribute("aria-selected", "false"); });
       panes.forEach(function(p) { p.hidden = true; });
       tab.classList.add("is-active");
+      tab.setAttribute("aria-selected", "true");
       var pane = document.querySelector('.admin-store-pane[data-pane="' + tab.dataset.kind + '"]');
       if (pane) pane.hidden = false;
       applyStoreFilters();

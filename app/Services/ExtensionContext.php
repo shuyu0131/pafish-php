@@ -102,6 +102,30 @@ final class ExtensionContext
         EntityMeta::deleteForExtension($this->kind, $this->name, $subjectType, $subjectId, $key);
     }
 
+    /** Read one structured record owned by this extension. */
+    public function getRecord(string $model, string $key): ?array
+    {
+        return ExtensionRecords::get($this->kind, $this->name, $model, $key);
+    }
+
+    /** Create or replace one record; pass its current revision to reject stale writes. */
+    public function putRecord(string $model, string $key, array $data, ?int $expectedRevision = null): array
+    {
+        return ExtensionRecords::put($this->kind, $this->name, $model, $key, $data, $expectedRevision);
+    }
+
+    /** List records by a stable ascending ID cursor; page size is limited to 50. */
+    public function listRecords(string $model, int $afterId = 0, int $limit = 20): array
+    {
+        return ExtensionRecords::list($this->kind, $this->name, $model, $afterId, $limit);
+    }
+
+    /** Delete a record; pass its current revision to prevent deleting a newer edit. */
+    public function deleteRecord(string $model, string $key, ?int $expectedRevision = null): bool
+    {
+        return ExtensionRecords::delete($this->kind, $this->name, $model, $key, $expectedRevision);
+    }
+
     public function getSettings(): array
     {
         return $this->kind === 'plugin' ? Plugin::settings($this->name) : Theme::valuesFor($this->name);

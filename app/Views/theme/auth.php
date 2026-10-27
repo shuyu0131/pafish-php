@@ -50,6 +50,7 @@ window.pafishApi = function (p) {
         <label class="label" for="auth-password">密码</label>
         <input id="auth-password" type="password" class="input" placeholder="请输入密码" autocomplete="current-password" required>
       </div>
+      <?= \Pafish\Services\Theme::renderInjection('login_form', ['mode' => 'login']) ?>
       <?= \Pafish\Services\Plugin::renderInjection('login_form', ['mode' => 'login']) ?>
       <p class="auth-error" hidden></p>
       <button type="submit" class="btn btn-primary auth-submit">登 录</button>
@@ -97,6 +98,7 @@ window.pafishApi = function (p) {
         <label class="label" for="reg-confirm">确认密码</label>
         <input id="reg-confirm" type="password" class="input" placeholder="再次输入密码" autocomplete="new-password" required>
       </div>
+      <?= \Pafish\Services\Theme::renderInjection('register_form', ['mode' => 'register']) ?>
       <?= \Pafish\Services\Plugin::renderInjection('register_form', ['mode' => 'register']) ?>
       <p class="auth-error" hidden></p>
       <button type="submit" class="btn btn-primary auth-submit">注 册</button>

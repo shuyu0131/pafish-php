@@ -17,10 +17,10 @@ $pluginActive = count(array_filter($plugins, static fn (array $plugin): bool => 
   <?php if (($catalogNotice ?? '') !== ''): ?><p class="admin-muted" role="status"><?= e($catalogNotice) ?></p><?php endif; ?>
 
   <div class="admin-resource-toolbar">
-    <div class="admin-tabs admin-resource-tabs" role="tablist" aria-label="插件筛选">
-      <button type="button" class="admin-tab is-active" data-plugin-filter="all" role="tab" aria-selected="true">全部 <span class="admin-resource-count"><?= $pluginTotal ?></span></button>
-      <button type="button" class="admin-tab" data-plugin-filter="active" role="tab" aria-selected="false">已启用 <span class="admin-resource-count"><?= $pluginActive ?></span></button>
-      <button type="button" class="admin-tab" data-plugin-filter="inactive" role="tab" aria-selected="false">未启用 <span class="admin-resource-count"><?= $pluginTotal - $pluginActive ?></span></button>
+    <div class="admin-tabs admin-status-tabs" role="tablist" aria-label="插件筛选">
+      <button type="button" class="admin-tab is-active" data-plugin-filter="all" role="tab" aria-selected="true">全部</button>
+      <button type="button" class="admin-tab" data-plugin-filter="active" role="tab" aria-selected="false">已启用 <span class="admin-tab-count">(<?= $pluginActive ?>)</span></button>
+      <button type="button" class="admin-tab" data-plugin-filter="inactive" role="tab" aria-selected="false">未启用 <span class="admin-tab-count">(<?= $pluginTotal - $pluginActive ?>)</span></button>
     </div>
     <input type="search" id="pluginSearch" class="input admin-resource-search" aria-label="搜索插件" placeholder="搜索插件名称或描述" autocomplete="off">
   </div>

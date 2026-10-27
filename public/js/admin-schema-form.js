@@ -296,10 +296,10 @@
       if (e.target && e.target.closest && e.target.closest("[data-sf-no-dirty]")) { return; }
       setDirty(true);
     });
-    // 增删/上下移 repeater 行不触发 input，单独兜一层
+    // 增删/复制/上下移 repeater 行不触发 input，单独兜一层
     form.addEventListener("click", function (e) {
       var t = e.target;
-      if (t && t.closest && t.closest(".admin-sf-rep-add, .admin-sf-rep-del, .admin-sf-rep-up, .admin-sf-rep-down")) {
+      if (t && t.closest && t.closest(".admin-sf-rep-add, .admin-sf-rep-del, .admin-sf-rep-up, .admin-sf-rep-down, .admin-sf-rep-copy")) {
         setDirty(true);
       }
     });
@@ -461,6 +461,34 @@
     });
     refreshShowIf();
 
+    // 长复选项组沿用 VAM 的即时筛选：保留所有已勾选项，只隐藏不匹配项，
+    // 这样用户搜索后不会误以为之前的选择被清空。
+    form.querySelectorAll("[data-sf-checkbox-search]").forEach(function (searchInput) {
+      var wrap = searchInput.closest("[data-sf-checks]");
+      if (!wrap) { return; }
+      var options = Array.prototype.slice.call(wrap.querySelectorAll("[data-sf-check-option]"));
+      var empty = wrap.querySelector("[data-sf-checkbox-empty]");
+      var count = wrap.querySelector("[data-sf-checkbox-count]");
+      function applyCheckboxSearch() {
+        var query = searchInput.value.trim().toLocaleLowerCase();
+        var visible = 0;
+        options.forEach(function (option) {
+          var text = (option.dataset.sfSearchText || option.textContent)
+            .replace(/\s+/g, " ").trim().toLocaleLowerCase();
+          var show = query === "" || text.indexOf(query) !== -1;
+          option.hidden = !show;
+          if (show) { visible++; }
+        });
+        if (empty) { empty.hidden = visible !== 0; }
+        if (count) { count.textContent = query === "" ? options.length + " 项" : "匹配 " + visible + " 项"; }
+      }
+      searchInput.addEventListener("input", applyCheckboxSearch);
+      searchInput.addEventListener("keydown", function (event) {
+        if (event.key === "Escape") { searchInput.value = ""; applyCheckboxSearch(); }
+      });
+      applyCheckboxSearch();
+    });
+
     // ---------- color：双向同步 ----------
     form.querySelectorAll(".admin-sf-color-picker").forEach(function (picker) {
       var hex = picker.parentElement.querySelector(".admin-sf-hex");
@@ -475,9 +503,30 @@
     form.querySelectorAll(".admin-sf-image-clear").forEach(function (btn) {
       btn.addEventListener("click", function () {
         var el = form.querySelector('[data-sf-key="' + btn.dataset.target + '"][data-sf-type="image"]');
-        if (el) { el.value = ""; }
+        if (el) {
+          el.value = "";
+          el.dispatchEvent(new Event("input", { bubbles: true }));
+          el.dispatchEvent(new Event("change", { bubbles: true }));
+        }
         refreshShowIf();
       });
+    });
+
+    // image 字段的缩略预览与手写 URL、媒体库、上传共用同一输入源。
+    function syncImagePreview(input) {
+      var wrap = input && input.closest ? input.closest(".admin-sf-image") : null;
+      var preview = wrap && wrap.querySelector("[data-sf-image-preview]");
+      if (!preview) { return; }
+      var value = input.value.trim();
+      var previewWrap = preview.closest(".admin-sf-image-preview-wrap");
+      preview.hidden = value === "";
+      if (previewWrap) { previewWrap.hidden = value === ""; }
+      if (value !== "") { preview.src = value; }
+    }
+    form.querySelectorAll('[data-sf-type="image"]').forEach(function (input) {
+      input.addEventListener("input", function () { syncImagePreview(input); });
+      input.addEventListener("change", function () { syncImagePreview(input); });
+      syncImagePreview(input);
     });
 
     // ---------- image：本地上传 ----------
@@ -500,7 +549,11 @@
         }).then(function (r) { return r.json(); }).then(function (j) {
           if (!j || !j.ok || !j.url) { throw new Error((j && j.error) || "上传失败"); }
           var target = form.querySelector('[data-sf-key="' + key + '"][data-sf-type="image"]');
-          if (target) { target.value = j.url; }
+          if (target) {
+            target.value = j.url;
+            target.dispatchEvent(new Event("input", { bubbles: true }));
+            target.dispatchEvent(new Event("change", { bubbles: true }));
+          }
           refreshShowIf();
           showMsg("图片上传成功，请保存设置", false);
         }).catch(function (err) {
@@ -547,6 +600,7 @@
       var addBtn = wrap.querySelector(".admin-sf-rep-add");
       var countEl = wrap.querySelector(".admin-sf-rep-count");
       var maxItems = parseInt(wrap.dataset.sfMax || "20", 10);
+      var minItems = parseInt(wrap.dataset.sfMin || "0", 10);
       var titleKey = wrap.dataset.sfTitleKey || "";
       if (!hid || !rowsBox) { return; }
 
@@ -574,7 +628,7 @@
         return t !== "" ? t : "第 " + (i + 1) + " 行";
       }
 
-      function renderRow(row, index) {
+      function renderRow(row, index, rowCount) {
         var item = document.createElement("div");
         item.className = "admin-sf-rep-row";
         item.dataset.index = String(index);
@@ -583,39 +637,220 @@
         head.className = "admin-sf-rep-head";
         head.innerHTML = '<span class="admin-sf-rep-drag" title="按住拖动排序">' + dragIcon + '</span>'
           + '<span class="admin-sf-rep-title">' + esc(rowTitle(row, index)) + '</span>'
-          + '<button type="button" class="admin-sf-rep-up" aria-label="上移">↑</button>'
-          + '<button type="button" class="admin-sf-rep-down" aria-label="下移">↓</button>'
-          + '<button type="button" class="admin-sf-rep-del" aria-label="删除该行">删除</button>';
+          + '<button type="button" class="admin-sf-rep-up" aria-label="上移第 ' + (index + 1) + ' 行"'
+          + (index === 0 ? ' disabled' : '') + '>↑</button>'
+          + '<button type="button" class="admin-sf-rep-down" aria-label="下移第 ' + (index + 1) + ' 行"'
+          + (index >= rowCount - 1 ? ' disabled' : '') + '>↓</button>'
+          + '<button type="button" class="admin-sf-rep-copy" aria-label="复制第 ' + (index + 1) + ' 行"'
+          + (rowCount >= maxItems ? ' disabled title="已达到最多 ' + maxItems + ' 行"' : '') + '>复制</button>'
+          + '<button type="button" class="admin-sf-rep-del" aria-label="删除第 ' + (index + 1) + ' 行"'
+          + (rowCount <= minItems ? ' disabled title="至少保留 ' + minItems + ' 行"' : '') + '>删除</button>';
         item.appendChild(head);
 
         var body = document.createElement("div");
         body.className = "admin-sf-rep-body";
         subFields.forEach(function (sf) {
-          var cell = document.createElement("label");
+          var cell = document.createElement(sf.type === "icon" || sf.type === "checkboxes" ? "div" : "label");
           cell.className = "admin-sf-rep-cell";
           var lab = document.createElement("span");
           lab.className = "admin-sf-rep-lab";
           lab.textContent = sf.label || sf.key;
           cell.appendChild(lab);
 
+          // 多选保持 VAM 熟悉的勾选列表；候选项较多时直接在列表内搜索，
+          // 不依赖原生多选框的 Ctrl/Command 操作。
+          if (sf.type === "checkboxes") {
+            var options = sf.options || {};
+            var optionKeys = Object.keys(options);
+            var selectedValues = row[sf.key];
+            if (!Array.isArray(selectedValues) && typeof selectedValues === "string") {
+              try { selectedValues = JSON.parse(selectedValues); } catch (e) { selectedValues = []; }
+            }
+            selectedValues = Array.isArray(selectedValues) ? selectedValues.map(String) : [];
+
+            var checks = document.createElement("div");
+            var searchable = optionKeys.length >= 10;
+            checks.className = "admin-sf-checks admin-sf-rep-checks" + (searchable ? " is-searchable" : "");
+            if (searchable) {
+              var tools = document.createElement("div");
+              tools.className = "admin-sf-checks-tools";
+              var search = document.createElement("input");
+              search.type = "search";
+              search.className = "input admin-sf-checks-search";
+              search.placeholder = "搜索选项…";
+              search.setAttribute("aria-label", "搜索" + (sf.label || sf.key) + "选项");
+              search.autocomplete = "off";
+              search.dataset.sfRepSearch = "";
+              search.dataset.sfNoDirty = "";
+              var count = document.createElement("span");
+              count.className = "admin-sf-checks-count";
+              count.setAttribute("aria-live", "polite");
+              tools.appendChild(search);
+              tools.appendChild(count);
+              checks.appendChild(tools);
+
+              var empty = document.createElement("span");
+              empty.className = "admin-sf-checks-empty";
+              empty.hidden = true;
+              empty.textContent = "没有匹配的选项";
+              checks.appendChild(empty);
+            }
+
+            var list = document.createElement("div");
+            list.className = "admin-sf-checks-list";
+            var labels = [];
+            optionKeys.forEach(function (optionValue) {
+              var optionLabel = String(options[optionValue]);
+              var option = document.createElement("label");
+              option.className = "admin-sf-check";
+              option.dataset.sfRepCheckOption = "";
+              option.dataset.sfSearchText = (optionValue + " " + optionLabel).toLocaleLowerCase();
+              var input = document.createElement("input");
+              input.type = "checkbox";
+              input.checked = selectedValues.indexOf(optionValue) !== -1;
+              input.dataset.subKey = sf.key;
+              input.dataset.subType = "checkboxes";
+              input.dataset.subValue = optionValue;
+              var text = document.createElement("span");
+              text.textContent = optionLabel;
+              option.appendChild(input);
+              option.appendChild(text);
+              list.appendChild(option);
+              labels.push(option);
+            });
+            checks.appendChild(list);
+
+            if (searchable) {
+              var searchInput = checks.querySelector("[data-sf-rep-search]");
+              var countEl = checks.querySelector(".admin-sf-checks-count");
+              var emptyEl = checks.querySelector(".admin-sf-checks-empty");
+              function filterRepeaterChoices() {
+                var query = searchInput.value.trim().toLocaleLowerCase();
+                var visible = 0;
+                labels.forEach(function (option) {
+                  var show = query === "" || option.dataset.sfSearchText.indexOf(query) !== -1;
+                  option.hidden = !show;
+                  if (show) { visible++; }
+                });
+                countEl.textContent = query === "" ? labels.length + " 项" : "匹配 " + visible + " 项";
+                emptyEl.hidden = visible !== 0;
+              }
+              searchInput.addEventListener("input", filterRepeaterChoices);
+              searchInput.addEventListener("keydown", function (event) {
+                if (event.key === "Escape") { searchInput.value = ""; filterRepeaterChoices(); }
+              });
+              filterRepeaterChoices();
+            }
+
+            cell.appendChild(checks);
+            body.appendChild(cell);
+            return;
+          }
+
           var val = row[sf.key] == null ? "" : String(row[sf.key]);
           var inp;
-          if (sf.type === "textarea") {
+          if (sf.type === "textarea" || sf.type === "code") {
             inp = document.createElement("textarea");
-            inp.rows = 2;
+            inp.rows = Number(sf.rows || 2);
+            inp.value = val;
+          } else if (["select", "radio", "button_set", "image_select", "palette"].indexOf(sf.type) !== -1) {
+            inp = document.createElement("select");
+            if (sf.type === "image_select" && sf.multiple) { inp.multiple = true; }
+            Object.keys(sf.options || {}).forEach(function (optionValue) {
+              var option = document.createElement("option");
+              option.value = optionValue;
+              option.textContent = sf.options[optionValue];
+              option.selected = inp.multiple
+                ? (Array.isArray(row[sf.key]) ? row[sf.key].map(String).indexOf(optionValue) !== -1 : false)
+                : optionValue === val;
+              inp.appendChild(option);
+            });
+          } else if (sf.type === "color") {
+            inp = document.createElement("input");
+            inp.type = "color";
+            inp.value = /^#[0-9a-fA-F]{6}$/.test(val) ? val : "#000000";
+          } else if (sf.type === "slider") {
+            inp = document.createElement("input");
+            inp.type = "range";
+            inp.min = sf.min == null ? "0" : sf.min;
+            inp.max = sf.max == null ? "100" : sf.max;
+            inp.step = sf.step == null ? "1" : sf.step;
+            inp.value = val === "" ? (sf.default == null ? inp.min : sf.default) : val;
           } else if (sf.type === "switcher" || sf.type === "checkbox") {
             inp = document.createElement("input");
             inp.type = "checkbox";
             inp.checked = val === "1";
+          } else if (sf.type === "radio") {
+            inp = document.createElement("select");
+            Object.keys(sf.options || {}).forEach(function (optionValue) {
+              var option = document.createElement("option");
+              option.value = optionValue;
+              option.textContent = sf.options[optionValue];
+              option.selected = optionValue === val;
+              inp.appendChild(option);
+            });
           } else {
             inp = document.createElement("input");
-            inp.type = "text";
+            inp.type = sf.type === "password" ? "password" : "text";
+            inp.value = val;
           }
           inp.className = "input";
-          if (inp.type !== "checkbox") { inp.value = val; }
           inp.dataset.subKey = sf.key;
           inp.dataset.subType = sf.type || "text";
-          cell.appendChild(inp);
+          if (sf.placeholder) { inp.placeholder = sf.placeholder; }
+          if (sf.rules && sf.rules.required) { inp.required = true; }
+          if (sf.rules && sf.rules.maxlength) { inp.maxLength = Number(sf.rules.maxlength); }
+          if (sf.rules && sf.rules.minlength) { inp.minLength = Number(sf.rules.minlength); }
+          if (sf.type === "image_select" && sf.multiple) {
+            inp.classList.add("admin-sf-rep-multi");
+          }
+          if (sf.type === "image") {
+            var imagePreview = document.createElement("img");
+            imagePreview.className = "admin-sf-rep-image-preview";
+            imagePreview.alt = "";
+            imagePreview.hidden = !val;
+            if (val) { imagePreview.src = val; }
+            inp.addEventListener("input", function () {
+              imagePreview.hidden = inp.value.trim() === "";
+              if (!imagePreview.hidden) { imagePreview.src = inp.value.trim(); }
+            });
+            cell.appendChild(imagePreview);
+          }
+          if (sf.type === "icon") {
+            var iconWrap = document.createElement("span");
+            iconWrap.className = "admin-sf-rep-icon";
+            iconWrap.dataset.sfIconField = "";
+            var preview = document.createElement("span");
+            preview.className = "admin-sf-icon-preview";
+            preview.dataset.sfIconPreview = "";
+            preview.setAttribute("aria-hidden", "true");
+            var glyph = document.createElement("i");
+            glyph.className = val;
+            preview.appendChild(glyph);
+            inp.classList.add("admin-sf-icon-value");
+            inp.dataset.iconInput = "";
+            inp.dataset.iconLibrary = sf.library || "remixicon";
+            inp.dataset.iconCustom = JSON.stringify(Array.isArray(sf.custom_icons) ? sf.custom_icons : []);
+            inp.setAttribute("aria-label", sf.label || sf.key || "图标 class");
+            inp.placeholder = "ri-home-line / fa fa-home";
+            var pick = document.createElement("button");
+            pick.type = "button";
+            pick.className = "btn btn-outline btn-sm";
+            pick.dataset.iconPicker = "";
+            pick.textContent = "选择";
+            var clear = document.createElement("button");
+            clear.type = "button";
+            clear.className = "btn btn-ghost btn-sm admin-sf-icon-clear";
+            clear.dataset.iconClear = "";
+            clear.textContent = "清除";
+            iconWrap.appendChild(preview);
+            iconWrap.appendChild(inp);
+            iconWrap.appendChild(pick);
+            iconWrap.appendChild(clear);
+            cell.appendChild(iconWrap);
+          } else {
+            cell.appendChild(inp);
+          }
           body.appendChild(cell);
         });
         item.appendChild(body);
@@ -623,6 +858,7 @@
 
         head.querySelector(".admin-sf-rep-del").addEventListener("click", function () {
           var rows = readRows();
+          if (rows.length <= minItems) { return; }
           rows.splice(index, 1);
           writeRows(rows);
           renderAll();
@@ -641,6 +877,22 @@
           writeRows(rows);
           renderAll();
         });
+        head.querySelector(".admin-sf-rep-copy").addEventListener("click", function () {
+          if (readRows().length >= maxItems) { return; }
+          // 先收集当前 DOM，确保刚编辑但还未触发 input 的控件也进入副本。
+          commit();
+          var rows = readRows();
+          if (index >= rows.length || rows.length >= maxItems) { return; }
+          var duplicate;
+          try { duplicate = JSON.parse(JSON.stringify(rows[index])); }
+          catch (e) { return; }
+          rows.splice(index + 1, 0, duplicate);
+          writeRows(rows);
+          renderAll();
+          var newRow = rowsBox.querySelectorAll(".admin-sf-rep-row")[index + 1];
+          var firstControl = newRow && newRow.querySelector("[data-sub-key]");
+          if (firstControl && firstControl.focus) { firstControl.focus(); }
+        });
         return item;
       }
 
@@ -652,6 +904,10 @@
           item.querySelectorAll("[data-sub-key]").forEach(function (inp) {
             var t = inp.dataset.subType;
             if (t === "switcher" || t === "checkbox") { obj[inp.dataset.subKey] = inp.checked ? "1" : "0"; }
+            else if (t === "checkboxes") {
+              if (!Object.prototype.hasOwnProperty.call(obj, inp.dataset.subKey)) { obj[inp.dataset.subKey] = []; }
+              if (inp.checked) { obj[inp.dataset.subKey].push(inp.dataset.subValue || ""); }
+            } else if (inp.multiple) { obj[inp.dataset.subKey] = Array.prototype.map.call(inp.selectedOptions, function (option) { return option.value; }); }
             else { obj[inp.dataset.subKey] = inp.value; }
           });
           rows.push(obj);
@@ -664,10 +920,14 @@
       }
 
       function renderAll() {
+        // 若正打开的自定义下拉位于即将替换的行内，先收起并还原到所属控件。
+        wrap.dispatchEvent(new CustomEvent("pafish:controls-destroy", { bubbles: true, detail: { repeater: wrap } }));
         var rows = readRows();
         rowsBox.innerHTML = "";
-        rows.forEach(function (row, i) { rowsBox.appendChild(renderRow(row, i)); });
+        rows.forEach(function (row, i) { rowsBox.appendChild(renderRow(row, i, rows.length)); });
         writeRows(rows);
+        // 每次增删、复制、移动或首次渲染后都初始化新行内的搜索下拉等共享控件。
+        wrap.dispatchEvent(new CustomEvent("pafish:controls-init", { bubbles: true, detail: { repeater: wrap } }));
       }
 
       // ---------- 拖动排序 ----------
@@ -722,7 +982,21 @@
           if (rows.length >= maxItems) { return; }
           var blank = {};
           subFields.forEach(function (sf) {
-            blank[sf.key] = (sf.type === "switcher" || sf.type === "checkbox") ? "0" : "";
+            var isMulti = sf.type === "checkboxes" || (sf.type === "image_select" && sf.multiple);
+            var value = sf.default;
+            if (isMulti) {
+              if (Array.isArray(value)) { blank[sf.key] = value.map(String); }
+              else {
+                try {
+                  var parsed = JSON.parse(value == null || value === "" ? "[]" : String(value));
+                  blank[sf.key] = Array.isArray(parsed) ? parsed.map(String) : [];
+                } catch (e) { blank[sf.key] = []; }
+              }
+            } else if (sf.type === "switcher" || sf.type === "checkbox") {
+              blank[sf.key] = value == null ? "0" : (value === true ? "1" : value === false ? "0" : String(value));
+            } else {
+              blank[sf.key] = value == null ? "" : String(value);
+            }
           });
           rows.push(blank);
           writeRows(rows);

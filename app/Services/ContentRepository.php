@@ -13,7 +13,8 @@ final class ContentRepository
     {
         if ($id <= 0) return null;
         return DB::fetchOne(
-            "SELECT * FROM pages WHERE id = ? AND status = 'PUBLISHED' AND deleted_at IS NULL
+            "SELECT id,title,seo_title,meta_description,slug,content,content_format,template,allow_comments,published_at,created_at,updated_at
+             FROM pages WHERE id = ? AND status = 'PUBLISHED' AND deleted_at IS NULL
              AND (published_at IS NULL OR published_at <= NOW())",
             [$id]
         );
@@ -22,7 +23,8 @@ final class ContentRepository
     public static function publishedPageBySlug(string $slug): ?array
     {
         return DB::fetchOne(
-            "SELECT * FROM pages WHERE slug = ? AND status = 'PUBLISHED' AND deleted_at IS NULL
+            "SELECT id,title,seo_title,meta_description,slug,content,content_format,template,allow_comments,published_at,created_at,updated_at
+             FROM pages WHERE slug = ? AND status = 'PUBLISHED' AND deleted_at IS NULL
              AND (published_at IS NULL OR published_at <= NOW())",
             [$slug]
         );

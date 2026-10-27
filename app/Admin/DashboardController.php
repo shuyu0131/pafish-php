@@ -32,6 +32,8 @@ final class DashboardController extends AdminController
         $stats = [
             ['label' => '文章', 'value' => (int) DB::value('SELECT COUNT(*) FROM posts WHERE deleted_at IS NULL'),
                 'icon' => 'file-text', 'url' => '/admin/posts'],
+            ['label' => '待审投稿', 'value' => (int) DB::value("SELECT COUNT(*) FROM posts WHERE status='PENDING' AND deleted_at IS NULL"),
+                'icon' => 'file-text', 'url' => '/admin/posts?status=PENDING'],
             ['label' => '用户', 'value' => (int) DB::value('SELECT COUNT(*) FROM users'),
                 'icon' => 'users', 'url' => '/admin/users'],
             ['label' => '评论', 'value' => (int) DB::value('SELECT COUNT(*) FROM comments c JOIN posts p ON p.id = c.post_id WHERE p.deleted_at IS NULL'),

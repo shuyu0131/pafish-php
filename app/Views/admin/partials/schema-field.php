@@ -169,13 +169,26 @@ $renderField = function (array $field, array $values, ?string &$lastSection, boo
         case 'checkboxes':
             $picked = json_decode($value !== '' ? $value : '[]', true);
             $picked = is_array($picked) ? array_map('strval', $picked) : [];
-            echo '<div class="admin-sf-checks' . (!empty($field['inline']) ? ' is-inline' : '') . '">';
+            $searchable = count($options) >= 10;
+            echo '<div class="admin-sf-checks' . (!empty($field['inline']) ? ' is-inline' : '') . ($searchable ? ' is-searchable' : '') . '"'
+                . ($searchable ? ' data-sf-checks="' . e($key) . '"' : '') . '>';
+            if ($searchable) {
+                echo '<div class="admin-sf-checks-tools">'
+                    . '<input type="search" class="input admin-sf-checks-search" data-sf-checkbox-search data-sf-no-dirty'
+                    . ' aria-label="搜索' . e($label) . '选项" placeholder="搜索选项…" autocomplete="off">'
+                    . '<span class="admin-sf-checks-count" data-sf-checkbox-count aria-live="polite"></span></div>'
+                    . '<span class="admin-sf-checks-empty" data-sf-checkbox-empty hidden>没有匹配的选项</span>';
+            }
+            echo '<div class="admin-sf-checks-list">';
             foreach ($options as $optValue => $optLabel) {
                 $on = in_array((string) $optValue, $picked, true);
-                echo '<label class="admin-sf-check"><input type="checkbox" data-sf-key="' . e($key)
+                echo '<label class="admin-sf-check" data-sf-check-option'
+                    . ($searchable ? ' data-sf-search-text="' . e((string) $optValue . ' ' . (string) $optLabel) . '"' : '')
+                    . '><input type="checkbox" data-sf-key="' . e($key)
                     . '" data-sf-type="checkboxes" data-sf-value="' . e((string) $optValue) . '"'
                     . ($on ? ' checked' : '') . '><span>' . e((string) $optLabel) . '</span></label>';
             }
+            echo '</div>';
             echo '<input type="hidden" data-sf-key="' . e($key) . '" data-sf-type="checkboxes-value" value="'
                 . e(json_encode($picked, JSON_UNESCAPED_UNICODE)) . '">';
             echo '</div>';
@@ -210,7 +223,7 @@ $renderField = function (array $field, array $values, ?string &$lastSection, boo
 
         // ---- 视觉选择型：把选项画出来，让站长"看图选"而不是读懂值再想象 ----
         case 'button_set':
-            echo '<div class="admin-sf-btns' . (!empty($inline) ? ' is-inline' : '') . '" role="radiogroup">';
+            echo '<div class="admin-sf-btns' . (!empty($field['inline']) ? ' is-inline' : '') . '" role="radiogroup">';
             foreach ($options as $optValue => $optLabel) {
                 $on = (string) $optValue === $value;
                 echo '<button type="button" class="admin-sf-btn' . ($on ? ' is-on' : '') . '"'
@@ -226,8 +239,16 @@ $renderField = function (array $field, array $values, ?string &$lastSection, boo
         case 'image_select':
             $multiple = ($field['multiple'] ?? false) === true;
             $picked = $multiple ? array_filter(array_map('strval', (array) json_decode($value !== '' ? $value : '[]', true))) : [];
-            $pw = isset($field['preview_width']) ? ' style="max-width:' . (int) $field['preview_width'] . 'px"' : '';
-            echo '<div class="admin-sf-imgs' . (!empty($inline) ? ' is-inline' : '') . '" data-multiple="' . ($multiple ? '1' : '0') . '">';
+            $previewStyle = [];
+            if (isset($field['preview_width']) && (int) $field['preview_width'] > 0) {
+                $previewStyle[] = 'max-width:' . (int) $field['preview_width'] . 'px';
+            }
+            if (isset($field['preview_height']) && (int) $field['preview_height'] > 0) {
+                $previewStyle[] = 'height:' . (int) $field['preview_height'] . 'px';
+                $previewStyle[] = 'object-fit:cover';
+            }
+            $pw = $previewStyle !== [] ? ' style="' . e(implode(';', $previewStyle)) . '"' : '';
+            echo '<div class="admin-sf-imgs' . (!empty($field['inline']) ? ' is-inline' : '') . '" data-multiple="' . ($multiple ? '1' : '0') . '">';
             foreach ($options as $optValue => $optLabel) {
                 $on = $multiple ? in_array((string) $optValue, $picked, true) : ((string) $optValue === $value);
                 echo '<button type="button" class="admin-sf-img' . ($on ? ' is-on' : '') . '"'
@@ -268,14 +289,33 @@ $renderField = function (array $field, array $values, ?string &$lastSection, boo
 
         case 'image':
             $ph = $placeholder !== '' ? $placeholder : '/uploads/xxx 或外部图片 URL';
+            $hasImagePreview = trim($value) !== '';
             echo '<div class="admin-sf-image">'
-                . '<input type="text" class="input" id="sf-' . e($key) . '" data-sf-key="' . e($key) . '" data-sf-type="image"'
+                . '<div class="admin-sf-image-preview-wrap"' . ($hasImagePreview ? '' : ' hidden') . '><img class="admin-sf-image-preview" data-sf-image-preview alt=""'
+                . ($hasImagePreview ? ' src="' . e($value) . '"' : ' hidden') . ' loading="lazy"></div>'
+                . '<input type="text" class="input admin-sf-image-value" id="sf-' . e($key) . '" data-sf-key="' . e($key) . '" data-sf-type="image"'
                 . ' value="' . e($value) . '" placeholder="' . e($ph) . '" autocomplete="off">'
                 . '<button type="button" class="btn btn-outline btn-sm admin-sf-lib" data-target="' . e($key) . '">从媒体库选择</button>'
                 . '<button type="button" class="btn btn-outline btn-sm admin-sf-upload" data-target="' . e($key) . '">上传图片</button>'
                 . '<input type="file" id="sf-upload-' . e($key) . '" class="admin-sf-upload-input" data-target="' . e($key) . '" accept="image/*,.svg" hidden>'
                 . '<button type="button" class="btn btn-ghost btn-sm admin-sf-image-clear" data-target="' . e($key) . '">清除</button>'
                 . '<p class="admin-field-hint">' . ($value === '' ? '无图片' : '已设置') . '</p></div>';
+            break;
+
+        case 'icon':
+            $iconLibrary = in_array((string) ($field['library'] ?? 'remixicon'), ['remixicon', 'fontawesome', 'both', 'custom'], true)
+                ? (string) $field['library'] : 'remixicon';
+            echo '<div class="admin-sf-icon-field" data-sf-icon-field>'
+                . '<span class="admin-sf-icon-preview" data-sf-icon-preview aria-hidden="true">'
+                . ($value !== '' ? '<i class="' . e($value) . '"></i>' : admin_icon('star', 20))
+                . '</span>'
+                . '<input type="text" class="input admin-sf-icon-value" id="sf-' . e($key) . '"'
+                . ' data-sf-key="' . e($key) . '" data-sf-type="icon" data-icon-input data-icon-library="' . e($iconLibrary) . '"'
+                . ' data-icon-custom="' . e(json_encode(is_array($field['custom_icons'] ?? null) ? $field['custom_icons'] : [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) . '"'
+                . ' value="' . e($value) . '" placeholder="ri-home-line / fa fa-home" autocomplete="off"' . $native . '>'
+                . '<button type="button" class="btn btn-outline btn-sm" data-icon-picker>选择图标</button>'
+                . '<button type="button" class="btn btn-ghost btn-sm admin-sf-icon-clear" data-icon-clear>清除</button>'
+                . '</div>';
             break;
 
         case 'slider':
@@ -308,11 +348,13 @@ $renderField = function (array $field, array $values, ?string &$lastSection, boo
             foreach ($sides as $side) {
                 echo '<label class="admin-sf-spacing-cell"><span class="admin-sf-spacing-lab">'
                     . e($sideLabels[$side] ?? $side) . '</span>'
+                    . '<span class="admin-sf-spacing-control">'
                     . '<input type="number" class="input" data-sf-key="' . e($key) . '" data-sf-type="spacing"'
                     . ' data-sf-side="' . e($side) . '" data-sf-unit="' . e($unit) . '"'
-                    . ' value="' . e((string) ($spacingData[$side] ?? '')) . '" placeholder="0" step="any"></label>';
+                    . ' value="' . e((string) ($spacingData[$side] ?? '')) . '" placeholder="0" step="any">'
+                    . '<span class="admin-sf-spacing-unit">' . e($unit) . '</span></span></label>';
             }
-            echo '<span class="admin-sf-spacing-unit">' . e($unit) . '</span></div>';
+            echo '</div>';
             break;
 
         case 'typography':
@@ -360,11 +402,19 @@ $renderField = function (array $field, array $values, ?string &$lastSection, boo
             $rows = json_decode($value !== '' ? $value : '[]', true);
             if (!is_array($rows) || !array_is_list($rows)) { $rows = []; }
             $titleKey = (string) ($field['title_key'] ?? ($subFields[0]['key'] ?? ''));
-            $meta = array_map(static fn (array $f): array => [
-                'key' => (string) $f['key'],
-                'label' => (string) $f['label'],
-                'type' => (string) ($f['type'] ?? 'text'),
-            ], $subFields);
+            $meta = array_map(static function (array $f): array {
+                $meta = [
+                    'key' => (string) $f['key'],
+                    'label' => (string) $f['label'],
+                    'type' => (string) ($f['type'] ?? 'text'),
+                    'library' => (string) ($f['library'] ?? 'remixicon'),
+                    'custom_icons' => is_array($f['custom_icons'] ?? null) ? $f['custom_icons'] : [],
+                ];
+                foreach (['options', 'placeholder', 'default', 'min', 'max', 'step', 'unit', 'rows', 'multiple', 'inline', 'rules'] as $key) {
+                    if (array_key_exists($key, $f)) { $meta[$key] = $f[$key]; }
+                }
+                return $meta;
+            }, $subFields);
             echo '<div class="admin-sf-repeater" data-sf-repeater="' . e($key) . '"'
                 . ' data-sf-max="' . (int) ($field['max_items'] ?? 20) . '"'
                 . ' data-sf-min="' . (int) ($field['min_items'] ?? 0) . '"'

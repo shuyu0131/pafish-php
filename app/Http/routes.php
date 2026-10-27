@@ -111,11 +111,17 @@ $app->group('/admin', function ($group) {
 
     // 文章管理（列表 / 编辑器 / 导入 / 保存 / 单行操作 / 批量）
     $group->get('/posts', [PostsController::class, 'index']);
+    $group->get('/submissions', [PostsController::class, 'legacySubmissions']);
+    $group->get('/submissions/new', [\Pafish\Admin\AccountController::class, 'newSubmission']);
+    $group->get('/submissions/{id}/edit', [\Pafish\Admin\AccountController::class, 'editSubmission']);
+    $group->post('/submissions/save', [\Pafish\Admin\AccountController::class, 'saveSubmission']);
+    $group->post('/submissions/{id}/delete', [\Pafish\Admin\AccountController::class, 'deleteSubmission']);
     $group->get('/posts/import', [PostsController::class, 'importPage']);
     $group->get('/posts/new', [PostsController::class, 'createEditor']);
     $group->get('/posts/{id}/edit', [PostsController::class, 'editEditor']);
     $group->post('/posts/save', [PostsController::class, 'save']);
     $group->post('/posts/{id}/save', [PostsController::class, 'save']);
+    $group->post('/posts/{id}/review', [PostsController::class, 'review']);
     $group->post('/posts/{id}/delete', [PostsController::class, 'delete']);
     $group->post('/posts/{id}/restore', [PostsController::class, 'restore']);
     $group->post('/posts/{id}/purge', [PostsController::class, 'purge']);
@@ -309,7 +315,7 @@ $app->get('/micro', [MicroController::class, 'index']);
 // ---- 旧主题资源兼容入口 ----
 // 新主题资源使用 /themes/{name}/... 直链；该入口只兼容旧模板生成的 /theme-assets/... 地址。
 $app->get('/theme-assets/{theme:[a-z0-9_-]+}/{path:.*}', [ThemeAssetController::class, 'serve']);
-$app->get('/{dir:css|js|uploads}/{path:.*}', [StaticFileController::class, 'serve']);
+$app->get('/{dir:css|fonts|js|uploads|vendor}/{path:.*}', [StaticFileController::class, 'serve']);
 // 当前主题与声明 public:true 的插件自然路径；必须位于文章 slug 兜底之前。
 // 仅注册已声明的精确模式，不能用 catch-all，否则会吞掉 /{slug} 文章兜底。
 foreach (\Pafish\Services\ExtensionRoutes::publicRoutes() as $extensionRoute) {

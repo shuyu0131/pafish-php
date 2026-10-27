@@ -75,10 +75,17 @@ function editor_head_extra(): string
     return '<link rel="stylesheet" href="' . e(asset_url('/css/content.css')) . '">';
 }
 
-/** 当前登录用户（数组或 null） */
+/** 当前登录用户的主题安全资料（数组或 null）；不把认证凭据/内部状态暴露给模板。 */
 function current_user(): ?array
 {
-    return Auth::user();
+    $user = Auth::user();
+    if ($user === null) {
+        return null;
+    }
+    $publicFields = ['id', 'username', 'nickname', 'email', 'avatar_url', 'description', 'role', 'created_at'];
+    $profile = array_intersect_key($user, array_fill_keys($publicFields, true));
+    $profile['avatar_url'] = \Pafish\Services\Content::safeImageUrl($profile['avatar_url'] ?? null);
+    return $profile;
 }
 
 function is_logged_in(): bool

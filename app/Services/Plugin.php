@@ -708,6 +708,7 @@ final class Plugin
             throw new \RuntimeException('删除插件目录失败');
         }
         if ($deleteData) {
+            ExtensionRecords::deleteOwner('plugin', $name);
             EntityMeta::deleteOwner('plugin', $name);
             ExtensionSchema::drop('plugin', $name, $desc['manifest']['schema'] ?? null);
             Settings::remove('plugin_settings:' . $name);

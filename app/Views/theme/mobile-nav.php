@@ -6,6 +6,7 @@
  */
 $items = $items ?? [];
 $loggedIn = (bool) ($loggedIn ?? false);
+$archivesAvailable = \Pafish\Services\Theme::hasArchivePage();
 ?>
 <div class="mobile-nav">
   <input type="checkbox" id="mobile-nav-toggle" class="mobile-nav-check" aria-hidden="true">
@@ -19,8 +20,10 @@ $loggedIn = (bool) ($loggedIn ?? false);
           <?= e($item['label'] ?? '') ?>
         </a>
       <?php endforeach; ?>
-      <a href="<?= e(url_to('/archives')) ?>">归档</a>
-      <hr>
+      <?php if ($archivesAvailable): ?>
+        <a href="<?= e(url_to('/archives')) ?>">归档</a>
+      <?php endif; ?>
+      <?php if ($items !== [] || $archivesAvailable): ?><hr><?php endif; ?>
       <?php if ($loggedIn): ?>
         <a href="<?= e(url_to('/admin')) ?>">后台</a>
         <form class="mobile-nav-logout" method="post" action="<?= e(url_to('/api/auth/logout')) ?>">

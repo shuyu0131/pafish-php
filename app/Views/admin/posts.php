@@ -22,11 +22,13 @@ function admin_posts_url(array $params, array $patch, int $per, bool $includePag
 }
 
 $tabItems = [
-    ['key' => '', 'label' => '全部'],
-    ['key' => 'PUBLISHED', 'label' => '已发布 (' . ($counts['PUBLISHED'] ?? 0) . ')'],
-    ['key' => 'DRAFT', 'label' => '草稿 (' . ($counts['DRAFT'] ?? 0) . ')'],
-    ['key' => 'SCHEDULED', 'label' => '定时 (' . ($counts['SCHEDULED'] ?? 0) . ')'],
-    ['key' => 'trash', 'label' => '回收站 (' . ($counts['TRASH'] ?? 0) . ')'],
+    ['key' => '', 'label' => '全部', 'count' => null],
+    ['key' => 'PUBLISHED', 'label' => '已发布', 'count' => $counts['PUBLISHED'] ?? 0],
+    ['key' => 'PENDING', 'label' => '待审核', 'count' => $counts['PENDING'] ?? 0],
+    ['key' => 'CHANGES_REQUESTED', 'label' => '退回修改', 'count' => $counts['CHANGES_REQUESTED'] ?? 0],
+    ['key' => 'DRAFT', 'label' => '草稿', 'count' => $counts['DRAFT'] ?? 0],
+    ['key' => 'SCHEDULED', 'label' => '定时', 'count' => $counts['SCHEDULED'] ?? 0],
+    ['key' => 'trash', 'label' => '回收站', 'count' => $counts['TRASH'] ?? 0],
 ];
 $sortItems = [
     ['key' => 'latest', 'label' => '最新发布'],
@@ -36,6 +38,7 @@ $sortItems = [
     ['key' => 'comments', 'label' => '评论最多'],
 ];
 $canEdit = in_array($role ?? '', ['ADMIN', 'EDITOR'], true);
+$canReview = ($role ?? '') === 'ADMIN';
 ?>
 <div class="admin-stack admin-list-page admin-posts-list">
   <div class="admin-page-head">
@@ -47,6 +50,7 @@ $canEdit = in_array($role ?? '', ['ADMIN', 'EDITOR'], true);
     </div>
   <?php if ($canEdit): ?>
   <div class="admin-head-actions">
+    <?php if ($canReview && ($counts['PENDING'] ?? 0) > 0): ?><a class="btn btn-outline" href="<?= e(url_to('/admin/posts?status=PENDING')) ?>">待审核 <?= (int) $counts['PENDING'] ?></a><?php endif; ?>
     <a class="btn btn-primary" href="<?= e(url_to('/admin/posts/new')) ?>"><?= admin_icon('pen', 15) ?>写文章</a>
     <a class="btn btn-outline" href="<?= e(url_to('/admin/posts/import')) ?>"><?= admin_icon('upload', 15) ?>导入 Markdown</a>
   </div>
@@ -54,15 +58,17 @@ $canEdit = in_array($role ?? '', ['ADMIN', 'EDITOR'], true);
   </div>
   <div class="admin-list-toolbar">
   <!-- 状态 tabs -->
-  <div class="admin-tabs">
+  <nav class="admin-tabs admin-status-tabs" aria-label="文章状态">
     <?php foreach ($tabItems as $t): ?>
       <?php $active = ($params['status'] ?? '') === $t['key']; ?>
       <a class="admin-tab <?= $active ? 'is-active' : '' ?>"
+         <?= $active ? 'aria-current="page"' : '' ?>
          href="<?= e(url_to(admin_posts_url($params, ['status' => $t['key']], $per))) ?>">
         <?= e($t['label']) ?>
+        <?php if ($t['count'] !== null): ?><span class="admin-tab-count">(<?= (int) $t['count'] ?>)</span><?php endif; ?>
       </a>
     <?php endforeach; ?>
-  </div>
+  </nav>
 
   <!-- 列表筛选工具区 -->
   <div class="admin-filter-bar admin-posts-filter-bar">
@@ -152,6 +158,21 @@ $canEdit = in_array($role ?? '', ['ADMIN', 'EDITOR'], true);
             <td class="admin-list-date admin-table-secondary" data-label="时间"><time title="<?= e(($isTrash ? '删除时间：' : ($params['sort'] === 'updated' || !$p['published_at'] ? '更新时间：' : '发布时间：')) . format_date($listTime, 'yyyy-MM-dd HH:mm')) ?>" datetime="<?= e((string) $listTime) ?>"><?= e(format_date($listTime, 'yyyy-MM-dd')) ?></time></td>
             <td class="admin-col-ops" data-label="操作">
               <div class="admin-row-ops">
+                <?php if ($canReview && !$isTrash && $p['status'] === 'PENDING'): ?>
+                  <form class="admin-inline-form" method="post" action="<?= e(url_to('/admin/posts/' . (int) $p['id'] . '/review')) ?>">
+                    <?= csrf_field() ?><input type="hidden" name="decision" value="publish">
+                    <button type="submit" class="btn btn-primary btn-sm" title="通过并发布">通过</button>
+                  </form>
+                  <details class="admin-review-return">
+                    <summary class="admin-icon-btn" title="退回修改" aria-label="退回修改"><?= admin_icon('corner-down-right', 15) ?></summary>
+                    <form method="post" action="<?= e(url_to('/admin/posts/' . (int) $p['id'] . '/review')) ?>">
+                      <?= csrf_field() ?><input type="hidden" name="decision" value="changes_requested">
+                      <label class="admin-sr-only" for="review-note-list-<?= (int) $p['id'] ?>">退回意见</label>
+                      <textarea class="input" id="review-note-list-<?= (int) $p['id'] ?>" name="review_note" required maxlength="2000" rows="3" placeholder="写明需要修改的地方"></textarea>
+                      <button type="submit" class="btn btn-outline btn-sm">退回</button>
+                    </form>
+                  </details>
+                <?php endif; ?>
                 <a class="admin-icon-btn" href="<?= e(url_to('/admin/posts/' . $p['id'] . '/edit')) ?>" title="编辑"><?= admin_icon('edit', 15) ?></a>
                 <?php if (!$isTrash && $p['status'] === 'PUBLISHED'): ?>
                   <a class="admin-icon-btn" href="<?= e(url_to('/post/' . $p['slug'])) ?>" target="_blank" rel="noopener" title="查看"><?= admin_icon('eye', 15) ?></a>

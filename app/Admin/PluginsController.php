@@ -70,13 +70,20 @@ final class PluginsController extends AdminController
             return $this->redirect($response, '/admin/plugins');
         }
         $desc = Plugin::describe($name);
+        $settings = $desc['manifest'] !== null ? Plugin::settingsFields($name) : [];
+        $headExtra = '';
+        if (\Pafish\Services\ExtensionKernel::hasSettingType($settings, 'icon')) {
+            $headExtra = '<link rel="stylesheet" href="' . e(asset_url('/css/remixicon.min.css')) . '">'
+                . '<link rel="stylesheet" href="' . e(asset_url('/css/font-awesome.min.css')) . '">';
+        }
         $response->getBody()->write($this->render('plugin-setting', [
             'pluginName' => $name,
             'manifest' => $desc['manifest'],
             'error' => $desc['error'],
             'active' => Plugin::isActive($name),
             'values' => $desc['manifest'] !== null ? Plugin::settings($name) : [],
-            'settings' => $desc['manifest'] !== null ? Plugin::settingsFields($name) : [],
+            'settings' => $settings,
+            'headExtra' => $headExtra,
             'supportsNotificationTest' => Plugin::supportsNotificationTest($name),
             'supportsStorageTest' => Plugin::supportsStorageTest($name),
         ], '插件设置'));

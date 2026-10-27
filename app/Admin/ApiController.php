@@ -6,7 +6,9 @@ namespace Pafish\Admin;
 
 use Pafish\Core\Auth;
 use Pafish\Core\DB;
+use Pafish\Core\RateLimiter;
 use Pafish\Core\Session;
+use Pafish\Services\Settings;
 use Pafish\Services\Markdown;
 use Pafish\Services\Slug;
 use Pafish\Services\Upload;
@@ -19,7 +21,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  * - GET  /api/uploads           媒体库列表（24/页、q 搜索、type=image 仅图片——封面选择用）
  * - POST /api/md-preview        Markdown 服务端渲染（编辑器的分栏/预览模式）
  * - POST /api/import-markdown   批量导入 .md 文件（frontmatter: title/date/tags）
- * 全部需要登录 + 内容管理权限 + POST 校验 CSRF
+ * 媒体上传/库与预览也向站点开放投稿时的登录用户开放；其余写接口仍需内容管理权限。
  */
 final class ApiController extends AdminController
 {
@@ -31,7 +33,7 @@ final class ApiController extends AdminController
     /** POST /api/upload：multipart 上传（兼容历史 file[] 多文件与当前单文件调用） */
     public function upload(Request $request, Response $response): Response
     {
-        $guard = $this->guardJson($request, $response);
+        $guard = $this->guardJson($request, $response, true);
         if ($guard !== null) {
             return $guard;
         }
@@ -44,6 +46,9 @@ final class ApiController extends AdminController
         if (!Session::verifyCsrf($csrf)) {
             return $this->json($response, ['error' => '会话已过期，请刷新页面重试'], 419);
         }
+        if (!Auth::canManagePosts() && !RateLimiter::allow('submission-upload', (string) Auth::id(), 30, 3600)) {
+            return $this->json($response, ['error' => '上传操作过于频繁，请稍后再试'], 429);
+        }
 
         $raw = $request->getUploadedFiles()['file'] ?? null;
         // 单文件时 PSR-7 返回单个对象，多文件（file[] 字段）返回数组；统一为数组
@@ -54,6 +59,9 @@ final class ApiController extends AdminController
         ));
         if ($files === []) {
             return $this->json($response, ['error' => '未选择文件'], 400);
+        }
+        if (!Auth::canManagePosts() && count($files) > 5) {
+            return $this->json($response, ['error' => '一次最多上传 5 个文件'], 400);
         }
 
         $succMap = [];
@@ -177,7 +185,7 @@ final class ApiController extends AdminController
     /** GET /api/uploads：媒体库（page / q / type 5 类筛选） */
     public function uploads(Request $request, Response $response): Response
     {
-        $guard = $this->guardJson($request, $response);
+        $guard = $this->guardJson($request, $response, true);
         if ($guard !== null) {
             return $guard;
         }
@@ -227,7 +235,7 @@ final class ApiController extends AdminController
     /** POST /api/md-preview：服务端渲染 Markdown（编辑器分栏/预览模式） */
     public function mdPreview(Request $request, Response $response): Response
     {
-        $guard = $this->guardJson($request, $response);
+        $guard = $this->guardJson($request, $response, true, false);
         if ($guard !== null) {
             return $guard;
         }
@@ -435,12 +443,12 @@ final class ApiController extends AdminController
     }
 
     /** 未登录/无权限时返回 JSON 401/403（而非重定向） */
-    private function guardJson(Request $request, Response $response): ?Response
+    private function guardJson(Request $request, Response $response, bool $allowSubmissionUser = false, bool $requiresOpenSubmissions = true): ?Response
     {
         if (!Auth::check()) {
             return $this->json($response, ['error' => '未登录'], 401);
         }
-        if (!Auth::canManagePosts()) {
+        if (!Auth::canManagePosts() && !($allowSubmissionUser && (!$requiresOpenSubmissions || Settings::get('submissions_enabled', 'true') === 'true'))) {
             return $this->json($response, ['error' => '无权限'], 403);
         }
         return null;

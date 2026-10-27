@@ -1213,6 +1213,17 @@ final class Theme
         return is_file(self::root() . '/' . self::active() . '/' . $name . '.php');
     }
 
+    /** 归档入口仅在主题提供模板或允许系统回退时启用。 */
+    public static function hasArchivePage(): bool
+    {
+        if (self::hasTemplate('archives')) {
+            return true;
+        }
+        $manifest = self::manifest(self::active()) ?? [];
+        $fallbacks = $manifest['systemTemplateFallback'] ?? null;
+        return $fallbacks === null || (is_array($fallbacks) && in_array('archives', $fallbacks, true));
+    }
+
     /** 切换激活主题 */
     public static function setActive(string $name): void
     {
@@ -1397,6 +1408,7 @@ final class Theme
             throw new \RuntimeException('删除主题目录失败');
         }
         if ($deleteData) {
+            ExtensionRecords::deleteOwner('theme', $name);
             EntityMeta::deleteOwner('theme', $name);
             ExtensionSchema::drop('theme', $name, $desc['manifest']['schema'] ?? null);
             Settings::remove('theme_data:' . $name);

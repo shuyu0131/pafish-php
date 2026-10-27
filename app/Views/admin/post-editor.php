@@ -5,7 +5,8 @@
  * 变量：$post $isEdit $postId $catTree $tags $tagIds $customFields $hasPassword $isScheduled $statusLabel
  *       $coverAuto（这篇是否开启自动取图兜底）$autoCoverUrl（自动取到的图，只作预览）
  */
-$extensionMetaFields = \Pafish\Services\EntityMeta::editorFields('post', (int) ($post['id'] ?? 0));
+$submissionMode = (bool) ($submissionMode ?? false);
+$extensionMetaFields = $submissionMode ? [] : \Pafish\Services\EntityMeta::editorFields('post', (int) ($post['id'] ?? 0));
 $hasExtensionMeta = $extensionMetaFields !== [];
 $legacyCustomFieldsVisible = $customFields !== [] || !$hasExtensionMeta;
 $template = (string) ($post['template'] ?? 'default');
@@ -39,9 +40,14 @@ $editorData = [
     'postId' => $postId,
     'isScheduled' => $isScheduled,
     'hasPassword' => $hasPassword,
-    'saveUrl' => url_to($isEdit ? '/admin/posts/' . $postId . '/save' : '/admin/posts/save'),
-    'editUrl' => url_to('/admin/posts/{id}/edit'),
-    'listUrl' => url_to('/admin/posts'),
+    'submissionMode' => $submissionMode,
+    'emptyContentAllowed' => $submissionMode && !empty($submissionHasExtensionContent),
+    'autosaveEnabled' => !$submissionMode,
+    'allowNewCategories' => !$submissionMode && \Pafish\Core\Auth::isAdmin(),
+    'allowNewTags' => !$submissionMode && \Pafish\Core\Auth::isAdmin(),
+    'saveUrl' => url_to($submissionMode ? '/admin/submissions/save' : ($isEdit ? '/admin/posts/' . $postId . '/save' : '/admin/posts/save')),
+    'editUrl' => url_to($submissionMode ? '/admin/submissions/{id}/edit' : '/admin/posts/{id}/edit'),
+    'listUrl' => url_to($submissionMode ? '/admin?section=posts' : '/admin/posts'),
     'previewUrl' => url_to('/api/md-preview'),
     'uploadUrl' => url_to('/api/upload'),
     'uploadsUrl' => url_to('/api/uploads'),
@@ -56,19 +62,34 @@ $editorData = [
 ];
 ?>
 <div class="admin-editor admin-editor-workspace">
-  <form id="postForm" method="post" action="<?= e(url_to($isEdit ? '/admin/posts/' . $postId . '/save' : '/admin/posts/save')) ?>" novalidate>
+  <?php if ($submissionMode && $isEdit): ?>
+  <div class="admin-submission-status-note"><span class="badge<?= $post['status'] === 'PUBLISHED' ? ' badge-success' : ($post['status'] === 'CHANGES_REQUESTED' ? ' badge-warning' : '') ?>"><?= e($submissionStatusLabel ?? $post['status']) ?></span>
+    <?php if ($post['status'] === 'PENDING'): ?><span>内容已送审，审核完成前不会公开。</span>
+    <?php elseif ($post['status'] === 'PUBLISHED' && !empty($submissionReviewRequired)): ?><span>重新提交后文章会暂时从公开页面隐藏，审核通过后重新显示。</span><?php endif; ?>
+  </div>
+  <?php if ($post['status'] === 'CHANGES_REQUESTED' && trim((string) ($post['review_note'] ?? '')) !== ''): ?>
+    <section class="admin-submission-feedback" aria-labelledby="submission-feedback-title"><h2 id="submission-feedback-title">审核意见</h2><p><?= e($post['review_note']) ?></p><span class="admin-muted">根据意见修改后再次提交。</span></section>
+  <?php endif; ?>
+  <?php endif; ?>
+
+  <form id="postForm" method="post" action="<?= e(url_to($submissionMode ? '/admin/submissions/save' : ($isEdit ? '/admin/posts/' . $postId . '/save' : '/admin/posts/save'))) ?>" novalidate>
     <?= csrf_field() ?>
     <input type="hidden" name="_idempotency" value="<?= e(\Pafish\Core\Session::requestToken()) ?>">
+    <?php if ($submissionMode): ?><input type="hidden" name="post_id" value="<?= $postId ?>"><?php endif; ?>
     <input type="hidden" name="action" id="fAction" value="draft">
 
     <header class="admin-editor-header">
       <div class="admin-editor-heading">
-        <h1 class="admin-h1"><?= $isEdit ? '编辑文章' : '新建文章' ?></h1>
-        <?php if ($isEdit): ?><p class="admin-autosave" data-autosave role="status">每 60 秒自动保存</p><?php endif; ?>
+        <h1 class="admin-h1"><?= $submissionMode ? ($isEdit ? '编辑投稿' : '撰写投稿') : ($isEdit ? '编辑文章' : '新建文章') ?></h1>
+        <?php if ($isEdit && !$submissionMode): ?><p class="admin-autosave" data-autosave role="status">每 60 秒自动保存</p><?php endif; ?>
       </div>
       <div class="admin-editor-header-actions">
         <button type="submit" class="btn btn-outline" data-save="draft">存为草稿</button>
-        <button type="submit" class="btn btn-primary admin-publish-primary" data-save="publish"><?= $isEdit && $post['status'] === 'PUBLISHED' ? '保存修改' : '立即发布' ?></button>
+        <?php if (!$submissionMode || !empty($submissionCanSubmit)): ?>
+          <button type="submit" class="btn btn-primary admin-publish-primary" data-save="publish"><?= $submissionMode ? (!empty($submissionReviewRequired) ? '提交审核' : ($isEdit && $post['status'] === 'PUBLISHED' ? '保存并发布' : '发布文章')) : ($isEdit && $post['status'] === 'PUBLISHED' ? '保存修改' : '立即发布') ?></button>
+        <?php else: ?>
+          <span class="admin-muted">投稿已关闭，可先保存为草稿</span>
+        <?php endif; ?>
       </div>
     </header>
     <div class="admin-editor-error" role="alert" hidden></div>
@@ -98,7 +119,7 @@ $editorData = [
         </div>
         </div>
 
-        <details class="card admin-advanced admin-editor-fields" id="customFieldsDetails"<?= $legacyCustomFieldsVisible ? '' : ' hidden' ?>>
+        <details class="card admin-advanced admin-editor-fields" id="customFieldsDetails"<?= $submissionMode || !$legacyCustomFieldsVisible ? ' hidden' : '' ?>>
           <summary><?= admin_icon('chevron-right', 14) ?><span id="customFieldsTitle"><?= $hasExtensionMeta ? '旧版自定义字段' : '自定义字段' ?></span></summary>
           <section class="admin-advanced-body admin-custom-fields-field" aria-labelledby="customFieldsTitle">
             <div class="admin-editor-extra-head">
@@ -156,7 +177,7 @@ $editorData = [
           <div class="admin-field">
             <label class="label" for="fTagInput">标签</label>
             <div class="admin-tags-selected" id="tagsSelected"></div>
-            <input class="input" id="fTagInput" placeholder="输入标签名，回车/逗号添加" maxlength="100">
+            <input class="input" id="fTagInput" placeholder="<?= $submissionMode ? '输入已有标签名，回车添加' : '输入标签名，回车/逗号添加' ?>" maxlength="100">
             <div class="admin-tags-all" id="tagsAll"></div>
           </div>
 
@@ -176,7 +197,14 @@ $editorData = [
             <?php endif; ?>
           </div>
           <?php else: ?>
-          <input type="hidden" id="fTemplate" name="template" value="default">
+          <input type="hidden" id="fTemplate" name="template" value="<?= e($template) ?>">
+          <?php endif; ?>
+
+          <?php if ($submissionMode): ?>
+          <label class="admin-check">
+            <input type="checkbox" id="fAllowComments" name="allow_comments" value="1" <?= ($post['allow_comments'] ?? 1) ? 'checked' : '' ?>>
+            <span>允许评论</span>
+          </label>
           <?php endif; ?>
 
         </div>
@@ -201,7 +229,7 @@ $editorData = [
           </label>
         </div>
 
-        <div class="card admin-form-card admin-editor-advanced-card">
+        <div class="card admin-form-card admin-editor-advanced-card"<?= $submissionMode ? ' hidden' : '' ?>>
           <!-- 高级选项 -->
           <details class="admin-advanced">
             <summary>
@@ -243,11 +271,14 @@ $editorData = [
                 <input type="checkbox" id="fCatPinned" name="category_pinned" value="1" <?= $post['category_pinned'] ? 'checked' : '' ?>>
                 <span>分类内置顶（在所属分类页置顶展示）</span>
               </label>
-              <input type="hidden" name="allow_comments" value="0">
-              <label class="admin-check">
-                <input type="checkbox" id="fAllowComments" name="allow_comments" value="1" <?= ($post['allow_comments'] ?? 1) ? 'checked' : '' ?>>
-                <span>允许评论</span>
-              </label>
+              <?php if (!$submissionMode): ?>
+                <input type="hidden" name="allow_comments" value="0">
+                <label class="admin-check">
+                  <input type="checkbox" id="fAllowComments" name="allow_comments" value="1" <?= ($post['allow_comments'] ?? 1) ? 'checked' : '' ?>>
+                  <span>允许评论</span>
+                </label>
+              <?php endif; ?>
+              <?php if (!$submissionMode): ?>
               <?= \Pafish\Services\Plugin::renderInjection('post_editor', [
                   'post' => $post,
                   'isEdit' => $isEdit,
@@ -258,6 +289,7 @@ $editorData = [
                   'isEdit' => $isEdit,
                   'postId' => $postId,
               ]) ?>
+              <?php endif; ?>
             </div>
           </details>
           <?php $seoValues = $post; $seoPrefix = 'post'; require __DIR__ . '/partials/seo-fields.php'; ?>
@@ -271,7 +303,7 @@ $editorData = [
 <?php require __DIR__ . '/partials/editor-media-modal.php'; ?>
 
 <script>
-window.PAFISH_EDITOR_DATA = <?= json_encode($editorData, JSON_UNESCAPED_UNICODE) ?>;
+window.PAFISH_EDITOR_DATA = <?= json_encode($editorData, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 window.PAFISH_EDITOR_CSRF = <?= json_encode(\Pafish\Core\Session::csrfToken()) ?>;
 </script>
 <script src="<?= e(asset_url('/js/admin-markdown-editor.js')) ?>"></script>

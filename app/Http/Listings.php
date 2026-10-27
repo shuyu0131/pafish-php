@@ -57,9 +57,17 @@ final class Listings
         $offset = ($pageNum - 1) * $perPage;
 
         $posts = DB::fetchAll(
-            "SELECT p.id, p.title, p.slug, p.excerpt, p.content, p.content_format, p.template, p.cover_url, p.custom_fields, p.published_at, p.author_id,
-                    p.is_pinned, p.category_pinned, p.password, p.external_url, p.view_count,
-                    p.like_count, p.favorite_count, p.allow_comments, p.seo_title, p.meta_description,
+            "SELECT p.id, p.title, p.slug,
+                    CASE WHEN p.password IS NOT NULL AND p.password <> '' THEN '' ELSE p.excerpt END AS excerpt,
+                    CASE WHEN p.password IS NOT NULL AND p.password <> '' THEN '' ELSE p.content END AS content,
+                    p.content_format, p.template, p.cover_url,
+                    CASE WHEN p.password IS NOT NULL AND p.password <> '' THEN NULL ELSE p.custom_fields END AS custom_fields,
+                    p.published_at, p.author_id,
+                    p.is_pinned, p.category_pinned,
+                    (p.password IS NOT NULL AND p.password <> '') AS is_password_protected,
+                    p.external_url, p.view_count,
+                    p.like_count, p.favorite_count, p.allow_comments, p.seo_title,
+                    CASE WHEN p.password IS NOT NULL AND p.password <> '' THEN '' ELSE p.meta_description END AS meta_description,
                     (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id AND c.status = 'APPROVED') AS comment_count,
                     COALESCE(NULLIF(u.nickname, ''), u.username) AS author_name, u.avatar_url AS author_avatar,
                     c.name AS category_name, c.slug AS category_slug
@@ -78,13 +86,17 @@ final class Listings
         $posts = HomeController::attachTags($posts);
         foreach ($posts as &$post) {
             $post['cover_url'] = \Pafish\Services\Content::safeImageUrl($post['cover_url'] ?? null);
+            $post['author_avatar'] = \Pafish\Services\Content::safeImageUrl($post['author_avatar'] ?? null);
+            $post['is_password_protected'] = (bool) ($post['is_password_protected'] ?? false);
         }
         unset($post);
 
         if ($posts !== []) {
             $recent = \Pafish\Services\Comments::recentForPosts(array_column($posts, 'id'));
             foreach ($posts as $index => $post) {
-                $posts[$index]['recent_comments'] = $recent[(int) $post['id']] ?? [];
+                $posts[$index]['recent_comments'] = !empty($post['is_password_protected'])
+                    ? []
+                    : ($recent[(int) $post['id']] ?? []);
             }
         }
 

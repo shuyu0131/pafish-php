@@ -14,7 +14,9 @@ $icp = (string) settings('site_icp', '');
     <?php if ($icp !== ''): ?>
       <p class="app-footer-icp"><?= e($icp) ?></p>
     <?php endif; ?>
-    <?php /* 插件页脚注入 */ do_action('footer_inject', ['template' => $GLOBALS['pafish_tpl_ctx'] ?? []]); ?>
+    <?php $footerInjectContext = ['template' => $GLOBALS['pafish_tpl_ctx'] ?? []]; ?>
+    <?= \Pafish\Services\Theme::renderInjection('footer', $footerInjectContext) ?>
+    <?php /* 插件页脚注入 */ do_action('footer_inject', $footerInjectContext); ?>
   </footer>
 
 </div>

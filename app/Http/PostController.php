@@ -33,10 +33,12 @@ final class PostController
             return $this->notFound($response);
         }
         $post['cover_url'] = Content::safeImageUrl($post['cover_url'] ?? null);
+        $post['author_avatar'] = Content::safeImageUrl($post['author_avatar'] ?? null);
 
         // 评论分页参数（cpage），非法值回退第 1 页
         $commentPage = max(1, (int) ($request->getQueryParams()['cpage'] ?? 1));
-        $settings = Settings::core();
+        // Single-post templates only need the public site name; do not expose SMTP/API credentials.
+        $settings = ['site_name' => \site_name()];
         // 可选展示由主题自己声明；未声明的主题不应因系统兜底默认值被动开启。
         $showCustomFields = \theme_value('show_custom_fields', '0') !== '0';
         $showRelated = \theme_value('show_related_posts', '0') !== '0';
@@ -197,8 +199,18 @@ final class PostController
         }
         if (empty($extra['locked']) && !empty($post['meta_description'])) $excerpt = $post['meta_description'];
         $seoTitle = $post['seo_title'] ?: $post['title'];
+        $templateFields = [
+            'id', 'title', 'slug', 'excerpt', 'seo_title', 'meta_description', 'allow_comments',
+            'content', 'content_format', 'template', 'cover_url', 'published_at', 'view_count',
+            'is_pinned', 'external_url', 'like_count', 'favorite_count',
+            'author_id', 'category_id', 'created_at', 'updated_at', 'author_name', 'author_avatar',
+            'category_name', 'category_slug', 'tags',
+        ];
+        // Themes receive an allowlisted content view, never the password verifier or moderation data.
+        $templatePost = array_intersect_key($post, array_fill_keys($templateFields, true));
+        $templatePost['is_password_protected'] = !empty($post['password']);
         $data = array_merge($extra, [
-            'post' => $post,
+            'post' => $templatePost,
             'title' => $post['title'],
             'seoTitle' => $seoTitle,
             'description' => $excerpt, // meta description 用摘要
@@ -213,6 +225,7 @@ final class PostController
         // 仅在已解锁分支渲染正文，避免锁定页面把文章内容交给主题或插件。
         if (!empty($extra['locked'])) {
             unset($data['post']['content']);
+            unset($data['post']['excerpt']);
             unset($data['post']['meta_description']);
             $data['contentHtml'] = '';
             $response->getBody()->write(\render('post', $data));
@@ -221,13 +234,15 @@ final class PostController
 
         $markdown = (string) ($post['content'] ?? '');
         $postId = (string) ($post['id'] ?? '');
+        $contentContextPost = $post;
+        unset($contentContextPost['password'], $contentContextPost['author_email'], $contentContextPost['review_note'], $contentContextPost['reviewed_by'], $contentContextPost['reviewed_at'], $contentContextPost['deleted_at']);
         $markdown = \apply_content_filters($markdown, [
             'type' => 'post',
             'id' => $postId,
-            'data' => $post,
+            'data' => $contentContextPost,
             // 兼容早期扩展上下文。
             'postId' => $postId,
-            'post' => $post,
+            'post' => $contentContextPost,
         ]);
         $data['contentHtml'] = \content_html($markdown, (string) ($post['content_format'] ?? 'markdown'));
         $response->getBody()->write(\render('post', $data));
@@ -278,7 +293,9 @@ final class PostController
         $tagIds = array_map(static fn (array $t): int => (int) DB::value('SELECT id FROM tags WHERE slug = ?', [$t['slug']]), $post['tags'] ?? []);
         $tagIds = array_filter($tagIds);
         $params = [$id];
-        $sql = "SELECT p.id, p.title, p.slug, p.excerpt, p.published_at,
+        $sql = "SELECT p.id, p.title, p.slug,
+                       CASE WHEN p.password IS NOT NULL AND p.password <> '' THEN '' ELSE p.excerpt END AS excerpt,
+                       p.published_at,
                        c.name AS category_name, c.slug AS category_slug
                 FROM posts p
                 LEFT JOIN categories c ON c.id = p.category_id

@@ -42,6 +42,7 @@
       control.appendChild(popup);
       control._adminPopup = null;
     }
+    if (control._adminResetSearch) control._adminResetSearch();
     if (openControl === control) openControl = null;
   }
   function portalPopup(control) {
@@ -53,7 +54,7 @@
     (control.closest('.admin-modal-backdrop') || document.body).appendChild(popup);
     function reposition() {
       var rect = trigger.getBoundingClientRect();
-      var minWidth = popup.classList.contains('admin-date-panel') ? 272 : Math.max(rect.width, popup.classList.contains('admin-paragraph-menu') ? 144 : 120);
+      var minWidth = popup.classList.contains('admin-date-panel') ? 272 : Math.max(rect.width, popup.classList.contains('has-search') ? 256 : popup.classList.contains('admin-paragraph-menu') ? 144 : 120);
       var maxWidth = Math.max(120, window.innerWidth - 16);
       var width = Math.min(minWidth, maxWidth) + 'px';
       popup.style.minWidth = width;
@@ -92,6 +93,25 @@
     if (control.classList.contains('is-open')) close(control);
     else open(control);
   }
+  function focusPastControl(control, backwards, trigger) {
+    var scope = control.closest('.admin-modal-backdrop, [role="dialog"]') || document;
+    var ordered = Array.prototype.slice.call(scope.querySelectorAll('a[href], area[href], button, input, select, textarea, [tabindex]'));
+    function isFocusable(element) {
+      if (element.disabled || element.classList.contains('admin-native-control') || element.tabIndex < 0 || element.closest('[hidden], [inert]')) return false;
+      if (element !== trigger && element.closest('.admin-control') === control) return false;
+      if (!element.getClientRects().length) return false;
+      return window.getComputedStyle(element).visibility !== 'hidden';
+    }
+    var triggerIndex = ordered.indexOf(trigger);
+    var target = null;
+    if (backwards) {
+      for (var i = triggerIndex - 1; i >= 0; i--) if (isFocusable(ordered[i])) { target = ordered[i]; break; }
+    } else {
+      for (var j = triggerIndex + 1; j < ordered.length; j++) if (isFocusable(ordered[j])) { target = ordered[j]; break; }
+    }
+    if (target) target.focus({ preventScroll: true });
+    else trigger.focus({ preventScroll: true });
+  }
   function syncState(source, target) {
     target.disabled = source.disabled;
     target.classList.toggle("is-error", source.getAttribute("aria-invalid") === "true" || source.classList.contains("is-error"));
@@ -103,6 +123,10 @@
     var explicitCommit = select.dataset.adminSelectCommit === 'explicit';
     var preserveFocus = select.dataset.adminSelectPreserveFocus === 'true';
     var paragraphStyle = select.dataset.adminSelectStyle === 'paragraph';
+    var searchable = !paragraphStyle && select.dataset.adminSelectSearch !== 'false' && (select.dataset.adminSelectSearch === 'true' || select.options.length >= 10);
+    var controlLabel = select.getAttribute('aria-label') || (select.labels && select.labels[0] ? select.labels[0].textContent.trim() : '');
+    if (!controlLabel && select.options.length) controlLabel = select.options[0].textContent.replace(/^(全部|选择|请选择)\s*/, '').replace(/[.…]+$/, '').trim();
+    if (!controlLabel) controlLabel = '选择';
     select.dataset.adminControl = "select";
     var control = document.createElement("span");
     control.className = "admin-control admin-select-control";
@@ -115,16 +139,50 @@
     Array.prototype.forEach.call(select.classList, function (name) { if (name !== "input") trigger.classList.add(name); });
     trigger.setAttribute("aria-haspopup", "listbox");
     trigger.setAttribute("aria-expanded", "false");
-    trigger.setAttribute("aria-label", select.getAttribute("aria-label") || (select.labels && select.labels[0] ? select.labels[0].textContent.trim() : "选择"));
+    trigger.setAttribute("aria-label", controlLabel);
     control.appendChild(trigger);
     var menu = document.createElement("div");
     menu.className = "admin-control-menu";
-    menu.setAttribute("role", "listbox");
+    menu.setAttribute("role", searchable ? "dialog" : "listbox");
     menu.id = 'admin-select-menu-' + Math.random().toString(36).slice(2, 10);
-    menu.setAttribute('aria-label', trigger.getAttribute('aria-label'));
+    menu.setAttribute('aria-label', searchable ? trigger.getAttribute('aria-label') + '选项' : trigger.getAttribute('aria-label'));
     trigger.setAttribute('aria-controls', menu.id);
+    if (searchable) trigger.setAttribute('aria-haspopup', 'dialog');
     if (paragraphStyle) menu.classList.add('admin-paragraph-menu');
     control.appendChild(menu);
+    var searchInput = null;
+    var optionList = menu;
+    var emptyMessage = null;
+    if (searchable) {
+      menu.classList.add('has-search');
+      searchInput = document.createElement('input');
+      searchInput.type = 'search';
+      searchInput.className = 'input admin-control-search-input';
+      searchInput.placeholder = '搜索' + trigger.getAttribute('aria-label') + '…';
+      searchInput.setAttribute('aria-label', '搜索' + trigger.getAttribute('aria-label'));
+      searchInput.setAttribute('role', 'searchbox');
+      searchInput.setAttribute('autocomplete', 'off');
+      searchInput.setAttribute('autocapitalize', 'off');
+      menu.appendChild(searchInput);
+      optionList = document.createElement('div');
+      optionList.className = 'admin-control-options';
+      optionList.setAttribute('role', 'listbox');
+      optionList.setAttribute('aria-label', trigger.getAttribute('aria-label'));
+      optionList.id = menu.id + '-options';
+      searchInput.setAttribute('aria-controls', optionList.id);
+      menu.appendChild(optionList);
+      emptyMessage = document.createElement('div');
+      emptyMessage.className = 'admin-control-empty';
+      emptyMessage.setAttribute('role', 'status');
+      emptyMessage.setAttribute('aria-live', 'polite');
+      emptyMessage.textContent = '没有匹配的选项';
+      emptyMessage.hidden = true;
+      menu.appendChild(emptyMessage);
+      control._adminResetSearch = function () {
+        searchInput.value = '';
+        filterOptions();
+      };
+    }
     if (preserveFocus) {
       // Formatting commands must not blur the textarea and hide its selection.
       trigger.addEventListener('mousedown', function (event) { event.preventDefault(); });
@@ -139,13 +197,39 @@
         trigger.setAttribute('aria-label', trigger.title);
       } else trigger.textContent = option ? option.textContent : "请选择";
       syncState(select, trigger);
-      Array.prototype.forEach.call(menu.children, function (item, index) {
+      Array.prototype.forEach.call(optionList.children, function (item, index) {
         var selected = select.selectedIndex === index;
         item.classList.toggle("is-selected", selected);
         item.setAttribute("aria-selected", selected ? "true" : "false");
         item.disabled = select.options[index].disabled;
         item.hidden = select.options[index].hidden;
       });
+      if (searchable) filterOptions();
+    }
+    function normalizedText(value) {
+      return String(value || '').replace(/\s+/g, ' ').trim().toLocaleLowerCase();
+    }
+    function filterOptions() {
+      if (!searchable) return;
+      var query = normalizedText(searchInput.value);
+      var visibleCount = 0;
+      Array.prototype.forEach.call(optionList.children, function (item, index) {
+        item.hidden = select.options[index].hidden || (!!query && item._adminSearchText.indexOf(query) === -1);
+        if (!item.hidden) visibleCount++;
+      });
+      emptyMessage.hidden = visibleCount !== 0;
+      if (control._adminReposition) control._adminReposition();
+    }
+    function enabledItems() { return Array.prototype.filter.call(optionList.children, function (item) { return !item.disabled && !item.hidden; }); }
+    function selectOption(item) {
+      var index = Array.prototype.indexOf.call(optionList.children, item);
+      var option = select.options[index];
+      if (!option || option.disabled || item.hidden) return;
+      var focused = document.activeElement;
+      select.selectedIndex = index;
+      emit(select);
+      close(control);
+      if (!preserveFocus && document.activeElement === focused) trigger.focus({preventScroll: true});
     }
     Array.prototype.forEach.call(select.options, function (option, index) {
       var item = document.createElement("button");
@@ -153,21 +237,63 @@
       item.className = "admin-control-option";
       item.setAttribute("role", "option");
       item.textContent = option.textContent;
+      item._adminSearchText = normalizedText(option.textContent);
       if (paragraphStyle) {
         item.dataset.paragraphLevel = option.value;
       }
       item.disabled = option.disabled;
       item.hidden = option.hidden;
+      if (searchable) item.tabIndex = -1;
       item.addEventListener("click", function () {
-        if (option.disabled) return;
-        var focused = document.activeElement;
-        select.selectedIndex = index;
-        emit(select);
-        close(control);
-        if (!preserveFocus && document.activeElement === focused) trigger.focus({preventScroll: true});
+        selectOption(item);
       });
-      menu.appendChild(item);
+      optionList.appendChild(item);
     });
+    if (searchable) {
+      searchInput.addEventListener('input', filterOptions);
+      searchInput.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          close(control);
+          trigger.focus({ preventScroll: true });
+        } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+          var enabled = enabledItems();
+          if (!enabled.length) return;
+          event.preventDefault();
+          enabled[event.key === 'ArrowDown' ? 0 : enabled.length - 1].focus({ preventScroll: true });
+        } else if (event.key === 'Enter') {
+          var first = enabledItems()[0];
+          if (first) { event.preventDefault(); selectOption(first); }
+        } else if (event.key === 'Tab') {
+          event.preventDefault();
+          close(control);
+          focusPastControl(control, event.shiftKey, trigger);
+        }
+      });
+      optionList.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          close(control);
+          trigger.focus({ preventScroll: true });
+          return;
+        }
+        if (event.key === 'Tab') {
+          event.preventDefault();
+          close(control);
+          focusPastControl(control, event.shiftKey, trigger);
+          return;
+        }
+        if (!/^(ArrowDown|ArrowUp|Home|End)$/.test(event.key)) return;
+        var enabled = enabledItems();
+        if (!enabled.length) return;
+        event.preventDefault();
+        var index = enabled.indexOf(document.activeElement);
+        if (event.key === 'Home') index = 0;
+        else if (event.key === 'End') index = enabled.length - 1;
+        else index = Math.max(0, Math.min(index + (event.key === 'ArrowUp' ? -1 : 1), enabled.length - 1));
+        enabled[index].focus({ preventScroll: true });
+      });
+    }
     trigger.addEventListener("click", function () {
       if (select.disabled) return;
       if (control._adminHoverOpen) { clearTimeout(control._adminHoverTimer); control._adminHoverOpen = false; }
@@ -196,18 +322,23 @@
       control.addEventListener('keydown', pinMenu);
       menu.addEventListener('keydown', pinMenu);
     }
-    function enabledItems() { return Array.prototype.filter.call(menu.children, function (item) { return !item.disabled && !item.hidden; }); }
     trigger.addEventListener("keydown", function (event) {
       if (explicitCommit && /^(ArrowDown|ArrowUp|Enter| )$/.test(event.key)) {
         event.preventDefault();
         if (!control.classList.contains('is-open')) toggle(control);
         var enabled = enabledItems();
-        var current = menu.children[select.selectedIndex];
+        var current = optionList.children[select.selectedIndex];
         var next = enabled.indexOf(current) + (event.key === 'ArrowDown' ? 1 : event.key === 'ArrowUp' ? -1 : 0);
         (enabled[Math.max(0, Math.min(next, enabled.length - 1))] || trigger).focus({preventScroll: true});
         return;
       }
       if (event.key === "Escape" && control.classList.contains("is-open")) { event.preventDefault(); event.stopPropagation(); close(control); return; }
+      if (searchable && (event.key === "ArrowDown" || event.key === "ArrowUp" || event.key === "Enter" || event.key === " ")) {
+        event.preventDefault();
+        if (!control.classList.contains("is-open")) open(control);
+        if (searchInput) searchInput.focus({ preventScroll: true });
+        return;
+      }
       if (event.key !== "ArrowDown" && event.key !== "ArrowUp" && event.key !== "Enter" && event.key !== " ") return;
       event.preventDefault();
       if (!control.classList.contains("is-open")) toggle(control);
@@ -238,6 +369,8 @@
     sync();
     // 只有触发器和菜单都建立完成后才隐藏原生控件，初始化中断时仍保留可用控件。
     select.classList.add("admin-native-control");
+    select.tabIndex = -1;
+    select.setAttribute('aria-hidden', 'true');
     control.classList.add("is-enhanced");
   }
 
@@ -351,10 +484,20 @@
     sync();
     // 自定义日期面板完成后再隐藏原生输入，避免脚本异常造成字段消失。
     input.classList.add("admin-native-control");
+    input.tabIndex = -1;
+    input.setAttribute('aria-hidden', 'true');
     control.classList.add("is-enhanced");
   }
 
   function init(root) {
+    (root || document).querySelectorAll(".admin-status-tabs").forEach(function (tabs) {
+      var active = tabs.querySelector(".admin-tab.is-active");
+      if (!active || tabs.scrollWidth <= tabs.clientWidth) return;
+      var activeBounds = active.getBoundingClientRect();
+      var tabsBounds = tabs.getBoundingClientRect();
+      if (activeBounds.right > tabsBounds.right) tabs.scrollLeft += activeBounds.right - tabsBounds.right;
+      else if (activeBounds.left < tabsBounds.left) tabs.scrollLeft -= tabsBounds.left - activeBounds.left;
+    });
     (root || document).querySelectorAll("select.input").forEach(initSelect);
     (root || document).querySelectorAll('input[type="date"], input[type="datetime-local"]').forEach(initDate);
   }

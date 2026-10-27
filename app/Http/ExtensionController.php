@@ -127,6 +127,12 @@ final class ExtensionController
             return $this->respond($response, $route, $result);
         } catch (\Throwable $e) {
             \Pafish\Core\Logger::error('[pafish-extension] request=' . $requestId . ' ' . $matched['kind'] . ':' . $matched['name'] . ' handler=' . $route['handler'] . ' failed: ' . $e->getMessage());
+            if ($e instanceof \InvalidArgumentException) {
+                return $this->error($response, $route, '扩展请求参数无效', 400, $requestId);
+            }
+            if ($e instanceof \DomainException && $e->getCode() === 409) {
+                return $this->error($response, $route, '数据已被其他请求修改，请重新读取后重试', 409, $requestId);
+            }
             return $this->error($response, $route, '扩展处理失败，请稍后重试', 500, $requestId);
         }
     }

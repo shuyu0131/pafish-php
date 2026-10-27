@@ -155,6 +155,17 @@ $keywordsText = $listText('comment_spam_keywords', "\n");
     </div>
     <div class="card admin-form-card">
       <h2 class="admin-card-title">文章与内容</h2>
+      <input type="hidden" name="submissions_enabled" value="false">
+      <label class="admin-check-row">
+        <input type="checkbox" name="submissions_enabled" value="true" <?= $boolVal('submissions_enabled', 'true') ? 'checked' : '' ?>>
+        <span>开放用户投稿</span>
+      </label>
+      <input type="hidden" name="submissions_need_review" value="false">
+      <label class="admin-check-row">
+        <input type="checkbox" name="submissions_need_review" value="true" <?= $boolVal('submissions_need_review', 'true') ? 'checked' : '' ?>>
+        <span>用户投稿审核后发布</span>
+      </label>
+      <p class="admin-field-hint">关闭投稿审核后，普通用户的新投稿和更新会直接公开；管理员与编辑仍按现有文章权限发布。</p>
       <label class="admin-check-row">
         <input type="checkbox" name="md_allow_raw_html" value="true" <?= $boolVal('md_allow_raw_html', 'false') ? 'checked' : '' ?>>
         <span>允许文章中的原始 HTML</span>

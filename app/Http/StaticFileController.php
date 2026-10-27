@@ -16,7 +16,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 final class StaticFileController
 {
     /** 允许的静态目录（映射到 public/{dir}） */
-    private const ALLOWED_DIRS = ['css', 'js', 'uploads', 'vendor'];
+    private const ALLOWED_DIRS = ['css', 'fonts', 'js', 'uploads', 'vendor'];
 
     /** MIME 映射（与 router.php 保持一致） */
     private const TYPES = [
@@ -31,6 +31,7 @@ final class StaticFileController
         'ico' => 'image/x-icon',
         'woff' => 'font/woff',
         'woff2' => 'font/woff2',
+        'ttf' => 'font/ttf',
     ];
 
     public function serve(Request $request, Response $response, array $args): Response

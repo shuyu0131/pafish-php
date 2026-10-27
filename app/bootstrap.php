@@ -66,7 +66,7 @@ if (str_starts_with($__path, '/public/')) {
     $__path = substr($__path, strlen('/public'));
 }
 $__dir = null;
-foreach (['css', 'js', 'uploads', 'vendor'] as $__candidate) {
+foreach (['css', 'fonts', 'js', 'uploads', 'vendor'] as $__candidate) {
     if (str_starts_with($__path, '/' . $__candidate . '/')) {
         $__dir = $__candidate;
         break;

@@ -4,12 +4,8 @@
  * 返回链接 → 标题（manifest.title）→ 不可用提示 → 朴素单栏表单
  * 变量：$pluginName、$manifest、$error、$values
  *
- * 这里是**普通表单**，不是主题设置页那种"选项面板"：
- * 标签在上、控件在下，分组降级成小节标题，没有左侧导航、没有吸顶条、没有搜索框，
- * 也没有「有设置已修改」那条未保存胶囊。
- * 插件配置一般十几项，套面板会让每一项都要先找分组——比直接顺排还慢。
- * 字段渲染、校验、show_if、repeater 仍与主题设置页共用同一份实现
- * （partials/ + admin-schema-form.js），外壳也共用 .admin-plain-form。
+ * 插件设置保持 Emlog 式的直接单栏表单；字段渲染、校验、show_if 与 repeater
+ * 仍复用主题设置页的共享字段实现。
  */
 $pluginName = (string) ($pluginName ?? '');
 $manifest = $manifest ?? null;
@@ -45,6 +41,7 @@ if ($manifest !== null) {
 }
 $built = $buildGroups($fields);
 $canConfigure = $pluginActive && $manifest !== null && $error === null && $fields !== [];
+$hasIconFields = $canConfigure && \Pafish\Services\ExtensionKernel::hasSettingType($fields, 'icon');
 ?>
 <div class="admin-stack admin-plugin-settings-page">
   <nav aria-label="面包屑">
@@ -61,22 +58,17 @@ $canConfigure = $pluginActive && $manifest !== null && $error === null && $field
   <?php endif; ?>
 
   <?php if ($canConfigure): ?>
-      <?php /* 与主题设置页同一套外壳（admin-plain-form + 平铺分组），区别只有一处：
-             这里没有搜索框——插件配置通常十几项，滚动就能看完。
-             操作按钮全部落在表单末尾的操作区，页头只留标题与描述。 */ ?>
+      <?php /* 插件页保留直接顺排的普通表单，分组作为小节标题显示。 */ ?>
       <form class="card admin-form-card admin-plain-form" id="pluginSettingForm">
         <div class="admin-page-head">
           <div><?= $headMain ?></div>
         </div>
 
-        <?php /* 平铺模式：不渲染分组导航，每个分组直接作为一条小节标题顺排 */ ?>
         <?php $flat = true; require __DIR__ . '/partials/schema-nav.php'; ?>
 
         <?php /* 操作区：测试类动作在主操作左边，保存恒定在最右——
                  顺序在窄屏换行后也保持一致。
-                 这里**不放**「有设置已修改」那条橙色胶囊：它属主题设置页的
-                 面板形态（配置几十项、改一项不容易记住），插件设置页是十来项
-                 的朴素表单，不需要这一条。 */ ?>
+                 插件设置不需要主题面板里的未保存胶囊。 */ ?>
         <div class="admin-sf-footer">
           <div class="admin-sf-actions">
             <?php if ($supportsNotificationTest): ?>
@@ -118,11 +110,13 @@ $canConfigure = $pluginActive && $manifest !== null && $error === null && $field
     </div>
     <div class="admin-modal-body">
       <input class="input admin-lib-search" type="search" placeholder="搜索媒体…" data-plugin-lib-q>
-      <div class="admin-lib-grid" data-plugin-lib-grid></div>
+      <div class="admin-lib-grid" data-plugin-lib-grid aria-live="polite"></div>
       <div class="admin-pager admin-lib-pager" data-plugin-lib-pager hidden></div>
     </div>
   </div>
 </div>
+
+<?php if ($hasIconFields): require __DIR__ . '/partials/icon-picker.php'; endif; ?>
 
 <?php /* 设置页字段行为（show_if、滑块、间距、排版、repeater 等） */ ?>
 <script src="<?= e(asset_url('/js/admin-schema-form.js')) ?>"></script>
@@ -173,9 +167,7 @@ $canConfigure = $pluginActive && $manifest !== null && $error === null && $field
   }
 
   // ---- 字段行为统一交给共享模块 ----
-  // 与主题设置页共用 public/js/admin-schema-form.js：
-  // show_if / 颜色 / 图片 / 滑块 / 间距 / 排版 / repeater / 字段级报错 / 提交收集。
-  // 本页没有分组导航与搜索框，所以不传 searchId（模块会自行跳过）。
+  // 与主题设置页共用 show_if、复合字段、repeater 和提交收集；布局保持平铺。
   PafishSchemaForm.init({
     formId: "pluginSettingForm",
     saveUrl: "/admin/plugins/save-settings",
@@ -282,7 +274,11 @@ $canConfigure = $pluginActive && $manifest !== null && $error === null && $field
           cell.addEventListener("click", function () {
             if (libTarget) {
               var input = document.querySelector('[data-sf-key="' + libTarget + '"][data-sf-type="image"]');
-              if (input) { input.value = cell.dataset.url; }
+              if (input) {
+                input.value = cell.dataset.url;
+                input.dispatchEvent(new Event("input", { bubbles: true }));
+                input.dispatchEvent(new Event("change", { bubbles: true }));
+              }
             }
             modal.hidden = true;
           });

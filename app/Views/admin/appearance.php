@@ -16,10 +16,10 @@ $themeActive = count(array_filter($themes, static fn (array $theme): bool => !em
   <?php if (($catalogNotice ?? '') !== ''): ?><p class="admin-muted" role="status"><?= e($catalogNotice) ?></p><?php endif; ?>
 
   <div class="admin-resource-toolbar">
-    <div class="admin-tabs admin-resource-tabs" role="tablist" aria-label="主题筛选">
-      <button type="button" class="admin-tab is-active" data-theme-filter="all" role="tab" aria-selected="true">全部 <span class="admin-resource-count"><?= $themeTotal ?></span></button>
-      <button type="button" class="admin-tab" data-theme-filter="active" role="tab" aria-selected="false">当前主题 <span class="admin-resource-count"><?= $themeActive ?></span></button>
-      <button type="button" class="admin-tab" data-theme-filter="inactive" role="tab" aria-selected="false">未启用 <span class="admin-resource-count"><?= $themeTotal - $themeActive ?></span></button>
+    <div class="admin-tabs admin-status-tabs" role="tablist" aria-label="主题筛选">
+      <button type="button" class="admin-tab is-active" data-theme-filter="all" role="tab" aria-selected="true">全部</button>
+      <button type="button" class="admin-tab" data-theme-filter="active" role="tab" aria-selected="false">当前主题 <span class="admin-tab-count">(<?= $themeActive ?>)</span></button>
+      <button type="button" class="admin-tab" data-theme-filter="inactive" role="tab" aria-selected="false">未启用 <span class="admin-tab-count">(<?= $themeTotal - $themeActive ?>)</span></button>
     </div>
     <input type="search" id="themeSearch" class="input admin-resource-search" placeholder="搜索主题名称或描述" autocomplete="off">
   </div>

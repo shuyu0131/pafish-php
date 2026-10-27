@@ -146,6 +146,7 @@
       placeholder: "开始写作…（支持拖拽/粘贴图片上传）",
       previewUrl: DATA.previewUrl,
       uploadUrl: DATA.uploadUrl,
+      externalMedia: false,
       csrf: CSRF,
       onMedia: function (request) { openModal("insert", request); },
       onChange: function () { autoRequestToken = null; },
@@ -240,6 +241,7 @@
     var p = new URLSearchParams();
     p.set("_csrf", CSRF);
     p.set("action", action);
+    if (DATA.submissionMode) p.set("post_id", String(DATA.postId || 0));
     p.set("title", els.title.value.trim());
     p.set("slug", els.slug.value.trim());
     p.set("excerpt", els.excerpt.value.trim());
@@ -273,7 +275,7 @@
     if (!els.title.value.trim()) { showError("请填写标题"); return; }
     // 纯外链条目（导航站/书签站）没有自己的正文，填了外链就放行；
     // 服务端同样是这个条件（见 PostsController::savePost）。
-    if (!editorValue().trim() && !els.externalUrl.value.trim()) {
+    if (!DATA.emptyContentAllowed && !editorValue().trim() && !els.externalUrl.value.trim()) {
       showError("请填写正文内容（纯外链条目请填写外链地址）");
       return;
     }
@@ -292,8 +294,12 @@
         if (!d.ok) throw new Error(d.error || "保存失败");
         manualRequestToken = null;
         var published = d.status === "PUBLISHED";
-        var destination = published ? DATA.listUrl : DATA.editUrl.replace("{id}", d.id);
-        pafishToastNavigate(destination, published ? "文章已发布" : "文章已保存", "success");
+        var submissionSent = DATA.submissionMode && action === "publish";
+        var destination = DATA.submissionMode
+          ? (submissionSent ? DATA.listUrl : DATA.editUrl.replace("{id}", d.id))
+          : (published ? DATA.listUrl : DATA.editUrl.replace("{id}", d.id));
+        var message = d.message || (published ? "文章已发布" : (action === "draft" ? "草稿已保存" : "文章已保存"));
+        pafishToastNavigate(destination, message, "success");
       })
       .catch(function (e) {
         showError(e.message || "保存失败");
@@ -304,7 +310,7 @@
 
   // 自动保存：仅编辑模式，每 60 秒（dirty 且标题非空、且正文或外链至少有一项时）
   function checkAutosave() {
-    if (!isEdit || pending || (window.__pafishEditor && !window.__pafishEditor.isReady())) return;
+    if (DATA.autosaveEnabled === false || !isEdit || pending || (window.__pafishEditor && !window.__pafishEditor.isReady())) return;
     if (!isDirty() || !els.title.value.trim()) return;
     if (!editorValue().trim() && !els.externalUrl.value.trim()) return;
     pending = "auto";
@@ -358,7 +364,7 @@
         list.push({ value: String(c.id), label: c.name, depth: c.depth });
       }
     });
-    list.push({ value: "__new__", label: "＋ 新建分类…", depth: -1 });
+    if (DATA.allowNewCategories) list.push({ value: "__new__", label: "＋ 新建分类…", depth: -1 });
     return list;
   }
   function catCurrentLabel() {
@@ -448,6 +454,8 @@
       var hit = allTags.filter(function (t) { return t.name === name; })[0];
       if (hit) {
         if (tagIds.indexOf(String(hit.id)) === -1) tagIds.push(String(hit.id));
+      } else if (!DATA.allowNewTags) {
+        showError("只能选择站点已有标签");
       } else if (newTagNames.indexOf(name) === -1) {
         newTagNames.push(name);
       }
@@ -848,7 +856,7 @@
     });
 
     // 自动保存
-    if (isEdit) setInterval(checkAutosave, 60000);
+    if (DATA.autosaveEnabled !== false && isEdit) setInterval(checkAutosave, 60000);
     updateAutosave();
   }
 

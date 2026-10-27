@@ -22,7 +22,10 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 final class PostsController extends AdminController
 {
     private const PER_PAGE_OPTIONS = [10, 20, 50];
-    private const STATUS_LABEL = ['DRAFT' => '草稿', 'PUBLISHED' => '已发布', 'SCHEDULED' => '定时'];
+    private const STATUS_LABEL = [
+        'DRAFT' => '草稿', 'PENDING' => '待审核', 'CHANGES_REQUESTED' => '退回修改',
+        'PUBLISHED' => '已发布', 'SCHEDULED' => '定时',
+    ];
 
     // ---------- 列表 ----------
 
@@ -36,7 +39,7 @@ final class PostsController extends AdminController
             : (in_array($perPref, self::PER_PAGE_OPTIONS, true) ? $perPref : 20);
 
         $isTrash = ($_GET['status'] ?? '') === 'trash';
-        $status = !$isTrash && in_array((string) ($_GET['status'] ?? ''), ['PUBLISHED', 'DRAFT', 'SCHEDULED'], true)
+        $status = !$isTrash && in_array((string) ($_GET['status'] ?? ''), ['PUBLISHED', 'DRAFT', 'PENDING', 'CHANGES_REQUESTED', 'SCHEDULED'], true)
             ? (string) $_GET['status'] : null;
         $category = (string) ($_GET['category'] ?? '');
         $author = (string) ($_GET['author'] ?? '');
@@ -85,12 +88,13 @@ final class PostsController extends AdminController
         $total = (int) DB::value("SELECT COUNT(*) FROM posts p WHERE {$where}", $params);
         $totalPages = max(1, (int) ceil($total / $per));
         $posts = DB::fetchAll(
-            "SELECT p.*, c.name AS category_name, u.username AS author_username,
+            "SELECT p.*, c.name AS category_name, u.username AS author_username, reviewer.username AS reviewer_username,
                     (SELECT COUNT(*) FROM comments c2 WHERE c2.post_id = p.id) AS comment_count,
                     p.like_count, p.favorite_count
              FROM posts p
              LEFT JOIN categories c ON c.id = p.category_id
              LEFT JOIN users u ON u.id = p.author_id
+             LEFT JOIN users reviewer ON reviewer.id = p.reviewed_by
              WHERE {$where}
              ORDER BY {$orderBy}
              LIMIT " . $per . ' OFFSET ' . (($page - 1) * $per),
@@ -98,7 +102,7 @@ final class PostsController extends AdminController
         );
 
         // tabs 计数（按状态分组 + 回收站）
-        $counts = ['PUBLISHED' => 0, 'DRAFT' => 0, 'SCHEDULED' => 0, 'TRASH' => 0];
+        $counts = ['PUBLISHED' => 0, 'DRAFT' => 0, 'PENDING' => 0, 'CHANGES_REQUESTED' => 0, 'SCHEDULED' => 0, 'TRASH' => 0];
         $countWhere = 'deleted_at IS NULL';
         $countParams = [];
         if (!\Pafish\Core\Auth::isAdmin()) {
@@ -169,6 +173,31 @@ final class PostsController extends AdminController
         return $this->renderEditor($request, $response, null);
     }
 
+    /** Keep the old administrator URL working while moving its queue into the article list. */
+    public function legacySubmissions(Request $request, Response $response): Response
+    {
+        $this->guardAdmin();
+        return $this->redirect($response, '/admin/posts?status=PENDING');
+    }
+
+    /** Render the shared article editor with the restricted author-submission controls. */
+    public function submissionEditor(Request $request, Response $response, ?array $post): Response
+    {
+        \Pafish\Core\Auth::requireLogin();
+        if ($post !== null) {
+            $owned = DB::fetchOne(
+                'SELECT id FROM posts WHERE id=? AND author_id=? AND deleted_at IS NULL',
+                [(int) ($post['id'] ?? 0), (int) \Pafish\Core\Auth::id()]
+            );
+            if ($owned === null) {
+                return $this->notFound($response);
+            }
+        } elseif (!\Pafish\Core\Auth::can('posts.manage') && Settings::get('submissions_enabled', 'true') !== 'true') {
+            return $this->redirect($response, '/admin?section=posts');
+        }
+        return $this->renderEditor($request, $response, $post, true);
+    }
+
     public function editEditor(Request $request, Response $response, array $args): Response
     {
         $this->guardCanManage();
@@ -215,11 +244,16 @@ final class PostsController extends AdminController
             return $this->redirect($response, $id > 0 ? "/admin/posts/{$id}/edit" : '/admin/posts/new');
         }
 
-        if ($this->isAjax($request)) {
-            return $this->json($response, ['ok' => true, 'id' => $result['id'], 'status' => $result['status'], 'coverUrl' => $result['coverUrl'] ?? '', 'coverAuto' => (bool) ($result['coverAuto'] ?? false)]);
-        }
         $published = (string) ($result['status'] ?? '') === 'PUBLISHED';
-        $this->flash('success', $published ? '文章已发布' : ($result['created'] ? '文章已保存' : '文章已更新'));
+        $statusMessage = match ((string) ($result['status'] ?? '')) {
+            'PENDING' => '投稿已提交，审核通过后发布',
+            'CHANGES_REQUESTED' => '文章已保存，请按审核意见修改后重新提交',
+            default => $published ? '文章已发布' : ($result['created'] ? '文章已保存' : '文章已更新'),
+        };
+        if ($this->isAjax($request)) {
+            return $this->json($response, ['ok' => true, 'id' => $result['id'], 'status' => $result['status'], 'message' => $statusMessage, 'coverUrl' => $result['coverUrl'] ?? '', 'coverAuto' => (bool) ($result['coverAuto'] ?? false)]);
+        }
+        $this->flash('success', $statusMessage);
         return $this->redirect($response, $published ? '/admin/posts' : "/admin/posts/{$result['id']}/edit");
     }
 
@@ -274,7 +308,7 @@ final class PostsController extends AdminController
                         "SELECT * FROM posts WHERE id IN ({$in}) AND deleted_at IS NULL AND status <> 'PUBLISHED'",
                         $ids
                     );
-                    DB::execute("UPDATE posts SET status = 'PUBLISHED', published_at = NOW() WHERE id IN ({$in}) AND deleted_at IS NULL", $ids);
+                    DB::execute("UPDATE posts SET status='PUBLISHED',published_at=NOW(),review_note=NULL,reviewed_by=?,reviewed_at=NOW() WHERE id IN ({$in}) AND deleted_at IS NULL", array_merge([(int) (\Pafish\Core\Auth::id() ?? 0)], $ids));
                     break;
                 case 'draft':
                     DB::execute("UPDATE posts SET status = 'DRAFT', published_at = NULL WHERE id IN ({$in}) AND deleted_at IS NULL", $ids);
@@ -338,6 +372,56 @@ final class PostsController extends AdminController
         return $this->json($response, ['ok' => true]);
     }
 
+    /** Approve a user submission or return it with a concrete revision request. */
+    public function review(Request $request, Response $response, array $args): Response
+    {
+        $this->guardAdmin();
+        $body = $request->getParsedBody();
+        $body = is_array($body) ? $body : [];
+        $decision = is_string($body['decision'] ?? null) ? $body['decision'] : '';
+        $note = is_string($body['review_note'] ?? null) ? trim($body['review_note']) : '';
+        $errorResponse = function (string $message, int $status) use ($request, $response): Response {
+            if ($this->isAjax($request)) return $this->json($response, ['error' => $message], $status);
+            $this->flash('error', $message);
+            return $this->redirect($response, '/admin/posts?status=PENDING');
+        };
+        if (!in_array($decision, ['publish', 'changes_requested'], true)) {
+            return $errorResponse('审核操作无效', 400);
+        }
+        if ($decision === 'changes_requested' && ($note === '' || mb_strlen($note) > 2000)) {
+            return $errorResponse('请填写审核意见，最多 2000 个字符', 400);
+        }
+        $id = (int) ($args['id'] ?? 0);
+        try {
+            $result = DB::transaction(static function () use ($id, $decision, $note): array {
+                $post = DB::fetchOne('SELECT * FROM posts WHERE id=? AND deleted_at IS NULL FOR UPDATE', [$id]);
+                if ($post === null || !in_array((string) $post['status'], ['PENDING', 'CHANGES_REQUESTED'], true)) {
+                    throw new \RuntimeException('这篇文章当前不在待审核状态');
+                }
+                $reviewedBy = (int) (\Pafish\Core\Auth::id() ?? 0);
+                if ($decision === 'publish') {
+                    DB::execute("UPDATE posts SET status='PUBLISHED',published_at=NOW(),review_note=NULL,reviewed_by=?,reviewed_at=NOW() WHERE id=?", [$reviewedBy, $id]);
+                    $saved = DB::fetchOne('SELECT * FROM posts WHERE id=?', [$id]);
+                    $payload = self::postPayloadFromRow($saved, 'review_publish', (string) $post['status']);
+                    DB::afterCommit(static fn () => \do_action('after_post_published', $payload));
+                    return ['status' => 'PUBLISHED'];
+                }
+                DB::execute("UPDATE posts SET status='CHANGES_REQUESTED',published_at=NULL,review_note=?,reviewed_by=?,reviewed_at=NOW() WHERE id=?", [$note, $reviewedBy, $id]);
+                return ['status' => 'CHANGES_REQUESTED'];
+            });
+        } catch (\PDOException $e) {
+            \Pafish\Core\Logger::exception('投稿审核失败', $e);
+            return $errorResponse('审核失败，请稍后重试', 500);
+        } catch (\RuntimeException $e) {
+            return $errorResponse($e->getMessage(), 409);
+        }
+        if (!$this->isAjax($request)) {
+            $this->flash('success', $result['status'] === 'PUBLISHED' ? '投稿已通过并发布' : '已退回作者修改');
+            return $this->redirect($response, '/admin/posts?status=PENDING');
+        }
+        return $this->json($response, ['ok' => true, 'status' => $result['status']]);
+    }
+
     // ---------- 核心保存逻辑 ----------
 
     /**
@@ -358,8 +442,12 @@ final class PostsController extends AdminController
             throw new \RuntimeException('请先登录');
         }
         $allowManagerEdit = \Pafish\Core\Auth::can('posts.manage');
+        $submissionOpen = Settings::get('submissions_enabled', 'true') === 'true';
+        if (!$allowManagerEdit && (!$submissionOpen && ($id === null || (string) ($body['action'] ?? 'draft') === 'publish'))) {
+            throw new \RuntimeException('当前站点已关闭用户投稿');
+        }
         return \Pafish\Services\MediaReferences::transaction(function () use ($body, $id, $allowManagerEdit): array {
-            return $this->persistPost($body, $id, $allowManagerEdit);
+            return $this->persistPost($body, $id, $allowManagerEdit, !$allowManagerEdit);
         });
     }
 
@@ -381,36 +469,76 @@ final class PostsController extends AdminController
                 DB::afterCommit(static fn () => \do_action('after_delete_post', $payload));
                 return ['deleted' => true];
             }
-            $status = $operation === 'draft' ? 'DRAFT' : 'PUBLISHED';
+            if (!$manager && $operation === 'publish' && Settings::get('submissions_enabled', 'true') !== 'true') {
+                throw new \RuntimeException('当前站点已关闭用户投稿');
+            }
+            $reviewRequired = !$manager && Settings::get('submissions_need_review', 'true') !== 'false';
+            $status = $operation === 'draft' ? 'DRAFT' : ($reviewRequired ? 'PENDING' : 'PUBLISHED');
             if ($post['status'] !== $status) {
-                DB::execute('UPDATE posts SET status=?,published_at=? WHERE id=?', [$status, $status === 'DRAFT' ? null : date('Y-m-d H:i:s'), $id]);
+                if ($status === 'PENDING') {
+                    DB::execute("UPDATE posts SET status='PENDING',published_at=NULL,review_note=NULL,reviewed_by=NULL,reviewed_at=NULL WHERE id=?", [$id]);
+                } elseif ($status === 'PUBLISHED' && $manager) {
+                    DB::execute("UPDATE posts SET status='PUBLISHED',published_at=NOW(),review_note=NULL,reviewed_by=?,reviewed_at=NOW() WHERE id=?", [(int) (\Pafish\Core\Auth::id() ?? 0), $id]);
+                } else {
+                    DB::execute('UPDATE posts SET status=?,published_at=? WHERE id=?', [$status, $status === 'DRAFT' ? null : date('Y-m-d H:i:s'), $id]);
+                }
                 if ($status === 'PUBLISHED') {
                     $saved = DB::fetchOne('SELECT * FROM posts WHERE id=?', [$id]);
                     $payload = self::postPayloadFromRow($saved, 'publish', (string) $post['status']);
                     DB::afterCommit(static fn () => \do_action('after_post_published', $payload));
                 }
             }
-            return ['draft' => $status === 'DRAFT' ? 'y' : 'n'];
+            return ['draft' => $status === 'DRAFT' ? 'y' : 'n', 'status' => $status];
         });
     }
 
-    private function persistPost(array $body, ?int $id = null, bool $allowManagerEdit = false): array
+    private function persistPost(array $body, ?int $id = null, bool $allowManagerEdit = false, bool $userSubmission = false): array
     {
         $action = (string) ($body['action'] ?? 'draft');
+        if ($userSubmission && !in_array($action, ['draft', 'publish', 'auto'], true)) {
+            throw new \RuntimeException('普通用户只能保存草稿或提交审核');
+        }
         $mayEditAnyAuthor = \Pafish\Core\Auth::isAdmin()
             || ($allowManagerEdit && \Pafish\Core\Auth::can('posts.manage'));
         $stored = $id !== null ? DB::fetchOne('SELECT * FROM posts WHERE id = ? FOR UPDATE', [$id]) : null;
         if ($id !== null && $stored === null) throw new \RuntimeException('文章不存在');
-        $seo = \Pafish\Services\Content::seoFields($body, $stored ?? []);
-        $allowComments = $body['allow_comments'] ?? $stored['allow_comments'] ?? 1;
-        if (!in_array($allowComments, [true,false,1,0,'1','0'], true)) throw new \RuntimeException('评论开关无效');
         if ($id !== null && !$mayEditAnyAuthor) {
-            $owned = DB::fetchOne('SELECT id FROM posts WHERE id = ? AND author_id = ?', [$id, (int) \Pafish\Core\Auth::id()]);
+            $owned = DB::fetchOne('SELECT id FROM posts WHERE id = ? AND author_id = ?' . ($userSubmission ? ' AND deleted_at IS NULL' : ''), [$id, (int) \Pafish\Core\Auth::id()]);
             if ($owned === null) {
                 throw new \RuntimeException('无权编辑这篇文章');
             }
         }
 
+        if ($userSubmission) {
+            // 投稿者只能改写作内容与分类标签；管理字段始终取已保存值。
+            [$manualCover, $autoCoverOn] = $stored !== null ? self::coverEditorState($stored) : ['', false, ''];
+            $storedCustomFields = $stored !== null
+                ? \Pafish\Services\EntityMeta::postCustomFields($id, $stored['custom_fields'] ?? null)
+                : [];
+            $body['slug'] = (string) ($stored['slug'] ?? '');
+            $body['template'] = is_string($body['template'] ?? null) ? $body['template'] : (string) ($stored['template'] ?? 'default');
+            $body['cover_url'] = is_string($body['cover_url'] ?? null) ? $body['cover_url'] : $manualCover;
+            $body['auto_cover'] = is_scalar($body['auto_cover'] ?? null) ? (string) $body['auto_cover'] : ($autoCoverOn ? '1' : '0');
+            $body['external_url'] = (string) ($stored['external_url'] ?? '');
+            $body['allow_comments'] = is_scalar($body['allow_comments'] ?? null) ? (string) $body['allow_comments'] : (int) ($stored['allow_comments'] ?? 1);
+            $body['seo_title'] = (string) ($stored['seo_title'] ?? '');
+            $body['meta_description'] = (string) ($stored['meta_description'] ?? '');
+            $body['custom_fields'] = $storedCustomFields === [] ? '' : json_encode($storedCustomFields, JSON_UNESCAPED_UNICODE);
+            $body['new_category'] = '';
+            $body['new_tags'] = [];
+            $body['password'] = '';
+            // Older extension-backed posts may store their body in structured fields.
+            // Only trust data already persisted for this owned post, never a client flag.
+            $body['extension_content'] = $stored !== null && (
+                $storedCustomFields !== []
+                || (int) DB::value("SELECT COUNT(*) FROM entity_meta WHERE subject_type='post' AND subject_id=? AND scope<>'core'", [$id]) > 0
+            );
+            unset($body['remove_password'], $body['extension_meta'], $body['plugins']);
+        }
+
+        $seo = \Pafish\Services\Content::seoFields($body, $stored ?? []);
+        $allowComments = $body['allow_comments'] ?? $stored['allow_comments'] ?? 1;
+        if (!in_array($allowComments, [true,false,1,0,'1','0'], true)) throw new \RuntimeException('评论开关无效');
         $template = self::templateForSave($body['template'] ?? ($stored['template'] ?? 'default'), $stored);
 
         $title = trim((string) ($body['title'] ?? ''));
@@ -485,6 +613,9 @@ final class PostsController extends AdminController
             $rawCat = (string) ($body['category_id'] ?? '');
             $categoryId = ctype_digit($rawCat) && (int) $rawCat > 0 ? (int) $rawCat : null;
         }
+        if ($categoryId !== null && DB::value('SELECT id FROM categories WHERE id=?', [$categoryId]) === null) {
+            throw new \RuntimeException('所选分类不存在');
+        }
 
         // 标签：tagIds 已存在 + newTags 按名称匹配/新建
         $tagIds = self::parseIntList($body['tag_ids'] ?? []);
@@ -494,16 +625,18 @@ final class PostsController extends AdminController
         }
         $tagIds = array_values(array_unique(array_merge($tagIds, self::resolveNewTags($newTags))));
 
-        $isPinned = !empty($body['is_pinned']);
-        $categoryPinned = !empty($body['category_pinned']);
+        $canManagePosts = \Pafish\Core\Auth::can('posts.manage');
+        $isPinned = $userSubmission ? (bool) ($stored['is_pinned'] ?? false) : ($canManagePosts && !empty($body['is_pinned']));
+        $categoryPinned = $userSubmission ? (bool) ($stored['category_pinned'] ?? false) : ($canManagePosts && !empty($body['category_pinned']));
         // $externalUrl 已在正文校验前读取（纯外链条目允许正文为空）。
 
         // 状态与发布时间
         $status = 'DRAFT';
         $publishedAt = null;
         if ($action === 'publish') {
-            $status = 'PUBLISHED';
-            $publishedAt = date('Y-m-d H:i:s');
+            $reviewRequired = $userSubmission && Settings::get('submissions_need_review', 'true') !== 'false';
+            $status = $reviewRequired ? 'PENDING' : 'PUBLISHED';
+            $publishedAt = $reviewRequired ? null : date('Y-m-d H:i:s');
         } elseif ($action === 'schedule') {
             $scheduledAt = (string) ($body['scheduled_at'] ?? '');
             if ($scheduledAt === '') {
@@ -537,6 +670,23 @@ final class PostsController extends AdminController
         $now = date('Y-m-d H:i:s');
         $extensions = self::pluginExtensions($body['plugins'] ?? []);
         $previousStatus = null;
+        $reviewNote = $stored['review_note'] ?? null;
+        $reviewedBy = $stored['reviewed_by'] ?? null;
+        $reviewedAt = $stored['reviewed_at'] ?? null;
+        if ($userSubmission && $stored !== null && $action === 'auto' && $stored['status'] === 'PUBLISHED'
+            && Settings::get('submissions_need_review', 'true') !== 'false') {
+            $status = 'PENDING';
+            $publishedAt = null;
+        }
+        if ($userSubmission && in_array($action, ['publish', 'auto'], true) && $status === 'PENDING') {
+            $reviewNote = $reviewedBy = $reviewedAt = null;
+        } elseif ($userSubmission && $action === 'publish') {
+            $reviewNote = $reviewedBy = $reviewedAt = null;
+        } elseif (!$userSubmission && $action === 'publish' && in_array((string) ($stored['status'] ?? ''), ['PENDING', 'CHANGES_REQUESTED'], true)) {
+            $reviewNote = null;
+            $reviewedBy = (int) (\Pafish\Core\Auth::id() ?? 0);
+            $reviewedAt = $now;
+        }
 
         // 文章保存前过滤器：扩展可返回更新后的字段；未知字段不会进入核心写入。
         $before = \apply_decision_filters('before_post_save', [
@@ -607,13 +757,13 @@ final class PostsController extends AdminController
             $created = true;
             $pdo = DB::pdo();
             $stmt = $pdo->prepare(
-                'INSERT INTO posts (title, slug, excerpt, content, content_format, cover_url, status, published_at,
+                'INSERT INTO posts (title, slug, excerpt, content, content_format, cover_url, status, review_note, reviewed_by, reviewed_at, published_at,
                     is_pinned, category_pinned, password, external_url, custom_fields, author_id, category_id, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
             );
             $stmt->execute([
                 $title, $slug, $excerpt, $content, $contentFormat, $coverUrl !== '' ? $coverUrl : null,
-                $status, $publishedAt, $isPinned ? 1 : 0, $categoryPinned ? 1 : 0,
+                $status, $reviewNote, $reviewedBy, $reviewedAt, $publishedAt, $isPinned ? 1 : 0, $categoryPinned ? 1 : 0,
                 $password, $externalUrl !== '' ? $externalUrl : null, $customFields,
                 $authorId, $categoryId, $now, $now,
             ]);
@@ -636,8 +786,8 @@ final class PostsController extends AdminController
                 throw new \RuntimeException('文章不存在');
             }
             $previousStatus = (string) $existing['status'];
-            // auto（自动保存）：保留原状态与发布时间
-            if ($action === 'auto') {
+            // auto（自动保存）：保留原状态与发布时间；投稿者编辑已发布内容时重新进入审核。
+            if ($action === 'auto' && !($userSubmission && $existing['status'] === 'PUBLISHED' && Settings::get('submissions_need_review', 'true') !== 'false')) {
                 $status = $existing['status'];
                 $publishedAt = $existing['published_at'];
             }
@@ -646,12 +796,12 @@ final class PostsController extends AdminController
             }
             DB::execute(
                 'UPDATE posts SET title = ?, slug = ?, excerpt = ?, content = ?, content_format = ?, cover_url = ?, status = ?,
-                    published_at = ?, is_pinned = ?, category_pinned = ?, password = ?, external_url = ?,
+                    review_note = ?, reviewed_by = ?, reviewed_at = ?, published_at = ?, is_pinned = ?, category_pinned = ?, password = ?, external_url = ?,
                     custom_fields = ?, category_id = ?, updated_at = ?
                  WHERE id = ?',
                 [
                     $title, $slug, $excerpt, $content, $contentFormat, $coverUrl !== '' ? $coverUrl : null,
-                    $status, $publishedAt, $isPinned ? 1 : 0, $categoryPinned ? 1 : 0,
+                    $status, $reviewNote, $reviewedBy, $reviewedAt, $publishedAt, $isPinned ? 1 : 0, $categoryPinned ? 1 : 0,
                     $password, $externalUrl !== '' ? $externalUrl : null, $customFields,
                     $categoryId, $now, $id,
                 ]
@@ -687,15 +837,20 @@ final class PostsController extends AdminController
         return ['id' => $id, 'status' => $status, 'created' => $created, 'coverUrl' => $coverUrl, 'coverAuto' => $coverAuto];
     }
 
-    private function renderEditor(Request $request, Response $response, ?array $post): Response
+    private function renderEditor(Request $request, Response $response, ?array $post, bool $submissionMode = false): Response
     {
         $isEdit = $post !== null;
         $initial = $post ?: [
             'title' => '', 'slug' => '', 'excerpt' => '', 'content' => '', 'cover_url' => null,
             'status' => 'DRAFT', 'is_pinned' => 0, 'category_pinned' => 0,
             'password' => null, 'external_url' => null, 'category_id' => null,
+            'allow_comments' => 1, 'template' => 'default', 'content_format' => 'markdown',
         ];
         $customFields = $post ? \Pafish\Services\EntityMeta::postCustomFields((int) $post['id'], $post['custom_fields'] ?? null) : [];
+        $submissionHasExtensionContent = $submissionMode && $post !== null && trim((string) ($post['content'] ?? '')) === '' && (
+            $customFields !== []
+            || (int) DB::value("SELECT COUNT(*) FROM entity_meta WHERE subject_type='post' AND subject_id=? AND scope<>'core'", [(int) $post['id']]) > 0
+        );
 
         // 封面地址框只装手动封面，自动取到的那张走预览
         [$initial['cover_url'], $coverAuto, $autoCoverUrl] = $isEdit ? self::coverEditorState($post) : ['', false, ''];
@@ -709,10 +864,17 @@ final class PostsController extends AdminController
         }
         $tags = DB::fetchAll('SELECT * FROM tags ORDER BY name ASC');
 
+        $canSubmit = \Pafish\Core\Auth::can('posts.manage') || Settings::get('submissions_enabled', 'true') === 'true';
+        $reviewRequired = !\Pafish\Core\Auth::can('posts.manage') && Settings::get('submissions_need_review', 'true') !== 'false';
         $html = $this->render('post-editor', [
             'post' => $initial,
             'templateOptions' => self::templateOptions(),
             'isEdit' => $isEdit,
+            'submissionMode' => $submissionMode,
+            'submissionHasExtensionContent' => $submissionHasExtensionContent,
+            'submissionCanSubmit' => $canSubmit,
+            'submissionReviewRequired' => $reviewRequired,
+            'submissionStatusLabel' => self::STATUS_LABEL[(string) ($initial['status'] ?? 'DRAFT')] ?? (string) ($initial['status'] ?? 'DRAFT'),
             'postId' => $isEdit ? (int) $post['id'] : 0,
             'catTree' => Categories::tree(),
             'tags' => $tags,
@@ -723,7 +885,7 @@ final class PostsController extends AdminController
             'hasPassword' => $isEdit && $initial['password'] !== null,
             'isScheduled' => $isEdit && $initial['status'] === 'SCHEDULED',
             'statusLabel' => self::STATUS_LABEL,
-            'headExtra' => editor_head_extra() . \Pafish\Services\Theme::editorHeadExtra(),
+            'headExtra' => editor_head_extra() . ($submissionMode ? '' : \Pafish\Services\Theme::editorHeadExtra()),
             'hiddenCustomFieldKeys' => \Pafish\Services\Theme::inactiveEditorFieldKeys(),
         ], $isEdit ? '编辑文章' : '写文章');
 

@@ -16,29 +16,22 @@ $listUrl = url_to('/admin/comments') . '?status=' . $status . $querySuffix;
   </div>
 
   <div class="admin-list-toolbar">
-    <nav class="admin-comment-tabs" aria-label="评论状态">
-      <?php foreach (['ALL', 'PENDING'] as $s): ?>
-        <a class="admin-comment-tab<?= $s === $status ? ' active' : '' ?>"
+    <nav class="admin-tabs admin-status-tabs admin-comment-tabs" aria-label="评论状态">
+      <?php foreach ($tabs as $s => $label): ?>
+        <a class="admin-tab<?= $s === $status ? ' is-active' : '' ?>"
            <?= $s === $status ? 'aria-current="page"' : '' ?>
            href="<?= e(url_to('/admin/comments') . '?status=' . $s . $querySuffix) ?>">
-          <?= $tabs[$s] ?><?php if ($s === 'PENDING'): ?><span class="badge"><?= (int) $statusCounts[$s] ?></span><?php endif; ?>
+          <?= e($label) ?><?php if ($s !== 'ALL'): ?> <span class="admin-tab-count">(<?= (int) ($statusCounts[$s] ?? 0) ?>)</span><?php endif; ?>
         </a>
       <?php endforeach; ?>
     </nav>
-    <form action="<?= e(url_to('/admin/comments')) ?>" method="get" class="admin-list-filter-form">
-      <?php if ($postId > 0): ?><input type="hidden" name="post_id" value="<?= $postId ?>"><?php endif; ?>
-      <?php if ($per !== 20): ?><input type="hidden" name="per" value="<?= $per ?>"><?php endif; ?>
-      <select name="status" class="input admin-filter-select" aria-label="更多评论状态" onchange="this.form.submit()">
-        <option value="" disabled<?= in_array($status, ['ALL', 'PENDING'], true) ? ' selected' : '' ?>>更多状态</option>
-        <?php foreach (['APPROVED', 'SPAM', 'TRASH'] as $s): ?>
-          <option value="<?= $s ?>"<?= $status === $s ? ' selected' : '' ?>><?= $tabs[$s] ?></option>
-        <?php endforeach; ?>
-      </select>
-      <noscript><button class="btn btn-outline" type="submit">筛选</button></noscript>
-    </form>
   </div>
 
   <?php if ($items !== []): ?>
+  <div class="admin-comment-list-tools">
+    <label class="admin-comment-select-all"><input type="checkbox" id="commentCheckAll" aria-label="选择本页全部评论"> 全选本页</label>
+    <span>本页 <?= count($items) ?> 条</span>
+  </div>
   <form class="admin-batch-bar admin-comment-batch-bar" id="commentBatchForm" action="<?= e(url_to('/admin/comments/batch')) ?>" method="post" hidden>
     <?= csrf_field() ?>
     <span class="admin-batch-count">已选 <strong class="admin-batch-count-number">0</strong> 条</span>
@@ -62,7 +55,7 @@ $listUrl = url_to('/admin/comments') . '?status=' . $status . $querySuffix;
     <div class="admin-table-wrap admin-comment-table-wrap">
       <table class="admin-table admin-comment-table">
         <thead>
-          <tr><th class="admin-col-check"><input type="checkbox" id="commentCheckAll" aria-label="选择本页全部评论"></th><th>评论</th><th class="admin-table-secondary">文章</th><th class="admin-table-secondary">时间</th><th class="admin-col-ops">操作</th></tr>
+          <tr><th class="admin-col-check" aria-label="选择"></th><th>评论</th><th class="admin-table-secondary">文章</th><th class="admin-table-secondary">时间</th><th class="admin-col-ops">操作</th></tr>
         </thead>
         <tbody>
           <?php foreach ($items as $c): ?>
@@ -71,7 +64,7 @@ $listUrl = url_to('/admin/comments') . '?status=' . $status . $querySuffix;
               <td data-label="评论">
                 <div class="admin-comment-head">
                   <span class="admin-comment-author"><?= e($c['author_name']) ?></span>
-                  <?php if ($c['status'] !== 'APPROVED'): ?><span class="admin-comment-state"><?= e($tabs[$c['status']]) ?></span><?php endif; ?>
+                  <span class="admin-comment-state"><?= e($tabs[$c['status']]) ?></span>
                   <?php if ((int) $c['is_pinned'] === 1): ?><span class="admin-comment-badge"><?= admin_icon('pin', 11) ?> 置顶</span><?php endif; ?>
                   <?php if ($c['parent_name'] !== null): ?><span class="admin-comment-parent">回复 <?= e($c['parent_name']) ?></span><?php endif; ?>
                 </div>
@@ -81,34 +74,34 @@ $listUrl = url_to('/admin/comments') . '?status=' . $status . $querySuffix;
                   <time><?= e(format_date($c['created_at'], 'yyyy-MM-dd HH:mm')) ?></time>
                 </div>
                 <details class="admin-comment-details">
-                  <summary>详情</summary>
+                  <summary>回复与更多操作</summary>
                   <div class="admin-comment-source">
                     <?php if ($c['author_email'] !== ''): ?><span><?= e($c['author_email']) ?></span><?php endif; ?>
                     <?php if (($c['ip'] ?? '') !== ''): ?><span>IP <?= e($c['ip']) ?></span><?php endif; ?>
                   </div>
                   <div class="admin-comment-detail-actions">
+                    <button type="button" class="btn btn-sm btn-ghost" data-reply="<?= (int) $c['id'] ?>">回复</button>
                     <button type="button" class="btn btn-sm btn-ghost" data-pin="<?= (int) $c['id'] ?>"><?= (int) $c['is_pinned'] === 1 ? '取消置顶' : '置顶' ?></button>
-                    <?php if ($c['status'] !== 'SPAM'): ?><button type="button" class="btn btn-sm btn-ghost" data-status="<?= (int) $c['id'] ?>" data-next="SPAM">标记为垃圾</button><?php endif; ?>
                     <?php if (($c['ip'] ?? '') !== ''): ?>
                       <button type="button" class="btn btn-sm btn-ghost admin-icon-danger" data-delete-ip="<?= e($c['ip']) ?>">按 IP 删除</button>
                       <button type="button" class="btn btn-sm btn-ghost" data-block-ip="<?= e($c['ip']) ?>">拉黑 IP</button>
                     <?php endif; ?>
                     <?php if (filter_var((string) ($c['author_email'] ?? ''), FILTER_VALIDATE_EMAIL) !== false): ?><button type="button" class="btn btn-sm btn-ghost" data-block-email="<?= e($c['author_email']) ?>">拉黑邮箱</button><?php endif; ?>
                   </div>
+                  <div class="admin-comment-replybox" hidden>
+                    <textarea class="admin-comment-reply-input" rows="3" maxlength="2000" aria-label="回复评论" placeholder="回复评论…"></textarea>
+                    <div class="admin-comment-reply-actions"><button type="button" class="btn btn-sm btn-primary" data-reply-submit="<?= (int) $c['id'] ?>">回复</button><button type="button" class="btn btn-sm btn-ghost" data-reply-cancel>取消</button></div>
+                  </div>
                 </details>
-                <div class="admin-comment-replybox" hidden>
-                  <textarea class="admin-comment-reply-input" rows="3" maxlength="2000" aria-label="回复评论" placeholder="回复评论…"></textarea>
-                  <div class="admin-comment-reply-actions"><button type="button" class="btn btn-sm btn-primary" data-reply-submit="<?= (int) $c['id'] ?>">回复</button><button type="button" class="btn btn-sm btn-ghost" data-reply-cancel>取消</button></div>
-                </div>
               </td>
-              <td data-label="内容" class="admin-comment-post admin-table-secondary">
+              <td data-label="文章" class="admin-comment-post admin-table-secondary">
                 <a href="<?= e(url_to($c['target_path'])) ?>" target="_blank" rel="noopener"><?= e($c['post_title']) ?></a>
               </td>
               <td data-label="时间" class="admin-table-secondary admin-comment-time"><?= e(format_date($c['created_at'], 'yyyy-MM-dd HH:mm')) ?></td>
               <td data-label="操作" class="admin-col-ops">
                 <div class="admin-comment-ops">
-                  <button type="button" class="btn btn-sm btn-ghost" data-reply="<?= (int) $c['id'] ?>">回复</button>
                   <?php if ($c['status'] !== 'APPROVED'): ?><button type="button" class="btn btn-sm btn-ghost" data-status="<?= (int) $c['id'] ?>" data-next="APPROVED">通过</button><?php endif; ?>
+                  <?php if ($c['status'] !== 'SPAM'): ?><button type="button" class="btn btn-sm btn-ghost" data-status="<?= (int) $c['id'] ?>" data-next="SPAM">标垃圾</button><?php endif; ?>
                   <button type="button" class="btn btn-sm btn-ghost admin-icon-danger" data-delete="<?= (int) $c['id'] ?>">删除</button>
                 </div>
               </td>
@@ -130,7 +123,6 @@ $listUrl = url_to('/admin/comments') . '?status=' . $status . $querySuffix;
   "use strict";
   var CSRF = <?= json_encode($commentCsrf) ?>;
   var listUrl = <?= json_encode(url_to('/admin/comments')) ?>;
-
   function post(url, body) {
     var fd = new FormData();
     Object.keys(body || {}).forEach(function (k) { fd.append(k, body[k]); });
@@ -296,8 +288,12 @@ $listUrl = url_to('/admin/comments') . '?status=' . $status . $querySuffix;
     btn.addEventListener("click", function () {
       var card = btn.closest("[data-comment]");
       var box = card.querySelector(".admin-comment-replybox");
+      var details = btn.closest(".admin-comment-details");
       box.hidden = !box.hidden;
-      if (!box.hidden) box.querySelector("textarea").focus();
+      if (!box.hidden) {
+        if (details) details.open = true;
+        box.querySelector("textarea").focus();
+      }
     });
   });
 

@@ -199,6 +199,7 @@ final class Migrator
             'micro_statuses_content_format' => self::tableHasColumns($pdo, 'micro_statuses', ['content_format']),
             'micro_statuses_content_capacity' => in_array(self::columnType($pdo, 'micro_statuses', 'content'), ['mediumtext', 'longtext'], true),
             'entity_meta' => self::tableExists($pdo, 'entity_meta'),
+            'zzzz_extension_records' => self::extensionRecordsReady($pdo),
             'email_code_security' => true, // 退役迁移；最后由 zzzzz_email_codes_session 清理旧表。
             'zzzzz_email_codes_session' => !self::tableExists($pdo, 'email_codes'),
             'media_capabilities' => self::tableHasColumns($pdo, 'uploads', ['usage_count', 'last_used_at']),
@@ -207,7 +208,8 @@ final class Migrator
             'user_points' => self::tableHasColumns($pdo, 'user_points', ['user_id', 'balance'])
                 && self::tableHasColumns($pdo, 'point_transactions', ['id', 'user_id', 'amount']),
             'user_management' => self::tableHasColumns($pdo, 'users', ['description', 'last_login_ip', 'last_active_at'])
-                && self::indexExists($pdo, 'users', 'idx_users_last_active'),
+                 && self::indexExists($pdo, 'users', 'idx_users_last_active'),
+            'submission_workflow' => self::tableHasColumns($pdo, 'posts', ['review_note', 'reviewed_by', 'reviewed_at']),
             default => false,
         };
     }
@@ -252,6 +254,76 @@ final class Migrator
             throw new \RuntimeException('索引 ' . $table . '.' . $index . ' 与已知结构不同，请先核查；未自动替换未知索引');
         }
         return $ready;
+    }
+
+    private static function extensionRecordsReady(\PDO $pdo): bool
+    {
+        if (!self::tableExists($pdo, 'extension_records')) return false;
+        $engine = $pdo->prepare('SELECT ENGINE FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=?');
+        $engine->execute(['extension_records']);
+        if (strcasecmp((string) $engine->fetchColumn(), 'InnoDB') !== 0) {
+            throw new \RuntimeException('extension_records 必须使用 InnoDB；未自动替换已有表');
+        }
+        $expectedColumns = [
+            'id' => ['bigint unsigned', null, null, null, 'auto_increment'],
+            'extension_type' => ['varchar(8)', 'ascii', 'ascii_bin', null, null],
+            'extension_name' => ['varchar(50)', 'ascii', 'ascii_bin', null, null],
+            'model_name' => ['varchar(64)', 'ascii', 'ascii_bin', null, null],
+            'record_key' => ['varchar(191)', 'ascii', 'ascii_bin', null, null],
+            'payload' => ['mediumtext', 'utf8mb4', 'utf8mb4_unicode_ci', null, null],
+            'revision' => ['bigint unsigned', null, null, '1', null],
+            'created_at' => ['datetime', null, null, 'current_timestamp', null],
+            'updated_at' => ['datetime', null, null, 'current_timestamp', 'on update current_timestamp'],
+        ];
+        $column = $pdo->prepare('SELECT COLUMN_TYPE, IS_NULLABLE, EXTRA, COLUMN_DEFAULT, CHARACTER_SET_NAME, COLLATION_NAME FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME=?');
+        foreach ($expectedColumns as $name => [$type, $charset, $collation, $default, $requiredExtra]) {
+            $column->execute(['extension_records', $name]);
+            $actual = $column->fetch(\PDO::FETCH_ASSOC);
+            $extra = strtolower((string) ($actual['EXTRA'] ?? ''));
+            if (!$actual || strtolower((string) $actual['COLUMN_TYPE']) !== $type
+                || $actual['IS_NULLABLE'] !== 'NO'
+                || strtolower((string) ($actual['CHARACTER_SET_NAME'] ?? '')) !== (string) $charset
+                || strtolower((string) ($actual['COLLATION_NAME'] ?? '')) !== (string) $collation
+                || !self::sameColumnDefault($actual['COLUMN_DEFAULT'], $default)
+                || ($requiredExtra !== null && !str_contains($extra, $requiredExtra))
+                || ($name !== 'id' && str_contains($extra, 'auto_increment'))) {
+                throw new \RuntimeException('extension_records 表的 ' . $name . ' 列结构缺失或不匹配；未自动替换已有表');
+            }
+        }
+        if (self::indexColumns($pdo, 'extension_records', 'PRIMARY') !== ['id']) {
+            throw new \RuntimeException('extension_records 表主键缺失或结构不同，请先核查数据库');
+        }
+        foreach ([
+            ['uk_extension_records_identity', ['extension_type', 'extension_name', 'model_name', 'record_key'], true],
+            ['idx_extension_records_page', ['extension_type', 'extension_name', 'model_name', 'id'], false],
+            ['idx_extension_records_owner', ['extension_type', 'extension_name', 'id'], false],
+        ] as [$name, $columns, $unique]) {
+            if (self::indexColumns($pdo, 'extension_records', $name) !== $columns
+                || self::indexIsUnique($pdo, 'extension_records', $name) !== $unique) {
+                throw new \RuntimeException('extension_records 表索引 ' . $name . ' 缺失或结构不同，请先核查数据库');
+            }
+        }
+        return true;
+    }
+
+    private static function sameColumnDefault(mixed $actual, ?string $expected): bool
+    {
+        if ($expected === null) return $actual === null;
+        $normalize = static function (string $value): string {
+            $value = strtolower(trim($value));
+            return preg_match('/^current_timestamp(?:\(\s*0?\s*\))?$/D', $value) === 1
+                ? 'current_timestamp' : $value;
+        };
+        return $normalize((string) $actual) === $normalize($expected);
+    }
+
+    private static function indexIsUnique(\PDO $pdo, string $table, string $index): bool
+    {
+        $stmt = $pdo->prepare('SELECT MIN(NON_UNIQUE) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND INDEX_NAME=?');
+        $stmt->execute([$table, $index]);
+        $unique = $stmt->fetchColumn();
+        return $unique !== false && $unique !== null && (int) $unique === 0;
     }
 
     /** @param list<string> $columns */

@@ -223,7 +223,7 @@ final class CommentsController extends AdminController
         return $this->json($response, ['ok' => true]);
     }
 
-    /** 各状态计数（Tab 徽标） */
+    /** 各状态筛选项计数。 */
     private function statusCounts(int $postId = 0): array
     {
         $out = [];

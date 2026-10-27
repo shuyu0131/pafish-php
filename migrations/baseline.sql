@@ -67,7 +67,10 @@ CREATE TABLE IF NOT EXISTS posts (
   content_format  VARCHAR(16)     NOT NULL DEFAULT 'markdown' COMMENT 'markdown/html，HTML 写入需净化',
   template        VARCHAR(40)     NOT NULL DEFAULT 'default' COMMENT '文章模板标识；default 使用分类或默认布局',
   cover_url       VARCHAR(500)    NULL COMMENT '内容或分类封面地址',
-  status          VARCHAR(20)     NOT NULL DEFAULT 'DRAFT' COMMENT 'DRAFT/PUBLISHED/SCHEDULED，公开还需检查软删除和时间',
+  status          VARCHAR(20)     NOT NULL DEFAULT 'DRAFT' COMMENT 'DRAFT/PENDING/CHANGES_REQUESTED/PUBLISHED/SCHEDULED，公开还需检查软删除和时间',
+  review_note     TEXT            NULL COMMENT '投稿审核反馈，仅作者与管理员可见',
+  reviewed_by     BIGINT UNSIGNED NULL COMMENT '最近审核人用户 ID',
+  reviewed_at     DATETIME        NULL COMMENT '最近审核时间',
   published_at    DATETIME        NULL COMMENT '发布时间；公开查询允许为空、未来时间不公开',
   view_count      INT             NOT NULL DEFAULT 0 COMMENT '浏览次数',
   is_pinned       TINYINT(1)      NOT NULL DEFAULT 0 COMMENT '是否置顶',
@@ -259,6 +262,23 @@ CREATE TABLE IF NOT EXISTS extension_storage (
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最近修改时间',
   PRIMARY KEY (extension_type, extension_name, data_key)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT='所有扩展共用的配置、小数据、版本及业务表归属';
+
+-- 插件和主题共用的结构化记录；命名空间来自 ExtensionContext，不由调用方提交。
+CREATE TABLE IF NOT EXISTS extension_records (
+  id             BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '记录主键与稳定分页游标',
+  extension_type VARCHAR(8) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT 'plugin/theme 数据归属类型',
+  extension_name VARCHAR(50) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT '扩展目录名',
+  model_name     VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT '扩展内逻辑模型名',
+  record_key     VARCHAR(191) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT '模型内稳定记录键',
+  payload        MEDIUMTEXT NOT NULL COMMENT '经核心校验的 JSON 对象，单条上限 256 KiB',
+  revision       BIGINT UNSIGNED NOT NULL DEFAULT 1 COMMENT '每次更新递增，用于乐观并发控制',
+  created_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  updated_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最近修改时间',
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_extension_records_identity (extension_type, extension_name, model_name, record_key),
+  KEY idx_extension_records_page (extension_type, extension_name, model_name, id),
+  KEY idx_extension_records_owner (extension_type, extension_name, id)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT='扩展命名空间内的共用结构化记录';
 
 -- 媒体库
 CREATE TABLE IF NOT EXISTS uploads (

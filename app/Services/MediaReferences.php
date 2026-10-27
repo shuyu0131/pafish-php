@@ -21,6 +21,7 @@ final class MediaReferences
         'widget' => ['widgets', ['content', 'title']],
         'setting' => ['settings', ['value']],
         'extension' => ['extension_storage', ['value']],
+        'extension_record' => ['extension_records', ['payload']],
         'entity_meta' => ['entity_meta', ['meta_value']],
     ];
     private const STATE = "extension_type = 'system' AND extension_name = 'media_references' AND data_key = 'state'";
@@ -127,19 +128,28 @@ final class MediaReferences
             foreach (self::SOURCES as $type => [$table, $fields]) {
                 $offset = 0;
                 do {
-                    $columns = $type === 'setting' ? 'key' : ($type === 'extension' ? 'extension_type, extension_name, data_key' : 'id');
+                    $columns = $type === 'setting' ? 'key' : match ($type) {
+                        'extension' => 'extension_type, extension_name, data_key',
+                        'extension_record' => 'extension_type, extension_name, model_name, record_key',
+                        default => 'id',
+                    };
                     // settings.key needs quoting (KEY is reserved).
                     $columnsSql = $type === 'setting' ? '`key`' : $columns;
                     $where = match ($type) {
                         'extension' => " WHERE extension_type IN ('plugin', 'theme')",
+                        'extension_record' => " WHERE extension_type IN ('plugin', 'theme')",
                         'entity_meta' => " WHERE scope <> 'core:custom_fields'",
                         default => '',
                     };
                     $rows = DB::fetchAll('SELECT ' . $columnsSql . ', ' . implode(', ', $fields) . ' FROM ' . $table . $where
                         . ' ORDER BY ' . $columnsSql . ' LIMIT 200 OFFSET ' . $offset);
                     foreach ($rows as $row) {
-                        $key = $type === 'setting' ? $row['key'] : ($type === 'extension'
-                            ? self::extensionKey($row['extension_type'], $row['extension_name'], $row['data_key']) : (string) $row['id']);
+                        $key = match ($type) {
+                            'setting' => (string) $row['key'],
+                            'extension' => self::extensionKey($row['extension_type'], $row['extension_name'], $row['data_key']),
+                            'extension_record' => json_encode([$row['extension_type'], $row['extension_name'], $row['model_name'], $row['record_key']], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
+                            default => (string) $row['id'],
+                        };
                         self::replace($type, $key, array_intersect_key($row, array_flip($fields)), false);
                         $sources++;
                     }
@@ -269,6 +279,11 @@ final class MediaReferences
             $parts = json_decode($key, true, 4, JSON_THROW_ON_ERROR);
             if (!is_array($parts) || count($parts) !== 3 || !in_array($parts[0] ?? null, ['plugin', 'theme'], true)) throw new \InvalidArgumentException('无效扩展引用地址');
             return ['extension_type = ? AND extension_name = ? AND data_key = ?', $parts];
+        }
+        if ($type === 'extension_record') {
+            $parts = json_decode($key, true, 4, JSON_THROW_ON_ERROR);
+            if (!is_array($parts) || count($parts) !== 4 || !in_array($parts[0] ?? null, ['plugin', 'theme'], true)) throw new \InvalidArgumentException('无效扩展记录引用地址');
+            return ['extension_type = ? AND extension_name = ? AND model_name = ? AND record_key = ?', $parts];
         }
         if (!ctype_digit($key) || (int) $key < 1) throw new \InvalidArgumentException('无效媒体引用来源 ID');
         return ['id = ?', [$key]];

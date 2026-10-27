@@ -11,6 +11,7 @@ $subtitle = (string) settings('site_subtitle', '');
 $activeTheme = Theme::active();
 $themeCss = Theme::css($activeTheme);
 $layoutCss = Theme::layoutCss($activeTheme);
+$themeHasIconFields = \Pafish\Services\ExtensionKernel::hasSettingType(Theme::settingsFields($activeTheme), 'icon');
 // 侧栏属于主题布局选择；系统兜底模板仅在主题明确声明时开启。
 $showSidebar = theme_value('sidebar_enabled', '0') !== '0';
 $navItems = nav_items();
@@ -52,6 +53,10 @@ $jsonLd = $frontMeta['jsonLd'] ?? [];
 <title><?= e($fullTitle) ?></title>
 <link rel="icon" href="<?= e(asset_url('/favicon.svg')) ?>" type="image/svg+xml">
 <link rel="stylesheet" href="<?= e(asset_url('/css/content.css')) ?>">
+<?php if ($themeHasIconFields): ?>
+<link rel="stylesheet" href="<?= e(asset_url('/css/remixicon.min.css')) ?>">
+<link rel="stylesheet" href="<?= e(asset_url('/css/font-awesome.min.css')) ?>">
+<?php endif; ?>
 <?php if ($desc !== ''): ?><meta name="description" content="<?= e($desc) ?>"><?php endif; ?>
 <?php if ($robots !== ''): ?><meta name="robots" content="<?= e($robots) ?>"><?php endif; ?>
 <?php if ($canonical !== ''): ?><link rel="canonical" href="<?= e($canonical) ?>"><?php endif; ?>
@@ -88,7 +93,9 @@ foreach ($jsonLdItems as $item):
 <?php if ($layoutCss !== null || $themeCss !== null): ?>
 <style data-theme="<?= e($activeTheme) ?>"><?= $layoutCss ?? '' ?><?= $themeCss ?? '' ?></style>
 <?php endif; ?>
-<?php /* 插件 head 注入（API v2 传入页面上下文） */ do_action('head_inject', ['meta' => $frontMeta, 'template' => $GLOBALS['pafish_tpl_ctx'] ?? []]); ?>
+<?php $headInjectContext = ['meta' => $frontMeta, 'template' => $GLOBALS['pafish_tpl_ctx'] ?? []]; ?>
+<?= \Pafish\Services\Theme::renderInjection('head', $headInjectContext) ?>
+<?php /* 插件 head 注入（API v2 传入页面上下文） */ do_action('head_inject', $headInjectContext); ?>
 <script>
 /* API 路径适配：pretty_urls=false 时请求走 index.php?p=api/...，query 用 & 拼接 */
 window.pafishApi = function (p) {
@@ -109,7 +116,9 @@ window.pafishApi = function (p) {
     <?php if ($subtitle !== ''): ?><span class="app-brand-sub"><?= e($subtitle) ?></span><?php endif; ?>
   </a>
   <?= render_partial('sidebar-widgets', ['area' => 'sidebar']) ?>
-  <?php /* 插件侧边栏注入 */ do_action('sidebar_inject', ['template' => $GLOBALS['pafish_tpl_ctx'] ?? []]); ?>
+  <?php $sidebarInjectContext = ['template' => $GLOBALS['pafish_tpl_ctx'] ?? []]; ?>
+  <?= \Pafish\Services\Theme::renderInjection('sidebar', $sidebarInjectContext) ?>
+  <?php /* 插件侧边栏注入 */ do_action('sidebar_inject', $sidebarInjectContext); ?>
 </aside>
 <?php endif; ?>
 

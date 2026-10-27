@@ -2,13 +2,13 @@
 /**
  * 文章列表卡片（系统默认模板；主题可覆盖 themes/{active}/post-card.php）
  * 可用数据：$post（含 title/slug/excerpt/cover_url/published_at/is_pinned/category_pinned/
- *               password/external_url/view_count/author_name/category_name/category_slug/tags[]）
+ *               is_password_protected/external_url/view_count/author_name/category_name/category_slug/tags[]）
  */
 $post = $post ?? [];
 $isExternal = trim((string) ($post['external_url'] ?? ''));
 $isPinned = (bool) ($post['is_pinned'] ?? false);
 $isCategoryPinned = (bool) ($post['category_pinned'] ?? false);
-$hasPassword = (bool) ($post['password'] ?? false);
+$hasPassword = (bool) ($post['is_password_protected'] ?? $post['password'] ?? false);
 $coverUrl = \Pafish\Services\Content::safeImageUrl($post['cover_url'] ?? null);
 ?>
 <article class="post-card">

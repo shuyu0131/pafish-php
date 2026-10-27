@@ -29,7 +29,7 @@ ALTER TABLE `posts`
   MODIFY COLUMN content         MEDIUMTEXT      NOT NULL COMMENT '正文或组件内容',
   MODIFY COLUMN content_format  VARCHAR(16)     NOT NULL DEFAULT 'markdown' COMMENT 'markdown/html，HTML 写入需净化',
   MODIFY COLUMN cover_url       VARCHAR(500)    NULL COMMENT '内容或分类封面地址',
-  MODIFY COLUMN status          VARCHAR(20)     NOT NULL DEFAULT 'DRAFT' COMMENT 'DRAFT/PUBLISHED/SCHEDULED，公开还需检查软删除和时间',
+  MODIFY COLUMN status          VARCHAR(20)     NOT NULL DEFAULT 'DRAFT' COMMENT 'DRAFT/PENDING/CHANGES_REQUESTED/PUBLISHED/SCHEDULED，公开还需检查软删除和时间',
   MODIFY COLUMN published_at    DATETIME        NULL COMMENT '发布时间；公开查询允许为空、未来时间不公开',
   MODIFY COLUMN view_count      INT             NOT NULL DEFAULT 0 COMMENT '浏览次数',
   MODIFY COLUMN is_pinned       TINYINT(1)      NOT NULL DEFAULT 0 COMMENT '是否置顶',

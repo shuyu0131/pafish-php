@@ -63,6 +63,7 @@ $fields[] = [
 $built = $buildGroups($fields);
 // 只要主题可用且已启用，表单就存在——即便一个设置项都没声明，也还有备份/恢复这一组
 $canConfigure = $manifest !== null && $active;
+$hasIconFields = $canConfigure && \Pafish\Services\ExtensionKernel::hasSettingType($fields, 'icon');
 ?>
 <div class="admin-stack admin-theme-settings">
   <nav aria-label="面包屑">
@@ -124,11 +125,13 @@ $canConfigure = $manifest !== null && $active;
     </div>
     <div class="admin-modal-body">
       <input class="input admin-lib-search" type="search" placeholder="搜索媒体…" data-theme-lib-q>
-      <div class="admin-lib-grid" data-theme-lib-grid></div>
+      <div class="admin-lib-grid" data-theme-lib-grid aria-live="polite"></div>
       <div class="admin-pager admin-lib-pager" data-theme-lib-pager hidden></div>
     </div>
   </div>
 </div>
+
+<?php if ($hasIconFields): require __DIR__ . '/partials/icon-picker.php'; endif; ?>
 
 <?php /* 设置页字段行为（show_if、滑块、间距、排版、repeater 等） */ ?>
 <script src="<?= e(asset_url('/js/admin-schema-form.js')) ?>"></script>
@@ -314,7 +317,11 @@ $canConfigure = $manifest !== null && $active;
           cell.addEventListener("click", function () {
             if (libTarget) {
               var input = document.querySelector('[data-sf-key="' + libTarget + '"][data-sf-type="image"]');
-              if (input) { input.value = cell.dataset.url; }
+              if (input) {
+                input.value = cell.dataset.url;
+                input.dispatchEvent(new Event("input", { bubbles: true }));
+                input.dispatchEvent(new Event("change", { bubbles: true }));
+              }
             }
             modal.hidden = true;
           });

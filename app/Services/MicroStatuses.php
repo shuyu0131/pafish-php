@@ -278,7 +278,7 @@ final class MicroStatuses
             'author' => [
                 'id' => isset($row['author_id']) ? (string) $row['author_id'] : null,
                 'name' => (string) ($row['author_name'] ?? ''),
-                'avatarUrl' => $row['author_avatar'] ?? null,
+                'avatarUrl' => Content::safeImageUrl($row['author_avatar'] ?? null),
             ],
             'media' => self::decodeMedia($row['media_json'] ?? null),
         ];

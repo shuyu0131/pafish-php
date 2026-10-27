@@ -15,7 +15,7 @@ use Pafish\Core\Logger;
 final class ExtensionKernel
 {
     private const SETTING_TYPES = [
-        'text', 'textarea', 'checkbox', 'checkboxes', 'select', 'color', 'switcher', 'radio', 'image', 'password',
+        'text', 'textarea', 'checkbox', 'checkboxes', 'select', 'color', 'switcher', 'radio', 'image', 'icon', 'password',
         // 展示型：不产生设置值，只用于排版说明（CSF 的 heading / subheading）
         'heading', 'subheading',
         // 数值型
@@ -71,7 +71,7 @@ final class ExtensionKernel
      */
     private const LEAF_TYPES = [
         'text', 'textarea', 'checkbox', 'checkboxes', 'select', 'color', 'switcher',
-        'radio', 'image', 'password', 'slider',
+        'radio', 'image', 'icon', 'password', 'slider',
         'button_set', 'image_select', 'palette', 'code',
     ];
 
@@ -424,6 +424,45 @@ final class ExtensionKernel
             }
         }
 
+        // 图标字段：默认使用 Remix Icon，也可声明 Font Awesome 4 或 both。
+        // `library`、`icon_library` 与 VAM 风格的 `use_icons` 都接受，便于迁移。
+        if ($out['type'] === 'icon') {
+            $customIcons = $field['custom_icons'] ?? $field['customIcons'] ?? $field['icons'] ?? null;
+            $customIcons = self::normalizeIconCatalog($customIcons);
+            $declaredLibrary = $field['library'] ?? $field['icon_library'] ?? null;
+            if ($declaredLibrary === null && is_array($field['use_icons'] ?? null)) {
+                $declaredLibrary = $field['use_icons'];
+            }
+            if (is_array($declaredLibrary)) {
+                $libraries = [];
+                foreach ($declaredLibrary as $one) {
+                    if (!is_string($one)) {
+                        continue;
+                    }
+                    $one = strtolower(trim($one));
+                    if (in_array($one, ['remixicon', 'remix_icon', 'remix icon'], true)) {
+                        $libraries['remixicon'] = true;
+                    } elseif (in_array($one, ['fontawesome', 'font_awesome', 'font awesome', 'fontawesome4'], true)) {
+                        $libraries['fontawesome'] = true;
+                    }
+                }
+                $library = count($libraries) > 1 ? 'both' : (array_key_first($libraries)
+                    ?? ((array_key_exists('use_icons', $field) && $field['use_icons'] === [] && $customIcons !== []) ? 'custom' : 'remixicon'));
+            } else {
+                $library = strtolower(trim((string) ($declaredLibrary ?? 'remixicon')));
+                if (in_array($library, ['remix_icon', 'remix icon'], true)) {
+                    $library = 'remixicon';
+                } elseif (in_array($library, ['font_awesome', 'font awesome', 'fontawesome4'], true)) {
+                    $library = 'fontawesome';
+                }
+            }
+            $out['library'] = in_array($library, ['remixicon', 'fontawesome', 'both'], true)
+                || ($library === 'custom' && $customIcons !== []) ? $library : 'remixicon';
+            if ($customIcons !== []) {
+                $out['custom_icons'] = $customIcons;
+            }
+        }
+
         // ---- 复合型：spacing（四向间距）----
         if ($out['type'] === 'spacing') {
             $sides = ['top', 'right', 'bottom', 'left'];
@@ -740,6 +779,78 @@ final class ExtensionKernel
     }
 
     /**
+     * 规范化图标字段的自定义图标库。
+     *
+     * 支持 VAM 风格的 [{title, icons: [...] }]，也接受简单的 class 数组或
+     * {"品牌": ["ri-github-fill"]} 写法。class 仍只允许安全标识符，避免把
+     * 自定义 HTML/CSS 片段塞进前台 class 属性。
+     *
+     * @return array<int, array{title:string,icons:array<int,string>}>
+     */
+    private static function normalizeIconCatalog(mixed $raw): array
+    {
+        if (!is_array($raw) || $raw === []) {
+            return [];
+        }
+        $groups = [];
+        $seen = [];
+        $total = 0;
+        $addGroup = static function (mixed $title, mixed $icons) use (&$groups, &$seen, &$total): void {
+            if ($total >= 500 || !is_array($icons)) {
+                return;
+            }
+            $title = is_scalar($title) && trim((string) $title) !== '' ? trim((string) $title) : '自定义图标';
+            $clean = [];
+            foreach ($icons as $icon) {
+                if (!is_scalar($icon)) {
+                    continue;
+                }
+                $icon = trim((string) $icon);
+                if ($icon === '' || strlen($icon) > 160
+                    || preg_match('/^[A-Za-z0-9_-]+(?:\s+[A-Za-z0-9_-]+)*$/D', $icon) !== 1
+                    || isset($seen[$icon])) {
+                    continue;
+                }
+                $seen[$icon] = true;
+                $clean[] = $icon;
+                $total++;
+                if ($total >= 500) {
+                    break;
+                }
+            }
+            if ($clean !== []) {
+                $groups[] = ['title' => $title, 'icons' => $clean];
+            }
+        };
+
+        if (array_is_list($raw)) {
+            $simple = [];
+            foreach ($raw as $entry) {
+                if (is_scalar($entry)) {
+                    $simple[] = $entry;
+                    continue;
+                }
+                if (is_array($entry)) {
+                    $icons = $entry['icons'] ?? $entry['items'] ?? null;
+                    if ($icons !== null) {
+                        $addGroup($entry['title'] ?? $entry['name'] ?? '自定义图标', $icons);
+                    } else {
+                        $simple[] = $entry;
+                    }
+                }
+            }
+            if ($simple !== []) {
+                $addGroup('自定义图标', $simple);
+            }
+        } else {
+            foreach ($raw as $title => $icons) {
+                $addGroup($title, $icons);
+            }
+        }
+        return $groups;
+    }
+
+    /**
      * 公开入口：规范化单个设置字段。
      *
      * 供主题/插件作者自测 schema（也可用于外部工具校验 theme.json / plugin.json）。
@@ -761,6 +872,23 @@ final class ExtensionKernel
     public static function isContainerType(string $type): bool
     {
         return in_array($type, self::CONTAINER_TYPES, true);
+    }
+
+    /** 判断设置 schema（含 group / repeater 子项）是否声明了某种字段。 */
+    public static function hasSettingType(array $fields, string $type): bool
+    {
+        foreach ($fields as $field) {
+            if (!is_array($field)) {
+                continue;
+            }
+            if (($field['type'] ?? null) === $type) {
+                return true;
+            }
+            if (is_array($field['fields'] ?? null) && self::hasSettingType($field['fields'], $type)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -817,6 +945,14 @@ final class ExtensionKernel
             return $label . ' 需为 #rrggbb 格式的颜色值';
         }
 
+        // icon 保存的是一个或多个 CSS class（如 ri-home-line / fa fa-home）。
+        // 只接受安全的标识符，避免把 HTML、属性或任意 CSS 片段带入前台模板。
+        if ($type === 'icon' && $value !== '') {
+            if (strlen($value) > 160 || preg_match('/^[A-Za-z0-9_-]+(?:\s+[A-Za-z0-9_-]+)*$/D', $value) !== 1) {
+                return $label . ' 只能填写图标 class 名称（如 ri-home-line 或 fa fa-home）';
+            }
+        }
+
         if (($rules['required'] ?? false) === true && trim($value) === '') {
             return $label . ' 为必填项';
         }
@@ -838,7 +974,8 @@ final class ExtensionKernel
 
         // 选项类字段：拒绝不在 options 里的值，避免手改表单写入脏数据
         $options = is_array($field['options'] ?? null) ? $field['options'] : [];
-        if ($options !== [] && in_array($type, ['select', 'radio'], true) && $value !== ''
+        if ($options !== [] && in_array($type, ['select', 'radio', 'button_set', 'palette', 'image_select'], true)
+            && !(($type === 'image_select') && (($field['multiple'] ?? false) === true)) && $value !== ''
             && !array_key_exists($value, $options)) {
             return $label . ' 的取值不在候选项中';
         }
@@ -857,7 +994,8 @@ final class ExtensionKernel
         }
 
         // ---- 复合型：值必须是合法 JSON 且结构正确 ----
-        if (in_array($type, self::JSON_TYPES, true)) {
+        if (in_array($type, self::JSON_TYPES, true)
+            || ($type === 'image_select' && ($field['multiple'] ?? false) === true)) {
             return self::validateComposite($field, $value, $label);
         }
 
@@ -889,9 +1027,13 @@ final class ExtensionKernel
             return $label . ' 的数据格式不正确（需为 JSON）';
         }
 
-        if ($type === 'checkboxes') {
-            if (!array_is_list($decoded)) {
+        if ($type === 'checkboxes' || ($type === 'image_select' && ($field['multiple'] ?? false) === true)) {
+            if (!array_is_list($decoded) || !is_array(json_decode($value))) {
                 return $label . ' 的数据格式不正确（需为数组）';
+            }
+            $rules = is_array($field['rules'] ?? null) ? $field['rules'] : [];
+            if ($decoded === [] && ($rules['required'] ?? false) === true) {
+                return $label . ' 为必选项';
             }
             $options = (array) ($field['options'] ?? []);
             foreach ($decoded as $picked) {
@@ -978,11 +1120,16 @@ final class ExtensionKernel
         }
 
         // repeater：数组，逐行逐字段按子 schema 校验
-        if (!array_is_list($decoded)) {
+        $decodedShape = json_decode($value);
+        if (!array_is_list($decoded) || !is_array($decodedShape)) {
             return $label . ' 的数据格式不正确（需为数组）';
         }
         $maxItems = (int) ($field['max_items'] ?? 20);
         $minItems = (int) ($field['min_items'] ?? 0);
+        $rules = is_array($field['rules'] ?? null) ? $field['rules'] : [];
+        if ($decoded === [] && ($rules['required'] ?? false) === true) {
+            return $label . ' 至少需要一行';
+        }
         if (count($decoded) > $maxItems) {
             return $label . ' 最多 ' . $maxItems . ' 行（当前 ' . count($decoded) . '）';
         }
@@ -996,17 +1143,43 @@ final class ExtensionKernel
             }
         }
         foreach ($decoded as $i => $row) {
-            if (!is_array($row)) {
+            if (!is_array($row) || !isset($decodedShape[$i]) || !is_object($decodedShape[$i])) {
                 return $label . ' 第 ' . ($i + 1) . ' 行格式不正确';
             }
             foreach ($row as $k => $v) {
                 if (!isset($subFields[(string) $k])) {
                     return $label . ' 第 ' . ($i + 1) . ' 行含未声明的字段「' . (string) $k . '」';
                 }
-                $subErr = self::validateSettingValue($subFields[(string) $k], is_scalar($v) ? (string) $v : '');
+                $subField = $subFields[(string) $k];
+                $subType = (string) ($subField['type'] ?? 'text');
+                if (is_array($v)) {
+                    // repeater 内的多选字段本来就以数组编辑；先编码成与顶层
+                    // 相同的 JSON 语义，再交给 checkboxes 的候选项校验。
+                    if (!array_is_list($v)
+                        || ($subType !== 'checkboxes' && !(($subType === 'image_select') && (($subField['multiple'] ?? false) === true)))) {
+                        return $label . ' 第 ' . ($i + 1) . ' 行的「' . ($subField['label'] ?? $k) . '」取值不合法';
+                    }
+                    $subValue = json_encode(array_values($v), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                    if ($subValue === false) {
+                        return $label . ' 第 ' . ($i + 1) . ' 行的「' . ($subField['label'] ?? $k) . '」取值不合法';
+                    }
+                } elseif (is_scalar($v) || $v === null) {
+                    $subValue = $v === null ? '' : (string) $v;
+                } else {
+                    return $label . ' 第 ' . ($i + 1) . ' 行的「' . ($subField['label'] ?? $k) . '」取值不合法';
+                }
+                $subErr = self::validateSettingValue($subField, $subValue);
                 if ($subErr !== null) {
                     return '第 ' . ($i + 1) . ' 行：' . $subErr;
                 }
+            }
+            // 行内声明 required 的字段即使没有出现在 JSON 中也必须报错。
+            foreach ($subFields as $subKey => $subField) {
+                $rules = is_array($subField['rules'] ?? null) ? $subField['rules'] : [];
+                if (($rules['required'] ?? false) !== true || array_key_exists($subKey, $row)) {
+                    continue;
+                }
+                return '第 ' . ($i + 1) . ' 行：' . ($subField['label'] ?? $subKey) . ' 为必填项';
             }
         }
         return null;

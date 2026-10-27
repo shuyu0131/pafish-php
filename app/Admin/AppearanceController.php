@@ -87,13 +87,20 @@ final class AppearanceController extends AdminController
         $this->guardAdmin();
         $name = (string) ($args['name'] ?? '');
         $desc = Theme::describe($name);
+        $settings = $desc['manifest'] !== null ? Theme::settingsFields($name) : [];
+        $headExtra = '';
+        if (\Pafish\Services\ExtensionKernel::hasSettingType($settings, 'icon')) {
+            $headExtra = '<link rel="stylesheet" href="' . e(asset_url('/css/remixicon.min.css')) . '">'
+                . '<link rel="stylesheet" href="' . e(asset_url('/css/font-awesome.min.css')) . '">';
+        }
         $response->getBody()->write($this->render('appearance-setting', [
             'themeName' => $name,
             'manifest' => $desc['manifest'],
             'error' => $desc['error'],
             'active' => $name === Theme::active(),
             'values' => $desc['manifest'] !== null ? Theme::valuesFor($name) : [],
-            'settings' => $desc['manifest'] !== null ? Theme::settingsFields($name) : [],
+            'settings' => $settings,
+            'headExtra' => $headExtra,
         ], '主题设置'));
         return $response;
     }

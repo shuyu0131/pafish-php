@@ -17,7 +17,7 @@ final class CategoryController
     public function show(Request $request, Response $response, array $args): Response
     {
         $slug = rawurldecode((string) ($args['slug'] ?? ''));
-        $category = DB::fetchOne('SELECT * FROM categories WHERE slug = ?', [$slug]);
+        $category = DB::fetchOne('SELECT id,name,slug,description,seo_title,meta_description,cover_url,parent_id,sort_order FROM categories WHERE slug = ?', [$slug]);
         if (!$category) {
             return Listings::notFound($response, '分类不存在');
         }
@@ -33,6 +33,7 @@ final class CategoryController
         );
         $totalPages = max(1, (int) ceil($total / $perPage));
 
+        $category['cover_url'] = \Pafish\Services\Content::safeImageUrl($category['cover_url'] ?? null);
         $description = (string) ($category['description'] ?? '');
         $metaDesc = $category['meta_description'] ?: ($description !== '' ? $description : "「{$category['name']}」分类下的文章列表");
         $seoTitle = $category['seo_title'] ?: $category['name'];

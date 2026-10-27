@@ -17,7 +17,7 @@ final class TagController
     public function show(Request $request, Response $response, array $args): Response
     {
         $slug = rawurldecode((string) ($args['slug'] ?? ''));
-        $tag = DB::fetchOne('SELECT * FROM tags WHERE slug = ?', [$slug]);
+        $tag = DB::fetchOne('SELECT id,name,slug,description,seo_title,meta_description FROM tags WHERE slug = ?', [$slug]);
         if (!$tag) {
             return Listings::notFound($response, '标签不存在');
         }

@@ -1,6 +1,6 @@
 # Pafish 主题开发 API 速查
 
-本文对应当前 PHP 运行时。主题文件直接以 PHP 执行，不需要 Node、React 或构建步骤。标准起点是 [`theme-starter/pafish-starter`](theme-starter/pafish-starter/)；另一种从空目录开发的[实战主题与验证记录](theme-exercise/)可供参考。模板变量详见[主题数据契约](theme-data-contract.json)，检查命令详见下方“本地检查”。
+本文对应当前 PHP 运行时。主题文件直接以 PHP 执行，不需要 Node、React 或构建步骤。标准起点是 [`theme-starter/pafish-starter`](theme-starter/pafish-starter/)。模板变量详见[主题数据契约](theme-data-contract.json)，检查命令详见下方“本地检查”。
 
 ## 1. 从请求到模板
 

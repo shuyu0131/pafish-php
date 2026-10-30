@@ -166,7 +166,7 @@ $keywordsText = $listText('comment_spam_keywords', "\n");
       <h2 class="admin-card-title">文章与内容</h2>
       <input type="hidden" name="submissions_enabled" value="false">
       <label class="admin-check-row">
-        <input type="checkbox" name="submissions_enabled" value="true" <?= $boolVal('submissions_enabled', 'true') ? 'checked' : '' ?>>
+        <input type="checkbox" name="submissions_enabled" value="true" <?= $boolVal('submissions_enabled', 'false') ? 'checked' : '' ?>>
         <span>开放用户投稿</span>
       </label>
       <input type="hidden" name="submissions_need_review" value="false">

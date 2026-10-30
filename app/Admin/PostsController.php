@@ -207,7 +207,7 @@ final class PostsController extends AdminController
             if ($owned === null) {
                 return $this->notFound($response);
             }
-        } elseif (!\Pafish\Core\Auth::can('posts.manage') && Settings::get('submissions_enabled', 'true') !== 'true') {
+        } elseif (!\Pafish\Core\Auth::can('posts.manage') && Settings::get('submissions_enabled', 'false') !== 'true') {
             return $this->redirect($response, '/admin?section=posts');
         }
         return $this->renderEditor($request, $response, $post, true);
@@ -465,7 +465,7 @@ final class PostsController extends AdminController
             throw new \RuntimeException('请先登录');
         }
         $allowManagerEdit = \Pafish\Core\Auth::can('posts.manage');
-        $submissionOpen = Settings::get('submissions_enabled', 'true') === 'true';
+        $submissionOpen = Settings::get('submissions_enabled', 'false') === 'true';
         if (!$allowManagerEdit && (!$submissionOpen && ($id === null || (string) ($body['action'] ?? 'draft') === 'publish'))) {
             throw new \RuntimeException('当前站点已关闭用户投稿');
         }
@@ -494,7 +494,7 @@ final class PostsController extends AdminController
                 DB::afterCommit(static fn () => \do_action('after_delete_post', $payload));
                 return ['deleted' => true];
             }
-            if (!$manager && $operation === 'publish' && Settings::get('submissions_enabled', 'true') !== 'true') {
+            if (!$manager && $operation === 'publish' && Settings::get('submissions_enabled', 'false') !== 'true') {
                 throw new \RuntimeException('当前站点已关闭用户投稿');
             }
             $reviewRequired = !$manager && Settings::get('submissions_need_review', 'true') !== 'false';
@@ -904,7 +904,7 @@ final class PostsController extends AdminController
         }
         $tags = DB::fetchAll('SELECT * FROM tags ORDER BY name ASC');
 
-        $canSubmit = \Pafish\Core\Auth::can('posts.manage') || Settings::get('submissions_enabled', 'true') === 'true';
+        $canSubmit = \Pafish\Core\Auth::can('posts.manage') || Settings::get('submissions_enabled', 'false') === 'true';
         $reviewRequired = !\Pafish\Core\Auth::can('posts.manage') && Settings::get('submissions_need_review', 'true') !== 'false';
         $html = $this->render('post-editor', [
             'post' => $initial,

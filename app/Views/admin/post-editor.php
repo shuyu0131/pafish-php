@@ -6,6 +6,7 @@
  *       $coverAuto（这篇是否开启自动取图兜底）$autoCoverUrl（自动取到的图，只作预览）
  */
 $submissionMode = (bool) ($submissionMode ?? false);
+$editorMediaEnabled = !$submissionMode || !empty($submissionCanSubmit);
 $extensionMetaFields = $submissionMode ? [] : \Pafish\Services\EntityMeta::editorFields('post', (int) ($post['id'] ?? 0));
 $hasExtensionMeta = $extensionMetaFields !== [];
 $legacyCustomFieldsVisible = $customFields !== [] || !$hasExtensionMeta;
@@ -49,8 +50,8 @@ $editorData = [
     'editUrl' => url_to($submissionMode ? '/admin/submissions/{id}/edit' : '/admin/posts/{id}/edit'),
     'listUrl' => url_to($submissionMode ? '/admin?section=posts' : '/admin/posts'),
     'previewUrl' => url_to('/api/md-preview'),
-    'uploadUrl' => url_to('/api/upload'),
-    'uploadsUrl' => url_to('/api/uploads'),
+    'uploadUrl' => $editorMediaEnabled ? url_to('/api/upload') : '',
+    'uploadsUrl' => $editorMediaEnabled ? url_to('/api/uploads') : '',
     'assetBase' => rtrim(\Pafish\Core\Url::base(), '/') . '/public',
     'scheduledAt' => ($post['scheduled_at'] ?? '') ? date('Y-m-d\TH:i', strtotime((string) $post['scheduled_at'])) : '',
     'categories' => array_map(
@@ -212,7 +213,7 @@ $editorData = [
 
         <div class="card admin-form-card admin-editor-cover-card">
           <h2 class="admin-card-title">封面图</h2>
-          <button type="button" class="admin-cover-picker" id="btnCoverPicker" data-auto-cover="<?= e($autoCoverUrl ?? '') ?>" aria-label="选择或更换封面">
+          <button type="button" class="admin-cover-picker" id="btnCoverPicker"<?= $editorMediaEnabled ? '' : ' disabled' ?> data-auto-cover="<?= e($autoCoverUrl ?? '') ?>" aria-label="选择或更换封面">
             <span class="admin-cover-empty" data-cover-empty><?= admin_icon('image', 24) ?><span>选择封面</span></span>
             <span class="admin-cover-preview" data-cover-preview hidden><img alt="封面预览"></span>
           </button>

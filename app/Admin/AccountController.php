@@ -41,7 +41,7 @@ final class AccountController extends AdminController
         foreach (DB::fetchAll('SELECT status,COUNT(*) AS total FROM posts WHERE author_id=? AND deleted_at IS NULL GROUP BY status', [$userId]) as $row) {
             $submissionCounts[(string) $row['status']] = (int) $row['total'];
         }
-        $canSubmit = Auth::can('posts.manage') || Settings::get('submissions_enabled', 'true') === 'true';
+        $canSubmit = Auth::can('posts.manage') || Settings::get('submissions_enabled', 'false') === 'true';
         $submissionStatus = is_string($query['status'] ?? null) ? $query['status'] : '';
         $submissionStatuses = ['PENDING', 'CHANGES_REQUESTED', 'DRAFT', 'PUBLISHED'];
         if ($section === 'posts' && !in_array($submissionStatus, $submissionStatuses, true)) $submissionStatus = '';
@@ -90,7 +90,7 @@ final class AccountController extends AdminController
     public function newSubmission(Request $request, Response $response): Response
     {
         Auth::requireLogin();
-        if (!Auth::can('posts.manage') && Settings::get('submissions_enabled', 'true') !== 'true') {
+        if (!Auth::can('posts.manage') && Settings::get('submissions_enabled', 'false') !== 'true') {
             $this->flash('info', '站点暂未开放用户投稿');
             return $this->redirect($response, '/admin?section=posts');
         }
@@ -121,7 +121,7 @@ final class AccountController extends AdminController
         };
         $stored = $id > 0 ? DB::fetchOne('SELECT * FROM posts WHERE id=? AND author_id=? AND deleted_at IS NULL', [$id, $userId]) : null;
         if ($id > 0 && $stored === null) return $this->notFound($response);
-        if ($id === 0 && !Auth::can('posts.manage') && Settings::get('submissions_enabled', 'true') !== 'true') {
+        if ($id === 0 && !Auth::can('posts.manage') && Settings::get('submissions_enabled', 'false') !== 'true') {
             return $errorResponse('站点暂未开放用户投稿');
         }
         $action = (string) ($body['action'] ?? 'publish');
@@ -140,7 +140,7 @@ final class AccountController extends AdminController
             $this->flash('success', (string) ($replayed['message'] ?? '投稿已保存'));
             return $this->redirect($response, '/admin?section=posts');
         }
-        if ($id > 0 && !Auth::can('posts.manage') && Settings::get('submissions_enabled', 'true') !== 'true' && $action === 'publish') {
+        if ($id > 0 && !Auth::can('posts.manage') && Settings::get('submissions_enabled', 'false') !== 'true' && $action === 'publish') {
             return $errorResponse('站点暂未开放新投稿或重新提交；可以保存为草稿或稍后再试');
         }
         if (!RateLimiter::allow('account-post-submission', (string) $userId, 10, 3600)) {

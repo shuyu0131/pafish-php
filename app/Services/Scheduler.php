@@ -32,12 +32,34 @@ final class Scheduler
         }
         $updated = 0;
         foreach ($rows as $row) {
-            $row = DB::transaction(static function () use ($row): ?array {
+            $result = DB::transaction(static function () use ($row): array {
                 $current = DB::fetchOne("SELECT * FROM posts WHERE id=? AND status='SCHEDULED' AND deleted_at IS NULL AND published_at<=NOW() FOR UPDATE", [(int) $row['id']]);
-                if ($current === null) return null;
+                if ($current === null) return ['post' => null, 'conflict' => null];
+
+                $conflict = ExtensionRoutes::postSlugConflict((string) $current['slug']);
+                if ($conflict !== null) {
+                    return ['post' => null, 'conflict' => [
+                        'id' => (int) $current['id'],
+                        'slug' => (string) $current['slug'],
+                        'message' => $conflict,
+                    ]];
+                }
+
                 $changed = DB::execute("UPDATE posts SET status='PUBLISHED',updated_at=updated_at WHERE id=? AND status='SCHEDULED' AND deleted_at IS NULL AND published_at<=NOW()", [(int) $row['id']]);
-                return $changed === 1 ? $current : null;
+                return ['post' => $changed === 1 ? $current : null, 'conflict' => null];
             });
+            if ($result['conflict'] !== null) {
+                $conflict = $result['conflict'];
+                $slug = json_encode($conflict['slug'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                \Pafish\Core\Logger::error(sprintf(
+                    '[pafish-scheduler] 跳过与根目录路由冲突的定时文章 #%d (%s)：%s',
+                    $conflict['id'],
+                    $slug === false ? '""' : $slug,
+                    $conflict['message']
+                ));
+                continue;
+            }
+            $row = $result['post'];
             if ($row === null) continue;
             $updated++;
             \do_action('after_post_published', [

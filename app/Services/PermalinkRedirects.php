@@ -41,24 +41,70 @@ final class PermalinkRedirects
         }
         if (!self::isPubliclyAddressable($type, $newEntity)) {
             if (self::isPubliclyAddressable($type, $oldEntity)) {
-                // Preserve prior public paths through the unpublished period.
-                // targetFor() suppresses these redirects until the target is
-                // public again. Do not add aliases for a never-published draft.
-                self::recordPaths($type, $oldPaths, Permalinks::path($type, $newEntity), $newPaths, (int) ($newEntity['id'] ?? 0));
+                // Preserve all URLs that worked before the entity became private,
+                // including its current canonical URL. A self-target marker is
+                // intentionally inert until a later private slug change retargets it.
+                self::forgetPaths($newPaths);
+                self::preservePublicPaths($type, $oldPaths, Permalinks::path($type, $newEntity), (int) ($newEntity['id'] ?? 0));
             } else {
                 // A private edit may change the target of aliases left by an
                 // earlier published version, but must not create new aliases.
+                self::forgetUnownedClaimedPaths($type, $newPaths, (int) ($newEntity['id'] ?? 0));
                 self::retargetTargets($oldPaths, Permalinks::path($type, $newEntity));
-                self::forgetPaths($newPaths);
             }
             return;
         }
         if (!self::isPubliclyAddressable($type, $oldEntity)) {
+            self::retargetTargets($oldPaths, Permalinks::path($type, $newEntity));
             self::forgetPaths($newPaths);
             return;
         }
 
         self::recordPaths($type, $oldPaths, Permalinks::path($type, $newEntity), $newPaths, (int) ($newEntity['id'] ?? 0));
+    }
+
+    /** Preserve public source paths across temporary unpublishing without exposing a redirect yet. */
+    private static function preservePublicPaths(string $type, array $paths, string $target, int $entityId): void
+    {
+        $target = self::normalize($target);
+        $hasSelfMarker = false;
+        foreach (array_unique($paths) as $path) {
+            $path = self::normalize((string) $path);
+            if (self::isProtectedRoute($path) || self::contentExistsAtPath($path, $type, $entityId)) continue;
+            if ($path === $target) {
+                $hasSelfMarker = true;
+                continue;
+            }
+            self::record($path, $target, $type);
+        }
+
+        // record() removes a source alias at its destination to prevent loops.
+        // Insert the inert marker last so the canonical path is remembered too.
+        if ($hasSelfMarker && !self::isProtectedRoute($target) && !self::contentExistsAtPath($target, $type, $entityId)) {
+            self::recordMarker($target, $type);
+        }
+    }
+
+    /** A private entity may reclaim its own previously public path without retaining another entity's alias. */
+    private static function forgetUnownedClaimedPaths(string $type, array $paths, int $entityId): void
+    {
+        foreach (array_unique($paths) as $path) {
+            $path = self::normalize((string) $path);
+            $alias = DB::fetchOne(
+                'SELECT old_path_hash, old_path, content_type, target_path FROM permalink_redirects WHERE old_path_hash = ? AND old_path = ? LIMIT 1',
+                [self::pathHash($path), $path]
+            );
+            if ($alias === null) continue;
+
+            $target = $alias['content_type'] === $type
+                ? self::entityForPath($type, self::normalize((string) $alias['target_path']))
+                : null;
+            if ($target !== null && (int) $target['id'] === $entityId) continue;
+            DB::execute(
+                'DELETE FROM permalink_redirects WHERE old_path_hash = ? AND old_path = ?',
+                [$alias['old_path_hash'], $alias['old_path']]
+            );
+        }
     }
 
     public static function recordPaths(string $type, array $oldPaths, string $target, array $newPaths = [], int $entityId = 0): void
@@ -89,7 +135,7 @@ final class PermalinkRedirects
         );
         foreach ($aliases as $alias) {
             $path = self::normalize((string) $alias['old_path']);
-            if (self::isProtectedRoute($path) || self::contentExistsAtPath($path)) {
+            if (self::isProtectedRoute($path)) {
                 DB::execute(
                     'DELETE FROM permalink_redirects WHERE old_path_hash = ? AND old_path = ? AND content_type = ?',
                     [$alias['old_path_hash'], $alias['old_path'], $type]
@@ -97,7 +143,7 @@ final class PermalinkRedirects
                 continue;
             }
 
-            $target = self::publicEntityForPath($type, self::normalize((string) $alias['target_path']));
+            $target = self::entityForPath($type, self::normalize((string) $alias['target_path']));
             if ($target === null) {
                 DB::execute(
                     'DELETE FROM permalink_redirects WHERE old_path_hash = ? AND old_path = ? AND content_type = ?',
@@ -105,6 +151,21 @@ final class PermalinkRedirects
                 );
                 continue;
             }
+
+            // A source path occupied by the same private entity is a dormant
+            // marker, not a competing public route. Keep it for a later rename.
+            $source = self::entityForPath($type, $path);
+            $samePrivateEntity = $source !== null
+                && (int) $source['id'] === (int) $target['id']
+                && !self::isPubliclyAddressable($type, $target);
+            if (self::contentExistsAtPath($path) && !$samePrivateEntity) {
+                DB::execute(
+                    'DELETE FROM permalink_redirects WHERE old_path_hash = ? AND old_path = ? AND content_type = ?',
+                    [$alias['old_path_hash'], $alias['old_path'], $type]
+                );
+                continue;
+            }
+
             $canonicalTarget = self::normalize(Permalinks::path($type, $target));
             if ($canonicalTarget !== self::normalize((string) $alias['target_path'])) {
                 DB::execute(
@@ -159,15 +220,15 @@ final class PermalinkRedirects
         return in_array($type, ['category', 'tag'], true);
     }
 
-    private static function publicEntityForPath(string $type, string $path): ?array
+    /** Resolve live entities regardless of publication state for redirect reconciliation. */
+    private static function entityForPath(string $type, string $path): ?array
     {
         if ($type === 'post') {
             $parsed = Permalinks::postFromPath($path);
             if ($parsed === null) return null;
             return DB::fetchOne(
-                "SELECT id, slug, status, published_at, created_at, deleted_at FROM posts
-                 WHERE slug = ? AND status = 'PUBLISHED' AND deleted_at IS NULL
-                   AND (published_at IS NULL OR published_at <= NOW()) LIMIT 1",
+                'SELECT id, slug, status, published_at, created_at, deleted_at FROM posts
+                 WHERE slug = ? AND deleted_at IS NULL LIMIT 1',
                 [$parsed['slug']]
             );
         }
@@ -181,9 +242,8 @@ final class PermalinkRedirects
         };
         if ($type === 'page') {
             return DB::fetchOne(
-                "SELECT id, slug, status, published_at, deleted_at FROM pages
-                 WHERE slug = ? AND status = 'PUBLISHED' AND deleted_at IS NULL
-                   AND (published_at IS NULL OR published_at <= NOW()) LIMIT 1",
+                'SELECT id, slug, status, published_at, deleted_at FROM pages
+                 WHERE slug = ? AND deleted_at IS NULL LIMIT 1',
                 [$parsed['slug']]
             );
         }
@@ -191,6 +251,18 @@ final class PermalinkRedirects
             return DB::fetchOne("SELECT id, slug, parent_id FROM {$table} WHERE slug = ? LIMIT 1", [$parsed['slug']]);
         }
         return DB::fetchOne("SELECT id, slug FROM {$table} WHERE slug = ? LIMIT 1", [$parsed['slug']]);
+    }
+
+    /** Store an inert self-target to remember a URL that was public before hiding its entity. */
+    private static function recordMarker(string $path, string $type): void
+    {
+        $path = self::normalize($path);
+        DB::execute(
+            'INSERT INTO permalink_redirects (old_path, old_path_hash, target_path, content_type, created_at)
+             VALUES (?, ?, ?, ?, NOW())
+             ON DUPLICATE KEY UPDATE target_path = VALUES(target_path), content_type = VALUES(content_type), created_at = VALUES(created_at)',
+            [$path, self::pathHash($path), $path, $type]
+        );
     }
 
     /** Let a newly-created entity claim a path that was previously a redirect source. */

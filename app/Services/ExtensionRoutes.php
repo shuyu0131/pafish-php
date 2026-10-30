@@ -165,7 +165,10 @@ final class ExtensionRoutes
     /** True when a core-owned path must never be shadowed by a content alias. */
     public static function isReservedRuntimePath(string $path): bool
     {
-        $path = self::normalizeRequestPath($path);
+        // Extension declarations have a deliberately small path limit, but a
+        // content slug may be longer. Core-route ownership still needs to be
+        // checked for those paths without treating the length as a collision.
+        $path = self::normalizeRequestPath($path, false);
         if ($path === null) return true;
         $first = explode('/', ltrim($path, '/'))[0] ?? '';
         if (in_array($first, ['admin', 'api', 'plugin', 'profile', 'theme-assets', 'themes', 'uploads', 'user'], true)) {
@@ -180,7 +183,10 @@ final class ExtensionRoutes
     /** True when an active public extension declares this exact request path. */
     public static function claimsPublicPath(string $path): bool
     {
-        $path = self::normalizeRequestPath($path);
+        // A long content URL cannot match a declared extension route because
+        // declarations are length-limited; evaluate it rather than rejecting
+        // it as if it were a malformed runtime request.
+        $path = self::normalizeRequestPath($path, false);
         if ($path === null) return true;
         foreach (self::activePublicRoutes('', '') as $route) {
             if (in_array($route['method'], ['GET', 'POST'], true)
@@ -194,35 +200,44 @@ final class ExtensionRoutes
     /** Reject flat post slugs that collide with core or active extension routes. */
     public static function assertPostSlugAvailable(string $slug): void
     {
-        if (Permalinks::postTemplate() !== '/%postname%') return;
-        self::assertFlatPostSlugAvailable($slug, false);
+        $conflict = self::postSlugConflict($slug);
+        if ($conflict !== null) throw new \RuntimeException($conflict);
     }
 
-    /** Validate existing public post slugs before enabling flat permalinks. */
+    /** Return a flat-permalink collision message, if the current template requires a check. */
+    public static function postSlugConflict(string $slug): ?string
+    {
+        if (Permalinks::postTemplate() !== '/%postname%') return null;
+        return self::flatPostSlugConflict($slug, false);
+    }
+
+    /** Validate published and scheduled post slugs before enabling flat permalinks. */
     public static function assertFlatPostTemplateAvailable(): void
     {
         $routes = self::activePublicRoutes('', '');
-        foreach (DB::fetchAll("SELECT slug FROM posts WHERE status = 'PUBLISHED' AND deleted_at IS NULL AND (published_at IS NULL OR published_at <= NOW())") as $post) {
-            self::assertFlatPostSlugAvailable((string) $post['slug'], true, $routes);
+        foreach (DB::fetchAll("SELECT slug FROM posts WHERE status IN ('PUBLISHED', 'SCHEDULED') AND deleted_at IS NULL") as $post) {
+            $conflict = self::flatPostSlugConflict((string) $post['slug'], true, $routes);
+            if ($conflict !== null) throw new \RuntimeException($conflict);
         }
     }
 
     /** Validate a root-level post URL without applying the extension route path-length limit. */
-    private static function assertFlatPostSlugAvailable(string $slug, bool $templateChange, ?array $routes = null): void
+    private static function flatPostSlugConflict(string $slug, bool $templateChange, ?array $routes = null): ?string
     {
         $path = '/' . rawurlencode($slug);
         if (self::isReservedFlatPostSlug($slug)) {
-            throw new \RuntimeException($templateChange
+            return $templateChange
                 ? '已有文章别名与系统路由冲突，无法启用根目录文章链接'
-                : '文章别名与系统路由冲突，请更换别名');
+                : '文章别名与系统路由冲突，请更换别名';
         }
         foreach ($routes ?? self::activePublicRoutes('', '') as $route) {
             if (self::matchPath($route['fullPath'], $path) !== null) {
-                throw new \RuntimeException($templateChange
+                return $templateChange
                     ? '已有文章别名与已启用扩展路由冲突，无法启用根目录文章链接'
-                    : '文章别名与已启用扩展路由冲突，请更换别名');
+                    : '文章别名与已启用扩展路由冲突，请更换别名';
             }
         }
+        return null;
     }
 
     private static function isReservedFlatPostSlug(string $slug): bool
@@ -435,8 +450,8 @@ final class ExtensionRoutes
         if (count($segments) !== 1 || preg_match(self::SEGMENT_PATTERN, $segments[0]) !== 1) {
             return;
         }
-        if (DB::fetchOne("SELECT id FROM posts WHERE slug = ? AND status = 'PUBLISHED' AND deleted_at IS NULL LIMIT 1", [$segments[0]]) !== null) {
-            throw new \RuntimeException('路由与已发布文章 slug 冲突：' . $path);
+        if (DB::fetchOne("SELECT id FROM posts WHERE slug = ? AND status IN ('PUBLISHED', 'SCHEDULED') AND deleted_at IS NULL LIMIT 1", [$segments[0]]) !== null) {
+            throw new \RuntimeException('路由与文章 slug 冲突：' . $path);
         }
     }
 
@@ -446,10 +461,11 @@ final class ExtensionRoutes
         return preg_match(self::SEGMENT_PATTERN, $first) === 1;
     }
 
-    private static function normalizeRequestPath(string $path): ?string
+    private static function normalizeRequestPath(string $path, bool $enforceLength = true): ?string
     {
         $path = '/' . trim($path, '/');
-        if (strlen($path) > self::PATH_MAX_LENGTH || str_contains($path, "\0") || str_contains($path, '\\')) {
+        if (($enforceLength && strlen($path) > self::PATH_MAX_LENGTH)
+            || str_contains($path, "\0") || str_contains($path, '\\')) {
             return null;
         }
         return $path;

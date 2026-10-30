@@ -30,13 +30,27 @@ final class PermalinkRedirects
         $oldPaths = Permalinks::paths($type, $oldEntity);
         $newPaths = Permalinks::paths($type, $newEntity);
 
-        // Drafts, scheduled entries and deleted content have no public URL to
-        // preserve. In particular, a submission must never reserve a route by
-        // writing an alias before it is approved and published.
-        if (!self::isPubliclyAddressable($type, $newEntity)) {
+        // A deleted entity has no URL to preserve. Keep a temporarily private
+        // entity's existing history, though, so it becomes usable again when
+        // the entity is republished.
+        if (!empty($newEntity['deleted_at'])) {
             $paths = array_merge($oldPaths, $newPaths);
             self::forgetPaths($paths);
             self::forgetTargets($paths);
+            return;
+        }
+        if (!self::isPubliclyAddressable($type, $newEntity)) {
+            if (self::isPubliclyAddressable($type, $oldEntity)) {
+                // Preserve prior public paths through the unpublished period.
+                // targetFor() suppresses these redirects until the target is
+                // public again. Do not add aliases for a never-published draft.
+                self::recordPaths($type, $oldPaths, Permalinks::path($type, $newEntity), $newPaths, (int) ($newEntity['id'] ?? 0));
+            } else {
+                // A private edit may change the target of aliases left by an
+                // earlier published version, but must not create new aliases.
+                self::retargetTargets($oldPaths, Permalinks::path($type, $newEntity));
+                self::forgetPaths($newPaths);
+            }
             return;
         }
         if (!self::isPubliclyAddressable($type, $oldEntity)) {
@@ -173,7 +187,10 @@ final class PermalinkRedirects
                 [$parsed['slug']]
             );
         }
-        return DB::fetchOne("SELECT id, slug, parent_id FROM {$table} WHERE slug = ? LIMIT 1", [$parsed['slug']]);
+        if ($type === 'category') {
+            return DB::fetchOne("SELECT id, slug, parent_id FROM {$table} WHERE slug = ? LIMIT 1", [$parsed['slug']]);
+        }
+        return DB::fetchOne("SELECT id, slug FROM {$table} WHERE slug = ? LIMIT 1", [$parsed['slug']]);
     }
 
     /** Let a newly-created entity claim a path that was previously a redirect source. */
@@ -194,6 +211,18 @@ final class PermalinkRedirects
         }
     }
 
+    /** Move existing redirect targets without creating aliases for private content. */
+    private static function retargetTargets(array $oldPaths, string $target): void
+    {
+        $target = self::normalize($target);
+        foreach (array_unique($oldPaths) as $oldPath) {
+            $oldPath = self::normalize((string) $oldPath);
+            if ($oldPath !== $target) {
+                DB::execute('UPDATE permalink_redirects SET target_path = ? WHERE target_path = ?', [$target, $oldPath]);
+            }
+        }
+    }
+
     public static function recordSlugChange(string $type, array $entity, string $oldSlug, string $newSlug): void
     {
         if ($oldSlug === $newSlug || $oldSlug === '') return;
@@ -208,7 +237,41 @@ final class PermalinkRedirects
         if (!is_string($target) || $target === '' || $target === $path) return null;
         if (self::isProtectedRoute($path) || self::contentExistsAtPath($path)) return null;
         if (self::isProtectedRoute(self::normalize($target))) return null;
+        $targetState = self::isPublicContentAtPath(self::normalize($target));
+        if ($targetState === false) return null;
         return $target;
+    }
+
+    /** Historical aliases are inactive while a known destination is private. */
+    private static function isPublicContentAtPath(string $path): ?bool
+    {
+        $post = Permalinks::postFromPath($path);
+        if ($post !== null) {
+            $row = DB::fetchOne(
+                'SELECT status, published_at, deleted_at FROM posts WHERE slug = ? LIMIT 1',
+                [$post['slug']]
+            );
+            if ($row === null) return null;
+            return ($row['status'] ?? null) === 'PUBLISHED'
+                && empty($row['deleted_at'])
+                && (($row['published_at'] ?? null) === null || (string) $row['published_at'] <= date('Y-m-d H:i:s'));
+        }
+        $page = Permalinks::entityFromPath('page', $path);
+        if ($page !== null) {
+            $row = DB::fetchOne('SELECT status, published_at, deleted_at FROM pages WHERE slug = ? LIMIT 1', [$page['slug']]);
+            if ($row === null) return null;
+            return ($row['status'] ?? null) === 'PUBLISHED'
+                && empty($row['deleted_at'])
+                && (($row['published_at'] ?? null) === null || (string) $row['published_at'] <= date('Y-m-d H:i:s'));
+        }
+        foreach (['category', 'tag'] as $type) {
+            $parsed = Permalinks::entityFromPath($type, $path);
+            if ($parsed === null) continue;
+            $table = $type === 'category' ? 'categories' : 'tags';
+            if (DB::value("SELECT id FROM {$table} WHERE slug = ? LIMIT 1", [$parsed['slug']]) !== null) return true;
+            return null;
+        }
+        return null;
     }
 
     private static function pathHash(string $path): string

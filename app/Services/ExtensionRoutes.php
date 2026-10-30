@@ -194,24 +194,8 @@ final class ExtensionRoutes
     /** Reject flat post slugs that collide with core or active extension routes. */
     public static function assertPostSlugAvailable(string $slug): void
     {
-        $templates = [
-            (string) Settings::get('permalink_structure', '/post/%postname%'),
-            (string) Settings::get('page_permalink_structure', '/pages/%pagename%'),
-            (string) Settings::get('category_permalink_structure', '/category/%category%'),
-            (string) Settings::get('tag_permalink_structure', '/tag/%tag%'),
-        ];
-        $flat = in_array('/%postname%', $templates, true);
-        $reservedOnly = self::isReservedRuntimePath('/' . rawurlencode($slug));
-        if (!$flat && !$reservedOnly) return;
-        $path = '/' . rawurlencode($slug);
-        if (self::isReservedRuntimePath($path)) {
-            throw new \RuntimeException('文章别名与系统路由冲突，请更换别名');
-        }
-        foreach (self::activePublicRoutes('', '') as $route) {
-            if (self::matchPath($route['fullPath'], $path) !== null) {
-                throw new \RuntimeException('文章别名与已启用扩展路由冲突，请更换别名');
-            }
-        }
+        if (Permalinks::postTemplate() !== '/%postname%') return;
+        self::assertFlatPostSlugAvailable($slug, false);
     }
 
     /** Validate existing public post slugs before enabling flat permalinks. */
@@ -219,16 +203,35 @@ final class ExtensionRoutes
     {
         $routes = self::activePublicRoutes('', '');
         foreach (DB::fetchAll("SELECT slug FROM posts WHERE status = 'PUBLISHED' AND deleted_at IS NULL AND (published_at IS NULL OR published_at <= NOW())") as $post) {
-            $path = '/' . rawurlencode((string) $post['slug']);
-            if (self::isReservedRuntimePath($path)) {
-                throw new \RuntimeException('已有文章别名与系统路由冲突，无法启用根目录文章链接');
-            }
-            foreach ($routes as $route) {
-                if (self::matchPath($route['fullPath'], $path) !== null) {
-                    throw new \RuntimeException('已有文章别名与已启用扩展路由冲突，无法启用根目录文章链接');
-                }
+            self::assertFlatPostSlugAvailable((string) $post['slug'], true, $routes);
+        }
+    }
+
+    /** Validate a root-level post URL without applying the extension route path-length limit. */
+    private static function assertFlatPostSlugAvailable(string $slug, bool $templateChange, ?array $routes = null): void
+    {
+        $path = '/' . rawurlencode($slug);
+        if (self::isReservedFlatPostSlug($slug)) {
+            throw new \RuntimeException($templateChange
+                ? '已有文章别名与系统路由冲突，无法启用根目录文章链接'
+                : '文章别名与系统路由冲突，请更换别名');
+        }
+        foreach ($routes ?? self::activePublicRoutes('', '') as $route) {
+            if (self::matchPath($route['fullPath'], $path) !== null) {
+                throw new \RuntimeException($templateChange
+                    ? '已有文章别名与已启用扩展路由冲突，无法启用根目录文章链接'
+                    : '文章别名与已启用扩展路由冲突，请更换别名');
             }
         }
+    }
+
+    private static function isReservedFlatPostSlug(string $slug): bool
+    {
+        return in_array($slug, [
+            'admin', 'api', 'archives', 'favicon.ico', 'forgot-password', 'login', 'micro',
+            'plugin', 'profile', 'register', 'reset-password', 'robots.txt', 'rss.xml', 'search',
+            'sitemap.xml', 'theme-assets', 'themes', 'uploads', 'user',
+        ], true);
     }
 
     /** 返回本请求需要注册到 Slim 的自然路径，核心路由优先级由 routes.php 控制。 */

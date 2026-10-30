@@ -451,7 +451,7 @@
       var label = document.createElement('span'); label.textContent = token.type === 'image' ? '图片' : '链接'; elementBar.appendChild(label);
       function action(text, fn, danger) { var button = document.createElement('button'); button.type = 'button'; button.className = 'admin-editor-element-action' + (danger ? ' is-danger' : ''); button.textContent = text; button.addEventListener('mousedown', function (e) { e.preventDefault(); }); button.addEventListener('click', fn); elementBar.appendChild(button); }
       action('编辑', function () { editElement(token); });
-      if (token.type === 'image') action('替换', function () { replaceImage(token); });
+      if (token.type === 'image' && options.uploadUrl) action('替换', function () { replaceImage(token); });
       var originalValue = source.value;
       action(token.type === 'image' ? '删除' : '移除链接', function () { applyElement(token, token.type === 'image' ? '' : unlinkElement(token), originalValue); }, token.type === 'image');
       elementBar.hidden = false; placeElementBar();

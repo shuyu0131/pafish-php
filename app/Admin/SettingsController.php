@@ -82,6 +82,15 @@ final class SettingsController extends AdminController
                     $this->flash('error', $message);
                     return $this->redirect($response, '/admin/settings#settings-basic');
                 }
+                if ($key === 'permalink_structure' && $value === '/%postname%') {
+                    try {
+                        \Pafish\Services\ExtensionRoutes::assertFlatPostTemplateAvailable();
+                    } catch (\RuntimeException $e) {
+                        if ($this->isAjax($request)) return $this->json($response, ['error' => $e->getMessage()], 400);
+                        $this->flash('error', $e->getMessage());
+                        return $this->redirect($response, '/admin/settings#settings-basic');
+                    }
+                }
                 if (in_array($key, ['blocked_ips', 'blocked_emails', 'comment_spam_keywords'], true)) {
                     try {
                         $value = json_encode(self::normalizeCommentList($value, $key), JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
@@ -98,7 +107,15 @@ final class SettingsController extends AdminController
                 $pairs[$key] = $value;
             }
         }
-        Settings::setMany($pairs);
+        \Pafish\Core\DB::transaction(static function () use ($pairs): void {
+            Settings::setMany($pairs);
+            foreach (['post', 'page', 'category', 'tag'] as $type) {
+                $key = \Pafish\Services\Permalinks::settingKey($type);
+                if ($key !== null && array_key_exists($key, $pairs)) {
+                    \Pafish\Services\PermalinkRedirects::reconcileSupportedPaths($type);
+                }
+            }
+        });
         if (array_intersect(array_keys($pairs), array_keys($permalinkTypes)) !== []) {
             \Pafish\Core\Cache::clearPrefix('nav.');
         }

@@ -421,6 +421,7 @@ final class PostsController extends AdminController
                 }
                 $reviewedBy = (int) (\Pafish\Core\Auth::id() ?? 0);
                 if ($decision === 'publish') {
+                    \Pafish\Services\ExtensionRoutes::assertPostSlugAvailable((string) $post['slug']);
                     DB::execute("UPDATE posts SET status='PUBLISHED',published_at=NOW(),review_note=NULL,reviewed_by=?,reviewed_at=NOW() WHERE id=?", [$reviewedBy, $id]);
                     $saved = DB::fetchOne('SELECT * FROM posts WHERE id=?', [$id]);
                     $payload = self::postPayloadFromRow($saved, 'review_publish', (string) $post['status']);
@@ -769,6 +770,8 @@ final class PostsController extends AdminController
             }
         }
 
+        \Pafish\Services\ExtensionRoutes::assertPostSlugAvailable($slug);
+
         // 扩展可能在保存前改写正文；从最终入库内容提取，避免封面与正文首图不一致。
         if ($coverUrl === '' && $autoCoverOn) {
             try {
@@ -828,6 +831,7 @@ final class PostsController extends AdminController
             }
             \Pafish\Services\PermalinkRedirects::recordEntityChange('post', $existing, array_replace($existing, [
                 'slug' => $slug,
+                'status' => $status,
                 'published_at' => $publishedAt ?? ($existing['published_at'] ?? null),
             ]));
             DB::execute(

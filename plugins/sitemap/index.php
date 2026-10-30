@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Pafish\Core\DB;
 use Pafish\Core\Url;
+use Pafish\Services\Permalinks;
 
 /** XML 字段转义。 */
 function pafish_sitemap_escape(string $value): string
@@ -58,31 +59,31 @@ return [
 
         if ($enabled('include_posts')) {
             $posts = DB::fetchAll(
-                "SELECT slug, updated_at FROM posts
+                "SELECT slug, published_at, created_at, updated_at FROM posts
                  WHERE status = 'PUBLISHED' AND deleted_at IS NULL
                    AND (published_at IS NULL OR published_at <= NOW())
                    AND (password IS NULL OR password = '')
                  ORDER BY published_at DESC LIMIT 49999"
             );
             foreach ($posts as $post) {
-                $add('/post/' . rawurlencode((string) $post['slug']), (string) ($post['updated_at'] ?? ''), '0.8');
+                $add(Permalinks::path('post', $post), (string) ($post['updated_at'] ?? ''), '0.8');
             }
         }
 
         if ($enabled('include_pages')) {
             $pages = DB::fetchAll(
-                "SELECT slug, updated_at FROM pages
+                "SELECT id, slug, updated_at FROM pages
                  WHERE status = 'PUBLISHED' AND (published_at IS NULL OR published_at <= NOW())
                  ORDER BY published_at DESC"
             );
             foreach ($pages as $page) {
-                $add('/pages/' . rawurlencode((string) $page['slug']), (string) ($page['updated_at'] ?? ''), '0.5');
+                $add(Permalinks::path('page', $page), (string) ($page['updated_at'] ?? ''), '0.5');
             }
         }
 
         if ($enabled('include_categories')) {
             $categories = DB::fetchAll(
-                "SELECT c.slug FROM categories c
+                "SELECT c.id, c.slug, c.parent_id FROM categories c
                  WHERE EXISTS (
                     SELECT 1 FROM posts p
                     WHERE p.category_id = c.id AND p.status = 'PUBLISHED' AND p.deleted_at IS NULL
@@ -91,13 +92,13 @@ return [
                  ) ORDER BY c.sort_order ASC, c.id ASC",
             );
             foreach ($categories as $category) {
-                $add('/category/' . rawurlencode((string) $category['slug']), null, '0.6');
+                $add(Permalinks::path('category', $category), null, '0.6');
             }
         }
 
         if ($enabled('include_tags')) {
             $tags = DB::fetchAll(
-                "SELECT t.slug FROM tags t
+                "SELECT t.id, t.slug FROM tags t
                  INNER JOIN post_tags pt ON pt.tag_id = t.id
                  INNER JOIN posts p ON p.id = pt.post_id
                  WHERE p.status = 'PUBLISHED' AND p.deleted_at IS NULL
@@ -109,7 +110,7 @@ return [
                 [$tagMinPosts]
             );
             foreach ($tags as $tag) {
-                $add('/tag/' . rawurlencode((string) $tag['slug']), null, '0.4');
+                $add(Permalinks::path('tag', $tag), null, '0.4');
             }
         }
 

@@ -162,6 +162,75 @@ final class ExtensionRoutes
         return null;
     }
 
+    /** True when a core-owned path must never be shadowed by a content alias. */
+    public static function isReservedRuntimePath(string $path): bool
+    {
+        $path = self::normalizeRequestPath($path);
+        if ($path === null) return true;
+        $first = explode('/', ltrim($path, '/'))[0] ?? '';
+        if (in_array($first, ['admin', 'api', 'plugin', 'profile', 'theme-assets', 'themes', 'uploads', 'user'], true)) {
+            return true;
+        }
+        return in_array($path, [
+            '/archives', '/favicon.ico', '/forgot-password', '/login', '/micro',
+            '/register', '/reset-password', '/robots.txt', '/rss.xml', '/search', '/sitemap.xml',
+        ], true);
+    }
+
+    /** True when an active public extension declares this exact request path. */
+    public static function claimsPublicPath(string $path): bool
+    {
+        $path = self::normalizeRequestPath($path);
+        if ($path === null) return true;
+        foreach (self::activePublicRoutes('', '') as $route) {
+            if (in_array($route['method'], ['GET', 'POST'], true)
+                && self::matchPath($route['fullPath'], $path) !== null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Reject flat post slugs that collide with core or active extension routes. */
+    public static function assertPostSlugAvailable(string $slug): void
+    {
+        $templates = [
+            (string) Settings::get('permalink_structure', '/post/%postname%'),
+            (string) Settings::get('page_permalink_structure', '/pages/%pagename%'),
+            (string) Settings::get('category_permalink_structure', '/category/%category%'),
+            (string) Settings::get('tag_permalink_structure', '/tag/%tag%'),
+        ];
+        $flat = in_array('/%postname%', $templates, true);
+        $reservedOnly = self::isReservedRuntimePath('/' . rawurlencode($slug));
+        if (!$flat && !$reservedOnly) return;
+        $path = '/' . rawurlencode($slug);
+        if (self::isReservedRuntimePath($path)) {
+            throw new \RuntimeException('文章别名与系统路由冲突，请更换别名');
+        }
+        foreach (self::activePublicRoutes('', '') as $route) {
+            if (self::matchPath($route['fullPath'], $path) !== null) {
+                throw new \RuntimeException('文章别名与已启用扩展路由冲突，请更换别名');
+            }
+        }
+    }
+
+    /** Validate existing public post slugs before enabling flat permalinks. */
+    public static function assertFlatPostTemplateAvailable(): void
+    {
+        $routes = self::activePublicRoutes('', '');
+        foreach (DB::fetchAll("SELECT slug FROM posts WHERE status = 'PUBLISHED' AND deleted_at IS NULL AND (published_at IS NULL OR published_at <= NOW())") as $post) {
+            $path = '/' . rawurlencode((string) $post['slug']);
+            if (self::isReservedRuntimePath($path)) {
+                throw new \RuntimeException('已有文章别名与系统路由冲突，无法启用根目录文章链接');
+            }
+            foreach ($routes as $route) {
+                if (self::matchPath($route['fullPath'], $path) !== null) {
+                    throw new \RuntimeException('已有文章别名与已启用扩展路由冲突，无法启用根目录文章链接');
+                }
+            }
+        }
+    }
+
     /** 返回本请求需要注册到 Slim 的自然路径，核心路由优先级由 routes.php 控制。 */
     public static function publicRoutes(): array
     {

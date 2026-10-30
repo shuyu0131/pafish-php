@@ -252,7 +252,7 @@ final class PagesController extends AdminController
         if ($contentFormat === 'html') $content = \Pafish\Services\Content::sanitize($content);
 
         if ($id !== null) {
-            PermalinkRedirects::recordEntityChange('page', $stored, array_replace($stored, ['slug' => $slug]));
+            PermalinkRedirects::recordEntityChange('page', $stored, array_replace($stored, ['slug' => $slug, 'status' => $status]));
             DB::execute(
                 'UPDATE pages SET title = ?, slug = ?, content = ?, content_format = ?, status = ?, template = ?, allow_comments=?, seo_title=?, meta_description=?, updated_at = NOW() WHERE id = ?',
                 [$title, $slug, $content, $contentFormat, $status, $template, (int) (bool) $allowComments, $seo['seo_title'], $seo['meta_description'], $id]

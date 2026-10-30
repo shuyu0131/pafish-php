@@ -108,7 +108,7 @@ final class ContentTransfer
                 if ($current === null) continue;
                 $newPaths = Permalinks::paths('category', $current);
                 if ($oldPaths !== $newPaths) {
-                    PermalinkRedirects::recordPaths('category', $oldPaths, Permalinks::path('category', $current), $newPaths);
+                    PermalinkRedirects::recordPaths('category', $oldPaths, Permalinks::path('category', $current), $newPaths, (int) $current['id']);
                 }
             }
             foreach ($categoryIds as $categoryId) {
@@ -199,7 +199,9 @@ final class ContentTransfer
         if (is_array($row['custom_fields'] ?? null)) $row['custom_fields'] = json_encode($row['custom_fields'], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
         $values = [(string) ($row['title'] ?? $slug), (string) ($row['excerpt'] ?? ''), (string) ($row['content'] ?? ''), $row['cover_url'] ?? null, (string) ($row['status'] ?? 'DRAFT'), $row['published_at'] ?? null, (int) ($row['is_pinned'] ?? 0), (int) ($row['category_pinned'] ?? 0), $row['password'] ?? null, $row['external_url'] ?? null, $row['custom_fields'] ?? null, $author, $cat];
         if ($existing) {
-            PermalinkRedirects::recordEntityChange('post', $existing, array_replace($existing, ['slug' => $slug, 'published_at' => $values[5]]));
+            PermalinkRedirects::recordEntityChange('post', $existing, array_replace($existing, [
+                'slug' => $slug, 'status' => $values[4], 'published_at' => $values[5],
+            ]));
             DB::execute('UPDATE posts SET title=?, excerpt=?, content=?, cover_url=?, status=?, published_at=?, is_pinned=?, category_pinned=?, password=?, external_url=?, custom_fields=?, category_id=? WHERE id=?', [$values[0],$values[1],$values[2],$values[3],$values[4],$values[5],$values[6],$values[7],$values[8],$values[9],$values[10],$values[12],(int)$existing['id']]);
             $postId = (int) $existing['id'];
         }

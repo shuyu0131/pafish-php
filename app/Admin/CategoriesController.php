@@ -119,7 +119,7 @@ final class CategoriesController extends AdminController
                 foreach ($oldPathsById as $categoryId => $oldPaths) {
                     $current = DB::fetchOne('SELECT id, slug, parent_id FROM categories WHERE id = ?', [$categoryId]);
                     if ($current !== null) {
-                        PermalinkRedirects::recordPaths('category', $oldPaths, Permalinks::path('category', $current), Permalinks::paths('category', $current));
+                        PermalinkRedirects::recordPaths('category', $oldPaths, Permalinks::path('category', $current), Permalinks::paths('category', $current), (int) $current['id']);
                     }
                 }
                 if ($id > 0) \Pafish\Services\MediaReferences::forget('category', $id);
@@ -208,7 +208,7 @@ final class CategoriesController extends AdminController
             );
             foreach ($oldPathsById as $categoryId => $oldPaths) {
                 $current = DB::fetchOne('SELECT id, slug, parent_id FROM categories WHERE id = ?', [$categoryId]);
-                if ($current !== null) PermalinkRedirects::recordPaths('category', $oldPaths, Permalinks::path('category', $current), Permalinks::paths('category', $current));
+                if ($current !== null) PermalinkRedirects::recordPaths('category', $oldPaths, Permalinks::path('category', $current), Permalinks::paths('category', $current), (int) $current['id']);
             }
             return ['id' => $id, 'created' => false];
         }

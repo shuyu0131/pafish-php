@@ -12,6 +12,8 @@
       if (saving) return;
       form.reset();
       form.elements.id.value = row ? row.getAttribute("data-id") : "";
+      var slugAuto = form.querySelector("[data-slug-auto]");
+      if (slugAuto) slugAuto.value = row ? "0" : "1";
       form.action = row ? config.baseUrl + "/" + form.elements.id.value + "/save" : config.saveUrl;
       error.hidden = true;
       form.querySelectorAll("details").forEach(function (details) { details.open = false; });
@@ -27,6 +29,7 @@
         field.dispatchEvent(new Event("input", { bubbles: true }));
         field.dispatchEvent(new Event("change", { bubbles: true }));
       });
+      if (slugAuto) slugAuto.value = row ? "0" : "1";
       title.textContent = row ? config.editTitle : config.createTitle;
       submit.textContent = row ? "保存修改" : config.createTitle;
       form.dispatchEvent(new CustomEvent("pafish:entity-open", { detail: { row: row, creating: !row } }));
@@ -40,6 +43,18 @@
         open(creating ? null : button.closest("[data-id]"));
       });
     });
+
+    var nameField = form.elements.namedItem("name");
+    var slugField = form.elements.namedItem("slug");
+    var slugAutoField = form.querySelector("[data-slug-auto]");
+    if (nameField && slugField && slugAutoField) {
+      nameField.addEventListener("input", function () {
+        if (slugAutoField.value === "1") {
+          window.pafishPreviewSlug(nameField, slugField, slugAutoField);
+        }
+      });
+      slugField.addEventListener("input", function () { slugAutoField.value = "0"; });
+    }
 
     form.addEventListener("submit", function (event) {
       event.preventDefault();

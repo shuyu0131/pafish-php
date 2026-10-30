@@ -205,11 +205,29 @@ final class Migrator
             'media_capabilities' => self::tableHasColumns($pdo, 'uploads', ['usage_count', 'last_used_at']),
             'widget_areas' => self::tableHasColumns($pdo, 'widgets', ['area']),
             'post_reactions' => self::tableHasColumns($pdo, 'post_reactions', ['user_id', 'post_id', 'kind']),
+            'permalink_redirects' => self::tableHasColumns($pdo, 'permalink_redirects', ['old_path', 'old_path_hash', 'target_path', 'content_type', 'created_at'])
+                && self::indexExists($pdo, 'permalink_redirects', 'idx_permalink_redirect_target'),
             'user_points' => self::tableHasColumns($pdo, 'user_points', ['user_id', 'balance'])
                 && self::tableHasColumns($pdo, 'point_transactions', ['id', 'user_id', 'amount']),
             'user_management' => self::tableHasColumns($pdo, 'users', ['description', 'last_login_ip', 'last_active_at'])
                  && self::indexExists($pdo, 'users', 'idx_users_last_active'),
             'submission_workflow' => self::tableHasColumns($pdo, 'posts', ['review_note', 'reviewed_by', 'reviewed_at']),
+            'zzzzzzzz_nav_menu' => self::tableHasColumns($pdo, 'nav_items', ['parent_id', 'category_id'])
+                && self::indexExists($pdo, 'nav_items', 'idx_nav_items_parent_sort')
+                && self::indexExists($pdo, 'nav_items', 'idx_nav_items_category')
+                && self::foreignKeyExists($pdo, 'nav_items', 'fk_nav_items_parent')
+                && self::foreignKeyExists($pdo, 'nav_items', 'fk_nav_items_category'),
+            'zzzzzzzz_nav_menu_groups' => self::tableExists($pdo, 'nav_menus')
+                && self::tableHasColumns($pdo, 'nav_items', ['menu_id'])
+                && self::indexExists($pdo, 'nav_items', 'idx_nav_items_menu_parent_sort')
+                && self::foreignKeyExists($pdo, 'nav_items', 'fk_nav_items_menu'),
+            'zzzzzzzz_nav_targets' => self::tableHasColumns($pdo, 'nav_items', ['item_type', 'page_id', 'post_id', 'tag_id'])
+                && self::indexExists($pdo, 'nav_items', 'idx_nav_items_page')
+                && self::indexExists($pdo, 'nav_items', 'idx_nav_items_post')
+                && self::indexExists($pdo, 'nav_items', 'idx_nav_items_tag')
+                && self::foreignKeyExists($pdo, 'nav_items', 'fk_nav_items_page')
+                && self::foreignKeyExists($pdo, 'nav_items', 'fk_nav_items_post')
+                && self::foreignKeyExists($pdo, 'nav_items', 'fk_nav_items_tag'),
             default => false,
         };
     }
@@ -354,8 +372,11 @@ final class Migrator
     private static function foreignKeyExists(\PDO $pdo, string $table, string $constraint): bool
     {
         try {
-            $stmt = $pdo->prepare('SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = ? AND CONSTRAINT_NAME = ? AND CONSTRAINT_TYPE = ?');
-            $stmt->execute([$table, $constraint, 'FOREIGN KEY']);
+            // Some isolated-schema runners prefix constraint names along with table
+            // names. Match the declared name either exactly (normal installs) or as
+            // the suffix after that runner-specific prefix.
+            $stmt = $pdo->prepare('SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = ? AND (CONSTRAINT_NAME = ? OR RIGHT(CONSTRAINT_NAME, CHAR_LENGTH(?)) = ?) AND CONSTRAINT_TYPE = ?');
+            $stmt->execute([$table, $constraint, $constraint, $constraint, 'FOREIGN KEY']);
             return (int) $stmt->fetchColumn() > 0;
         } catch (\Throwable) {
             return false;

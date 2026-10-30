@@ -13,6 +13,8 @@
 
 * { box-sizing: border-box; }
 
+[hidden] { display: none !important; }
+
 body.auth-body {
   min-width: 320px;
   margin: 0;
@@ -85,8 +87,10 @@ body.auth-body {
 .auth-submit, .auth-wide { width: 100%; }
 
 .auth-error { margin: 0; padding: 8px 10px; border-radius: 6px; background: #fdf1ef; color: var(--auth-danger); font-size: 13px; }
+.auth-notice { margin: 0; padding: 8px 10px; border-radius: 6px; background: #f1f7f2; color: #3e7048; font-size: 13px; }
 .auth-hint, .auth-footer { margin: 5px 0 0; color: var(--auth-muted); font-size: 12px; line-height: 1.65; }
 .auth-strong { color: var(--auth-title); font-weight: 500; }
+.auth-registered-email { margin: -4px 0 0; color: var(--auth-muted); font-size: 13px; }
 .auth-links { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0; color: var(--auth-muted); font-size: 12px; }
 .auth-links a, .auth-link-accent, .auth-link-btn { color: var(--auth-title); text-decoration: none; }
 .auth-links a:hover, .auth-link-accent:hover, .auth-link-btn:hover { text-decoration: underline; }

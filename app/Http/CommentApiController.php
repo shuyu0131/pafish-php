@@ -222,6 +222,8 @@ final class CommentApiController
                 'postTitle' => $target['title'],
                 'postSlug' => $target['slug'],
                 'targetType' => $targetType,
+                'publishedAt' => $target['published_at'] ?? null,
+                'createdAt' => $target['created_at'] ?? null,
                 'commentId' => $commentId,
                 'content' => $content,
             ]);
@@ -235,6 +237,8 @@ final class CommentApiController
                     'postTitle' => $target['title'],
                     'postSlug' => $target['slug'],
                     'targetType' => $targetType,
+                    'publishedAt' => $target['published_at'] ?? null,
+                    'createdAt' => $target['created_at'] ?? null,
                     'commentId' => $parentId,
                 ]);
             }

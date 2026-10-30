@@ -14,15 +14,6 @@
   function $(sel, root) { return (root || document).querySelector(sel); }
   function $$(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
 
-  function slugify(s) {
-    return String(s || "")
-      .trim()
-      .toLowerCase()
-      .replace(/\s+/g, "-")
-      .replace(/[^\p{L}\p{N}_-]/gu, "")
-      .replace(/-+/g, "-")
-      .replace(/^-+|-+$/g, "");
-  }
   function isImage(mime) { return (mime || "").indexOf("image/") === 0; }
   function fmtSize(b) {
     if (b < 1024) return b + " B";
@@ -36,7 +27,8 @@
   var slug = $("#fSlug");
   var content = $("#fContent");
   var errorBox = $(".admin-editor-error");
-  var slugTouched = false;
+  var slugTouched = !!DATA.isEdit;
+  var slugAuto = $("#fSlugAuto");
   var pending = null;      // draft | publish
   var modal = { open: false, tab: "upload", page: 1, q: "", total: 0, uploading: false, request: 0, searchTimer: null };
 
@@ -277,9 +269,12 @@
   // ---------- 绑定 ----------
   // 标题 → slug 联动（仅新建且未手动改过；对齐文章编辑器行为）
   title.addEventListener("input", function () {
-    if (!slugTouched) slug.value = slugify(title.value);
+    if (!slugTouched) {
+      if (slugAuto) slugAuto.value = "1";
+      window.pafishPreviewSlug(title, slug, slugAuto);
+    }
   });
-  slug.addEventListener("input", function () { slugTouched = true; });
+  slug.addEventListener("input", function () { slugTouched = true; if (slugAuto) slugAuto.value = "0"; });
 
   form.addEventListener("submit", function (e) {
     e.preventDefault();

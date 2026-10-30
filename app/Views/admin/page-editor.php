@@ -15,6 +15,7 @@ $template = $isEdit ? (string) $page['template'] : 'default';
   <form id="pageForm" method="post"
         action="<?= e(url_to($isEdit ? '/admin/pages/' . $pageId . '/save' : '/admin/pages/save')) ?>" novalidate>
     <?= csrf_field() ?>
+    <input type="hidden" name="slug_auto" id="fSlugAuto" value="<?= $isEdit ? '0' : '1' ?>">
 
     <header class="admin-editor-header">
       <div class="admin-editor-heading">
@@ -61,8 +62,8 @@ $template = $isEdit ? (string) $page['template'] : 'default';
           <div class="admin-field">
             <label class="label" for="fSlug">页面地址</label>
             <input class="input" id="fSlug" name="slug" value="<?= e($slug) ?>"
-                   placeholder="自动根据标题生成" maxlength="100">
-            <span class="admin-field-hint">访问路径 /pages/地址；留空自动生成</span>
+                   placeholder="留空自动生成英文或拼音，可自定义" maxlength="100">
+            <span class="admin-field-hint">新建时默认生成小写英文或拼音地址；需要时可直接自定义。</span>
           </div>
           <input type="hidden" name="allow_comments" value="0">
           <label class="admin-check">

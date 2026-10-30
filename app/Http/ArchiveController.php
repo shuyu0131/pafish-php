@@ -24,7 +24,7 @@ final class ArchiveController
         }
 
         $posts = DB::fetchAll(
-            "SELECT p.title, p.slug, p.published_at FROM posts p
+            "SELECT p.title, p.slug, p.published_at, p.created_at FROM posts p
              WHERE " . Posts::publicWhere('p') . "
              ORDER BY p.published_at DESC"
         );

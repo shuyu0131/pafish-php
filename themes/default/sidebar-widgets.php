@@ -46,14 +46,14 @@ $renderBody = static function (array $widget): string {
             $html = '<ul class="widget-list">';
             foreach ($cats as $cat) {
                 $html .= '<li class="widget-cat' . ($cat['parent_id'] ? ' widget-cat-child' : '') . '">'
-                    . '<a href="' . e(url_to('/category/' . rawurlencode((string) $cat['slug']))) . '">' . e($cat['name']) . '</a>'
+                    . '<a href="' . e(content_url('category', $cat)) . '">' . e($cat['name']) . '</a>'
                     . '<span class="widget-count">' . (int) $cat['cnt'] . '</span></li>';
             }
             return $html . '</ul>';
 
         case 'tags':
             $tags = DB::fetchAll(
-                "SELECT t.name, t.slug, (SELECT COUNT(*) FROM post_tags pt JOIN posts p ON p.id = pt.post_id
+                "SELECT t.id, t.name, t.slug, (SELECT COUNT(*) FROM post_tags pt JOIN posts p ON p.id = pt.post_id
                    WHERE pt.tag_id = t.id AND p.status = 'PUBLISHED' AND p.deleted_at IS NULL) AS cnt
                  FROM tags t ORDER BY cnt DESC, t.id ASC LIMIT 30"
             );
@@ -62,7 +62,7 @@ $renderBody = static function (array $widget): string {
             }
             $html = '<div class="widget-tags">';
             foreach ($tags as $tag) {
-                $html .= '<a class="widget-tag" href="' . e(url_to('/tag/' . rawurlencode((string) $tag['slug']))) . '">' . e($tag['name']) . '</a>';
+                $html .= '<a class="widget-tag" href="' . e(content_url('tag', $tag)) . '">' . e($tag['name']) . '</a>';
             }
             return $html . '</div>';
 
@@ -70,7 +70,7 @@ $renderBody = static function (array $widget): string {
         case 'hot_posts':
             $orderBy = $type === 'hot_posts' ? 'p.view_count DESC' : 'p.published_at DESC';
             $posts = DB::fetchAll(
-                "SELECT p.title, p.slug FROM posts p
+                "SELECT p.title, p.slug, p.published_at, p.created_at FROM posts p
                  WHERE p.status = 'PUBLISHED' AND p.deleted_at IS NULL
                    AND (p.published_at IS NULL OR p.published_at <= NOW())
                  ORDER BY {$orderBy} LIMIT 5"
@@ -80,13 +80,13 @@ $renderBody = static function (array $widget): string {
             }
             $html = '<ul class="widget-list widget-posts">';
             foreach ($posts as $p) {
-                $html .= '<li><a href="' . e(url_to('/post/' . rawurlencode((string) $p['slug']))) . '">' . e($p['title']) . '</a></li>';
+                $html .= '<li><a href="' . e(content_url('post', $p)) . '">' . e($p['title']) . '</a></li>';
             }
             return $html . '</ul>';
 
         case 'recent_comments':
             $comments = DB::fetchAll(
-                "SELECT c.author_name, c.content, c.post_id, p.slug AS post_slug, p.title AS post_title
+                "SELECT c.author_name, c.content, p.slug AS post_slug, p.title AS post_title, p.published_at, p.created_at
                  FROM comments c JOIN posts p ON p.id = c.post_id
                  WHERE c.status = 'APPROVED'
                  ORDER BY c.created_at DESC LIMIT 5"
@@ -97,7 +97,7 @@ $renderBody = static function (array $widget): string {
             $html = '<ul class="widget-list widget-comments">';
             foreach ($comments as $c) {
                 $html .= '<li><span class="widget-comment-author">' . e($c['author_name']) . '</span>：'
-                    . '<a href="' . e(url_to('/post/' . rawurlencode((string) $c['post_slug']) . '#comment-' . (int) $c['id'])) . '">'
+                    . '<a href="' . e(content_url('post', ['slug' => $c['post_slug'], 'published_at' => $c['published_at'], 'created_at' => $c['created_at']]) . '#comment-' . (int) $c['id']) . '">'
                     . e(mb_strimwidth(strip_tags($c['content']), 0, 40, '…')) . '</a></li>';
             }
             return $html . '</ul>';

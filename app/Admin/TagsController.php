@@ -6,6 +6,7 @@ namespace Pafish\Admin;
 
 use Pafish\Core\DB;
 use Pafish\Services\Slug;
+use Pafish\Services\PermalinkRedirects;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -41,7 +42,7 @@ final class TagsController extends AdminController
         $id = isset($args['id']) ? (int) $args['id'] : 0;
 
         try {
-            $result = $this->saveTag($body, $id > 0 ? $id : null);
+            $result = \Pafish\Services\MediaReferences::transaction(fn (): array => $this->saveTag($body, $id > 0 ? $id : null));
         } catch (\RuntimeException $e) {
             if ($this->isAjax($request)) {
                 return $this->json($response, ['error' => $e->getMessage()], 400);
@@ -49,6 +50,8 @@ final class TagsController extends AdminController
             $this->flash('error', $e->getMessage());
             return $this->redirect($response, '/admin/tags');
         }
+
+        \Pafish\Core\Cache::clearPrefix('nav.');
 
         if ($this->isAjax($request)) {
             return $this->json($response, ['ok' => true, 'id' => $result['id']]);
@@ -63,9 +66,13 @@ final class TagsController extends AdminController
         $this->guardAdmin();
         $id = (int) ($args['id'] ?? 0);
         \Pafish\Services\MediaReferences::transaction(static function () use ($id): void {
+            foreach (DB::fetchAll('SELECT id FROM nav_items WHERE tag_id = ? FOR UPDATE', [$id]) as $nav) {
+                \Pafish\Services\MediaReferences::forget('nav', (int) $nav['id']);
+            }
             if ($id > 0) \Pafish\Services\EntityMeta::deleteSubject('tag', $id);
             DB::execute('DELETE FROM tags WHERE id = ?', [$id]);
         });
+        \Pafish\Core\Cache::clearPrefix('nav.');
         if ($this->isAjax($request)) {
             return $this->json($response, ['ok' => true]);
         }
@@ -96,27 +103,29 @@ final class TagsController extends AdminController
             throw new \RuntimeException('标签名称已存在');
         }
 
-        $slug = trim((string) ($body['slug'] ?? ''));
-        if ($slug === '') {
-            $slug = Slug::slugify($name);
-        }
+        $slug = Slug::forSave(
+            array_key_exists('slug', $body) ? (string) $body['slug'] : null,
+            $name,
+            $stored !== null ? (string) $stored['slug'] : null,
+            static fn (string $candidate): bool => DB::fetchOne(
+                'SELECT id FROM tags WHERE slug = ? AND (? IS NULL OR id <> ?) LIMIT 1', [$candidate, $id, $id]
+            ) !== null,
+            !empty($body['slug_auto']),
+            100
+        );
         if (mb_strlen($slug) > 100) {
             throw new \RuntimeException('标签地址不能超过 100 字');
         }
-        $slug = Slug::resolveUnique($slug, static function (string $candidate) use ($id): bool {
-            return DB::fetchOne(
-                'SELECT id FROM tags WHERE slug = ? AND (? IS NULL OR id <> ?) LIMIT 1',
-                [$candidate, $id, $id]
-            ) !== null;
-        });
-
         if ($id !== null) {
+            PermalinkRedirects::recordEntityChange('tag', $stored, array_replace($stored, ['slug' => $slug]));
             DB::execute('UPDATE tags SET name = ?, slug = ?, description=?, seo_title=?, meta_description=? WHERE id = ?',
                 [$name, $slug, $description, $seo['seo_title'], $seo['meta_description'], $id]);
             return ['id' => $id, 'created' => false];
         }
         DB::execute('INSERT INTO tags (name, slug, description, seo_title, meta_description, created_at) VALUES (?, ?, ?, ?, ?, NOW())',
             [$name, $slug, $description, $seo['seo_title'], $seo['meta_description']]);
-        return ['id' => (int) DB::pdo()->lastInsertId(), 'created' => true];
+        $newId = (int) DB::pdo()->lastInsertId();
+        PermalinkRedirects::forgetPaths(\Pafish\Services\Permalinks::paths('tag', ['slug' => $slug]));
+        return ['id' => $newId, 'created' => true];
     }
 }

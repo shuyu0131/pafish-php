@@ -13,6 +13,7 @@ unset($entityConfig['savePath'], $entityConfig['basePath']);
     <form id="<?= e($entityFormId) ?>" method="post" action="<?= e($entityConfig['saveUrl']) ?>" novalidate>
       <?= csrf_field() ?>
       <input type="hidden" name="id" value="">
+      <input type="hidden" name="slug_auto" value="1" data-slug-auto>
       <div class="admin-modal-body">
         <?= $entityFields ?>
         <div class="admin-editor-error" role="alert" hidden></div>

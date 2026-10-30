@@ -2363,6 +2363,12 @@ input[type="radio"]:focus-visible {
 .admin-entity-modal .admin-editor-error { margin: 0; }
 .admin-category-list { min-width: 0; }
 .admin-detail-page .admin-category-list .admin-table { width: 100%; min-width: 520px; }
+.admin-list-page .admin-categories-table,
+.admin-list-page .admin-tags-table { width: 100%; }
+.admin-list-page .admin-categories-table th:first-child,
+.admin-list-page .admin-categories-table td:first-child,
+.admin-list-page .admin-tags-table th:first-child,
+.admin-list-page .admin-tags-table td:first-child { min-width: 0; }
 .admin-tags-page .admin-category-list .admin-table { min-width: 400px; }
 .admin-category-list .admin-col-ops { width: 160px; }
 .admin-tags-page .admin-category-list .admin-col-ops { width: 92px; }
@@ -7253,6 +7259,9 @@ input[type="radio"]:disabled { cursor: not-allowed; opacity: .58; }
   .admin-users-list .admin-user-filter-form input[type="search"] { width: 100%; flex: none; }
   .admin-user-profile-panel { padding: 16px; }
   .admin-user-edit-side .admin-user-info-list { grid-template-columns: 1fr; }
+  .admin-nav-menu-tools { align-items: stretch; flex-direction: column; }
+  .admin-nav-menu-select { min-width: 0; }
+  .admin-nav-menu-tools .admin-list-ops { justify-content: flex-start; }
 }
 
 /* 其余管理页细节：减少粗体、补齐表单间距、让直接操作完整显示。 */
@@ -7267,6 +7276,9 @@ input[type="radio"]:disabled { cursor: not-allowed; opacity: .58; }
 .admin-detail-page .admin-order-table th:nth-child(3) { width: 100px; }
 .admin-detail-page .admin-order-table th:first-child { width: 20%; }
 .admin-detail-page .admin-order-table .admin-list-ops { gap: 4px; min-width: 0; }
+.admin-nav-menu-tools { display: flex; align-items: end; justify-content: space-between; gap: 16px; padding: 14px; }
+.admin-nav-menu-select { display: grid; gap: 6px; min-width: min(100%, 260px); }
+.admin-nav-menu-tools .admin-list-ops { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; }
 .admin-detail-page .admin-order-table.admin-table { width: 100%; }
 .admin-detail-page .admin-order-table.admin-table { min-width: 780px; }
 .admin-detail-page .admin-resource-list .admin-table { min-width: 800px; }

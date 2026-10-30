@@ -158,7 +158,15 @@ final class Session
 
     private static function isHttps(): bool
     {
-        return (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-            || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+        $https = strtolower(trim((string) ($_SERVER['HTTPS'] ?? '')));
+        if (in_array($https, ['1', 'on', 'https', 'true'], true)) {
+            return true;
+        }
+
+        // Proxies may send a comma-separated chain; the first value is the
+        // client-facing scheme. Empty, "off" and "http" must remain plain HTTP.
+        $forwarded = strtolower(trim((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')));
+        $scheme = strtolower(trim(explode(',', $forwarded, 2)[0] ?? ''));
+        return $scheme === 'https';
     }
 }

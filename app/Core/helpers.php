@@ -51,6 +51,18 @@ function url_to(string $path): string
     return Url::to($path);
 }
 
+/** Canonical URL path for a post, page, category or tag. */
+function content_permalink(string $type, array $entity): string
+{
+    return \Pafish\Services\Permalinks::path($type, $entity);
+}
+
+/** Deployment-aware URL for a core content entity. */
+function content_url(string $type, array $entity): string
+{
+    return url_to(content_permalink($type, $entity));
+}
+
 /** 静态资源直链（public/ 下文件；不随 pretty_urls 变化） */
 function asset_url(string $path): string
 {
@@ -232,13 +244,213 @@ function cache_list(string $key, callable $query): array
     return \Pafish\Core\Cache::remember($key, $query, 300, false);
 }
 
-/** 前台可见导航项（排序升序） */
-function nav_items(): array
+/** Menu groups available to the active site. */
+function nav_menus(): array
 {
-    return cache_list(
-        'nav.visible',
-        static fn (): array => DB::fetchAll("SELECT id, label, url, is_external FROM nav_items WHERE visible = 1 ORDER BY sort_order ASC, id ASC")
-    );
+    return cache_list('nav.menus', static fn (): array => DB::fetchAll('SELECT id, name, slug, is_primary, sort_order FROM nav_menus ORDER BY sort_order, id'));
+}
+
+/** Visible items in a named menu (or the primary menu), with content-backed labels and URLs. */
+function nav_items(?string $menuSlug = null): array
+{
+    $menuSlug = $menuSlug === null ? null : trim($menuSlug);
+    if ($menuSlug !== null && preg_match('/^[\p{L}\p{N}][\p{L}\p{N}_-]{0,99}$/uD', $menuSlug) !== 1) return [];
+    // Cache keys are ASCII-only even though menu slugs may preserve Unicode.
+    // Hash the dynamic slug to keep the key validator strict and filesystem safe.
+    $cacheKey = $menuSlug === null ? 'nav.visible.primary' : 'nav.visible.slug.' . sha1($menuSlug);
+    return cache_list($cacheKey, static function () use ($menuSlug): array {
+        $items = DB::fetchAll("SELECT n.id, n.parent_id, n.item_type, n.category_id, n.page_id, n.post_id, n.tag_id,
+                    n.label, n.url, n.is_external, n.visible,
+                    c.name AS category_name, c.slug AS category_slug,
+                    pg.title AS page_title, pg.slug AS page_slug,
+                    p.title AS post_title, p.slug AS post_slug, p.published_at AS post_published_at, p.created_at AS post_created_at,
+                    t.name AS tag_name, t.slug AS tag_slug
+             FROM nav_items n
+             LEFT JOIN categories c ON c.id = n.category_id
+             LEFT JOIN pages pg ON pg.id = n.page_id AND pg.status = 'PUBLISHED' AND pg.deleted_at IS NULL
+                    AND (pg.published_at IS NULL OR pg.published_at <= NOW())
+             LEFT JOIN posts p ON p.id = n.post_id AND " . \Pafish\Services\Posts::publicWhere('p') . "
+             LEFT JOIN tags t ON t.id = n.tag_id
+             JOIN nav_menus m ON m.id = n.menu_id
+             WHERE " . ($menuSlug === null ? 'm.is_primary = 1' : 'm.slug = ?') . "
+               AND (n.item_type <> 'page' OR pg.id IS NOT NULL)
+               AND (n.item_type <> 'post' OR p.id IS NOT NULL)
+             ORDER BY n.sort_order, n.id", $menuSlug === null ? [] : [$menuSlug]);
+        foreach ($items as &$item) {
+            $item['type'] = (string) ($item['item_type'] ?? 'link');
+            if ($item['type'] === 'link' && $item['category_id'] !== null) $item['type'] = 'category';
+            switch ($item['type']) {
+                case 'category':
+                    if ($item['category_id'] !== null) {
+                        $item['label'] = (string) $item['category_name'];
+                        $item['url'] = \Pafish\Services\Permalinks::path('category', ['id' => $item['category_id'], 'slug' => $item['category_slug']]);
+                    }
+                    break;
+                case 'page':
+                    $item['label'] = (string) $item['page_title'];
+                    $item['url'] = \Pafish\Services\Permalinks::path('page', ['slug' => $item['page_slug']]);
+                    break;
+                case 'post':
+                    $item['label'] = (string) $item['post_title'];
+                    $item['url'] = \Pafish\Services\Permalinks::path('post', ['slug' => $item['post_slug'], 'published_at' => $item['post_published_at'], 'created_at' => $item['post_created_at']]);
+                    break;
+                case 'tag':
+                    if ($item['tag_id'] !== null) {
+                        $item['label'] = (string) $item['tag_name'];
+                        $item['url'] = \Pafish\Services\Permalinks::path('tag', ['slug' => $item['tag_slug']]);
+                    }
+                    break;
+                case 'home':
+                    $item['label'] = '首页';
+                    $item['url'] = '/';
+                    break;
+                case 'archive':
+                    $item['label'] = '归档';
+                    $item['url'] = '/archives';
+                    break;
+                case 'search':
+                    $item['label'] = '搜索';
+                    $item['url'] = '/search';
+                    break;
+            }
+            if ($item['type'] !== 'link') $item['is_external'] = 0;
+            unset($item['item_type'], $item['category_name'], $item['category_slug'], $item['page_title'], $item['page_slug'],
+                $item['post_title'], $item['post_slug'], $item['post_published_at'], $item['post_created_at'], $item['tag_name'], $item['tag_slug']);
+        }
+        unset($item);
+        $tree = nav_tree($items, true);
+        $visible = [];
+        $flatten = static function (array $nodes) use (&$flatten, &$visible): void {
+            foreach ($nodes as $node) {
+                $children = $node['children'] ?? [];
+                unset($node['children'], $node['visible']);
+                $visible[] = $node;
+                $flatten($children);
+            }
+        };
+        $flatten($tree);
+        return $visible;
+    });
+}
+
+/** Build a nested menu tree; $visibleOnly prunes hidden items and their descendants. */
+function nav_tree(?array $items = null, bool $visibleOnly = false): array
+{
+    $items ??= nav_items();
+    $nodes = [];
+    $children = [];
+    $roots = [];
+
+    foreach ($items as $item) {
+        $id = (int) ($item['id'] ?? 0);
+        if ($id <= 0 || isset($nodes[$id])) continue;
+        $item['children'] = [];
+        $nodes[$id] = $item;
+        $children[$id] = [];
+    }
+
+    foreach ($items as $item) {
+        $id = (int) ($item['id'] ?? 0);
+        if (!isset($nodes[$id])) continue;
+        $parentId = (int) ($item['parent_id'] ?? 0);
+        if ($parentId > 0 && isset($nodes[$parentId])) $children[$parentId][] = $id;
+        elseif ($parentId <= 0) $roots[] = $id;
+    }
+
+    $build = null;
+    $build = static function (int $id, array $path = []) use (&$build, $nodes, $children, $visibleOnly): ?array {
+        if (!isset($nodes[$id]) || isset($path[$id])) return null;
+        $path[$id] = true;
+        $node = $nodes[$id];
+        if ($visibleOnly && (int) ($node['visible'] ?? 0) !== 1) return null;
+        foreach ($children[$id] ?? [] as $childId) {
+            $child = $build($childId, $path);
+            if ($child !== null) $node['children'][] = $child;
+        }
+        return $node;
+    };
+
+    $tree = [];
+    foreach ($roots as $id) {
+        $node = $build($id);
+        if ($node !== null) $tree[] = $node;
+    }
+    return $tree;
+}
+
+/** Mark each menu item active when it or one of its descendants matches the current path. */
+function nav_tree_active(array $tree, string $currentPath): array
+{
+    $mark = null;
+    $mark = static function (array $item) use (&$mark, $currentPath): array {
+        $children = [];
+        $active = ($item['type'] ?? '') !== 'group' && (string) ($item['url'] ?? '') !== ''
+            && empty($item['is_external']) && nav_is_active((string) ($item['url'] ?? '#'), $currentPath);
+        foreach ($item['children'] ?? [] as $child) {
+            $child = $mark($child);
+            $active = $active || !empty($child['_menu_active']);
+            $children[] = $child;
+        }
+        $item['children'] = $children;
+        $item['_menu_active'] = $active;
+        return $item;
+    };
+    return array_map($mark, $tree);
+}
+
+/** Current request path without the site's deployment subdirectory prefix. */
+function nav_current_path(): string
+{
+    $current = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+    $base = rtrim(Url::base(), '/');
+    if ($base !== '' && ($current === $base || str_starts_with($current, $base . '/'))) {
+        $current = substr($current, strlen($base)) ?: '/';
+    }
+    if ($current === '/index.php') {
+        $route = $_GET['p'] ?? null;
+        if (is_string($route) && $route !== '') {
+            $segments = explode('/', trim($route, '/'));
+            return '/' . implode('/', array_map('rawurlencode', $segments));
+        }
+        return '/';
+    }
+    if (str_starts_with($current, '/index.php/')) $current = substr($current, strlen('/index.php')) ?: '/';
+    return $current;
+}
+
+/** Allow only ordinary web, email, and telephone schemes for stored external links. */
+function nav_external_url_is_safe(string $url): bool
+{
+    $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
+    return match ($scheme) {
+        'http', 'https' => filter_var($url, FILTER_VALIDATE_URL) !== false,
+        'mailto' => filter_var(substr($url, 7), FILTER_VALIDATE_EMAIL) !== false,
+        'tel' => preg_match('/^tel:\+?[0-9(). -]+$/iD', $url) === 1,
+        default => false,
+    };
+}
+
+/** Render a navigation href safely while keeping local links deployment-aware. */
+function nav_href(mixed $value, bool $external = false): string
+{
+    $url = trim((string) $value);
+    if (parse_url($url, PHP_URL_SCHEME) !== null) {
+        return $external && nav_external_url_is_safe($url) ? $url : '#';
+    }
+    if ($url !== '' && !str_starts_with($url, '/')) $url = '/' . $url;
+    if (!Url::isLocalPath($url)) return '#';
+    return url_to($url);
+}
+
+/** Raw menu URL for API clients; reject schemes and host forms unsafe to embed. */
+function nav_url_value(mixed $value, bool $external = false): string
+{
+    $url = trim((string) $value);
+    if (parse_url($url, PHP_URL_SCHEME) !== null) {
+        return $external && nav_external_url_is_safe($url) ? $url : '#';
+    }
+    if ($url !== '' && !str_starts_with($url, '/')) $url = '/' . $url;
+    return Url::isLocalPath($url) ? $url : '#';
 }
 
 /** 前台可见侧边栏组件（排序升序） */

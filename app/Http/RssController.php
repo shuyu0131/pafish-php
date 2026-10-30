@@ -21,7 +21,7 @@ final class RssController
     public function index(Request $request, Response $response): Response
     {
         $posts = DB::fetchAll(
-            "SELECT p.title, p.slug, p.excerpt, p.password, p.published_at FROM posts p
+            "SELECT p.title, p.slug, p.excerpt, p.password, p.published_at, p.created_at FROM posts p
              WHERE " . Posts::publicWhere('p', false) . "
              ORDER BY p.published_at DESC
              LIMIT " . self::FEED_LIMIT
@@ -34,7 +34,7 @@ final class RssController
 
         $items = '';
         foreach ($posts as $p) {
-            $url = \absolute_url('/post/' . rawurlencode((string) $p['slug']));
+            $url = \absolute_url(\Pafish\Services\Permalinks::path('post', $p));
             $excerpt = ($p['password'] !== null && $p['password'] !== '')
                 ? '本文章已加密，请输入密码后查看'
                 : (string) ($p['excerpt'] ?? '');

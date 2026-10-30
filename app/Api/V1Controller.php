@@ -380,8 +380,31 @@ final class V1Controller
     public function menus(Request $request, Response $response): Response
     {
         $fail = ApiKey::check($request); if ($fail !== null) return $this->authError($response, $fail);
-        $rows = DB::fetchAll('SELECT id,label,url,is_external FROM nav_items WHERE visible=1 ORDER BY sort_order,id');
-        return $this->json($response, ['menus' => array_map(static fn(array $r): array => ['id'=>(string)$r['id'],'label'=>$r['label'],'url'=>$r['url'],'external'=>(bool)$r['is_external']], $rows)]);
+        $menuSlug = trim((string) ($request->getQueryParams()['menu'] ?? ''));
+        $rows = \nav_tree(\nav_items($menuSlug !== '' ? $menuSlug : null));
+        $resolvedMenu = $menuSlug !== '' ? $menuSlug : (string) (DB::value('SELECT slug FROM nav_menus WHERE is_primary = 1 ORDER BY id LIMIT 1') ?? '');
+        $menus = [];
+        $toMenu = static fn (array $item): array => [
+            'id' => (string) $item['id'],
+            'parentId' => $item['parent_id'] !== null ? (string) $item['parent_id'] : null,
+            'type' => ($item['type'] ?? 'link') === 'link' && !empty($item['category_id']) ? 'category' : (string) ($item['type'] ?? 'link'),
+            'categoryId' => !empty($item['category_id']) ? (string) $item['category_id'] : null,
+            'pageId' => !empty($item['page_id']) ? (string) $item['page_id'] : null,
+            'postId' => !empty($item['post_id']) ? (string) $item['post_id'] : null,
+            'tagId' => !empty($item['tag_id']) ? (string) $item['tag_id'] : null,
+            'label' => $item['label'],
+            'url' => ($item['type'] ?? '') === 'group' ? '' : \nav_url_value($item['url'], (bool) $item['is_external']),
+            'external' => (bool) $item['is_external'],
+        ];
+        $flatten = null;
+        $flatten = static function (array $items) use (&$flatten, &$menus, $toMenu): void {
+            foreach ($items as $item) {
+                $menus[] = $toMenu($item);
+                $flatten($item['children'] ?? []);
+            }
+        };
+        $flatten($rows);
+        return $this->json($response, ['menu' => $resolvedMenu, 'menus' => $menus]);
     }
 
     /** GET /api/v1/micro-statuses */

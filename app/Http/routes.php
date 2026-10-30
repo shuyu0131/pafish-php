@@ -61,8 +61,10 @@ $app->post('/{year:\d{4}}/{month:\d{2}}/{slug}', [PostController::class, 'show']
 $app->post('/api/post/{id}/{kind}', [PostController::class, 'toggle']); // kind: like | favorite
 
 // 分类、标签、归档和搜索
-$app->get('/category/{slug}', [CategoryController::class, 'show']);
+$app->get('/category/{slug:.*}', [CategoryController::class, 'show']);
+$app->get('/categories/{slug}', [CategoryController::class, 'show']);
 $app->get('/tag/{slug}', [TagController::class, 'show']);
+$app->get('/tags/{slug}', [TagController::class, 'show']);
 $app->get('/archives', [ArchiveController::class, 'index']);
 $app->get('/search', [SearchController::class, 'index']);
 $app->get('/user', [UserController::class, 'index']);
@@ -72,6 +74,7 @@ $app->get('/user/{route:[a-z0-9_-]{1,50}}', [UserController::class, 'index']);
 
 // 独立页面和站点订阅
 $app->get('/pages/{slug}', [PageController::class, 'show']);
+$app->get('/page/{slug}', [PageController::class, 'show']);
 $app->get('/rss.xml', [RssController::class, 'index']);
 $app->get('/sitemap.xml', [SitemapController::class, 'index']);
 $app->get('/robots.txt', [RobotsController::class, 'index']);
@@ -88,6 +91,10 @@ $app->get('/login', [AuthPageController::class, 'login']);
 $app->get('/register', [AuthPageController::class, 'register']);
 $app->get('/forgot-password', [AuthPageController::class, 'forgot']);
 $app->get('/reset-password', [AuthPageController::class, 'reset']);
+$app->post('/login', [AuthPageController::class, 'submitLogin']);
+$app->post('/register', [AuthPageController::class, 'submitRegister']);
+$app->post('/forgot-password', [AuthPageController::class, 'submitForgot']);
+$app->post('/reset-password', [AuthPageController::class, 'submitReset']);
 $app->post('/api/auth/login', [AuthApiController::class, 'login']);
 $app->post('/api/auth/logout', [AuthApiController::class, 'logout']);
 $app->post('/api/auth/send-code', [AuthApiController::class, 'sendCode']);
@@ -117,6 +124,7 @@ $app->group('/admin', function ($group) {
     $group->post('/submissions/save', [\Pafish\Admin\AccountController::class, 'saveSubmission']);
     $group->post('/submissions/{id}/delete', [\Pafish\Admin\AccountController::class, 'deleteSubmission']);
     $group->get('/posts/import', [PostsController::class, 'importPage']);
+    $group->post('/slug-preview', [PostsController::class, 'previewSlug']);
     $group->get('/posts/new', [PostsController::class, 'createEditor']);
     $group->get('/posts/{id}/edit', [PostsController::class, 'editEditor']);
     $group->post('/posts/save', [PostsController::class, 'save']);
@@ -186,12 +194,16 @@ $app->group('/admin', function ($group) {
 
     // 导航菜单（列表 / 保存 / 删除 / 显隐 / 上下移动）
     $group->get('/nav', [NavController::class, 'index']);
+    $group->post('/nav/menus/save', [NavController::class, 'saveMenu']);
+    $group->post('/nav/menus/{id:[0-9]+}/save', [NavController::class, 'saveMenu']);
+    $group->post('/nav/menus/{id:[0-9]+}/primary', [NavController::class, 'primaryMenu']);
+    $group->post('/nav/menus/{id:[0-9]+}/clone', [NavController::class, 'cloneMenu']);
+    $group->post('/nav/menus/{id:[0-9]+}/delete', [NavController::class, 'deleteMenu']);
     $group->post('/nav/save', [NavController::class, 'save']);
-    $group->post('/nav/reorder', [NavController::class, 'reorder']);
-    $group->post('/nav/{id}/save', [NavController::class, 'save']);
-    $group->post('/nav/{id}/delete', [NavController::class, 'delete']);
-    $group->post('/nav/{id}/toggle', [NavController::class, 'toggle']);
-    $group->post('/nav/{id}/move', [NavController::class, 'move']);
+    $group->post('/nav/{id:[0-9]+}/save', [NavController::class, 'save']);
+    $group->post('/nav/{id:[0-9]+}/delete', [NavController::class, 'delete']);
+    $group->post('/nav/{id:[0-9]+}/toggle', [NavController::class, 'toggle']);
+    $group->post('/nav/{id:[0-9]+}/move', [NavController::class, 'move']);
 
     // 侧边栏组件（列表 / 保存 / 删除 / 显隐 / 上下移动）
     $group->get('/widgets', [WidgetsController::class, 'index']);
@@ -326,3 +338,4 @@ foreach (\Pafish\Services\ExtensionRoutes::publicRoutes() as $extensionRoute) {
     });
 }
 $app->get('/{slug}', [PostController::class, 'show']);
+$app->post('/{slug}', [PostController::class, 'show']);

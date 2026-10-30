@@ -330,8 +330,8 @@ final class ApiController extends AdminController
         // 缺 title 用文件名去 .md 后缀（≤255）
         $title = mb_substr(trim($meta['title'] !== '' ? $meta['title'] : preg_replace('/\.md$/i', '', $name)), 0, 255);
         // slug = slugify(title)，冲突自动 -2/-3（含回收站全局唯一）
-        $slug = Slug::resolveUnique(Slug::slugify($title), static fn (string $s): bool =>
-            DB::value('SELECT COUNT(*) FROM posts WHERE slug = ?', [$s]) > 0);
+        $slug = Slug::forSave('', $title, null, static fn (string $s): bool =>
+            DB::value('SELECT COUNT(*) FROM posts WHERE slug = ?', [$s]) > 0, true, 255);
         // 发布时间：仅发布状态生效；date 无效回退当前时间
         $publishedAt = null;
         if ($status === 'PUBLISHED') {
@@ -400,6 +400,11 @@ final class ApiController extends AdminController
         );
         $stmt->execute([$title, $slug, $excerpt, $content, $externalUrl !== '' ? $externalUrl : null, $status, $publishedAt, $authorId, $now, $now]);
         $postId = (int) $pdo->lastInsertId();
+        \Pafish\Services\PermalinkRedirects::forgetPaths(\Pafish\Services\Permalinks::paths('post', [
+            'slug' => $slug,
+            'published_at' => $publishedAt,
+            'created_at' => $now,
+        ]));
         \Pafish\Services\MediaReferences::sync('post', $postId);
         if ($tagIds !== []) {
             PostsController::replaceTags($postId, $tagIds);

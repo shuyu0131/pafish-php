@@ -51,7 +51,7 @@ pafish 使用 PHP 与 MySQL，提供浏览器安装向导、完整的内容后�
 
 | 项目 | 要求 |
 | --- | --- |
-| PHP | 8.1+，启用 `pdo`、`pdo_mysql`、`gd`、`zip`、`mbstring`、`openssl`、`json`、`fileinfo` |
+| PHP | 8.1+，启用 `pdo`、`pdo_mysql`、`gd`、`zip`、`mbstring`、`intl`、`openssl`、`json`、`fileinfo` |
 | MySQL | 5.7.6+，推荐 MySQL 8.0 |
 | Web 服务 | Nginx 或 Apache |
 | 上传限制 | 建议 `post_max_size >= 16M`、`upload_max_filesize >= 12M` |

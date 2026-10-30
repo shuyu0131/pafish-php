@@ -11,7 +11,7 @@ $settings = $settings ?? [];
 $locked = (bool) ($locked ?? false);
 $contentHtml = $contentHtml ?? '';
 $siteName = $settings['site_name'] ?? site_name();
-$postUrl = \url_to('/post/' . rawurlencode((string) $post['slug']));
+$postUrl = content_url('post', $post);
 $publishedIso = $post['published_at'] ? date('c', strtotime((string) $post['published_at'])) : '';
 get_header();
 ?>
@@ -22,7 +22,7 @@ get_header();
     <a href="<?= e(url_to('/')) ?>">首页</a>
     <?php if (!empty($post['category_slug'])): ?>
       <span class="bc-sep">/</span>
-      <a href="<?= e(url_to('/category/' . rawurlencode((string) $post['category_slug']))) ?>"><?= e($post['category_name']) ?></a>
+      <a href="<?= e(content_url('category', ['id' => $post['category_id'] ?? 0, 'slug' => $post['category_slug']])) ?>"><?= e($post['category_name']) ?></a>
     <?php endif; ?>
     <span class="bc-sep">/</span>
     <span class="bc-current"><?= e($post['title']) ?></span>
@@ -63,7 +63,7 @@ get_header();
         <?php if (!empty($post['tags'])): ?>
           <span class="post-meta-tags">
             <?php foreach ($post['tags'] as $tag): ?>
-              <a href="<?= e(url_to('/tag/' . rawurlencode((string) $tag['slug']))) ?>">#<?= e($tag['name']) ?></a>
+              <a href="<?= e(content_url('tag', $tag)) ?>">#<?= e($tag['name']) ?></a>
             <?php endforeach; ?>
           </span>
         <?php endif; ?>
@@ -86,7 +86,7 @@ get_header();
     <?php if (!empty($prevPost) || !empty($nextPost)): ?>
       <div class="post-pager">
         <?php if (!empty($prevPost)): ?>
-          <a href="<?= e(url_to('/post/' . rawurlencode((string) $prevPost['slug']))) ?>" class="post-pager-link">
+          <a href="<?= e(content_url('post', $prevPost)) ?>" class="post-pager-link">
             <span class="post-pager-icon">‹</span>
             <span class="post-pager-text">上一篇：<?= e($prevPost['title']) ?></span>
           </a>
@@ -94,7 +94,7 @@ get_header();
           <span></span>
         <?php endif; ?>
         <?php if (!empty($nextPost)): ?>
-          <a href="<?= e(url_to('/post/' . rawurlencode((string) $nextPost['slug']))) ?>" class="post-pager-link">
+          <a href="<?= e(content_url('post', $nextPost)) ?>" class="post-pager-link">
             <span class="post-pager-text">下一篇：<?= e($nextPost['title']) ?></span>
             <span class="post-pager-icon">›</span>
           </a>

@@ -164,7 +164,7 @@ function inst_checks(string $root): array
 {
     $checks = [];
     $checks[] = inst_check_result(PHP_VERSION_ID >= 80100, 'PHP 版本 ≥ 8.1', '当前 ' . PHP_VERSION);
-    foreach (['pdo', 'pdo_mysql', 'gd', 'zip', 'mbstring', 'openssl', 'json', 'fileinfo'] as $ext) {
+    foreach (['pdo', 'pdo_mysql', 'gd', 'zip', 'mbstring', 'intl', 'openssl', 'json', 'fileinfo'] as $ext) {
         $checks[] = inst_check_result(extension_loaded($ext), "PHP 扩展 {$ext}", extension_loaded($ext) ? '已启用' : '未启用');
     }
     $dirs = [

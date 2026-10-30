@@ -78,6 +78,7 @@ window.pafishApi = function (p) {
   var query = q >= 0 ? p.slice(q + 1) : '';
   return <?= json_encode(url_to('/api')) ?> + path + (query ? <?= json_encode(Config::get('pretty_urls', true) ? '?' : '&') ?> + query : '');
 };
+window.pafishSlugPreviewUrl = <?= json_encode(url_to('/admin/slug-preview')) ?>;
 </script>
 </head>
 <body class="admin-body">

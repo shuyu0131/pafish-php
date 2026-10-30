@@ -67,7 +67,7 @@
               <td class="admin-col-ops" data-label="操作">
                 <div class="admin-row-ops">
                   <?php if ($p['status'] === 'PUBLISHED'): ?>
-                    <a class="admin-icon-btn" href="<?= e(url_to('/pages/' . rawurlencode($p['slug']))) ?>" target="_blank" rel="noopener" title="查看"><?= admin_icon('eye', 15) ?></a>
+                    <a class="admin-icon-btn" href="<?= e(content_url('page', $p)) ?>" target="_blank" rel="noopener" title="查看"><?= admin_icon('eye', 15) ?></a>
                   <?php endif; ?>
                   <?php if ($isHome): ?>
                     <button type="button" class="admin-icon-btn admin-icon-danger" data-set-home="<?= (int) $p['id'] ?>" data-set="0" title="取消首页"><?= admin_icon('home', 15) ?></button>

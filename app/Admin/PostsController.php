@@ -173,6 +173,21 @@ final class PostsController extends AdminController
         return $this->renderEditor($request, $response, null);
     }
 
+    /** Authenticated, CSRF-protected title-to-slug preview shared by admin editors. */
+    public function previewSlug(Request $request, Response $response): Response
+    {
+        $this->guardCanManage();
+        $body = $request->getParsedBody();
+        if (!Session::verifyCsrf(is_array($body) && is_string($body['_csrf'] ?? null) ? $body['_csrf'] : null)) {
+            return $this->json($response, ['error' => '请求已过期，请刷新页面重试'], 419);
+        }
+        $title = is_array($body) && is_string($body['title'] ?? null) ? trim($body['title']) : '';
+        if (mb_strlen($title, 'UTF-8') > 255) {
+            return $this->json($response, ['error' => '标题过长'], 400);
+        }
+        return $this->json($response, ['slug' => $title === '' ? '' : Slug::slugify($title)]);
+    }
+
     /** Keep the old administrator URL working while moving its queue into the article list. */
     public function legacySubmissions(Request $request, Response $response): Response
     {
@@ -243,6 +258,8 @@ final class PostsController extends AdminController
             $this->flash('error', $e->getMessage());
             return $this->redirect($response, $id > 0 ? "/admin/posts/{$id}/edit" : '/admin/posts/new');
         }
+
+        \Pafish\Core\Cache::clearPrefix('nav.');
 
         $published = (string) ($result['status'] ?? '') === 'PUBLISHED';
         $statusMessage = match ((string) ($result['status'] ?? '')) {
@@ -332,6 +349,9 @@ final class PostsController extends AdminController
                         foreach ($rows as $row) {
                             array_push($events, ...\Pafish\Services\Comments::deleteForPost((int) $row['id']));
                             \Pafish\Services\EntityMeta::deleteSubject('post', (int) $row['id']);
+                            foreach (DB::fetchAll('SELECT id FROM nav_items WHERE post_id = ? FOR UPDATE', [(int) $row['id']]) as $nav) {
+                                \Pafish\Services\MediaReferences::forget('nav', (int) $nav['id']);
+                            }
                             DB::execute('DELETE FROM posts WHERE id = ?', [$row['id']]);
                             \Pafish\Services\MediaReferences::forget('post', (int) $row['id']);
                         }
@@ -357,6 +377,7 @@ final class PostsController extends AdminController
         }
 
         \Pafish\Services\Comments::emit($commentEvents);
+        \Pafish\Core\Cache::clearPrefix('nav.');
         foreach ($publishedRows as $row) {
             $payload = self::postPayloadFromRow($row, 'batch', (string) $row['status']);
             $payload['status'] = 'PUBLISHED';
@@ -415,6 +436,7 @@ final class PostsController extends AdminController
         } catch (\RuntimeException $e) {
             return $errorResponse($e->getMessage(), 409);
         }
+        \Pafish\Core\Cache::clearPrefix('nav.');
         if (!$this->isAjax($request)) {
             $this->flash('success', $result['status'] === 'PUBLISHED' ? '投稿已通过并发布' : '已退回作者修改');
             return $this->redirect($response, '/admin/posts?status=PENDING');
@@ -446,9 +468,11 @@ final class PostsController extends AdminController
         if (!$allowManagerEdit && (!$submissionOpen && ($id === null || (string) ($body['action'] ?? 'draft') === 'publish'))) {
             throw new \RuntimeException('当前站点已关闭用户投稿');
         }
-        return \Pafish\Services\MediaReferences::transaction(function () use ($body, $id, $allowManagerEdit): array {
+        $result = \Pafish\Services\MediaReferences::transaction(function () use ($body, $id, $allowManagerEdit): array {
             return $this->persistPost($body, $id, $allowManagerEdit, !$allowManagerEdit);
         });
+        \Pafish\Core\Cache::clearPrefix('nav.');
+        return $result;
     }
 
     /** Front-end status changes preserve content and use the same lifecycle as admin operations. */
@@ -456,7 +480,7 @@ final class PostsController extends AdminController
     {
         if (!\Pafish\Core\Auth::check()) throw new \RuntimeException('请先登录');
         if (!in_array($operation, ['draft', 'publish', 'delete'], true)) throw new \InvalidArgumentException('操作无效');
-        return DB::transaction(static function () use ($id, $operation): array {
+        $result = DB::transaction(static function () use ($id, $operation): array {
             $manager = \Pafish\Core\Auth::can('posts.manage');
             $post = DB::fetchOne(
                 'SELECT * FROM posts WHERE id=? AND deleted_at IS NULL' . ($manager ? '' : ' AND author_id=?') . ' FOR UPDATE',
@@ -490,6 +514,8 @@ final class PostsController extends AdminController
             }
             return ['draft' => $status === 'DRAFT' ? 'y' : 'n', 'status' => $status];
         });
+        \Pafish\Core\Cache::clearPrefix('nav.');
+        return $result;
     }
 
     private function persistPost(array $body, ?int $id = null, bool $allowManagerEdit = false, bool $userSubmission = false): array
@@ -573,17 +599,17 @@ final class PostsController extends AdminController
             throw new \RuntimeException('内容过长');
         }
 
-        // 别名：手动填了用之，否则标题自动生成；冲突友好报错
-        $slug = trim((string) ($body['slug'] ?? ''));
-        $slug = $slug !== '' ? $slug : Slug::slugify($title);
-        if ($id !== null) {
-            $exists = DB::value('SELECT COUNT(*) FROM posts WHERE slug = ? AND id != ?', [$slug, $id]) > 0;
-        } else {
-            $exists = DB::value('SELECT COUNT(*) FROM posts WHERE slug = ?', [$slug]) > 0;
-        }
-        if ($exists) {
-            throw new \RuntimeException('别名已被使用，请更换');
-        }
+        $slug = Slug::forSave(
+            array_key_exists('slug', $body) ? (string) $body['slug'] : null,
+            $title,
+            $stored !== null ? (string) $stored['slug'] : null,
+            static fn (string $candidate): bool => DB::value(
+                'SELECT COUNT(*) FROM posts WHERE slug = ?' . ($id !== null ? ' AND id <> ?' : ''),
+                $id !== null ? [$candidate, $id] : [$candidate]
+            ) > 0,
+            !empty($body['slug_auto'])
+        );
+        if (mb_strlen($slug, 'UTF-8') > 255) throw new \RuntimeException('文章地址不能超过 255 字');
 
         // 自动取图偏好与封面来源分别保存：手动地址优先，自动封面不能变成手动输入。
         // 缺省控件保留原有设置；关闭自动取图只清除派生封面，不影响手动封面。
@@ -723,6 +749,7 @@ final class PostsController extends AdminController
                     ${$field} = trim((string) $before[$field]);
                 }
             }
+            $slug = Slug::normalize((string) $slug);
             $contentFormat = \Pafish\Services\Content::format($before['contentFormat'] ?? $contentFormat);
             $template = self::templateForSave($before['template'] ?? $template, $stored);
             if ($contentFormat === 'html') $content = \Pafish\Services\Content::sanitize($content);
@@ -768,6 +795,11 @@ final class PostsController extends AdminController
                 $authorId, $categoryId, $now, $now,
             ]);
             $id = (int) $pdo->lastInsertId();
+            \Pafish\Services\PermalinkRedirects::forgetPaths(\Pafish\Services\Permalinks::paths('post', [
+                'slug' => $slug,
+                'published_at' => $publishedAt,
+                'created_at' => $now,
+            ]));
             \Pafish\Services\EntityMeta::replace('post', $id, \Pafish\Services\EntityMeta::POST_FIELDS_SCOPE,
                 is_array($decodedFields = json_decode((string) $customFields, true)) ? $decodedFields : []);
             if ($extensionMeta !== null) \Pafish\Services\EntityMeta::saveEditorFields('post', $id, $extensionMeta);
@@ -794,6 +826,10 @@ final class PostsController extends AdminController
             if (!$passwordSet) {
                 $password = $existing['password'];
             }
+            \Pafish\Services\PermalinkRedirects::recordEntityChange('post', $existing, array_replace($existing, [
+                'slug' => $slug,
+                'published_at' => $publishedAt ?? ($existing['published_at'] ?? null),
+            ]));
             DB::execute(
                 'UPDATE posts SET title = ?, slug = ?, excerpt = ?, content = ?, content_format = ?, cover_url = ?, status = ?,
                     review_note = ?, reviewed_by = ?, reviewed_at = ?, published_at = ?, is_pinned = ?, category_pinned = ?, password = ?, external_url = ?,
@@ -917,6 +953,9 @@ final class PostsController extends AdminController
                         if (DB::fetchOne('SELECT id FROM posts WHERE id = ? AND deleted_at IS NOT NULL FOR UPDATE', [$id])) {
                             $events = \Pafish\Services\Comments::deleteForPost($id);
                             \Pafish\Services\EntityMeta::deleteSubject('post', $id);
+                            foreach (DB::fetchAll('SELECT id FROM nav_items WHERE post_id = ? FOR UPDATE', [$id]) as $nav) {
+                                \Pafish\Services\MediaReferences::forget('nav', (int) $nav['id']);
+                            }
                             DB::execute('DELETE FROM posts WHERE id = ?', [$id]);
                             \Pafish\Services\MediaReferences::forget('post', $id);
                             return $events;
@@ -941,6 +980,7 @@ final class PostsController extends AdminController
             $this->flash('error', $e->getMessage());
             return $this->redirect($response, '/admin/posts');
         }
+        \Pafish\Core\Cache::clearPrefix('nav.');
         if (!$this->isAjax($request)) {
             $this->flash('success', '操作成功');
             return $this->redirect($response, '/admin/posts');
@@ -1002,8 +1042,11 @@ final class PostsController extends AdminController
                 $ids[] = (int) $existing['id'];
                 continue;
             }
-            $slug = Slug::resolveUnique(Slug::slugify($name), fn (string $s) => DB::value('SELECT COUNT(*) FROM tags WHERE slug = ?', [$s]) > 0);
+            $slug = Slug::forSave('', (string) $name, null,
+                fn (string $s): bool => DB::value('SELECT COUNT(*) FROM tags WHERE slug = ?', [$s]) > 0,
+                true, 100);
             DB::execute('INSERT INTO tags (name, slug) VALUES (?, ?)', [$name, $slug]);
+            \Pafish\Services\PermalinkRedirects::forgetPaths(\Pafish\Services\Permalinks::paths('tag', ['slug' => $slug]));
             $ids[] = (int) DB::pdo()->lastInsertId();
         }
         return $ids;
@@ -1020,9 +1063,12 @@ final class PostsController extends AdminController
         if ($existing) {
             return (int) $existing['id'];
         }
-        $slug = Slug::resolveUnique(Slug::slugify($name), fn (string $s) => DB::value('SELECT COUNT(*) FROM categories WHERE slug = ?', [$s]) > 0);
+        $slug = Slug::forSave('', $name, null,
+            fn (string $s): bool => DB::value('SELECT COUNT(*) FROM categories WHERE slug = ?', [$s]) > 0,
+            true, 100);
         DB::execute('INSERT INTO categories (name, slug, description, parent_id, sort_order) VALUES (?, ?, NULL, NULL, 0)', [$name, $slug]);
         $id = (int) DB::pdo()->lastInsertId();
+        \Pafish\Services\PermalinkRedirects::forgetPaths(\Pafish\Services\Permalinks::paths('category', ['id' => $id, 'slug' => $slug]));
         \Pafish\Core\Cache::clearPrefix('categories.');
         return $id;
     }

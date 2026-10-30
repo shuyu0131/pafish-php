@@ -40,16 +40,6 @@
     for (var i = 0; i < 32; i++) token += Math.floor(Math.random() * 16).toString(16);
     return token;
   }
-  // 与 PHP Slug::slugify 一致：小写、空白→连字符、仅保留字母数字_-
-  function slugify(s) {
-    var out = String(s).toLowerCase()
-      .replace(/\s+/g, "-")
-      .replace(/[^\p{L}\p{N}_-]/gu, "")
-      .replace(/-+/g, "-")
-      .replace(/^-+|-+$/g, "");
-    return out || "post-" + Math.floor(Date.now() / 1000);
-  }
-
   // ---------- 状态 ----------
   var initial = DATA.initial || {};
   if (!Array.isArray(initial.customFields)) {
@@ -62,7 +52,8 @@
   var categories = DATA.categories || [];
   var allTags = DATA.tags || [];
 
-  var slugTouched = false;
+  var slugTouched = isEdit || !!DATA.submissionMode;
+  var slugAuto = document.getElementById("fSlugAuto");
   var tagIds = (initial.tagIds || []).map(String);
   var newTagNames = [];
   var pending = null;          // null | draft | publish | schedule | auto
@@ -244,6 +235,10 @@
     if (DATA.submissionMode) p.set("post_id", String(DATA.postId || 0));
     p.set("title", els.title.value.trim());
     p.set("slug", els.slug.value.trim());
+    // Keep the server-side collision policy in sync with the title-driven UI.
+    // Without this flag an automatically generated slug is treated as manual
+    // input and a collision is rejected instead of receiving a -2 suffix.
+    if (slugAuto) p.set("slug_auto", slugAuto.value === "1" ? "1" : "0");
     p.set("excerpt", els.excerpt.value.trim());
     p.set("content", editorValue());
     p.set("content_format", $("#fContentFormat").value);
@@ -771,9 +766,12 @@
 
     // 标题 → slug 联动
     els.title.addEventListener("input", function () {
-      if (!slugTouched) els.slug.value = slugify(els.title.value);
+      if (!slugTouched) {
+        if (slugAuto) slugAuto.value = "1";
+        window.pafishPreviewSlug(els.title, els.slug, slugAuto);
+      }
     });
-    els.slug.addEventListener("input", function () { slugTouched = true; });
+    els.slug.addEventListener("input", function () { slugTouched = true; if (slugAuto) slugAuto.value = "0"; });
     // 自动保存令牌只对应当前内容；内容变化后必须生成新的请求令牌。
     els.form.addEventListener("input", function () { autoRequestToken = null; });
 

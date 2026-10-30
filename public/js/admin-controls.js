@@ -1,6 +1,43 @@
 (function () {
   "use strict";
 
+  window.pafishPreviewSlug = function (titleField, slugField, autoField) {
+    if (!titleField || !slugField || !autoField || autoField.value !== "1") return;
+    var title = String(titleField.value || "").trim();
+    var requestId = (Number(slugField.dataset.slugPreviewRequest || 0) + 1);
+    slugField.dataset.slugPreviewRequest = String(requestId);
+    if (slugField._slugPreviewTimer) clearTimeout(slugField._slugPreviewTimer);
+    if (title === "") { slugField.value = ""; return; }
+
+    // Clear stale previews immediately; the save handler still regenerates the
+    // authoritative value from the title if this optional request fails.
+    slugField.value = "";
+    slugField._slugPreviewTimer = setTimeout(function () {
+      var form = titleField.form;
+      var csrf = form && form.elements.namedItem("_csrf");
+      if (!csrf || !window.pafishSlugPreviewUrl) return;
+      var body = new FormData();
+      body.append("_csrf", csrf.value);
+      body.append("title", title);
+      fetch(window.pafishSlugPreviewUrl, {
+        method: "POST",
+        body: body,
+        credentials: "same-origin",
+        headers: { "X-Requested-With": "XMLHttpRequest", "Accept": "application/json" }
+      }).then(function (response) {
+        if (!response.ok) throw new Error("Slug preview failed");
+        return response.json();
+      }).then(function (result) {
+        if (slugField.dataset.slugPreviewRequest === String(requestId)
+            && autoField.value === "1"
+            && String(titleField.value || "").trim() === title
+            && result && typeof result.slug === "string") {
+          slugField.value = result.slug;
+        }
+      }).catch(function () {});
+    }, 180);
+  };
+
   var openControl = null;
   var monthNames = ["一月", "二月", "三月", "四月", "五月", "六月", "七月", "八月", "九月", "十月", "十一月", "十二月"];
   var weekNames = ["一", "二", "三", "四", "五", "六", "日"];
@@ -350,6 +387,9 @@
     });
     select.addEventListener("change", sync);
     select.addEventListener("input", sync);
+    // Views that change a native select's disabled/options state in code can
+    // refresh the enhanced trigger without pretending the user changed value.
+    select.addEventListener("pafish:control-sync", sync);
     if (explicitCommit) menu.addEventListener('keydown', function (event) {
       if (event.key === 'Tab') { close(control); return; }
       if (event.key === 'Enter' || event.key === ' ') {

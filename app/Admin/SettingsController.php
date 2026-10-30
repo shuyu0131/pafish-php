@@ -35,6 +35,7 @@ final class SettingsController extends AdminController
         'api_enabled', 'api_key',
         'api_rate_limit', 'api_cors', 'api_max_limit',
         'permalink_structure',
+        'page_permalink_structure', 'category_permalink_structure', 'tag_permalink_structure',
         'store_account_token',
     ];
 
@@ -66,9 +67,21 @@ final class SettingsController extends AdminController
             return $this->redirect($response, '/admin/settings#settings-mail');
         }
         $pairs = [];
+        $permalinkTypes = [
+            'permalink_structure' => 'post',
+            'page_permalink_structure' => 'page',
+            'category_permalink_structure' => 'category',
+            'tag_permalink_structure' => 'tag',
+        ];
         foreach (self::ALLOWED_KEYS as $key) {
             if (array_key_exists($key, $body)) {
                 $value = (string) $body[$key];
+                if (isset($permalinkTypes[$key]) && !\Pafish\Services\Permalinks::validate($permalinkTypes[$key], $value)) {
+                    $message = '固定链接模板无效，请从支持的选项中选择';
+                    if ($this->isAjax($request)) return $this->json($response, ['error' => $message], 400);
+                    $this->flash('error', $message);
+                    return $this->redirect($response, '/admin/settings#settings-basic');
+                }
                 if (in_array($key, ['blocked_ips', 'blocked_emails', 'comment_spam_keywords'], true)) {
                     try {
                         $value = json_encode(self::normalizeCommentList($value, $key), JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
@@ -86,6 +99,9 @@ final class SettingsController extends AdminController
             }
         }
         Settings::setMany($pairs);
+        if (array_intersect(array_keys($pairs), array_keys($permalinkTypes)) !== []) {
+            \Pafish\Core\Cache::clearPrefix('nav.');
+        }
 
         if ($this->isAjax($request)) {
             return $this->json($response, ['ok' => true]);

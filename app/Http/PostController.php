@@ -12,6 +12,7 @@ use Pafish\Http\Responses;
 use Pafish\Services\Settings;
 use Pafish\Services\Content;
 use Pafish\Services\PostReactions;
+use Pafish\Services\Permalinks;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -28,9 +29,18 @@ final class PostController
     public function show(Request $request, Response $response, array $args): Response
     {
         $slug = rawurldecode((string) ($args['slug'] ?? ''));
+        $pathInfo = Permalinks::postFromPath(Permalinks::requestPath($request));
+        if ($pathInfo !== null) $slug = (string) $pathInfo['slug'];
         $post = $this->findPublishedPost($slug);
         if ($post === null) {
             return $this->notFound($response);
+        }
+        // Direct controller calls used by extensions may supply only the slug
+        // argument; canonical redirects apply when the request path is a post
+        // route, while the normal router always provides one.
+        if ($pathInfo !== null) {
+            $redirect = Permalinks::canonicalRedirect($request, $response, Permalinks::postPath($post));
+            if ($redirect !== null) return $redirect;
         }
         $post['cover_url'] = Content::safeImageUrl($post['cover_url'] ?? null);
         $post['author_avatar'] = Content::safeImageUrl($post['author_avatar'] ?? null);
@@ -64,7 +74,7 @@ final class PostController
                 }
                 Session::unlockPost($postId, (string) $post['password'], time() + self::UNLOCK_TTL);
                 return $response
-                    ->withHeader('Location', \url_to('/post/' . rawurlencode($post['slug'])))
+                    ->withHeader('Location', \url_to(Permalinks::postPath($post)))
                     ->withStatus(302);
             }
 
@@ -218,7 +228,7 @@ final class PostController
                 'type' => 'article',
                 'title' => $seoTitle,
                 'description' => $excerpt,
-                'url' => \absolute_url('/post/' . rawurlencode((string) $post['slug'])),
+                'url' => \absolute_url(Permalinks::postPath($post)),
                 'image' => $post['cover_url'] ? \absolute_url((string) $post['cover_url']) : '',
             ],
         ]);
@@ -253,7 +263,7 @@ final class PostController
     {
         $post = DB::fetchOne(
             "SELECT p.*, COALESCE(NULLIF(u.nickname, ''), u.username) AS author_name, u.avatar_url AS author_avatar, u.email AS author_email,
-                    c.name AS category_name, c.slug AS category_slug
+                    c.id AS category_id, c.name AS category_name, c.slug AS category_slug
              FROM posts p
              LEFT JOIN users u ON u.id = p.author_id
              LEFT JOIN categories c ON c.id = p.category_id
@@ -275,11 +285,11 @@ final class PostController
     {
         $where = \Pafish\Services\Posts::publicWhere('p');
         $prev = DB::fetchOne(
-            "SELECT p.title, p.slug FROM posts p WHERE {$where} AND (p.published_at < ? OR (p.published_at IS NULL AND p.id < ?)) ORDER BY p.published_at DESC LIMIT 1",
+            "SELECT p.title, p.slug, p.published_at, p.created_at FROM posts p WHERE {$where} AND (p.published_at < ? OR (p.published_at IS NULL AND p.id < ?)) ORDER BY p.published_at DESC LIMIT 1",
             [$post['published_at'], (int) $post['id']]
         );
         $next = DB::fetchOne(
-            "SELECT p.title, p.slug FROM posts p WHERE {$where} AND (p.published_at > ? OR (p.published_at IS NULL AND p.id > ?)) ORDER BY p.published_at ASC LIMIT 1",
+            "SELECT p.title, p.slug, p.published_at, p.created_at FROM posts p WHERE {$where} AND (p.published_at > ? OR (p.published_at IS NULL AND p.id > ?)) ORDER BY p.published_at ASC LIMIT 1",
             [$post['published_at'], (int) $post['id']]
         );
         return [$prev, $next];
@@ -295,8 +305,8 @@ final class PostController
         $params = [$id];
         $sql = "SELECT p.id, p.title, p.slug,
                        CASE WHEN p.password IS NOT NULL AND p.password <> '' THEN '' ELSE p.excerpt END AS excerpt,
-                       p.published_at,
-                       c.name AS category_name, c.slug AS category_slug
+                       p.published_at, p.created_at,
+                       c.id AS category_id, c.name AS category_name, c.slug AS category_slug
                 FROM posts p
                 LEFT JOIN categories c ON c.id = p.category_id
                 WHERE " . \Pafish\Services\Posts::publicWhere('p') . "

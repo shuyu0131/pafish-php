@@ -13,7 +13,7 @@ $coverUrl = \Pafish\Services\Content::safeImageUrl($post['cover_url'] ?? null);
 ?>
 <article class="post-card">
   <?php if ($coverUrl !== null): ?>
-  <a class="post-card-cover" href="<?= e($isExternal !== '' ? $isExternal : url_to('/post/' . rawurlencode((string) $post['slug']))) ?>"<?= $isExternal !== '' ? ' target="_blank" rel="noopener noreferrer"' : '' ?> aria-label="<?= e($post['title']) ?>">
+  <a class="post-card-cover" href="<?= e($isExternal !== '' ? $isExternal : content_url('post', $post)) ?>"<?= $isExternal !== '' ? ' target="_blank" rel="noopener noreferrer"' : '' ?> aria-label="<?= e($post['title']) ?>">
     <img src="<?= e($coverUrl) ?>" alt="" loading="lazy" decoding="async">
   </a>
   <?php endif; ?>
@@ -24,7 +24,7 @@ $coverUrl = \Pafish\Services\Content::safeImageUrl($post['cover_url'] ?? null);
     <?php if ($isExternal !== ''): ?>
       <a href="<?= e($isExternal) ?>" target="_blank" rel="noopener noreferrer" class="post-card-link"><?= e($post['title']) ?><span class="post-external"><?= admin_icon('external-link', 13) ?></span></a>
     <?php else: ?>
-      <a href="<?= e(url_to('/post/' . rawurlencode((string) $post['slug']))) ?>" class="post-card-link"><?= e($post['title']) ?></a>
+      <a href="<?= e(content_url('post', $post)) ?>" class="post-card-link"><?= e($post['title']) ?></a>
     <?php endif; ?>
   </h2>
 
@@ -37,10 +37,10 @@ $coverUrl = \Pafish\Services\Content::safeImageUrl($post['cover_url'] ?? null);
   <div class="post-card-meta">
     <span><?= e(format_date($post['published_at'] ?? null)) ?></span>
     <?php if (!empty($post['category_slug'])): ?>
-      <a href="<?= e(url_to('/category/' . rawurlencode((string) $post['category_slug']))) ?>" class="post-meta-link"><?= e($post['category_name']) ?></a>
+      <a href="<?= e(content_url('category', ['id' => $post['category_id'] ?? 0, 'slug' => $post['category_slug']])) ?>" class="post-meta-link"><?= e($post['category_name']) ?></a>
     <?php endif; ?>
     <?php foreach (($post['tags'] ?? []) as $tag): ?>
-      <a href="<?= e(url_to('/tag/' . rawurlencode((string) $tag['slug']))) ?>" class="post-meta-link">#<?= e($tag['name']) ?></a>
+      <a href="<?= e(content_url('tag', $tag)) ?>" class="post-meta-link">#<?= e($tag['name']) ?></a>
     <?php endforeach; ?>
     <span class="post-meta-views"><?= (int) ($post['view_count'] ?? 0) ?> 次浏览</span>
   </div>

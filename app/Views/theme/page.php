@@ -25,7 +25,7 @@ get_header();
     <?= render_partial('comment-section', [
         'targetType' => 'page',
         'targetId' => (int) $page['id'],
-        'commentBaseUrl' => $commentBaseUrl ?? url_to('/pages/' . rawurlencode((string) $page['slug'])),
+        'commentBaseUrl' => $commentBaseUrl ?? content_url('page', $page),
         'commentPage' => $commentPage ?? 1,
         'commentRoots' => $commentRoots ?? [],
         'commentTotal' => $commentTotal ?? 0,

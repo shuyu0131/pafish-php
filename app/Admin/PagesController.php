@@ -8,6 +8,8 @@ use Pafish\Core\DB;
 use Pafish\Services\Plugin;
 use Pafish\Services\Settings;
 use Pafish\Services\Slug;
+use Pafish\Services\PermalinkRedirects;
+use Pafish\Services\Permalinks;
 use Pafish\Services\Theme;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -136,6 +138,8 @@ final class PagesController extends AdminController
             return $this->redirect($response, $id > 0 ? "/admin/pages/{$id}/edit" : '/admin/pages/new');
         }
 
+        \Pafish\Core\Cache::clearPrefix('nav.');
+
         if ($this->isAjax($request)) {
             return $this->json($response, ['ok' => true, 'id' => $result['id']]);
         }
@@ -155,10 +159,14 @@ final class PagesController extends AdminController
             }
             if ($id > 0) $commentEvents = \Pafish\Services\Comments::deleteForPage($id);
             if ($id > 0) \Pafish\Services\EntityMeta::deleteSubject('page', $id);
+            foreach (DB::fetchAll('SELECT id FROM nav_items WHERE page_id = ? FOR UPDATE', [$id]) as $nav) {
+                \Pafish\Services\MediaReferences::forget('nav', (int) $nav['id']);
+            }
             DB::execute('DELETE FROM pages WHERE id = ?', [$id]);
             if ($id > 0) \Pafish\Services\MediaReferences::forget('page', $id);
         });
         \Pafish\Services\Comments::emit($commentEvents);
+        \Pafish\Core\Cache::clearPrefix('nav.');
         if ($this->isAjax($request)) {
             return $this->json($response, ['ok' => true]);
         }
@@ -208,21 +216,20 @@ final class PagesController extends AdminController
             throw new \RuntimeException('标题不能超过 100 字');
         }
 
-        // slug：用户输入优先，否则由标题生成；冲突自动 -2/-3（排除自身）
-        $slug = trim((string) ($body['slug'] ?? ''));
-        if ($slug === '') {
-            $slug = Slug::slugify($title);
-        }
+        $slug = Slug::forSave(
+            array_key_exists('slug', $body) ? (string) $body['slug'] : null,
+            $title,
+            $stored !== null ? (string) $stored['slug'] : null,
+            static fn (string $candidate): bool => DB::fetchOne(
+                'SELECT id FROM pages WHERE slug = ? AND (? IS NULL OR id <> ?) LIMIT 1',
+                [$candidate, $id, $id]
+            ) !== null,
+            !empty($body['slug_auto']),
+            100
+        );
         if (mb_strlen($slug) > 100) {
             throw new \RuntimeException('页面地址不能超过 100 字');
         }
-        $slug = Slug::resolveUnique($slug, static function (string $candidate) use ($id): bool {
-            return DB::fetchOne(
-                'SELECT id FROM pages WHERE slug = ? AND (? IS NULL OR id <> ?) LIMIT 1',
-                [$candidate, $id, $id]
-            ) !== null;
-        });
-
         $status = ($body['status'] ?? '') === 'PUBLISHED' ? 'PUBLISHED' : 'DRAFT';
 
         // 新选择必须可用；主题切换或插件停用后允许原样保留历史选择。
@@ -245,6 +252,7 @@ final class PagesController extends AdminController
         if ($contentFormat === 'html') $content = \Pafish\Services\Content::sanitize($content);
 
         if ($id !== null) {
+            PermalinkRedirects::recordEntityChange('page', $stored, array_replace($stored, ['slug' => $slug]));
             DB::execute(
                 'UPDATE pages SET title = ?, slug = ?, content = ?, content_format = ?, status = ?, template = ?, allow_comments=?, seo_title=?, meta_description=?, updated_at = NOW() WHERE id = ?',
                 [$title, $slug, $content, $contentFormat, $status, $template, (int) (bool) $allowComments, $seo['seo_title'], $seo['meta_description'], $id]
@@ -259,6 +267,8 @@ final class PagesController extends AdminController
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())',
             [$title, $slug, $content, $contentFormat, $status, $template, $publishedAt, (int) (bool) $allowComments, $seo['seo_title'], $seo['meta_description']]
         );
-        return ['id' => (int) DB::pdo()->lastInsertId(), 'created' => true];
+        $newId = (int) DB::pdo()->lastInsertId();
+        PermalinkRedirects::forgetPaths(Permalinks::paths('page', ['slug' => $slug]));
+        return ['id' => $newId, 'created' => true];
     }
 }

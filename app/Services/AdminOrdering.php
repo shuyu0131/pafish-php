@@ -18,7 +18,8 @@ final class AdminOrdering
         $expected = self::ids($expected);
         $table = self::TABLES[$scope] ?? throw new \InvalidArgumentException('不支持的排序列表');
         DB::transaction(static function () use ($scope, $table, $ids, $expected): void {
-            $rows = DB::fetchAll('SELECT id, sort_order' . ($scope === 'categories' ? ', parent_id' : '')
+            $rows = DB::fetchAll('SELECT id, sort_order' . (in_array($scope, ['categories', 'nav'], true) ? ', parent_id' : '')
+                . ($scope === 'nav' ? ', menu_id' : '')
                 . " FROM {$table} ORDER BY sort_order, id FOR UPDATE");
             $siblings = self::siblings($scope, $rows, $ids[0]);
             $current = array_column($siblings, 'id');
@@ -43,7 +44,8 @@ final class AdminOrdering
     {
         $table = self::TABLES[$scope] ?? throw new \InvalidArgumentException('不支持的排序列表');
         DB::transaction(static function () use ($scope, $table, $id, $dir): void {
-            $rows = DB::fetchAll('SELECT id, sort_order' . ($scope === 'categories' ? ', parent_id' : '')
+            $rows = DB::fetchAll('SELECT id, sort_order' . (in_array($scope, ['categories', 'nav'], true) ? ', parent_id' : '')
+                . ($scope === 'nav' ? ', menu_id' : '')
                 . " FROM {$table} ORDER BY sort_order, id FOR UPDATE");
             $ids = array_map('intval', array_column(self::siblings($scope, $rows, $id), 'id'));
             $index = array_search($id, $ids, true);
@@ -84,8 +86,9 @@ final class AdminOrdering
         if ($found === null) {
             throw new \InvalidArgumentException('条目不存在，请刷新后重试');
         }
-        return $scope === 'categories'
-            ? array_values(array_filter($rows, static fn (array $row): bool => $row['parent_id'] === $found['parent_id']))
+        return in_array($scope, ['categories', 'nav'], true)
+            ? array_values(array_filter($rows, static fn (array $row): bool => $row['parent_id'] === $found['parent_id']
+                && ($scope !== 'nav' || (int) $row['menu_id'] === (int) $found['menu_id'])))
             : $rows;
     }
 

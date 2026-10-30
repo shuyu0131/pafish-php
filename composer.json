@@ -6,6 +6,7 @@
     "version": "1.2.5",
     "require": {
         "php": ">=8.1",
+        "ext-intl": "*",
         "ezyang/htmlpurifier": "^4.19",
         "php-di/php-di": "^7.0",
         "slim/psr7": "^1.7",

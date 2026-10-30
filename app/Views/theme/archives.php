@@ -26,7 +26,7 @@ get_header();
           <ul class="archive-list">
             <?php foreach ($g['posts'] as $p): ?>
               <li>
-                <a href="<?= e(url_to('/post/' . rawurlencode((string) $p['slug']))) ?>" class="archive-item">
+                <a href="<?= e(content_url('post', $p)) ?>" class="archive-item">
                   <span class="archive-item-title"><?= e($p['title']) ?></span>
                   <span class="archive-item-date"><?= e(format_date($p['published_at'] ?? null, 'MM-dd')) ?></span>
                 </a>

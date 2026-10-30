@@ -13,7 +13,7 @@ if (!$posts) {
   <ul class="related-posts-list">
     <?php foreach ($posts as $rp): ?>
       <li>
-        <a href="<?= e(url_to('/post/' . rawurlencode((string) $rp['slug']))) ?>" class="related-post-link">
+        <a href="<?= e(content_url('post', $rp)) ?>" class="related-post-link">
           <span class="related-post-title"><?= e($rp['title']) ?></span>
           <span class="related-post-date"><?= e(format_date($rp['published_at'] ?? null)) ?></span>
         </a>

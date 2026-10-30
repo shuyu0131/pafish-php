@@ -65,14 +65,23 @@ $keywordsText = $listText('comment_spam_keywords', "\n");
     </div>
     <div class="card admin-form-card">
       <h2 class="admin-card-title">固定链接</h2>
-      <div class="admin-field"><label class="label" for="setting-permalink_structure">文章地址结构</label>
-        <select class="input" id="setting-permalink_structure" name="permalink_structure">
-          <?php foreach (['/post/%postname%' => '/post/文章别名（兼容默认）', '/%postname%' => '/文章别名', '/%year%/%month%/%postname%' => '/年份/月/文章别名'] as $value => $label): ?>
-            <option value="<?= e($value) ?>" <?= $textVal('permalink_structure', '/post/%postname%') === $value ? 'selected' : '' ?>><?= e($label) ?></option>
-          <?php endforeach; ?>
-        </select>
-      </div>
-      <p class="admin-field-hint">原有 /post/文章别名地址始终保留，切换后新链接会按所选结构生成。</p>
+      <?php foreach ([
+          'post' => ['key' => 'permalink_structure', 'title' => '文章'],
+          'page' => ['key' => 'page_permalink_structure', 'title' => '独立页面'],
+          'category' => ['key' => 'category_permalink_structure', 'title' => '分类'],
+          'tag' => ['key' => 'tag_permalink_structure', 'title' => '标签'],
+      ] as $type => $setting): ?>
+        <?php $options = \Pafish\Services\Permalinks::options($type); $default = array_key_first($options); ?>
+        <div class="admin-field">
+          <label class="label" for="setting-<?= e($setting['key']) ?>"><?= e($setting['title']) ?>地址结构</label>
+          <select class="input" id="setting-<?= e($setting['key']) ?>" name="<?= e($setting['key']) ?>">
+            <?php foreach ($options as $value => $label): ?>
+              <option value="<?= e($value) ?>" <?= $textVal($setting['key'], (string) $default) === $value ? 'selected' : '' ?>><?= e($label) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+      <?php endforeach; ?>
+      <p class="admin-field-hint">更改结构后，旧格式仍可访问并跳转到当前地址。伪静态开关只控制部署方式。</p>
     </div>
     <div class="card admin-form-card">
       <h2 class="admin-card-title">后台账号与注册</h2>

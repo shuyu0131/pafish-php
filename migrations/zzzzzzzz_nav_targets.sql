@@ -1,0 +1,11 @@
+ALTER TABLE nav_items ADD COLUMN item_type VARCHAR(16) NOT NULL DEFAULT 'link' COMMENT 'link/group/home/archive/search/category/tag/page/post' AFTER id;
+ALTER TABLE nav_items ADD COLUMN page_id BIGINT UNSIGNED NULL COMMENT '关联已发布页面' AFTER category_id;
+ALTER TABLE nav_items ADD COLUMN post_id BIGINT UNSIGNED NULL COMMENT '关联已发布文章' AFTER page_id;
+ALTER TABLE nav_items ADD COLUMN tag_id BIGINT UNSIGNED NULL COMMENT '关联标签' AFTER post_id;
+UPDATE nav_items SET item_type = 'category' WHERE category_id IS NOT NULL;
+ALTER TABLE nav_items ADD KEY idx_nav_items_page (page_id);
+ALTER TABLE nav_items ADD KEY idx_nav_items_post (post_id);
+ALTER TABLE nav_items ADD KEY idx_nav_items_tag (tag_id);
+ALTER TABLE nav_items ADD CONSTRAINT fk_nav_items_page FOREIGN KEY (page_id) REFERENCES pages (id) ON DELETE CASCADE;
+ALTER TABLE nav_items ADD CONSTRAINT fk_nav_items_post FOREIGN KEY (post_id) REFERENCES posts (id) ON DELETE CASCADE;
+ALTER TABLE nav_items ADD CONSTRAINT fk_nav_items_tag FOREIGN KEY (tag_id) REFERENCES tags (id) ON DELETE CASCADE;

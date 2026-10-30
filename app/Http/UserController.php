@@ -29,7 +29,7 @@ final class UserController
         $needed = $userId > 0 ? ($manifest['userData'] ?? []) : [];
         $public = "status='PUBLISHED' AND deleted_at IS NULL AND (published_at IS NULL OR published_at<=NOW())";
         $posts = in_array('posts', $needed, true) ? DB::fetchAll(
-            "SELECT id,title,slug,
+            "SELECT id,title,slug,created_at,published_at,
                     CASE WHEN password IS NOT NULL AND password <> '' THEN '' ELSE excerpt END AS excerpt,
                     cover_url,published_at,view_count,like_count,favorite_count,
                     (password IS NOT NULL AND password <> '') AS is_password_protected
@@ -46,14 +46,14 @@ final class UserController
             'comments' => (int) DB::value("SELECT COUNT(*) FROM comments WHERE user_id=? AND status<>'SPAM'", [$userId]),
         ] : ['posts' => 0, 'views' => 0, 'comments' => 0];
         $reactions = in_array('reactions', $needed, true) ? DB::fetchAll(
-            "SELECT r.kind,p.title,p.slug,p.published_at,p.like_count,p.favorite_count
+            "SELECT r.kind,p.title,p.slug,p.published_at,p.created_at,p.like_count,p.favorite_count
              FROM post_reactions r JOIN posts p ON p.id=r.post_id
              WHERE r.user_id=? AND p.status='PUBLISHED' AND p.deleted_at IS NULL
                AND (p.published_at IS NULL OR p.published_at<=NOW())
              ORDER BY r.created_at DESC LIMIT 60", [$userId]
         ) : [];
         $comments = in_array('comments', $needed, true) ? DB::fetchAll(
-            "SELECT c.content,c.status,c.created_at,p.title AS post_title,p.slug AS post_slug
+            "SELECT c.content,c.status,c.created_at,p.title AS post_title,p.slug AS post_slug,p.published_at,p.created_at AS post_created_at
              FROM comments c JOIN posts p ON p.id=c.post_id
              WHERE c.user_id=? AND c.status<>'SPAM' AND p.status='PUBLISHED' AND p.deleted_at IS NULL
                AND (p.published_at IS NULL OR p.published_at<=NOW())

@@ -43,8 +43,12 @@ final class Notify
             return;
         }
         try {
-            $prefix = ($ctx['targetType'] ?? 'post') === 'page' ? '/pages/' : '/post/';
-            $postUrl = \absolute_url($prefix . rawurlencode((string) $ctx['postSlug']));
+            $type = ($ctx['targetType'] ?? 'post') === 'page' ? 'page' : 'post';
+            $postUrl = \absolute_url(\Pafish\Services\Permalinks::path($type, [
+                'slug' => (string) $ctx['postSlug'],
+                'published_at' => $ctx['publishedAt'] ?? null,
+                'created_at' => $ctx['createdAt'] ?? null,
+            ]));
             $adminUrl = \absolute_url('/admin/comments?status=PENDING');
             Mail::send(
                 $to,
@@ -72,9 +76,12 @@ final class Notify
     public static function sendReplyEmail(array $input): void
     {
         try {
-            $threadUrl = \absolute_url(
-                (($input['targetType'] ?? 'post') === 'page' ? '/pages/' : '/post/') . rawurlencode((string) $input['postSlug']) . '#comment-' . $input['commentId']
-            );
+            $type = (($input['targetType'] ?? 'post') === 'page') ? 'page' : 'post';
+            $threadUrl = \absolute_url(\Pafish\Services\Permalinks::path($type, [
+                'slug' => (string) $input['postSlug'],
+                'published_at' => $input['publishedAt'] ?? null,
+                'created_at' => $input['createdAt'] ?? null,
+            ]) . '#comment-' . $input['commentId']);
             Mail::send(
                 $input['toEmail'],
                 $input['replier'] . ' 回复了你在《' . $input['postTitle'] . '》下的评论',

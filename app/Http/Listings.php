@@ -62,7 +62,7 @@ final class Listings
                     CASE WHEN p.password IS NOT NULL AND p.password <> '' THEN '' ELSE p.content END AS content,
                     p.content_format, p.template, p.cover_url,
                     CASE WHEN p.password IS NOT NULL AND p.password <> '' THEN NULL ELSE p.custom_fields END AS custom_fields,
-                    p.published_at, p.author_id,
+                    p.published_at, p.created_at, p.author_id,
                     p.is_pinned, p.category_pinned,
                     (p.password IS NOT NULL AND p.password <> '') AS is_password_protected,
                     p.external_url, p.view_count,
@@ -70,7 +70,7 @@ final class Listings
                     CASE WHEN p.password IS NOT NULL AND p.password <> '' THEN '' ELSE p.meta_description END AS meta_description,
                     (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id AND c.status = 'APPROVED') AS comment_count,
                     COALESCE(NULLIF(u.nickname, ''), u.username) AS author_name, u.avatar_url AS author_avatar,
-                    c.name AS category_name, c.slug AS category_slug
+                    c.id AS category_id, c.name AS category_name, c.slug AS category_slug
              FROM (
                  SELECT p.id FROM posts p{$index}
                  WHERE {$where}

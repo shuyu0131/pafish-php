@@ -7,7 +7,7 @@
  */
 $canEdit = in_array($role ?? '', ['ADMIN', 'EDITOR'], true);
 ?>
-<div class="admin-stack admin-detail-page admin-categories-page">
+<div class="admin-stack admin-list-page admin-detail-page admin-categories-page">
   <div class="admin-page-head">
     <div>
       <h1 class="admin-h1">分类管理</h1>
@@ -20,7 +20,7 @@ $canEdit = in_array($role ?? '', ['ADMIN', 'EDITOR'], true);
     <!-- 树形列表 -->
     <div class="admin-cat-tree">
       <div class="admin-table-wrap">
-        <table class="admin-table">
+        <table class="admin-table admin-categories-table">
           <thead>
             <tr>
               <th>名称</th>
@@ -94,6 +94,7 @@ $canEdit = in_array($role ?? '', ['ADMIN', 'EDITOR'], true);
       <form id="catForm" method="post" action="<?= e(url_to('/admin/categories/save')) ?>" novalidate>
         <?= csrf_field() ?>
         <input type="hidden" name="id" id="fCatId" value="">
+        <input type="hidden" name="slug_auto" id="fCatSlugAuto" value="1">
         <div class="admin-modal-body">
         <div class="admin-field">
           <label class="label" for="fCatName">名称 <span aria-hidden="true">*</span></label>
@@ -101,7 +102,7 @@ $canEdit = in_array($role ?? '', ['ADMIN', 'EDITOR'], true);
         </div>
         <div class="admin-field">
           <label class="label" for="fCatSlug">地址</label>
-          <input class="input" type="text" id="fCatSlug" name="slug" placeholder="自动根据名称生成" maxlength="100">
+          <input class="input" type="text" id="fCatSlug" name="slug" placeholder="留空自动生成英文或拼音，可自定义" maxlength="100">
         </div>
         <div class="admin-field">
           <label class="label" for="fCatDesc">描述</label>
@@ -148,6 +149,7 @@ window.PAFISH_CAT_DATA = <?= json_encode($catJs) ?>;
   var fId = document.getElementById("fCatId");
   var fName = document.getElementById("fCatName");
   var fSlug = document.getElementById("fCatSlug");
+  var fSlugAuto = document.getElementById("fCatSlugAuto");
   var fDesc = document.getElementById("fCatDesc");
   var fParent = document.getElementById("fCatParent");
   var titleEl = document.getElementById("catFormTitle");
@@ -158,6 +160,7 @@ window.PAFISH_CAT_DATA = <?= json_encode($catJs) ?>;
   function resetForm() {
     form.reset();
     fId.value = "";
+    fSlugAuto.value = "1";
     form.action = D.saveUrl;
     titleEl.textContent = "新建分类";
     errorBox.hidden = true;
@@ -194,6 +197,7 @@ window.PAFISH_CAT_DATA = <?= json_encode($catJs) ?>;
       fId.value = row.getAttribute("data-id");
       fName.value = row.getAttribute("data-name");
       fSlug.value = row.getAttribute("data-slug");
+      fSlugAuto.value = "0";
       fDesc.value = row.getAttribute("data-desc");
       form.elements.seo_title.value = row.getAttribute("data-seo-title") || "";
       form.elements.meta_description.value = row.getAttribute("data-meta-description") || "";
@@ -212,6 +216,11 @@ window.PAFISH_CAT_DATA = <?= json_encode($catJs) ?>;
       categoryModal.hidden = false;
     });
   });
+
+  fName.addEventListener("input", function () {
+    if (fSlugAuto.value === "1") window.pafishPreviewSlug(fName, fSlug, fSlugAuto);
+  });
+  fSlug.addEventListener("input", function () { fSlugAuto.value = "0"; });
 
   // 取消编辑，下次打开时重新读取对应分类。
   cancelBtn.addEventListener("click", function () {

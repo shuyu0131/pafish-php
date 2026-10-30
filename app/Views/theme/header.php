@@ -15,6 +15,7 @@ $themeHasIconFields = \Pafish\Services\ExtensionKernel::hasSettingType(Theme::se
 // 侧栏属于主题布局选择；系统兜底模板仅在主题明确声明时开启。
 $showSidebar = theme_value('sidebar_enabled', '0') !== '0';
 $navItems = nav_items();
+$navTree = nav_tree($navItems);
 $loggedIn = is_logged_in();
 $titleOrder = (string) settings('seo_title_order', 'page_site');
 $titleSeparator = (string) settings('seo_title_separator', ' · ');
@@ -127,7 +128,7 @@ window.pafishApi = function (p) {
   <?php /* 桌面顶栏 */ ?>
   <header class="app-header">
     <?php /* public-nav.php 自身即输出 <nav class="app-nav">，此处不可再包一层，否则 nav landmark 重复 */ ?>
-    <?= render_partial('public-nav', ['items' => $navItems]) ?>
+    <?= render_partial('public-nav', ['items' => $navItems, 'tree' => $navTree]) ?>
     <div class="app-header-tools">
       <?= render_partial('site-search') ?>
       <?php if ($loggedIn): ?>
@@ -144,7 +145,7 @@ window.pafishApi = function (p) {
     <a href="<?= e(url_to('/')) ?>" class="app-brand-mobile"><?= e($siteName) ?></a>
     <div class="app-header-tools">
       <?= render_partial('theme-toggle') ?>
-      <?= render_partial('mobile-nav', ['items' => $navItems, 'loggedIn' => $loggedIn]) ?>
+      <?= render_partial('mobile-nav', ['items' => $navItems, 'tree' => $navTree, 'loggedIn' => $loggedIn]) ?>
     </div>
   </header>
 

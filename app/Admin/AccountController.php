@@ -70,8 +70,8 @@ final class AccountController extends AdminController
         $page = min($page, $pages);
         $offset = ($page - 1) * $per;
         $items = match ($section) {
-            'comments' => DB::fetchAll("SELECT c.id,c.content,c.status,c.created_at,p.title,p.slug FROM comments c JOIN posts p ON p.id=c.post_id WHERE c.user_id=? AND c.status <> 'SPAM' AND {$public} ORDER BY c.created_at DESC,c.id DESC LIMIT {$per} OFFSET {$offset}", [$userId]),
-            'favorites', 'likes' => DB::fetchAll("SELECT p.title,p.slug,r.created_at FROM post_reactions r JOIN posts p ON p.id=r.post_id WHERE r.user_id=? AND r.kind=? AND {$public} ORDER BY r.created_at DESC,p.id DESC LIMIT {$per} OFFSET {$offset}", [$userId, $section === 'favorites' ? 'favorite' : 'like']),
+            'comments' => DB::fetchAll("SELECT c.id,c.content,c.status,c.created_at,p.title,p.slug,p.published_at,p.created_at AS post_created_at FROM comments c JOIN posts p ON p.id=c.post_id WHERE c.user_id=? AND c.status <> 'SPAM' AND {$public} ORDER BY c.created_at DESC,c.id DESC LIMIT {$per} OFFSET {$offset}", [$userId]),
+            'favorites', 'likes' => DB::fetchAll("SELECT p.title,p.slug,p.published_at,p.created_at AS post_created_at,r.created_at FROM post_reactions r JOIN posts p ON p.id=r.post_id WHERE r.user_id=? AND r.kind=? AND {$public} ORDER BY r.created_at DESC,p.id DESC LIMIT {$per} OFFSET {$offset}", [$userId, $section === 'favorites' ? 'favorite' : 'like']),
             'points' => DB::fetchAll("SELECT amount,reason,created_at FROM point_transactions WHERE user_id=? ORDER BY id DESC LIMIT {$per} OFFSET {$offset}", [$userId]),
             'posts' => DB::fetchAll(
                 'SELECT p.id,p.title,p.slug,p.status,p.review_note,p.reviewed_at,p.created_at,p.updated_at,p.published_at,
@@ -149,7 +149,9 @@ final class AccountController extends AdminController
         $title = is_string($body['title'] ?? null) ? trim($body['title']) : '';
         $slug = (string) ($stored['slug'] ?? '');
         if ($slug === '') {
-            $slug = Slug::resolveUnique(Slug::slugify($title), static fn (string $candidate): bool => DB::value('SELECT COUNT(*) FROM posts WHERE slug=?', [$candidate]) > 0);
+            $slug = Slug::forSave('', $title, null,
+                static fn (string $candidate): bool => DB::value('SELECT COUNT(*) FROM posts WHERE slug=?', [$candidate]) > 0,
+                true, 255);
         }
         $content = is_string($body['content'] ?? null) ? $body['content'] : '';
         $tagIds = array_key_exists('tag_ids', $body)

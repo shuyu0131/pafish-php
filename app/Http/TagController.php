@@ -7,6 +7,7 @@ namespace Pafish\Http;
 use Pafish\Core\DB;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
+use Pafish\Services\Permalinks;
 
 /**
  * 标签页：该标签下的文章列表
@@ -17,9 +18,15 @@ final class TagController
     public function show(Request $request, Response $response, array $args): Response
     {
         $slug = rawurldecode((string) ($args['slug'] ?? ''));
+        $parsed = Permalinks::entityFromPath('tag', Permalinks::requestPath($request));
+        if ($parsed !== null) $slug = (string) $parsed['slug'];
         $tag = DB::fetchOne('SELECT id,name,slug,description,seo_title,meta_description FROM tags WHERE slug = ?', [$slug]);
         if (!$tag) {
             return Listings::notFound($response, '标签不存在');
+        }
+        if ($parsed !== null) {
+            $redirect = Permalinks::canonicalRedirect($request, $response, Permalinks::path('tag', $tag));
+            if ($redirect !== null) return $redirect;
         }
 
         [$posts, $total, $perPage, $pageNum] = Listings::published(
@@ -42,7 +49,7 @@ final class TagController
             'total' => $total,
             'pageNum' => $pageNum,
             'totalPages' => $totalPages,
-            'listBaseUrl' => \url_to('/tag/' . rawurlencode($slug)),
+            'listBaseUrl' => \url_to(Permalinks::path('tag', $tag)),
         ]));
         return $response;
     }

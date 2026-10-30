@@ -5,7 +5,7 @@
  * 变量：$tags $role
  */
 ?>
-<div class="admin-stack admin-detail-page admin-tags-page">
+<div class="admin-stack admin-list-page admin-detail-page admin-tags-page">
   <div class="admin-page-head">
     <div>
       <h1 class="admin-h1">标签管理</h1>
@@ -18,7 +18,7 @@
     <!-- 左：列表 -->
     <div class="admin-cat-tree">
       <div class="admin-table-wrap">
-        <table class="admin-table">
+        <table class="admin-table admin-tags-table">
           <thead>
             <tr>
               <th>名称</th>
@@ -74,7 +74,7 @@
         </div>
         <div class="admin-field">
           <label class="label" for="fTagSlug">地址</label>
-          <input class="input" type="text" id="fTagSlug" name="slug" placeholder="自动根据名称生成" maxlength="100">
+          <input class="input" type="text" id="fTagSlug" name="slug" placeholder="留空自动生成英文或拼音，可自定义" maxlength="100">
         </div>
         <div class="admin-field">
           <label class="label" for="tagDescription">描述</label>

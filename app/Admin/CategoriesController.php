@@ -8,6 +8,8 @@ use Pafish\Core\DB;
 use Pafish\Core\Cache;
 use Pafish\Services\Categories;
 use Pafish\Services\Slug;
+use Pafish\Services\PermalinkRedirects;
+use Pafish\Services\Permalinks;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -65,6 +67,7 @@ final class CategoriesController extends AdminController
         }
 
         Cache::clearPrefix('categories.');
+        Cache::clearPrefix('nav.');
         if ($this->isAjax($request)) {
             return $this->json($response, ['ok' => true, 'id' => $result['id']]);
         }
@@ -97,13 +100,32 @@ final class CategoriesController extends AdminController
         $id = (int) ($args['id'] ?? 0);
         try {
             \Pafish\Services\MediaReferences::transaction(static function () use ($id): void {
+                DB::fetchOne('SELECT id FROM categories WHERE id = ? FOR UPDATE', [$id]);
+                $allCategories = DB::fetchAll('SELECT id, parent_id FROM categories FOR UPDATE');
+                $subtree = Categories::descendants($allCategories, $id);
+                $oldPathsById = [];
+                foreach (array_keys($subtree) as $categoryId) {
+                    if ((int) $categoryId === $id) continue;
+                    $category = DB::fetchOne('SELECT id, slug, parent_id FROM categories WHERE id = ?', [(int) $categoryId]);
+                    if ($category !== null) $oldPathsById[(int) $categoryId] = Permalinks::paths('category', $category);
+                }
                 DB::execute('UPDATE categories SET parent_id = NULL WHERE parent_id = ?', [$id]);
                 DB::execute('UPDATE posts SET category_id = NULL WHERE category_id = ?', [$id]);
+                foreach (DB::fetchAll('SELECT id FROM nav_items WHERE category_id = ? FOR UPDATE', [$id]) as $nav) {
+                    \Pafish\Services\MediaReferences::forget('nav', (int) $nav['id']);
+                }
                 if ($id > 0) \Pafish\Services\EntityMeta::deleteSubject('category', $id);
                 DB::execute('DELETE FROM categories WHERE id = ?', [$id]);
+                foreach ($oldPathsById as $categoryId => $oldPaths) {
+                    $current = DB::fetchOne('SELECT id, slug, parent_id FROM categories WHERE id = ?', [$categoryId]);
+                    if ($current !== null) {
+                        PermalinkRedirects::recordPaths('category', $oldPaths, Permalinks::path('category', $current), Permalinks::paths('category', $current));
+                    }
+                }
                 if ($id > 0) \Pafish\Services\MediaReferences::forget('category', $id);
             });
             Cache::clearPrefix('categories.');
+            Cache::clearPrefix('nav.');
         } catch (\Throwable $e) {
             if ($this->isAjax($request)) {
                 return $this->json($response, ['error' => '删除失败'], 500);
@@ -139,20 +161,19 @@ final class CategoriesController extends AdminController
             throw new \RuntimeException('分类名称已存在');
         }
 
-        $slug = trim((string) ($body['slug'] ?? ''));
-        if ($slug === '') {
-            $slug = Slug::slugify($name);
-        }
+        $slug = Slug::forSave(
+            array_key_exists('slug', $body) ? (string) $body['slug'] : null,
+            $name,
+            $stored !== null ? (string) $stored['slug'] : null,
+            static fn (string $candidate): bool => DB::fetchOne(
+                'SELECT id FROM categories WHERE slug = ? AND (? IS NULL OR id <> ?) LIMIT 1', [$candidate, $id, $id]
+            ) !== null,
+            !empty($body['slug_auto']),
+            100
+        );
         if (mb_strlen($slug) > 100) {
             throw new \RuntimeException('分类地址不能超过 100 字');
         }
-        $slug = Slug::resolveUnique($slug, static function (string $candidate) use ($id): bool {
-            return DB::fetchOne(
-                'SELECT id FROM categories WHERE slug = ? AND (? IS NULL OR id <> ?) LIMIT 1',
-                [$candidate, $id, $id]
-            ) !== null;
-        });
-
         $description = trim((string) ($body['description'] ?? ''));
         if (mb_strlen($description) > 500) {
             throw new \RuntimeException('分类描述不能超过 500 字');
@@ -175,10 +196,20 @@ final class CategoriesController extends AdminController
         }
 
         if ($id !== null) {
+            $subtreeIds = Categories::descendants(DB::fetchAll('SELECT id, parent_id FROM categories'), $id);
+            $oldPathsById = [];
+            foreach (array_keys($subtreeIds) as $categoryId) {
+                $oldCategory = DB::fetchOne('SELECT id, slug, parent_id FROM categories WHERE id = ?', [(int) $categoryId]);
+                if ($oldCategory !== null) $oldPathsById[(int) $categoryId] = Permalinks::paths('category', $oldCategory);
+            }
             DB::execute(
                 'UPDATE categories SET name = ?, slug = ?, description = ?, parent_id = ?, seo_title=?, meta_description=?, cover_url=? WHERE id = ?',
                 [$name, $slug, $description, $parentId, $seo['seo_title'], $seo['meta_description'], $cover, $id]
             );
+            foreach ($oldPathsById as $categoryId => $oldPaths) {
+                $current = DB::fetchOne('SELECT id, slug, parent_id FROM categories WHERE id = ?', [$categoryId]);
+                if ($current !== null) PermalinkRedirects::recordPaths('category', $oldPaths, Permalinks::path('category', $current), Permalinks::paths('category', $current));
+            }
             return ['id' => $id, 'created' => false];
         }
 
@@ -192,6 +223,8 @@ final class CategoriesController extends AdminController
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())',
             [$name, $slug, $description, $parentId, $sortOrder, $seo['seo_title'], $seo['meta_description'], $cover]
         );
-        return ['id' => (int) DB::pdo()->lastInsertId(), 'created' => true];
+        $newId = (int) DB::pdo()->lastInsertId();
+        PermalinkRedirects::forgetPaths(Permalinks::paths('category', ['id' => $newId, 'slug' => $slug]));
+        return ['id' => $newId, 'created' => true];
     }
 }

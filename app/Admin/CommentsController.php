@@ -57,7 +57,7 @@ final class CommentsController extends AdminController
         $items = DB::fetchAll(
             "SELECT c.*, COALESCE(p.title, pg.title) AS post_title, COALESCE(p.slug, pg.slug) AS post_slug,
                     CASE WHEN c.page_id IS NULL THEN 'post' ELSE 'page' END AS target_type,
-                    CASE WHEN c.page_id IS NULL THEN CONCAT('/post/',p.slug) ELSE CONCAT('/pages/',pg.slug) END AS target_path,
+                    p.published_at AS post_published_at, p.created_at AS post_created_at,
                     parent.author_name AS parent_name
              FROM comments c
              LEFT JOIN posts p ON p.id = c.post_id
@@ -70,6 +70,15 @@ final class CommentsController extends AdminController
             array_merge($statusParams, $postParams, $scope['params'])
         );
 
+        foreach ($items as &$item) {
+            $type = (string) $item['target_type'];
+            $item['target_path'] = \Pafish\Services\Permalinks::path($type, [
+                'slug' => $item['post_slug'],
+                'published_at' => $item['post_published_at'] ?? null,
+                'created_at' => $item['post_created_at'] ?? null,
+            ]);
+        }
+        unset($item);
         $postTitle = '';
         if ($postId > 0) {
             $postTitle = (string) DB::value(

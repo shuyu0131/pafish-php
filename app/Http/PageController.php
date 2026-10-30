@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pafish\Http;
 
 use Pafish\Services\ContentRepository;
+use Pafish\Services\Permalinks;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -17,9 +18,15 @@ final class PageController
     public function show(Request $request, Response $response, array $args): Response
     {
         $slug = rawurldecode((string) ($args['slug'] ?? ''));
+        $parsed = Permalinks::entityFromPath('page', Permalinks::requestPath($request));
+        if ($parsed !== null) $slug = (string) $parsed['slug'];
         $page = ContentRepository::publishedPageBySlug($slug);
         if (!$page) {
             return Listings::notFound($response, '页面不存在');
+        }
+        if ($parsed !== null) {
+            $redirect = Permalinks::canonicalRedirect($request, $response, Permalinks::path('page', $page));
+            if ($redirect !== null) return $redirect;
         }
 
         // meta description：正文去 Markdown 标记取前 120 字

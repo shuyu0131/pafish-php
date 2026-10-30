@@ -194,17 +194,53 @@ CREATE TABLE IF NOT EXISTS links (
   PRIMARY KEY (id)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT='友情链接';
 
+-- 导航菜单组
+CREATE TABLE IF NOT EXISTS nav_menus (
+  id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '菜单组主键',
+  name       VARCHAR(100) NOT NULL COMMENT '菜单组名称',
+  slug       VARCHAR(100) NOT NULL COMMENT '主题调用用的唯一标识',
+  is_primary TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否作为主题默认菜单',
+  sort_order INT NOT NULL DEFAULT 0 COMMENT '后台菜单组顺序',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_nav_menus_slug (slug),
+  KEY idx_nav_menus_primary (is_primary, sort_order, id)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT='具名导航菜单组';
+
+INSERT INTO nav_menus (id, name, slug, is_primary, sort_order)
+VALUES (1, '主导航', 'main', 1, 0)
+ON DUPLICATE KEY UPDATE name = VALUES(name), is_primary = 1;
+
 -- 导航菜单项
 CREATE TABLE IF NOT EXISTS nav_items (
   id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '记录主键',
+  item_type   VARCHAR(16)     NOT NULL DEFAULT 'link' COMMENT 'link/group/home/archive/search/category/tag/page/post',
   label       VARCHAR(100)    NOT NULL COMMENT '导航显示文字',
   url         VARCHAR(500)    NOT NULL COMMENT '媒体或链接地址',
   sort_order  INT             NOT NULL DEFAULT 0 COMMENT '显示顺序',
   visible     TINYINT(1)      NOT NULL DEFAULT 1 COMMENT '前台是否显示',
-  is_external TINYINT(1)      NOT NULL DEFAULT 0 COMMENT '现有导航同时用它控制站外地址处理和新窗口，语义待拆分',
+  is_external TINYINT(1)      NOT NULL DEFAULT 0 COMMENT '外部链接是否新窗口打开',
+  parent_id   BIGINT UNSIGNED NULL COMMENT '父菜单项 ID；NULL 表示顶级导航',
+  menu_id     BIGINT UNSIGNED NOT NULL DEFAULT 1 COMMENT '所属菜单组',
+  category_id BIGINT UNSIGNED NULL COMMENT '关联分类；NULL 表示自定义链接',
+  page_id     BIGINT UNSIGNED NULL COMMENT '关联已发布页面',
+  post_id     BIGINT UNSIGNED NULL COMMENT '关联已发布文章',
+  tag_id      BIGINT UNSIGNED NULL COMMENT '关联标签',
   created_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   PRIMARY KEY (id),
-  KEY idx_nav_items_sort (sort_order)
+  KEY idx_nav_items_sort (sort_order),
+  KEY idx_nav_items_menu_parent_sort (menu_id, parent_id, sort_order, id),
+  KEY idx_nav_items_parent_sort (parent_id, sort_order, id),
+  KEY idx_nav_items_category (category_id),
+  KEY idx_nav_items_page (page_id),
+  KEY idx_nav_items_post (post_id),
+  KEY idx_nav_items_tag (tag_id),
+  CONSTRAINT fk_nav_items_parent FOREIGN KEY (parent_id) REFERENCES nav_items (id) ON DELETE SET NULL,
+  CONSTRAINT fk_nav_items_menu FOREIGN KEY (menu_id) REFERENCES nav_menus (id) ON DELETE CASCADE,
+  CONSTRAINT fk_nav_items_category FOREIGN KEY (category_id) REFERENCES categories (id) ON DELETE CASCADE,
+  CONSTRAINT fk_nav_items_page FOREIGN KEY (page_id) REFERENCES pages (id) ON DELETE CASCADE,
+  CONSTRAINT fk_nav_items_post FOREIGN KEY (post_id) REFERENCES posts (id) ON DELETE CASCADE,
+  CONSTRAINT fk_nav_items_tag FOREIGN KEY (tag_id) REFERENCES tags (id) ON DELETE CASCADE
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT='导航菜单';
 
 -- 侧边栏组件
@@ -373,3 +409,14 @@ CREATE TABLE IF NOT EXISTS entity_meta (
   KEY idx_entity_meta_lookup (subject_type, scope, key_hash, subject_id),
   KEY idx_entity_meta_owner (scope, subject_type, subject_id)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT='核心实体扩展字段与字段归属';
+
+-- Changed slugs keep permanent aliases so existing search results remain valid.
+CREATE TABLE IF NOT EXISTS permalink_redirects (
+  old_path    VARCHAR(3072) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT '已失效内容地址；URL 编码的站点内路径，不含部署子目录',
+  old_path_hash BINARY(32) NOT NULL COMMENT '旧路径 SHA-256 索引键，避免依赖超长主键索引',
+  target_path VARCHAR(3072) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT '永久跳转目标路径',
+  content_type VARCHAR(16) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT 'post/page/category/tag',
+  created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '别名创建时间',
+  PRIMARY KEY (old_path_hash),
+  KEY idx_permalink_redirect_target (target_path(191))
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT='内容别名永久跳转';

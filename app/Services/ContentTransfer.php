@@ -6,6 +6,8 @@ namespace Pafish\Services;
 
 use Pafish\Core\Auth;
 use Pafish\Core\DB;
+use Pafish\Services\PermalinkRedirects;
+use Pafish\Services\Permalinks;
 
 final class ContentTransfer
 {
@@ -88,7 +90,31 @@ final class ContentTransfer
                     $seen[$current] = true;
                 }
             }
+            $affectedCategoryIds = [];
+            foreach (array_keys($changedParents) as $changedId) {
+                $affectedCategoryIds += \Pafish\Services\Categories::descendants($treeRows, (int) $changedId);
+            }
+            $createdCategoryIds = [];
+            foreach ($categoryCreated as $slug => $_created) $createdCategoryIds[(int) $categoryIds[$slug]] = true;
+            $oldCategoryPaths = [];
+            foreach (array_keys($affectedCategoryIds) as $categoryId) {
+                if (isset($createdCategoryIds[(int) $categoryId])) continue;
+                $category = DB::fetchOne('SELECT id,slug,parent_id FROM categories WHERE id=?', [(int) $categoryId]);
+                if ($category !== null) $oldCategoryPaths[(int) $categoryId] = Permalinks::paths('category', $category);
+            }
             foreach ($changedParents as $id=>$parentId) DB::execute('UPDATE categories SET parent_id=? WHERE id=?', [$parentId,$id]);
+            foreach ($oldCategoryPaths as $categoryId => $oldPaths) {
+                $current = DB::fetchOne('SELECT id,slug,parent_id FROM categories WHERE id=?', [$categoryId]);
+                if ($current === null) continue;
+                $newPaths = Permalinks::paths('category', $current);
+                if ($oldPaths !== $newPaths) {
+                    PermalinkRedirects::recordPaths('category', $oldPaths, Permalinks::path('category', $current), $newPaths);
+                }
+            }
+            foreach ($categoryIds as $categoryId) {
+                $category = DB::fetchOne('SELECT id,slug,parent_id FROM categories WHERE id=?', [(int) $categoryId]);
+                if ($category !== null) PermalinkRedirects::forgetPaths(Permalinks::paths('category', $category));
+            }
             $tagIds = [];
             foreach (($payload['tags'] ?? []) as $row) {
                 $slug = trim((string) ($row['slug'] ?? '')); if ($slug === '') continue;
@@ -100,10 +126,12 @@ final class ContentTransfer
                     $tagIds[$slug] = (int) $existing['id'];
                     if ($mode === 'update') DB::execute('UPDATE tags SET name=?,description=?,seo_title=?,meta_description=? WHERE id=?',
                         [$row['name'] ?? $existing['name'],$description,$seo['seo_title'],$seo['meta_description'],$existing['id']]);
+                    PermalinkRedirects::forgetPaths(Permalinks::paths('tag', ['slug' => $slug]));
                     continue;
                 }
                 DB::execute('INSERT INTO tags (name, slug, description, seo_title, meta_description) VALUES (?, ?, ?, ?, ?)', [(string) ($row['name'] ?? $slug), $slug,$description,$seo['seo_title'],$seo['meta_description']]);
                 $tagIds[$slug] = DB::lastInsertId(); $counts['tags']++;
+                PermalinkRedirects::forgetPaths(Permalinks::paths('tag', ['slug' => $slug]));
             }
             foreach (($payload['pages'] ?? []) as $row) {
                 self::upsertPage($row, $mode, $counts);
@@ -113,6 +141,7 @@ final class ContentTransfer
             }
         });
         \Pafish\Core\Cache::clearPrefix('categories.');
+        \Pafish\Core\Cache::clearPrefix('nav.');
         return $counts;
     }
 
@@ -122,16 +151,21 @@ final class ContentTransfer
         $contentFormat = Content::format($row['content_format'] ?? 'markdown');
         if ($contentFormat === 'html') $row['content'] = Content::sanitize((string) ($row['content'] ?? ''));
         $existing = DB::fetchOne('SELECT * FROM pages WHERE slug = ?', [$slug]);
-        if ($existing && $mode === 'skip') return;
+        if ($existing && $mode === 'skip') {
+            PermalinkRedirects::forgetPaths(Permalinks::paths('page', ['slug' => $slug]));
+            return;
+        }
         $seo = Content::seoFields($row, $existing ?? []);
         $allowComments = $row['allow_comments'] ?? $existing['allow_comments'] ?? 1;
         if (!in_array($allowComments, [true, false, 1, 0, '1', '0'], true)) throw new \RuntimeException('评论开关无效');
         $values = [(string) ($row['title'] ?? $slug), (string) ($row['content'] ?? ''), (string) ($row['status'] ?? 'DRAFT'), (string) ($row['template'] ?? 'default'), $row['published_at'] ?? null, (int) (bool) $allowComments];
         if ($existing) { DB::execute('UPDATE pages SET title = ?, content = ?, status = ?, template = ?, published_at = ?, allow_comments=? WHERE id = ?', [...$values, (int) $existing['id']]); }
-        else { DB::execute('INSERT INTO pages (title, slug, content, status, template, published_at, allow_comments) VALUES (?, ?, ?, ?, ?, ?, ?)', [$values[0], $slug, $values[1], $values[2], $values[3], $values[4], $values[5]]); $counts['pages']++; }
+        else { DB::execute('INSERT INTO pages (title, slug, content, status, template, published_at, allow_comments) VALUES (?, ?, ?, ?, ?, ?, ?)', [$values[0], $slug, $values[1], $values[2], $values[3], $values[4], $values[5]]); $counts['pages']++; PermalinkRedirects::forgetPaths(Permalinks::paths('page', ['slug' => $slug])); }
         DB::execute('UPDATE pages SET content_format = ? WHERE slug = ?', [$contentFormat, $slug]);
         DB::execute('UPDATE pages SET seo_title=?,meta_description=? WHERE slug=?', [$seo['seo_title'],$seo['meta_description'],$slug]);
-        MediaReferences::sync('page', (int) DB::value('SELECT id FROM pages WHERE slug = ?', [$slug]));
+        $pageId = (int) DB::value('SELECT id FROM pages WHERE slug = ?', [$slug]);
+        PermalinkRedirects::forgetPaths(Permalinks::paths('page', ['slug' => $slug]));
+        MediaReferences::sync('page', $pageId);
     }
 
     private static function upsertPost(array $row, string $mode, array $categoryIds, array $tagIds, array &$counts): void
@@ -164,8 +198,17 @@ final class ContentTransfer
         // 导出包的字段是数组；旧 TEXT 镜像需序列化，不能让 PDO 把它写成 "Array"。
         if (is_array($row['custom_fields'] ?? null)) $row['custom_fields'] = json_encode($row['custom_fields'], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
         $values = [(string) ($row['title'] ?? $slug), (string) ($row['excerpt'] ?? ''), (string) ($row['content'] ?? ''), $row['cover_url'] ?? null, (string) ($row['status'] ?? 'DRAFT'), $row['published_at'] ?? null, (int) ($row['is_pinned'] ?? 0), (int) ($row['category_pinned'] ?? 0), $row['password'] ?? null, $row['external_url'] ?? null, $row['custom_fields'] ?? null, $author, $cat];
-        if ($existing) { DB::execute('UPDATE posts SET title=?, excerpt=?, content=?, cover_url=?, status=?, published_at=?, is_pinned=?, category_pinned=?, password=?, external_url=?, custom_fields=?, category_id=? WHERE id=?', [$values[0],$values[1],$values[2],$values[3],$values[4],$values[5],$values[6],$values[7],$values[8],$values[9],$values[10],$values[12],(int)$existing['id']]); $postId = (int) $existing['id']; }
-        else { DB::execute('INSERT INTO posts (title, slug, excerpt, content, cover_url, status, published_at, is_pinned, category_pinned, password, external_url, custom_fields, author_id, category_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [$values[0],$slug,$values[1],$values[2],$values[3],$values[4],$values[5],$values[6],$values[7],$values[8],$values[9],$values[10],$values[11],$values[12]]); $postId = DB::lastInsertId(); $counts['posts']++; }
+        if ($existing) {
+            PermalinkRedirects::recordEntityChange('post', $existing, array_replace($existing, ['slug' => $slug, 'published_at' => $values[5]]));
+            DB::execute('UPDATE posts SET title=?, excerpt=?, content=?, cover_url=?, status=?, published_at=?, is_pinned=?, category_pinned=?, password=?, external_url=?, custom_fields=?, category_id=? WHERE id=?', [$values[0],$values[1],$values[2],$values[3],$values[4],$values[5],$values[6],$values[7],$values[8],$values[9],$values[10],$values[12],(int)$existing['id']]);
+            $postId = (int) $existing['id'];
+        }
+        else {
+            DB::execute('INSERT INTO posts (title, slug, excerpt, content, cover_url, status, published_at, is_pinned, category_pinned, password, external_url, custom_fields, author_id, category_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [$values[0],$slug,$values[1],$values[2],$values[3],$values[4],$values[5],$values[6],$values[7],$values[8],$values[9],$values[10],$values[11],$values[12]]);
+            $postId = DB::lastInsertId(); $counts['posts']++;
+            $newPost = DB::fetchOne('SELECT slug,published_at,created_at FROM posts WHERE id=?', [$postId]);
+            if ($newPost !== null) PermalinkRedirects::forgetPaths(Permalinks::paths('post', $newPost));
+        }
         DB::execute('UPDATE posts SET content_format = ?, template = ? WHERE id = ?', [$contentFormat, $template, $postId]);
         DB::execute('UPDATE posts SET allow_comments=?,seo_title=?,meta_description=? WHERE id=?',
             [(int)(bool)$allowComments,$seo['seo_title'],$seo['meta_description'],$postId]);

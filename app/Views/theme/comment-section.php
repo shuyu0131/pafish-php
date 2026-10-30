@@ -15,7 +15,7 @@ $commentTotalPages = max(1, (int) ($commentTotalPages ?? 1));
 $needReview = $needReview ?? true;
 $captchaEnabled = $captchaEnabled ?? true;
 $user = $user ?? null;
-$baseUrl = (string) ($commentBaseUrl ?? \url_to(($targetType === 'page' ? '/pages/' : '/post/') . rawurlencode((string) ($post['slug'] ?? ''))));
+$baseUrl = (string) ($commentBaseUrl ?? content_url($targetType === 'page' ? 'page' : 'post', $post ?? []));
 $sep = str_contains($baseUrl, '?') ? '&' : '?';
 ?>
 <section id="comments" class="comment-section" data-comment-section data-need-review="<?= $needReview ? '1' : '0' ?>">

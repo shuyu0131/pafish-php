@@ -77,6 +77,7 @@ $editorData = [
     <input type="hidden" name="_idempotency" value="<?= e(\Pafish\Core\Session::requestToken()) ?>">
     <?php if ($submissionMode): ?><input type="hidden" name="post_id" value="<?= $postId ?>"><?php endif; ?>
     <input type="hidden" name="action" id="fAction" value="draft">
+    <input type="hidden" name="slug_auto" id="fSlugAuto" value="<?= !$isEdit && !$submissionMode ? '1' : '0' ?>">
 
     <header class="admin-editor-header">
       <div class="admin-editor-heading">
@@ -239,7 +240,8 @@ $editorData = [
             <div class="admin-advanced-body">
               <div class="admin-field">
                 <label class="label" for="fSlug">别名（Slug）</label>
-                <input class="input" id="fSlug" name="slug" value="<?= e($post['slug']) ?>" placeholder="自动根据标题生成" maxlength="255">
+                <input class="input" id="fSlug" name="slug" value="<?= e($post['slug']) ?>" placeholder="留空自动生成英文或拼音，可自定义" maxlength="255">
+                <span class="admin-field-hint">新建时默认生成小写英文或拼音地址；需要时可直接自定义。</span>
               </div>
               <div class="admin-field">
                 <label class="label" for="fScheduledAt">定时发布时间</label>

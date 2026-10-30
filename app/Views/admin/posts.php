@@ -175,7 +175,7 @@ $canReview = ($role ?? '') === 'ADMIN';
                 <?php endif; ?>
                 <a class="admin-icon-btn" href="<?= e(url_to('/admin/posts/' . $p['id'] . '/edit')) ?>" title="编辑"><?= admin_icon('edit', 15) ?></a>
                 <?php if (!$isTrash && $p['status'] === 'PUBLISHED'): ?>
-                  <a class="admin-icon-btn" href="<?= e(url_to('/post/' . $p['slug'])) ?>" target="_blank" rel="noopener" title="查看"><?= admin_icon('eye', 15) ?></a>
+                  <a class="admin-icon-btn" href="<?= e(content_url('post', $p)) ?>" target="_blank" rel="noopener" title="查看"><?= admin_icon('eye', 15) ?></a>
                 <?php endif; ?>
                 <?php if ($isTrash): ?>
                   <form class="admin-inline-form" method="post" action="<?= e(url_to('/admin/posts/' . $p['id'] . '/restore')) ?>">

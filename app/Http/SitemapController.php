@@ -28,12 +28,12 @@ final class SitemapController
         }
 
         $posts = DB::fetchAll(
-            "SELECT p.slug, p.published_at, p.updated_at FROM posts p
+            "SELECT p.slug, p.published_at, p.created_at, p.updated_at FROM posts p
              WHERE " . Posts::publicWhere('p', false) . "
                AND (p.password IS NULL OR p.password = '')
              ORDER BY p.published_at DESC LIMIT 49998"
         );
-        $categories = DB::fetchAll('SELECT slug FROM categories');
+        $categories = DB::fetchAll('SELECT id, slug FROM categories');
         $tags = DB::fetchAll('SELECT slug FROM tags');
         $pages = array_map(static fn (array $page): array => ['slug' => $page['slug'], 'updated_at' => $page['updated_at']], ContentRepository::publishedPages());
 
@@ -43,21 +43,21 @@ final class SitemapController
         }
         foreach ($posts as $p) {
             $urls[] = [
-                '/post/' . rawurlencode((string) $p['slug']),
+                \Pafish\Services\Permalinks::path('post', $p),
                 ($p['updated_at'] ?? $p['published_at']) ? gmdate('Y-m-d\TH:i:s\Z', strtotime((string) ($p['updated_at'] ?? $p['published_at']))) : null,
                 'weekly',
                 0.8,
             ];
         }
         foreach ($categories as $c) {
-            $urls[] = ['/category/' . rawurlencode((string) $c['slug']), null, 'weekly', 0.5];
+            $urls[] = [\Pafish\Services\Permalinks::path('category', $c), null, 'weekly', 0.5];
         }
         foreach ($tags as $t) {
-            $urls[] = ['/tag/' . rawurlencode((string) $t['slug']), null, 'weekly', 0.4];
+            $urls[] = [\Pafish\Services\Permalinks::path('tag', $t), null, 'weekly', 0.4];
         }
         foreach ($pages as $pg) {
             $urls[] = [
-                '/pages/' . rawurlencode((string) $pg['slug']),
+                \Pafish\Services\Permalinks::path('page', $pg),
                 $pg['updated_at'] ? gmdate('Y-m-d\TH:i:s\Z', strtotime((string) $pg['updated_at'])) : null,
                 'monthly',
                 0.5,

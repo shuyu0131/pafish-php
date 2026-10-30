@@ -32,6 +32,9 @@ final class AuthApiController
     public function login(Request $request, Response $response): Response
     {
         $body = $request->getParsedBody() ?? [];
+        if (!Session::verifyCsrf(is_string($body['_csrf'] ?? null) ? $body['_csrf'] : null)) {
+            return $this->json($response, ['error' => '请求已过期，请刷新页面重试'], 419);
+        }
         $username = trim((string) ($body['username'] ?? ''));
         $password = (string) ($body['password'] ?? '');
         $attempt = LoginService::attempt($request, $username, $password);
@@ -77,11 +80,14 @@ final class AuthApiController
 
     public function register(Request $request, Response $response): Response
     {
+        $body = $request->getParsedBody() ?? [];
+        if (!Session::verifyCsrf(is_string($body['_csrf'] ?? null) ? $body['_csrf'] : null)) {
+            return $this->json($response, ['error' => '请求已过期，请刷新页面重试'], 419);
+        }
         if ((string) Settings::get('allow_registration', 'true') === 'false') {
             return $this->json($response, ['error' => '注册已关闭'], 403);
         }
 
-        $body = $request->getParsedBody() ?? [];
         $username = mb_substr(trim((string) ($body['username'] ?? '')), 0, 50);
         $email = mb_substr(trim((string) ($body['email'] ?? '')), 0, 255);
         $password = (string) ($body['password'] ?? '');
@@ -112,16 +118,6 @@ final class AuthApiController
             return $this->json($response, ['error' => is_array($registerDecision) ? (string) ($registerDecision['error'] ?? '注册被安全策略拒绝') : '注册被安全策略拒绝'], $status);
         }
 
-        // 邮箱验证码：站点开启时必须通过（校验通过后自动标记已使用）；默认开启
-        if ((string) Settings::get('require_email_verify', 'true') !== 'false') {
-            $verifyKey = $this->remoteIp($request) . '|' . strtolower($email) . '|register';
-            if (!RateLimiter::allow('auth-code-verify', $verifyKey, 8, 600)
-                || !EmailCode::verify(strtolower($email), 'register', $code)) {
-                return $this->json($response, ['error' => '验证码错误或已过期'], 400);
-            }
-            RateLimiter::clear('auth-code-verify', $verifyKey);
-        }
-
         $exists = DB::fetchOne(
             'SELECT username, email FROM users WHERE username = ? OR email = ?',
             [$username, $email]
@@ -132,6 +128,18 @@ final class AuthApiController
             ], 409);
         }
 
+        // Don't consume a one-time code for an account that cannot be created because
+        // its username or email is already taken. The user can correct the conflict
+        // without requesting another email.
+        if ((string) Settings::get('require_email_verify', 'true') !== 'false') {
+            $verifyKey = $this->remoteIp($request) . '|' . strtolower($email) . '|register';
+            if (!RateLimiter::allow('auth-code-verify', $verifyKey, 8, 600)
+                || !EmailCode::verify(strtolower($email), 'register', $code)) {
+                return $this->json($response, ['error' => '验证码错误或已过期'], 400);
+            }
+            RateLimiter::clear('auth-code-verify', $verifyKey);
+        }
+
         DB::execute(
             'INSERT INTO users (username, email, password_hash, role) VALUES (?, ?, ?, ?)',
             [$username, $email, password_hash($password, PASSWORD_BCRYPT, ['cost' => 10]), 'USER']
@@ -140,6 +148,7 @@ final class AuthApiController
 
         // 注册后自动登录
         Auth::login($userId);
+        Session::remove('auth_register_email');
         \do_action('after_register', ['id' => (string) $userId, 'username' => $username]);
 
         return $this->json($response, ['ok' => true, 'username' => $username]);
@@ -150,6 +159,9 @@ final class AuthApiController
     public function sendCode(Request $request, Response $response): Response
     {
         $body = $request->getParsedBody() ?? [];
+        if (!Session::verifyCsrf(is_string($body['_csrf'] ?? null) ? $body['_csrf'] : null)) {
+            return $this->json($response, ['error' => '请求已过期，请刷新页面重试'], 419);
+        }
         $email = strtolower(trim((string) ($body['email'] ?? '')));
         $purpose = (string) ($body['purpose'] ?? '');
 
@@ -180,6 +192,8 @@ final class AuthApiController
         if ($purpose === 'reset') {
             $user = DB::fetchOne('SELECT id, disabled FROM users WHERE email = ?', [$email]);
             if (!$user || (int) $user['disabled'] === 1) {
+                EmailCode::forget('reset');
+                Session::set('auth_reset_email', $email);
                 return $this->json($response, ['ok' => true]);
             }
         }
@@ -193,8 +207,11 @@ final class AuthApiController
             Notify::sendEmailCode($email, $code, $purpose);
         } catch (\Throwable) {
             EmailCode::forget($purpose);
+            Session::remove($purpose === 'register' ? 'auth_register_email' : 'auth_reset_email');
             return $this->json($response, ['error' => '邮件服务未配置或发送失败，请联系管理员'], 400);
         }
+
+        Session::set($purpose === 'register' ? 'auth_register_email' : 'auth_reset_email', $email);
 
         return $this->json($response, ['ok' => true]);
     }
@@ -202,6 +219,9 @@ final class AuthApiController
     public function resetByCode(Request $request, Response $response): Response
     {
         $body = $request->getParsedBody() ?? [];
+        if (!Session::verifyCsrf(is_string($body['_csrf'] ?? null) ? $body['_csrf'] : null)) {
+            return $this->json($response, ['error' => '请求已过期，请刷新页面重试'], 419);
+        }
         $email = strtolower(trim((string) ($body['email'] ?? '')));
         $code = trim((string) ($body['code'] ?? ''));
         $newPassword = (string) ($body['newPassword'] ?? '');
@@ -236,6 +256,8 @@ final class AuthApiController
         });
         if ($changed !== 1) return $this->json($response, ['error' => '验证码错误或已过期'], 400);
 
+        Session::remove('auth_reset_email');
+
         return $this->json($response, ['ok' => true]);
     }
 
@@ -244,6 +266,9 @@ final class AuthApiController
     public function forgot(Request $request, Response $response): Response
     {
         $body = $request->getParsedBody() ?? [];
+        if (!Session::verifyCsrf(is_string($body['_csrf'] ?? null) ? $body['_csrf'] : null)) {
+            return $this->json($response, ['error' => '请求已过期，请刷新页面重试'], 419);
+        }
         $email = strtolower(trim((string) ($body['email'] ?? '')));
 
         if (!preg_match('/^[^@\s]+@[^@\s]+\.[^@\s]+$/', $email)) {
@@ -292,6 +317,9 @@ final class AuthApiController
     public function reset(Request $request, Response $response): Response
     {
         $body = $request->getParsedBody() ?? [];
+        if (!Session::verifyCsrf(is_string($body['_csrf'] ?? null) ? $body['_csrf'] : null)) {
+            return $this->json($response, ['error' => '请求已过期，请刷新页面重试'], 419);
+        }
         $token = (string) ($body['token'] ?? '');
         $password = (string) ($body['password'] ?? '');
 
@@ -322,6 +350,8 @@ final class AuthApiController
             return $changed;
         });
         if ($changed !== 1) return $this->json($response, ['error' => '重置链接无效或已过期'], 400);
+
+        Session::remove('auth_reset_email');
 
         return $this->json($response, ['ok' => true]);
     }

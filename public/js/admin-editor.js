@@ -134,7 +134,7 @@
       type: "post",
       mount: mount,
       field: els.content,
-      placeholder: "开始写作…（支持拖拽/粘贴图片上传）",
+      placeholder: DATA.uploadUrl ? "开始写作…（支持拖拽/粘贴图片上传）" : "开始写作…",
       previewUrl: DATA.previewUrl,
       uploadUrl: DATA.uploadUrl,
       externalMedia: false,
@@ -578,7 +578,7 @@
 
   // ---------- 媒体弹窗 ----------
   function openModal(mode2, request) {
-    if (modal.uploading) return;
+    if (!DATA.uploadUrl || modal.uploading) return;
     modal.open = true;
     modal.mode = mode2 || "insert";
     modal.imagesOnly = modal.mode === 'cover' || !!(request && request.imagesOnly);

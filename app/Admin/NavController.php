@@ -292,7 +292,7 @@ final class NavController extends AdminController
             $slug = (string) DB::value('SELECT slug FROM nav_menus WHERE id = ?', [$id]);
         } else {
             $base = \Pafish\Services\Slug::slugify($name);
-            $slug = \Pafish\Services\Slug::resolveUnique($base, static fn (string $candidate): bool => DB::fetchOne('SELECT id FROM nav_menus WHERE slug = ?', [$candidate]) !== null);
+            $slug = \Pafish\Services\Slug::resolveUniqueWithinLength($base, static fn (string $candidate): bool => DB::fetchOne('SELECT id FROM nav_menus WHERE slug = ?', [$candidate]) !== null, 100);
             $order = (int) DB::value('SELECT COALESCE(MAX(sort_order), -1) + 1 FROM nav_menus');
             DB::execute('INSERT INTO nav_menus (name, slug, is_primary, sort_order) VALUES (?, ?, 0, ?)', [$name, $slug, $order]);
         }
@@ -324,7 +324,7 @@ final class NavController extends AdminController
         try {
             $name = mb_substr((string) $source['name'] . ' 副本', 0, 100);
             $base = \Pafish\Services\Slug::slugify($name);
-            $slug = \Pafish\Services\Slug::resolveUnique($base, static fn (string $candidate): bool => DB::fetchOne('SELECT id FROM nav_menus WHERE slug = ?', [$candidate]) !== null);
+            $slug = \Pafish\Services\Slug::resolveUniqueWithinLength($base, static fn (string $candidate): bool => DB::fetchOne('SELECT id FROM nav_menus WHERE slug = ?', [$candidate]) !== null, 100);
             $newMenuId = \Pafish\Services\MediaReferences::transaction(static function () use ($sourceId, $name, $slug): int {
                 $order = (int) DB::value('SELECT COALESCE(MAX(sort_order), -1) + 1 FROM nav_menus');
                 DB::execute('INSERT INTO nav_menus (name, slug, is_primary, sort_order) VALUES (?, ?, 0, ?)', [$name, $slug, $order]);

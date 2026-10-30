@@ -118,6 +118,17 @@ final class AuthApiController
             return $this->json($response, ['error' => is_array($registerDecision) ? (string) ($registerDecision['error'] ?? '注册被安全策略拒绝') : '注册被安全策略拒绝'], $status);
         }
 
+        if ((string) Settings::get('require_email_verify', 'true') !== 'false') {
+            $verifyKey = $this->remoteIp($request) . '|' . strtolower($email) . '|register';
+            if (!RateLimiter::allow('auth-code-verify', $verifyKey, 8, 600)
+                || !EmailCode::verify(strtolower($email), 'register', $code)) {
+                return $this->json($response, ['error' => '验证码错误或已过期'], 400);
+            }
+            RateLimiter::clear('auth-code-verify', $verifyKey);
+        }
+
+        // When verification is enabled, disclose account conflicts only after the
+        // caller proves control of the mailbox, avoiding an account-existence oracle.
         $exists = DB::fetchOne(
             'SELECT username, email FROM users WHERE username = ? OR email = ?',
             [$username, $email]
@@ -126,18 +137,6 @@ final class AuthApiController
             return $this->json($response, [
                 'error' => ($exists['username'] === $username) ? '用户名已被占用' : '邮箱已被注册',
             ], 409);
-        }
-
-        // Don't consume a one-time code for an account that cannot be created because
-        // its username or email is already taken. The user can correct the conflict
-        // without requesting another email.
-        if ((string) Settings::get('require_email_verify', 'true') !== 'false') {
-            $verifyKey = $this->remoteIp($request) . '|' . strtolower($email) . '|register';
-            if (!RateLimiter::allow('auth-code-verify', $verifyKey, 8, 600)
-                || !EmailCode::verify(strtolower($email), 'register', $code)) {
-                return $this->json($response, ['error' => '验证码错误或已过期'], 400);
-            }
-            RateLimiter::clear('auth-code-verify', $verifyKey);
         }
 
         DB::execute(

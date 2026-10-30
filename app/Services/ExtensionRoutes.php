@@ -15,9 +15,9 @@ final class ExtensionRoutes
     private const PARAM_PATTERN = '/^\{[a-z][a-z0-9_]{0,30}\}$/';
     private const SEGMENT_PATTERN = '/^[a-z0-9_-]{1,50}$/';
     private const RESERVED_FIRST_SEGMENTS = [
-        'admin', 'api', 'archives', 'category', 'css', 'js', 'login', 'pages', 'plugin',
+        'admin', 'api', 'archives', 'categories', 'category', 'css', 'fonts', 'js', 'login', 'page', 'pages', 'plugin',
         'post', 'profile', 'user', 'register', 'reset-password', 'forgot-password', 'search', 'tag', 'micro',
-        'theme-assets', 'themes', 'uploads', 'rss.xml', 'sitemap.xml', 'robots.txt',
+        'tags', 'theme-assets', 'themes', 'uploads', 'vendor', 'rss.xml', 'sitemap.xml', 'robots.txt',
     ];
 
     /** 校验 manifest 中 routes 的结构。 */

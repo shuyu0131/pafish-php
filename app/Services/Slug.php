@@ -7,16 +7,16 @@ namespace Pafish\Services;
 /** Shared slug normalization and collision suffixing for all content types. */
 final class Slug
 {
-    /** Generate a lowercase ASCII slug, transliterating Chinese titles to pinyin. */
+    /** Generate a normalized slug, using pinyin transliteration when intl is available. */
     public static function slugify(string $input): string
     {
-        $transliterator = class_exists(\Transliterator::class)
-            ? \Transliterator::create('Any-Latin; Latin-ASCII; Lower()')
-            : null;
-        if ($transliterator === null) {
-            throw new \RuntimeException('自动生成英文或拼音地址需要 PHP intl 扩展');
+        $source = trim($input);
+        if (class_exists(\Transliterator::class)) {
+            $transliterator = \Transliterator::create('Any-Latin; Latin-ASCII; Lower()');
+            if ($transliterator !== null) {
+                $source = $transliterator->transliterate($source);
+            }
         }
-        $source = $transliterator->transliterate(trim($input));
         $slug = self::normalize($source);
         return $slug !== '' ? $slug : 'post-' . date('YmdHis') . '-' . bin2hex(random_bytes(3));
     }

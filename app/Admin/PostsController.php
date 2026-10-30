@@ -832,7 +832,7 @@ final class PostsController extends AdminController
             \Pafish\Services\PermalinkRedirects::recordEntityChange('post', $existing, array_replace($existing, [
                 'slug' => $slug,
                 'status' => $status,
-                'published_at' => $publishedAt ?? ($existing['published_at'] ?? null),
+                'published_at' => $publishedAt,
             ]));
             DB::execute(
                 'UPDATE posts SET title = ?, slug = ?, excerpt = ?, content = ?, content_format = ?, cover_url = ?, status = ?,

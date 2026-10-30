@@ -33,7 +33,7 @@ final class ApiController extends AdminController
     /** POST /api/upload：multipart 上传（兼容历史 file[] 多文件与当前单文件调用） */
     public function upload(Request $request, Response $response): Response
     {
-        $guard = $this->guardJson($request, $response, true);
+        $guard = $this->guardJson($request, $response, true, true, false);
         if ($guard !== null) {
             return $guard;
         }
@@ -448,12 +448,12 @@ final class ApiController extends AdminController
     }
 
     /** 未登录/无权限时返回 JSON 401/403（而非重定向） */
-    private function guardJson(Request $request, Response $response, bool $allowSubmissionUser = false, bool $requiresOpenSubmissions = true): ?Response
+    private function guardJson(Request $request, Response $response, bool $allowSubmissionUser = false, bool $requiresOpenSubmissions = true, bool $defaultSubmissionsEnabled = true): ?Response
     {
         if (!Auth::check()) {
             return $this->json($response, ['error' => '未登录'], 401);
         }
-        if (!Auth::canManagePosts() && !($allowSubmissionUser && (!$requiresOpenSubmissions || Settings::get('submissions_enabled', 'true') === 'true'))) {
+        if (!Auth::canManagePosts() && !($allowSubmissionUser && (!$requiresOpenSubmissions || Settings::get('submissions_enabled', $defaultSubmissionsEnabled ? 'true' : 'false') === 'true'))) {
             return $this->json($response, ['error' => '无权限'], 403);
         }
         return null;

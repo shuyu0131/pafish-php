@@ -2,7 +2,6 @@
 /**
  * 前台页头（系统默认模板；主题可覆盖 themes/{active}/header.php）
  * 可用数据：$title / $description（控制器传入，可选）
- * 前台布局：左侧 40% 侧边栏（桌面）+ 右侧 60% 内容栏 + 移动端顶栏
  */
 $pageTitle = $seoTitle ?? $title ?? '';
 $desc = $description ?? (string) settings('site_description', '');
@@ -12,7 +11,7 @@ $activeTheme = Theme::active();
 $themeCss = Theme::css($activeTheme);
 $layoutCss = Theme::layoutCss($activeTheme);
 $themeHasIconFields = \Pafish\Services\ExtensionKernel::hasSettingType(Theme::settingsFields($activeTheme), 'icon');
-// 侧栏属于主题布局选择；系统兜底模板仅在主题明确声明时开启。
+// 侧栏属于主题布局选择；系统模板仅在主题明确声明时开启。
 $showSidebar = theme_value('sidebar_enabled', '0') !== '0';
 $navItems = nav_items();
 $navTree = nav_tree($navItems);
@@ -127,8 +126,15 @@ window.pafishApi = function (p) {
 
   <?php /* 桌面顶栏 */ ?>
   <header class="app-header">
-    <?php /* public-nav.php 自身即输出 <nav class="app-nav">，此处不可再包一层，否则 nav landmark 重复 */ ?>
-    <?= render_partial('public-nav', ['items' => $navItems, 'tree' => $navTree]) ?>
+    <?php if ($activeTheme === 'default'): ?>
+    <div class="app-header-nav">
+      <a href="<?= e(url_to('/')) ?>" class="app-brand-top"><?= e($siteName) ?></a>
+      <?php /* public-nav.php 自身即输出 <nav class="app-nav" />，此处只包布局容器。 */ ?>
+      <?= render_partial('public-nav', ['items' => $navItems, 'tree' => $navTree]) ?>
+    </div>
+    <?php else: ?>
+      <?= render_partial('public-nav', ['items' => $navItems, 'tree' => $navTree]) ?>
+    <?php endif; ?>
     <div class="app-header-tools">
       <?= render_partial('site-search') ?>
       <?php if ($loggedIn): ?>

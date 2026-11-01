@@ -1,20 +1,18 @@
-/* ==========================================================================
-   pafish PHP 版前台样式：保留语义变量、组件类和 md-content 排版。
-   ========================================================================== */
+/* pafish 默认主题前台样式。 */
 
-/* ============ 设计令牌：黑白极简 ============ */
+/* ============ 设计令牌 ============ */
 :root {
-  --bg: #ffffff;
-  --fg: #464646;
-  --muted: #8f8f8f;
+  --bg: #fbfaf8;
+  --fg: #344054;
+  --muted: #667085;
   --card: #ffffff;
-  --border: #f2f2f2;
-  --accent: #171717;
-  --accent-soft: rgba(23, 23, 23, 0.08);
-  --danger: #b4543f;
-  --title: #5f5f5f;
-  --meta: #bbbbbb;
-  --side: #565654;
+  --border: #e4e7ec;
+  --accent: #58799e;
+  --accent-soft: #edf3f8;
+  --danger: #c2413b;
+  --title: #1d2939;
+  --meta: #98a2b3;
+  --side: #52606d;
   /* 西文先落到平台 UI 字体，中文再由各级系统字体接管，避免中文走西文字体的回退字形 */
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
     "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC",
@@ -22,21 +20,20 @@
   --font-mono: "JetBrains Mono", "Consolas", "Courier New", monospace;
   --radius: 2px;
   --card-radius: 2px;
-  --sidebar-footer-height: 5.5rem;
 }
 
 .dark {
-  --bg: #161616;
-  --fg: #d6d6d6;
-  --muted: #8a8a8a;
-  --card: #1c1c1c;
-  --border: #333333;
-  --accent: #f2f2f2;
-  --accent-soft: rgba(242, 242, 242, 0.12);
-  --danger: #d47a63;
-  --title: #c9c9c9;
-  --meta: #7d7d7d;
-  --side: #a8a8a8;
+  --bg: #101820;
+  --fg: #d7e0e8;
+  --muted: #93a4b2;
+  --card: #15212b;
+  --border: #293946;
+  --accent: #9fc4e2;
+  --accent-soft: #1d3040;
+  --danger: #ed8a7d;
+  --title: #f0f4f8;
+  --meta: #7d909f;
+  --side: #b2c1cc;
 }
 
 * {
@@ -137,66 +134,11 @@ img {
   background: var(--bg);
 }
 
-/* 侧边栏：桌面固定 40%，移动端隐藏 */
-/* 左栏是独立滚动区：上不压顶栏，下停在页脚上沿。
-   组件再多也只在这一列内部滚动，不会把整栏拉长去挤占正文。 */
-.app-sidebar {
-  position: fixed;
-  inset: 0 auto var(--sidebar-footer-height) 0;
-  z-index: 40;
-  display: none;
-  flex-direction: column;
-  align-items: center;
-  width: 40%;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  border-right: 1px solid var(--border);
-  background: var(--card);
-  /* 品牌区位置保持原样；组件超出时只在这一列内部滚动 */
-  padding: 12rem 0 2.5rem;
-}
-@media (min-width: 1024px) {
-  .app-sidebar {
-    display: flex;
-  }
-}
-
-.app-brand {
-  display: block;
-  flex-shrink: 0;
-  width: 100%;
-  padding: 0 2rem 2rem;
-  text-align: center;
-}
-.app-brand-name {
-  display: block;
-  font-size: 1.5rem;
-  font-weight: 600;
-  line-height: 1.2;
-  letter-spacing: 1px;
-  color: var(--fg);
-}
-.app-brand-sub {
-  display: block;
-  margin-top: 1rem;
-  font-size: 0.875rem;
-  color: var(--side);
-}
-
-/* 右侧内容栏（60%） */
+/* 内容栏 */
 .app-content {
   min-height: 100vh;
 }
-@media (min-width: 1024px) {
-  .app-content {
-    margin-left: 40%;
-  }
-  .app-content-full {
-    margin-left: 0;
-  }
-}
-
-/* 桌面顶栏：固定 60% 宽 */
+/* 桌面顶栏 */
 .app-header {
   position: fixed;
   top: 0;
@@ -386,7 +328,7 @@ img {
   }
 }
 
-/* 页脚：桌面固定在左侧栏底部，移动端回到正文末尾 */
+/* 页脚 */
 .app-footer {
   display: block;
   border-top: 1px solid var(--border);
@@ -401,28 +343,6 @@ img {
   max-width: 48rem;
   margin: 0 auto;
   padding: 1.25rem 1.5rem 1.75rem;
-}
-@media (min-width: 1024px) {
-  .app-footer[data-theme-footer="default"] {
-    display: block;
-    position: fixed;
-    z-index: 41;
-    left: 0;
-    bottom: 0;
-    width: 40%;
-
-    box-sizing: border-box;
-    height: var(--sidebar-footer-height);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-top: 1px solid var(--border);
-    background: var(--card);
-    padding: 0.75rem 0;
-  }
-  .app-footer[data-theme-footer="default"] .app-footer-inner {
-    padding: 0 2rem;
-  }
 }
 .app-footer p {
   margin: 0;
@@ -863,120 +783,6 @@ input[type="radio"]:focus-visible {
   margin: 1rem 0;
   object-fit: cover;
   border-radius: 2px;
-}
-
-/* ============ 侧边栏组件区 ============ */
-.sidebar-widget {
-  width: 100%;
-  max-width: 24rem;
-  padding: 0 2rem;
-  margin-top: 2.25rem;
-}
-.sidebar-widget:first-of-type {
-  margin-top: 2.5rem;
-}
-
-.sidebar-widget-title {
-  margin: 0 0 0.7rem;
-  font-size: 0.75rem;
-  font-weight: 400;
-  /* 中文标题不需要宽字距，0.16em 会把四个字拉成散点 */
-  letter-spacing: 0.06em;
-  text-align: left;
-  color: var(--meta);
-}
-.widget-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  text-align: left;
-}
-.widget-list li {
-  padding: 0.35rem 0;
-  font-size: 0.875rem;
-  color: var(--muted);
-}
-.widget-list a {
-  color: var(--side);
-  transition: color 0.15s ease;
-}
-.widget-list a:hover {
-  color: var(--accent);
-}
-/* 文章 / 评论列表每行只占一行：标题长短不一时用省略号收口，避免折行参差 */
-.widget-posts li a,
-.widget-comments li {
-  display: block;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.widget-comments li {
-  text-align: left;
-}
-.widget-cat {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.75rem;
-}
-.widget-cat-child {
-  padding-left: 0;
-}
-/* 子分类用更浅的墨色区分层级，缩进交给右侧留白 */
-.sidebar-widget--categories .widget-cat-child {
-  padding-left: 0.75rem;
-}
-.widget-count {
-  font-size: 0.75rem;
-  color: var(--meta);
-}
-.widget-tags {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-start;
-  gap: 0.5rem;
-}
-.widget-tag {
-  font-size: 0.75rem;
-  color: var(--side);
-  border: 1px solid var(--border);
-  border-radius: 2px;
-  padding: 0.25rem 0.7rem;
-  transition: all 0.15s ease;
-}
-.widget-tag:hover {
-  color: var(--accent);
-  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
-}
-.widget-comment-author {
-  color: var(--fg);
-}
-.widget-custom {
-  font-size: 0.875rem;
-  color: var(--muted);
-  line-height: 1.7;
-  word-break: break-word;
-}
-.widget-custom-line {
-  margin: 0;
-  text-align: left;
-  font-size: 0.875rem;
-  color: var(--side);
-  line-height: 1.7;
-  word-break: break-word;
-}
-.widget-custom-line + .widget-custom-line {
-  margin-top: 0.5rem;
-}
-.widget-custom-line a {
-  color: var(--side);
-  text-decoration: none;
-  transition: color 0.15s ease;
-}
-.widget-custom-line a:hover {
-  color: var(--accent);
 }
 
 /* ============ 顶栏搜索（折叠式） ============ */
@@ -2069,4 +1875,267 @@ input[type="radio"]:focus-visible {
   padding: 0 0.5rem;
   font-size: 0.875rem;
   color: var(--muted);
+}
+
+/* ============ 默认主题：单栏阅读布局 ============ */
+.app-sidebar {
+  display: none !important;
+}
+
+.app-content,
+.app-content-full {
+  margin-left: 0 !important;
+}
+
+.app-header-nav {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: 2rem;
+}
+
+.app-brand-top {
+  flex-shrink: 0;
+  color: var(--title);
+  font-size: 1.05rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  transition: color 0.15s ease;
+}
+
+.app-brand-top:hover {
+  color: var(--accent);
+}
+
+.app-header-nav .app-nav {
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.app-header-nav .app-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.app-header-tools {
+  flex-shrink: 0;
+}
+
+.app-main {
+  padding-top: 0;
+}
+
+.app-header-mobile {
+  position: sticky;
+  top: 0;
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  backdrop-filter: blur(12px);
+}
+
+.app-brand-mobile {
+  color: var(--title);
+}
+
+.app-footer[data-theme-footer="default"] {
+  position: static;
+  width: auto;
+  height: auto;
+  display: block;
+  border-top: 1px solid var(--border);
+  background: transparent;
+  padding: 0;
+}
+
+.app-footer[data-theme-footer="default"] .app-footer-inner {
+  max-width: 58rem;
+  padding: 1.5rem 2rem 2.5rem;
+}
+
+.container {
+  max-width: 58rem;
+  padding: 4.5rem 2rem 5rem;
+}
+
+.post-list {
+  max-width: 52rem;
+  margin: 0 auto;
+}
+
+.post-card {
+  padding: 2.75rem 0;
+}
+
+.post-card:first-child {
+  padding-top: 0;
+}
+
+.post-card-cover {
+  margin-bottom: 1.5rem;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--title) 8%, transparent);
+}
+
+.post-card-title {
+  font-size: clamp(1.4rem, 2.5vw, 2rem);
+  font-weight: 650;
+  letter-spacing: -0.035em;
+  line-height: 1.3;
+}
+
+.post-card-link:hover {
+  color: var(--accent);
+}
+
+.post-card-excerpt {
+  max-width: 46rem;
+  margin-top: 1rem;
+  font-size: 0.98rem;
+  line-height: 1.85;
+  color: var(--fg);
+  opacity: 0.78;
+}
+
+.post-card-meta {
+  margin-top: 1rem;
+  color: var(--meta);
+  letter-spacing: 0.01em;
+}
+
+.post-meta-link:hover {
+  color: var(--accent);
+}
+
+.post-title {
+  max-width: 48rem;
+  font-size: clamp(2.1rem, 5vw, 3.6rem);
+  font-weight: 650;
+  letter-spacing: -0.045em;
+  line-height: 1.12;
+}
+
+.post-head {
+  max-width: 52rem;
+  margin: 0 auto 3rem;
+}
+
+.post-meta {
+  margin-top: 1.5rem;
+  color: var(--meta);
+}
+
+.md-content {
+  max-width: 48rem;
+  margin: 0 auto;
+  font-size: 1.05rem;
+}
+
+.md-content a {
+  color: var(--accent);
+}
+
+.md-content blockquote {
+  border-left-width: 4px;
+  border-left-color: var(--accent);
+  background: color-mix(in srgb, var(--accent-soft) 55%, transparent);
+  padding: 0.75rem 1.25rem;
+}
+
+.listing-head,
+.archive-head,
+.page-header {
+  max-width: 52rem;
+  margin-right: auto;
+  margin-left: auto;
+}
+
+.listing-title,
+.archive-title,
+.page-title {
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  font-weight: 650;
+  letter-spacing: -0.035em;
+}
+
+.eyebrow {
+  letter-spacing: 0.12em;
+  color: var(--accent);
+}
+
+.friend-links {
+  max-width: 52rem;
+  margin-right: auto;
+  margin-left: auto;
+}
+
+.pagination {
+  margin-top: 3rem;
+}
+
+.page-link {
+  border-radius: 6px;
+}
+
+.btn,
+.input {
+  border-radius: 6px;
+}
+
+.card {
+  border-radius: 8px;
+}
+
+@media (min-width: 1024px) {
+  .app-header {
+    position: sticky;
+    top: 0;
+    right: auto;
+    left: 0;
+    width: 100%;
+    height: 72px;
+    padding: 0 max(2rem, calc((100vw - 64rem) / 2));
+    border-bottom-color: color-mix(in srgb, var(--border) 75%, transparent);
+    background: color-mix(in srgb, var(--bg) 92%, transparent);
+    backdrop-filter: blur(12px);
+  }
+
+  .app-header-tools {
+    gap: 0.75rem;
+  }
+
+  .app-nav-list {
+    gap: 1.25rem;
+  }
+
+  .app-nav-link {
+    color: var(--muted);
+  }
+
+  .app-nav-link.active {
+    border-bottom: 2px solid var(--accent);
+    color: var(--title);
+  }
+}
+
+@media (max-width: 700px) {
+  .container {
+    padding: 3rem 1.25rem 4rem;
+  }
+
+  .post-card {
+    padding: 2.25rem 0;
+  }
+
+  .post-title {
+    font-size: clamp(2rem, 10vw, 2.8rem);
+  }
+
+  .md-content {
+    font-size: 1rem;
+  }
+
+  .app-footer[data-theme-footer="default"] .app-footer-inner {
+    padding-right: 1.25rem;
+    padding-left: 1.25rem;
+  }
 }

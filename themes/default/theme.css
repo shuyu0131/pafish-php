@@ -1,31 +1,28 @@
-/* ==========================================================================
-   default：黑白极简语义变量覆盖
-   变量名与系统内置一致（亮 11 个 + .dark 11 个），后台始终用默认配色，本文件只作用于前台
-   ========================================================================== */
+/* 默认主题的颜色令牌；后台配色不受影响。 */
 :root {
-  --bg: #ffffff;
-  --fg: #3a3a3a;
-  --muted: #8a8a8a;
+  --bg: #fbfaf8;
+  --fg: #344054;
+  --muted: #667085;
   --card: #ffffff;
-  --border: #ebebeb;
-  --accent: #171717;
-  --accent-soft: rgba(23, 23, 23, 0.08);
-  --danger: #d9534f;
-  --title: #1a1a1a;
-  --meta: #9a9a9a;
-  --side: #6a6a6a;
+  --border: #e4e7ec;
+  --accent: #58799e;
+  --accent-soft: #edf3f8;
+  --danger: #c2413b;
+  --title: #1d2939;
+  --meta: #98a2b3;
+  --side: #52606d;
 }
 
 .dark {
-  --bg: #1a1a1a;
-  --fg: #c8c8c8;
-  --muted: #888888;
-  --card: #242424;
-  --border: #333333;
-  --accent: #f2f2f2;
-  --accent-soft: rgba(242, 242, 242, 0.12);
-  --danger: #e06c5c;
-  --title: #e8e8e8;
-  --meta: #777777;
-  --side: #a0a0a0;
+  --bg: #101820;
+  --fg: #d7e0e8;
+  --muted: #93a4b2;
+  --card: #15212b;
+  --border: #293946;
+  --accent: #9fc4e2;
+  --accent-soft: #1d3040;
+  --danger: #ed8a7d;
+  --title: #f0f4f8;
+  --meta: #7d909f;
+  --side: #b2c1cc;
 }

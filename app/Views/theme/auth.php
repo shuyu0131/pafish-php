@@ -1,13 +1,12 @@
 <?php
 /**
  * 认证页（登录/注册/找回密码/重置密码；系统默认模板，主题可覆盖）
- * 可用数据：$mode（login|register|forgot|reset）、$siteName、$subtitle、$showRegister、
+ * 可用数据：$mode（login|register|forgot|reset）、$siteName、$showRegister、
  *           $requireVerify、$from（登录后跳转）、$token（重置令牌）
  * 认证页面：独立居中卡片，无博客壳
  */
 $mode = (string) ($mode ?? 'login');
 $siteName = $siteName ?? site_name();
-$subtitle = (string) ($subtitle ?? '');
 $showRegister = (bool) ($showRegister ?? false);
 $requireVerify = (bool) ($requireVerify ?? true);
 $from = (string) ($from ?? '/admin');
@@ -47,7 +46,6 @@ window.pafishApi = function (p) {
     <div class="auth-head">
       <img class="auth-logo" src="<?= e(asset_url('/favicon.svg')) ?>" alt="<?= e($siteName) ?>" width="64" height="64">
       <h1 class="auth-title"><?= e($title) ?></h1>
-      <p class="auth-sub"><?= e($subtitle) ?></p>
     </div>
 
     <?php if ($mode === 'login'): ?>
@@ -87,7 +85,6 @@ window.pafishApi = function (p) {
       <input type="hidden" name="_csrf" value="<?= e($csrf) ?>">
       <input type="hidden" name="_intent" value="send-code">
       <input type="hidden" name="from" value="<?= e($from) ?>">
-      <div class="auth-step"><strong>验证邮箱</strong></div>
       <div>
         <label class="label" for="reg-email-code">邮箱</label>
         <div class="auth-row">
@@ -106,12 +103,10 @@ window.pafishApi = function (p) {
       <input type="hidden" name="_intent" value="register">
       <input type="hidden" name="from" value="<?= e($from) ?>">
       <?php if ($requireVerify): ?>
-        <div class="auth-step"><strong>填写账号</strong></div>
         <input type="hidden" id="reg-email-value" name="email" value="<?= e($registerEmail) ?>">
         <div>
           <label class="label" for="reg-code">邮箱验证码</label>
           <input id="reg-code" name="code" class="input auth-code" placeholder="6 位数字" maxlength="6" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" required>
-          <p class="auth-hint">验证码有效期 10 分钟，未收到请检查垃圾邮件。</p>
         </div>
       <?php else: ?>
         <div>
@@ -145,11 +140,9 @@ window.pafishApi = function (p) {
     <form id="forgot-send-form" class="auth-form" method="post" action="<?= e(url_to('/forgot-password')) ?>"<?= $forgotStep === 'reset' ? ' hidden' : '' ?>>
       <input type="hidden" name="_csrf" value="<?= e($csrf) ?>">
       <input type="hidden" name="_intent" value="send-code">
-      <div class="auth-step"><strong>输入邮箱</strong></div>
       <div>
         <label class="label" for="forgot-email">注册邮箱</label>
-        <input id="forgot-email" name="email" type="email" class="input" placeholder="请输入注册时使用的邮箱" autocomplete="email" value="<?= e($forgotEmail) ?>" required>
-        <p class="auth-hint">验证码有效期 10 分钟，未收到请检查垃圾邮件。</p>
+        <input id="forgot-email" name="email" type="email" class="input" autocomplete="email" value="<?= e($forgotEmail) ?>" required>
       </div>
       <p class="auth-error" role="alert"<?= $formError === '' ? ' hidden' : '' ?>><?= e($formError) ?></p>
       <button type="submit" class="btn btn-primary auth-submit">发送验证码</button>
@@ -161,8 +154,6 @@ window.pafishApi = function (p) {
       <input type="hidden" name="_csrf" value="<?= e($csrf) ?>">
       <input type="hidden" name="_intent" value="reset">
       <input type="hidden" name="email" value="<?= e($forgotEmail) ?>">
-      <div class="auth-step"><strong>验证邮箱并设置密码</strong></div>
-      <p class="auth-notice" role="status" aria-live="polite">若邮箱对应可用账号，验证码已发送，10 分钟内有效。</p>
       <div>
         <label class="label" for="forgot-code">邮箱验证码</label>
         <input id="forgot-code" name="code" class="input auth-code" placeholder="6 位数字" maxlength="6" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" required>

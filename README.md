@@ -51,12 +51,16 @@ pafish 使用 PHP 与 MySQL，提供浏览器安装向导、完整的内容后�
 
 | 项目 | 要求 |
 | --- | --- |
-| PHP | 8.1+，启用 `pdo`、`pdo_mysql`、`gd`、`zip`、`mbstring`、`intl`、`openssl`、`json`、`fileinfo` |
+| PHP | 8.1+，启用 `pdo`、`pdo_mysql`、`gd`、`zip`、`mbstring`、`intl`、`curl`、`openssl`、`json`、`fileinfo` |
 | MySQL | 5.7.6+，推荐 MySQL 8.0 |
 | Web 服务 | Nginx 或 Apache |
 | 上传限制 | 建议 `post_max_size >= 16M`、`upload_max_filesize >= 12M` |
 
 上传限制不足不会影响写作和阅读，但主题、插件或应用包的安装可能受限，安装向导会提示当前环境状态。
+
+## Docker 部署
+
+仓库提供 Apache/PHP 与 MySQL 8.4 的 Compose 部署。公开镜像发布后，下载 [docker-compose.yml](https://raw.githubusercontent.com/shuyu0131/pafish-php/main/docker-compose.yml) 和 [.env.example](https://raw.githubusercontent.com/shuyu0131/pafish-php/main/.env.example)，复制 `.env.example` 为 `.env` 并设置数据库密码，运行 `docker compose up -d`，然后访问 `http://localhost:8080/install.php` 填写站点和管理员信息。Compose 会自动提供数据库连接，安装器不再要求重复输入数据库参数。数据库、运行配置、上传文件、备份、分片上传、插件和主题均使用持久化卷。首次镜像发布前，可从源码仓库运行 `docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build`。完整部署、反向代理和更新说明见 [DOCKER.md](DOCKER.md)。
 
 ## 部署提示
 

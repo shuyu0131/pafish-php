@@ -74,6 +74,36 @@ function inst_is_installed(string $root): bool
     return inst_resolve_config_path($root) !== null;
 }
 
+/**
+ * Optional database defaults supplied by container orchestration. The password
+ * is consumed server-side and is never rendered into the installer page.
+ *
+ * @return array{host: string, port: int, database: string, username: string, password: string}|null
+ */
+function inst_database_defaults(): ?array
+{
+    $host = getenv('PAFISH_INSTALL_DB_HOST');
+    $port = getenv('PAFISH_INSTALL_DB_PORT');
+    $database = getenv('PAFISH_INSTALL_DB_NAME');
+    $username = getenv('PAFISH_INSTALL_DB_USER');
+    $password = getenv('PAFISH_INSTALL_DB_PASSWORD');
+
+    if (!is_string($host) || $host === ''
+        || !is_string($database) || $database === ''
+        || !is_string($username) || $username === ''
+        || !is_string($password) || $password === '') {
+        return null;
+    }
+
+    return [
+        'host' => $host,
+        'port' => is_string($port) && ctype_digit($port) ? (int) $port : 3306,
+        'database' => $database,
+        'username' => $username,
+        'password' => $password,
+    ];
+}
+
 function inst_write_state(string $root, string $phase, string $message = ''): void
 {
     @file_put_contents(inst_state_path($root), json_encode([
@@ -164,7 +194,7 @@ function inst_checks(string $root): array
 {
     $checks = [];
     $checks[] = inst_check_result(PHP_VERSION_ID >= 80100, 'PHP 版本 ≥ 8.1', '当前 ' . PHP_VERSION);
-    foreach (['pdo', 'pdo_mysql', 'gd', 'zip', 'mbstring', 'intl', 'openssl', 'json', 'fileinfo'] as $ext) {
+    foreach (['pdo', 'pdo_mysql', 'gd', 'zip', 'mbstring', 'intl', 'curl', 'openssl', 'json', 'fileinfo'] as $ext) {
         $checks[] = inst_check_result(extension_loaded($ext), "PHP 扩展 {$ext}", extension_loaded($ext) ? '已启用' : '未启用');
     }
     $dirs = [
@@ -248,8 +278,9 @@ function inst_exec_schema(PDO $pdo, string $sqlFile): array
 function inst_run(array $post, string $root): array
 {
     $errors = [];
+    $dbDefaults = inst_database_defaults();
 
-    $db = [
+    $db = $dbDefaults !== null ? $dbDefaults : [
         'host'     => trim($post['db_host'] ?? '127.0.0.1'),
         'port'     => (int) ($post['db_port'] ?? 3306),
         'database' => trim($post['db_name'] ?? ''),
@@ -311,10 +342,16 @@ function inst_run(array $post, string $root): array
             intdiv(abs($offset), 3600),
             intdiv(abs($offset) % 3600, 60)
         ));
-        $pdo->query(sprintf(
-            'CREATE DATABASE IF NOT EXISTS `%s` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci',
-            str_replace('`', '', $db['database'])
-        ));
+        $findDatabase = $pdo->prepare(
+            'SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = ?'
+        );
+        $findDatabase->execute([$db['database']]);
+        if ($findDatabase->fetchColumn() === false) {
+            $pdo->query(sprintf(
+                'CREATE DATABASE IF NOT EXISTS `%s` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci',
+                str_replace('`', '', $db['database'])
+            ));
+        }
         $pdo->query('USE `' . str_replace('`', '', $db['database']) . '`');
 
         // 2. 已有数据检测（上次安装中断 / 运行配置丢失后重装）：提示但不阻断，种子会跳过已存在记录
@@ -703,6 +740,27 @@ if ($action === 'form' && !$installed) {
     unset($_SESSION['install_old_input'], $_SESSION['install_error']);
     $old = is_array($old) ? $old : [];
     $field = static fn(string $key, string $default = ''): string => inst_e(array_key_exists($key, $old) ? $old[$key] : $default);
+    $dbDefaults = inst_database_defaults();
+    if ($dbDefaults !== null) {
+        $dbHost = inst_e($dbDefaults['host']);
+        $dbPort = inst_e((string) $dbDefaults['port']);
+        $dbName = inst_e($dbDefaults['database']);
+        $dbUser = inst_e($dbDefaults['username']);
+        $dbSection = <<<HTML
+    <p class="info">数据库连接已由 Docker Compose 配置，无需在此重复填写。</p>
+    <p class="detail">{$dbHost}:{$dbPort} · {$dbName} · {$dbUser}</p>
+HTML;
+    } else {
+        $dbSection = <<<HTML
+    <div class="grid2">
+      <div><label>数据库主机</label><input type="text" name="db_host" value="{$field('db_host', '127.0.0.1')}" required></div>
+      <div><label>端口</label><input type="number" name="db_port" value="{$field('db_port', '3306')}" required></div>
+    </div>
+    <label>数据库名</label><input type="text" name="db_name" value="{$field('db_name')}" placeholder="如 pafish（不存在会自动创建）" required>
+    <label>数据库用户名</label><input type="text" name="db_user" value="{$field('db_user')}" required>
+    <label>数据库密码</label><input type="password" name="db_pass">
+HTML;
+    }
     $prettyChecked = !array_key_exists('pretty_urls', $old) || (string)$old['pretty_urls'] === '1' ? ' checked' : '';
     $stateNotice = '';
     $stateRaw = @file_get_contents(inst_state_path($root));
@@ -716,13 +774,7 @@ if ($action === 'form' && !$installed) {
 <form method="post" action="install.php" autocomplete="off">
   <div class="card">
     <h2>数据库连接</h2>
-    <div class="grid2">
-      <div><label>数据库主机</label><input type="text" name="db_host" value="{$field('db_host', '127.0.0.1')}" required></div>
-      <div><label>端口</label><input type="number" name="db_port" value="{$field('db_port', '3306')}" required></div>
-    </div>
-    <label>数据库名</label><input type="text" name="db_name" value="{$field('db_name')}" placeholder="如 pafish（不存在会自动创建）" required>
-    <label>数据库用户名</label><input type="text" name="db_user" value="{$field('db_user')}" required>
-    <label>数据库密码</label><input type="password" name="db_pass">
+    {$dbSection}
   </div>
   <div class="card" style="margin-top:16px">
     <h2>站点信息</h2>
@@ -769,6 +821,9 @@ if ($action === 'install') {
         $warnHtml = '<div class="warn"><strong>安装已完成，但有兼容性提示</strong><br>' . inst_e(implode("\n", array_slice($result['warnings'], 0, 5))) . '</div>';
     }
     $links = inst_links($root);
+    $installerStep = inst_database_defaults() !== null
+        ? '<li>Docker 镜像内的安装器会在完成后自动识别安装状态，无需手动删除文件。</li>'
+        : '<li><b>删除根目录的 install.php</b>，避免他人重装覆盖数据。</li>';
     echo inst_layout('安装完成', <<<HTML
 <div class="card done">
   <div class="big ok">✓</div>
@@ -782,7 +837,7 @@ if ($action === 'install') {
   <div class="next-steps">
     <p class="next-title"><strong>接下来做什么</strong></p>
     <ol class="next-list">
-      <li><b>删除根目录的 install.php</b>，避免他人重装覆盖数据。</li>
+      {$installerStep}
       <li>进入后台，在「站点设置」填写<strong>站点名称和描述</strong>。</li>
       <li>在「主题与外观」挑一套喜欢的主题。</li>
       <li>在「文章」里写下第一篇内容。</li>

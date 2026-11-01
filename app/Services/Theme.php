@@ -22,7 +22,7 @@ final class Theme
     private const DEFAULT_VERSION = '1.0.0';
     private const INJECT_TARGETS = [
         'head', 'footer', 'sidebar',
-        'comment_form', 'login_form', 'register_form', 'post_editor', 'micro_editor',
+        'comment_form', 'login_form', 'register_form', 'post_editor', 'page_editor', 'micro_editor',
     ];
     private const USER_DATA = ['posts', 'stats', 'reactions', 'comments', 'points'];
     private const PAGE_TEMPLATES = ['index', 'post', 'page', 'category', 'tag', 'search', 'archives', 'micro', 'user'];

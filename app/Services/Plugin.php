@@ -16,7 +16,7 @@ final class Plugin
     private const TEMPLATE_NAME_PATTERN = '/^[a-z0-9-]{1,40}$/';
     private const INJECT_TARGETS = [
         'head', 'footer', 'sidebar',
-        'comment_form', 'login_form', 'register_form', 'post_editor', 'micro_editor',
+        'comment_form', 'login_form', 'register_form', 'post_editor', 'page_editor', 'micro_editor',
         // 插件自己的设置页底部：给插件放置独有的管理区块。
         'plugin_setting',
     ];

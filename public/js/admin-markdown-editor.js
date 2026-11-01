@@ -803,6 +803,13 @@
       },
       insert: function (markdown) { insert((source.value ? "\n" : "") + markdown + "\n"); },
       insertValue: function (markdown) { insert(markdown); },
+      insertSelection: function (text) { insert(String(text == null ? "" : text)); },
+      getSelection: function () {
+        var start = source.selectionStart || 0;
+        var end = source.selectionEnd || start;
+        return { text: source.value.slice(start, end), start: start, end: end,
+          format: htmlSource ? "html" : "markdown" };
+      },
       setValue: function (markdown) {
         clearElementSelection();
         source.value = String(markdown == null ? "" : markdown);

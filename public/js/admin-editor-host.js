@@ -57,6 +57,13 @@
     var providers = [];
     var descriptor = document.getElementById('editorProviders');
     var configured = 'default';
+    function notifyReady() {
+      if (!window || typeof window.dispatchEvent !== 'function') return;
+      var event = typeof CustomEvent === 'function'
+        ? new CustomEvent('pafish:editor-ready', { detail: { mount: options.mount, selected: selected } })
+        : null;
+      if (event) window.dispatchEvent(event);
+    }
     if (descriptor) {
       try {
         var parsed = JSON.parse(descriptor.textContent);
@@ -70,8 +77,19 @@
     var selected = available[configured] ? configured : 'default';
     var formatField = document.getElementById('fContentFormat');
     options.getFormat = function () { return formatField ? formatField.value : 'markdown'; };
-    // Opening a Markdown article must never convert it merely because a previous article used HTML.
-    var incompatible = selected !== 'default' && available[selected].format === 'markdown' && options.getFormat() === 'html' && options.field.value.trim();
+    options.setFormat = function (format) {
+      if (formatField && (format === 'html' || format === 'markdown')) formatField.value = format;
+    };
+    var isNewContent = options.newContent === true || (formatField && formatField.dataset.editorNew === '1');
+    var selectedFormat = available[selected] && available[selected].format || 'markdown';
+    // A new empty document takes the configured editor's native format. Existing
+    // documents keep their stored format, even when a different editor is active.
+    if (isNewContent && !options.field.value.trim() && selected !== 'default') {
+      options.setFormat(selectedFormat);
+    }
+    var incompatible = selected !== 'default' && selectedFormat !== options.getFormat() && (options.field.value.trim() || !isNewContent);
+    // Never let an HTML editor open Markdown (or vice versa). The core source
+    // editor remains available for historical content when no matching plugin exists.
     if (incompatible) selected = 'default';
 
     function message(text) {
@@ -104,11 +122,24 @@
       return {
         getValue: function () { return options.field.value; },
         insert: function (text) { options.field.setRangeText(text, options.field.selectionStart, options.field.selectionEnd, 'end'); sync(options.field.value); },
+        insertSelection: function (text) { options.field.setRangeText(text, options.field.selectionStart, options.field.selectionEnd, 'end'); sync(options.field.value); },
+        insertHtml: function (html) { options.field.setRangeText(html, options.field.selectionStart, options.field.selectionEnd, 'end'); sync(options.field.value); },
+        insertAfterSelection: function (text) { options.field.setRangeText(text, options.field.selectionEnd, options.field.selectionEnd, 'end'); sync(options.field.value); },
+        replaceAll: function (text) { options.field.value = String(text == null ? '' : text); sync(options.field.value); },
+        getSelection: function () {
+          var start = options.field.selectionStart || 0;
+          var end = options.field.selectionEnd || start;
+          return { text: options.field.value.slice(start, end), start: start, end: end, format: options.getFormat() };
+        },
         focus: function () { options.field.focus(); },
         destroy: function () { options.field.hidden = true; }
       };
     }
     function createDefault() {
+      // HTML bodies need a source editor. Showing them through the Markdown
+      // preview would imply a format conversion even though the hidden format
+      // field remains HTML.
+      if (options.getFormat() === 'html') return fallback();
       options.field.hidden = true;
       var editor = window.PAFISH_MARKDOWN_EDITOR ? window.PAFISH_MARKDOWN_EDITOR.init(Object.assign({}, options, { onChange: sync })) : fallback();
       var group = options.mount.querySelector('.admin-markdown-insert-group');
@@ -149,7 +180,7 @@
         var timeout;
         var expired = false;
         var boot = Promise.resolve().then(function () {
-          return factory(Object.assign({}, options, { onChange: sync, signal: controller.signal }));
+          return factory(Object.assign({}, options, { onChange: sync, signal: controller.signal, format: options.getFormat() }));
         }).then(function (editor) {
           if (expired) { if (editor && editor.destroy) editor.destroy(); throw new Error('编辑器启动超时'); }
           return editor;
@@ -162,6 +193,7 @@
         instance = editor;
         selected = id;
         message('');
+        notifyReady();
         return true;
       }).catch(function (error) {
         restoreMedia();
@@ -169,6 +201,7 @@
         instance = createDefault();
         selected = 'default';
         message(error.message || '编辑器加载失败，已恢复默认编辑器');
+        notifyReady();
         return false;
       }).then(function (ok) {
         changing = false;
@@ -202,7 +235,7 @@
     options.externalMedia = true;
     options.onMediaUploaded = insertMedia;
     var ready = replace(selected).then(function (ok) {
-      if (ok && incompatible) message('此内容为 HTML，使用系统源码编辑器保留原格式。');
+      if (ok && incompatible) message('此正文格式与当前插件不匹配，已使用核心源码编辑器保留原格式。');
       return ok;
     });
     function insertMedia(url, mime, name) {
@@ -228,10 +261,35 @@
       ready: ready,
       isReady: function () { return !changing && uploads === 0 && !!instance; },
       getValue: currentValue,
-      insert: function (markdown) { if (!changing && instance) instance.insert(markdown); },
+      insert: function (text) {
+        if (changing || !instance) return;
+        if (typeof instance.insert === 'function') instance.insert(text);
+        else if (typeof instance.insertValue === 'function') instance.insertValue(text);
+        else if (typeof instance.insertSelection === 'function') instance.insertSelection(text);
+      },
+      insertSelection: function (text) {
+        if (changing || !instance) return;
+        if (typeof instance.insertSelection === 'function') instance.insertSelection(text);
+        else if (typeof instance.insertValue === 'function') instance.insertValue(text);
+        else if (typeof instance.insert === 'function') instance.insert(text);
+      },
       insertMedia: insertMedia,
       cancelMedia: cancelMedia,
       focus: function () { if (instance && instance.focus) instance.focus(); },
+      getSelection: function () {
+        if (instance && typeof instance.getSelection === 'function') return instance.getSelection();
+        return { text: '', start: 0, end: 0, format: options.getFormat() };
+      },
+      insertHtml: function (html) { if (!changing && instance) { if (typeof instance.insertHtml === 'function') instance.insertHtml(html); else instance.insert(html); } },
+      insertAfterSelection: function (text) { if (!changing && instance) { if (typeof instance.insertAfterSelection === 'function') instance.insertAfterSelection(text); else if (typeof instance.insert === 'function') instance.insert(text); } },
+      replaceAll: function (text) {
+        if (changing || !instance) return false;
+        var value = String(text == null ? '' : text);
+        if (typeof instance.replaceAll === 'function') instance.replaceAll(value);
+        else if (typeof instance.setValue === 'function') instance.setValue(value);
+        else return false;
+        return true;
+      },
       selected: function () { return selected; }
     };
   }

@@ -139,11 +139,11 @@ final class MicroStatuses
         }
 
         // 按实际渲染图片识别，避免把普通链接、代码示例误当成已展示的图片。
-        $parser = new \ParsedownExtra();
-        $parser->setSafeMode(true);
-        preg_match_all('/<img\b[^>]*\bsrc="([^"]*)"/i', $format === 'html' ? Content::sanitize($content) : $parser->text($content), $matches);
+        $rendered = $format === 'html' ? Content::sanitize($content) : Markdown::render($content);
+        preg_match_all('/<img\b[^>]*\bsrc\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|([^\s>]+))/i', $rendered, $matches, PREG_SET_ORDER);
+        $renderedImages = array_map(static fn (array $match): string => (string) ($match[1] ?: ($match[2] ?: ($match[3] ?? ''))), $matches);
         $key = static fn (string $url): string => rawurldecode(html_entity_decode($url, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
-        $seen = array_fill_keys(array_map($key, $matches[1]), true);
+        $seen = array_fill_keys(array_map($key, $renderedImages), true);
         $images = [];
         foreach ($media as $url) {
             $imageKey = $key($url);

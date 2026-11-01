@@ -1,6 +1,9 @@
 # pafish (PHP) 忽略规则
 /vendor/
 /config.php
+/.env
+/.env.*
+!/.env.example
 /runtime/*
 !/runtime/.gitkeep
 /public/uploads/*

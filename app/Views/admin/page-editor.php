@@ -39,7 +39,7 @@ $template = $isEdit ? (string) $page['template'] : 'default';
         <!-- 正文编辑器 -->
         <div class="admin-md-editor">
           <div id="markdownMount"></div>
-          <input type="hidden" id="fContentFormat" name="content_format" value="<?= e($page['content_format'] ?? 'markdown') ?>">
+          <input type="hidden" id="fContentFormat" name="content_format" data-editor-new="<?= $isEdit ? '0' : '1' ?>" value="<?= e($page['content_format'] ?? 'markdown') ?>">
           <textarea id="fContent" name="content" hidden
                     maxlength="16000000"><?= e($content) ?></textarea>
         </div>
@@ -92,6 +92,16 @@ $template = $isEdit ? (string) $page['template'] : 'default';
           <?php if ($isEdit && $page['published_at']): ?>
             <p class="admin-field-hint">发布于 <?= e(format_date($page['published_at'], 'yyyy-MM-dd HH:mm')) ?></p>
           <?php endif; ?>
+          <?= \Pafish\Services\Plugin::renderInjection('page_editor', [
+              'page' => $page,
+              'isEdit' => $isEdit,
+              'pageId' => $pageId,
+          ]) ?>
+          <?= \Pafish\Services\Theme::renderInjection('page_editor', [
+              'page' => $page,
+              'isEdit' => $isEdit,
+              'pageId' => $pageId,
+          ]) ?>
         </div>
         <div class="card admin-form-card admin-editor-advanced-card">
           <?php $seoValues = $page ?? []; $seoPrefix = 'page'; require __DIR__ . '/partials/seo-fields.php'; ?>

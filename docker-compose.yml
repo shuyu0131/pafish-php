@@ -1,0 +1,66 @@
+name: pafish
+
+x-app: &app
+  image: ${PAFISH_IMAGE:-ghcr.io/shuyu0131/pafish-php:latest}
+  restart: unless-stopped
+  depends_on:
+    db:
+      condition: service_healthy
+  volumes:
+    - pafish_runtime:/var/www/html/runtime
+    - pafish_uploads:/var/www/html/public/uploads
+    - pafish_backups:/var/www/html/backups
+    - pafish_storage:/var/www/html/storage
+    - pafish_plugins:/var/www/html/plugins
+    - pafish_themes:/var/www/html/themes
+
+services:
+  app:
+    <<: *app
+    ports:
+      - "${HTTP_BIND:-127.0.0.1}:${HTTP_PORT:-8080}:8080"
+    environment:
+      PAFISH_INSTALL_DB_HOST: db
+      PAFISH_INSTALL_DB_PORT: "3306"
+      PAFISH_INSTALL_DB_NAME: ${MYSQL_DATABASE:-pafish}
+      PAFISH_INSTALL_DB_USER: ${MYSQL_USER:-pafish}
+      PAFISH_INSTALL_DB_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}
+
+  scheduler:
+    <<: *app
+    user: "33:33"
+    entrypoint: []
+    command: ["sh", "-c", "while :; do php /var/www/html/cron.php; sleep 60; done"]
+    healthcheck:
+      disable: true
+    depends_on:
+      db:
+        condition: service_healthy
+      app:
+        condition: service_healthy
+
+  db:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-pafish}
+      MYSQL_USER: ${MYSQL_USER:-pafish}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in .env}
+    volumes:
+      - pafish_mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+volumes:
+  pafish_mysql:
+  pafish_runtime:
+  pafish_uploads:
+  pafish_backups:
+  pafish_storage:
+  pafish_plugins:
+  pafish_themes:

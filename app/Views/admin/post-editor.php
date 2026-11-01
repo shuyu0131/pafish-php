@@ -107,7 +107,7 @@ $editorData = [
         <!-- 正文编辑器 -->
         <div class="admin-md-editor">
           <div id="markdownMount"></div>
-          <input type="hidden" id="fContentFormat" name="content_format" value="<?= e($post['content_format'] ?? 'markdown') ?>">
+          <input type="hidden" id="fContentFormat" name="content_format" data-editor-new="<?= $isEdit ? '0' : '1' ?>" value="<?= e($post['content_format'] ?? 'markdown') ?>">
           <textarea id="fContent" name="content" hidden
                     maxlength="16000000"><?= e($post['content']) ?></textarea>
         </div>

@@ -25,7 +25,7 @@ if (($mode ?? 'list') === 'editor'):
         <?php $editorType = 'micro'; require __DIR__ . '/partials/editor-controls.php'; ?>
         <div class="admin-md-editor">
           <div id="markdownMount"></div>
-          <input type="hidden" id="fContentFormat" name="content_format" value="<?= e($m['content_format'] ?? 'markdown') ?>">
+          <input type="hidden" id="fContentFormat" name="content_format" data-editor-new="<?= $id > 0 ? '0' : '1' ?>" value="<?= e($m['content_format'] ?? 'markdown') ?>">
           <textarea id="fContent" name="content" hidden maxlength="160000"><?= e($content) ?></textarea>
         </div>
         <p class="admin-field-hint">图片通过编辑器工具栏上传，也可粘贴或拖入正文。</p>

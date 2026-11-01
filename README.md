@@ -45,7 +45,7 @@
 
 - **普通主机 / 宝塔**：按[安装说明](https://docs.pafish.cn/docs/install)上传发行包，访问 `install.php` 安装。
 - **Docker**：见 [DOCKER.md](DOCKER.md)。GHCR 镜像可直接运行；首次发布前或需要从当前源码运行时，用 `docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build` 本地构建。
-- **伪静态**：Nginx 和 Apache 规则见[安装说明的伪静态部分](https://docs.pafish.cn/docs/install#伪静态配置)。
+- **伪静态**：Nginx 和 Apache 规则见[安装说明的伪静态部分](https://docs.pafish.cn/docs/install#6-伪静态配置)。
 - **定时发布**：建议每分钟执行 `php /路径/cron.php`；不配置也能用，前台访问会低频补发。
 - **在线更新**：后台「系统更新」从 Gitee 检查新版本，备份和恢复使用纯 PHP，不依赖 `exec()`、`mysqldump` 或 `mysql` 命令。
 

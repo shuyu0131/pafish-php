@@ -64,7 +64,7 @@ window.pafishApi = function (p) {
       <?= \Pafish\Services\Plugin::renderInjection('login_form', ['mode' => 'login']) ?>
       <?php if ($formNotice !== ''): ?><p class="auth-notice" role="status"><?= e($formNotice) ?></p><?php endif; ?>
       <p class="auth-error" role="alert"<?= $formError === '' ? ' hidden' : '' ?>><?= e($formError) ?></p>
-      <button type="submit" class="btn btn-primary auth-submit">登 录</button>
+      <button type="submit" class="btn btn-primary auth-submit">登录</button>
       <p class="auth-links">
         <a href="<?= e(url_to('/forgot-password')) ?>">忘记密码</a>
         <?php if ($showRegister): ?>
@@ -85,11 +85,12 @@ window.pafishApi = function (p) {
       <input type="hidden" name="_csrf" value="<?= e($csrf) ?>">
       <input type="hidden" name="_intent" value="send-code">
       <input type="hidden" name="from" value="<?= e($from) ?>">
+      <div class="auth-step"><span>第 1 步</span><strong>验证邮箱</strong></div>
       <div>
-        <label class="label" for="reg-email">邮箱</label>
+        <label class="label" for="reg-email-code">邮箱</label>
         <div class="auth-row">
-          <input id="reg-email" name="email" type="email" class="input auth-flex" placeholder="用于注册和找回密码" autocomplete="email" value="<?= e($registerEmail) ?>"<?= $registerCodeSent ? ' readonly' : '' ?> required>
-          <button type="submit" id="send-code-btn" class="btn btn-outline auth-send-btn">发送验证码</button>
+          <input id="reg-email-code" name="email" type="email" class="input auth-flex" placeholder="用于注册和找回密码" autocomplete="email" value="<?= e($registerEmail) ?>"<?= $registerCodeSent ? ' readonly' : '' ?> required>
+          <button type="submit" id="send-code-btn" class="btn btn-outline auth-send-btn"><?= $registerCodeSent ? '重新发送' : '发送验证码' ?></button>
         </div>
       </div>
       <button type="submit" name="_change_email" value="1" formnovalidate class="auth-link-btn"<?= $registerCodeSent ? '' : ' hidden' ?>>更换邮箱</button>
@@ -98,13 +99,13 @@ window.pafishApi = function (p) {
     </form>
     <?php endif; ?>
 
-    <form id="auth-form" class="auth-form" data-mode="register" method="post" action="<?= e(url_to('/register')) ?>"<?= $requireVerify && !$registerCodeSent ? ' hidden' : '' ?>>
+    <form id="register-details-form" class="auth-form" data-mode="register" method="post" action="<?= e(url_to('/register')) ?>"<?= $requireVerify && !$registerCodeSent ? ' hidden' : '' ?>>
       <input type="hidden" name="_csrf" value="<?= e($csrf) ?>">
       <input type="hidden" name="_intent" value="register">
       <input type="hidden" name="from" value="<?= e($from) ?>">
       <?php if ($requireVerify): ?>
+        <div class="auth-step"><span>第 2 步</span><strong>设置账号</strong></div>
         <input type="hidden" id="reg-email-value" name="email" value="<?= e($registerEmail) ?>">
-        <div class="auth-registered-email">注册邮箱：<strong><?= e($registerEmail) ?></strong></div>
         <div>
           <label class="label" for="reg-code">邮箱验证码</label>
           <input id="reg-code" name="code" class="input auth-code" placeholder="6 位数字" maxlength="6" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" required>
@@ -112,8 +113,8 @@ window.pafishApi = function (p) {
         </div>
       <?php else: ?>
         <div>
-          <label class="label" for="reg-email">邮箱</label>
-          <input id="reg-email" name="email" type="email" class="input" placeholder="用于找回密码" autocomplete="email" value="<?= e($registerEmail) ?>" required>
+          <label class="label" for="reg-email-direct">邮箱</label>
+          <input id="reg-email-direct" name="email" type="email" class="input" placeholder="用于注册和找回密码" autocomplete="email" value="<?= e($registerEmail) ?>" required>
         </div>
       <?php endif; ?>
       <div>
@@ -131,7 +132,7 @@ window.pafishApi = function (p) {
       <?= \Pafish\Services\Theme::renderInjection('register_form', ['mode' => 'register']) ?>
       <?= \Pafish\Services\Plugin::renderInjection('register_form', ['mode' => 'register']) ?>
       <p class="auth-error" role="alert"<?= $formError === '' || ($requireVerify && !$registerCodeSent) ? ' hidden' : '' ?>><?= e($requireVerify && !$registerCodeSent ? '' : $formError) ?></p>
-      <button type="submit" class="btn btn-primary auth-submit">注 册</button>
+      <button type="submit" class="btn btn-primary auth-submit">注册</button>
       <p class="auth-links auth-center">
         已有账号？<a href="<?= e(url_to('/login')) ?>" class="auth-link-accent">去登录</a>
       </p>
@@ -142,6 +143,7 @@ window.pafishApi = function (p) {
     <form id="forgot-send-form" class="auth-form" method="post" action="<?= e(url_to('/forgot-password')) ?>"<?= $forgotStep === 'reset' ? ' hidden' : '' ?>>
       <input type="hidden" name="_csrf" value="<?= e($csrf) ?>">
       <input type="hidden" name="_intent" value="send-code">
+      <div class="auth-step"><span>第 1 步</span><strong>输入邮箱</strong></div>
       <div>
         <label class="label" for="forgot-email">注册邮箱</label>
         <input id="forgot-email" name="email" type="email" class="input" placeholder="请输入注册时使用的邮箱" autocomplete="email" value="<?= e($forgotEmail) ?>" required>
@@ -157,7 +159,8 @@ window.pafishApi = function (p) {
       <input type="hidden" name="_csrf" value="<?= e($csrf) ?>">
       <input type="hidden" name="_intent" value="reset">
       <input type="hidden" name="email" value="<?= e($forgotEmail) ?>">
-      <p class="auth-notice" role="status" aria-live="polite">如果邮箱 <span id="forgot-email-show" class="auth-strong"><?= e($forgotEmail) ?></span> 对应已注册且可用的账号，系统会发送验证码（10 分钟内有效）；如未收到，请检查垃圾邮件或重新发送。</p>
+      <div class="auth-step"><span>第 2 步</span><strong>验证并设置新密码</strong></div>
+      <p class="auth-notice" role="status" aria-live="polite">我们已处理邮箱 <span id="forgot-email-show" class="auth-strong"><?= e($forgotEmail) ?></span> 的请求。若它对应可用账号，验证码会发送至该邮箱，10 分钟内有效。</p>
       <div>
         <label class="label" for="forgot-code">邮箱验证码</label>
         <input id="forgot-code" name="code" class="input auth-code" placeholder="6 位数字" maxlength="6" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" required>
@@ -258,7 +261,9 @@ window.pafishApi = function (p) {
   }
 
   // 登录 / 注册 / 令牌重置 通用提交
-  var form = document.getElementById('auth-form');
+  var form = MODE === 'register'
+    ? document.getElementById('register-details-form')
+    : document.getElementById('auth-form');
   if (form) {
     var errBox = form.querySelector('.auth-error');
     var submitBtn = form.querySelector('.auth-submit');
@@ -337,19 +342,19 @@ window.pafishApi = function (p) {
   }
 
   var sendBtn = document.getElementById('send-code-btn');
-  if (sendBtn) {
-    sendBtn.addEventListener('click', function (e) {
+  var registerCodeForm = document.getElementById('register-code-form');
+  if (sendBtn && registerCodeForm) {
+    registerCodeForm.addEventListener('submit', function (e) {
+      if (e.submitter && e.submitter.name === '_change_email') return;
       e.preventDefault();
-      var email = document.getElementById('reg-email').value;
+      var email = document.getElementById('reg-email-code').value;
       var errBox = document.getElementById('register-code-error');
       sendCode(email, 'register', sendBtn, errBox).then(function (sent) {
         if (!sent) return;
         var hiddenEmail = document.getElementById('reg-email-value');
         if (hiddenEmail) hiddenEmail.value = email;
-        document.getElementById('reg-email').readOnly = true;
-        var registeredEmail = document.querySelector('.auth-registered-email strong');
-        if (registeredEmail) registeredEmail.textContent = email;
-        var details = document.getElementById('auth-form');
+        document.getElementById('reg-email-code').readOnly = true;
+        var details = document.getElementById('register-details-form');
         if (details) details.hidden = false;
         var changeEmail = document.querySelector('#register-code-form [name="_change_email"]');
         if (changeEmail) changeEmail.hidden = false;

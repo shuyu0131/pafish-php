@@ -27,9 +27,9 @@
 
 ### 正文格式与编辑器
 
-默认编辑器保存 Markdown，渲染器使用仓库内置的 `ParsedownExtra`，不依赖后台临时下载第三方编辑器。Markdown 默认关闭原始 HTML；管理员可在「站点设置 → 内容与评论 → 文章与内容」中开启 `md_allow_raw_html`，开启后只应允许可信作者写作。
+默认编辑器保存 Markdown，渲染器使用仓库内置的 Parsedown 1.7.4 / Parsedown Extra 0.8.1 实现，不依赖后台临时下载第三方编辑器。Markdown 中的标准 HTML 会经过核心 HTML 白名单净化后渲染，危险标签和属性会被移除。
 
-富文本编辑器以插件形式接入。插件声明 `format: html` 后，核心会保存正文格式并在保存时用 `HTMLPurifier` 白名单净化 HTML；停用或更换插件不会改变已经保存的正文。格式不匹配的历史正文会回退到核心源码编辑器，不会自动把 Markdown 和 HTML 互相转换。插件开发契约见[编辑器插件说明](https://docs.pafish.cn/docs/plugin#编辑器插件)。
+富文本编辑器以插件形式接入。插件声明 `format: html` 后，核心会保存正文格式并在保存时用 `HTMLPurifier` 白名单净化 HTML；停用或更换插件不会改变已经保存的正文。启用 HTML 富文本编辑器后，已有 Markdown 文章会先按 Markdown 渲染到编辑器中，编辑并保存后转为 HTML；已有 HTML 正文继续使用源码编辑器或 HTML 编辑器编辑。插件开发契约见[编辑器插件说明](https://docs.pafish.cn/docs/plugin#编辑器插件)。
 
 ## 环境要求
 

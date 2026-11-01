@@ -27,9 +27,10 @@ final class Markdown
         $media = [];
         $md = self::extractMediaElements($md, $media);
 
-        // 默认安全模式；后台复选框保存的是 "true"，旧安装也可能保存 1/yes。
-        $allowRawHtml = self::rawHtmlAllowed();
-        self::$parser->setSafeMode(!$allowRawHtml);
+        // Parsedown 先保留标准 Markdown 中的 HTML，再由同一套 HTMLPurifier
+        // 白名单过滤。这样正文不需要额外的“允许原始 HTML”开关，也不会把安全的
+        // 标准 HTML 当成代码显示。
+        self::$parser->setSafeMode(false);
         $html = self::$parser->text($md);
         if ($media !== []) {
             $html = strtr($html, $media);
@@ -58,18 +59,10 @@ final class Markdown
             // Filters receive the author's source, not the internal media
             // placeholders used while Parsedown is running.
             'markdown' => $sourceMarkdown,
-            'safeMode' => !$allowRawHtml,
+            'safeMode' => false,
         ]);
-        return is_string($filtered) ? $filtered : $html;
-    }
-
-    private static function rawHtmlAllowed(): bool
-    {
-        $value = settings('md_allow_raw_html', '0');
-        if (is_bool($value)) return $value;
-        if (is_int($value)) return $value === 1;
-        if (is_float($value)) return $value === 1.0;
-        return in_array(strtolower(trim((string) $value)), ['1', 'true', 'yes', 'on'], true);
+        $filteredHtml = is_string($filtered) ? $filtered : $html;
+        return Content::sanitize($filteredHtml);
     }
 
     /** @param array<string,string> $media */

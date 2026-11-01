@@ -95,14 +95,24 @@ final class Content
             $config = \HTMLPurifier_Config::createDefault();
             $config->set('Core.Encoding', 'UTF-8');
             $config->set('Cache.DefinitionImpl', null);
-            $config->set('HTML.Allowed', 'p[style],br,h1[style],h2[style],h3[style],h4[style],h5,h6,strong,b,em,i,u,s,del,sub,sup,span[style],blockquote,ul,ol[start],li,dl,dt,dd,pre,code[class],a[href|title|target|rel],img[src|alt|title|width|height],audio[src|controls|loop|muted|preload],video[src|poster|controls|loop|muted|playsinline|preload],source[src|type],input[type|checked|disabled],table,thead,tbody,tfoot,tr,th[colspan|rowspan|scope|style],td[colspan|rowspan|style],hr');
+            $config->set('HTML.Allowed', 'p[style],br,h1[style],h2[style],h3[style],h4[style],h5,h6,strong,b,em,i,u,s,del,sub,sup,span[style],mark,kbd,abbr[title],blockquote,div[class|id|style],section[class|id|style],figure[class|id|style],figcaption[class|id|style],details[class|id|style],summary,ul,ol[start],li,dl,dt,dd,pre,code[class],a[href|title|target|rel|class],img[src|alt|title|width|height],audio[src|controls|loop|muted|preload],video[src|poster|controls|loop|muted|playsinline|preload],source[src|type],input[type|checked|disabled],table,thead,tbody,tfoot,tr,th[colspan|rowspan|scope|style],td[colspan|rowspan|style],hr');
             $config->set('CSS.AllowedProperties', ['color', 'background-color', 'text-align', 'text-decoration', 'font-size', 'font-weight', 'font-family', 'text-indent', 'padding-left']);
             $config->set('URI.AllowedSchemes', ['http' => true, 'https' => true, 'mailto' => true, 'tel' => true]);
             $config->set('Attr.AllowedFrameTargets', ['_blank']);
             $config->set('HTML.TargetBlank', true);
             $config->set('HTML.DefinitionID', 'pafish-media-elements');
-            $config->set('HTML.DefinitionRev', 2);
+            $config->set('HTML.DefinitionRev', 3);
             if ($definition = $config->maybeGetRawHTMLDefinition()) {
+                // HTMLPurifier only accepts elements known to its definition set.
+                // Rich editors commonly emit these semantic containers, so add
+                // them explicitly before the HTML.Allowed list is evaluated.
+                $definition->addElement('mark', 'Inline', 'Inline', 'Common');
+                $definition->addElement('section', 'Block', 'Flow', 'Common');
+                $definition->addElement('figure', 'Block', 'Flow', 'Common');
+                $definition->addElement('figcaption', 'Block', 'Inline', 'Common');
+                $definition->addElement('details', 'Block', 'Flow', 'Common');
+                $definition->addElement('summary', 'Block', 'Inline', 'Common');
+
                 // Task-list controls are display-only. Keep only the checkbox
                 // state and disabled flag; form submission attributes are not
                 // accepted, so HTML content cannot smuggle a live control.

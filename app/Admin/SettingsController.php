@@ -27,7 +27,6 @@ final class SettingsController extends AdminController
         'comments_enabled', 'comments_need_review', 'comments_captcha_enabled', 'comments_honeypot_enabled',
         'submissions_enabled', 'submissions_need_review',
         'posts_per_page', 'blocked_ips', 'blocked_emails', 'comment_spam_keywords',
-        'md_allow_raw_html',
         'upload_max_mb',
         'allow_registration', 'require_email_verify',
         'smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass', 'smtp_from',

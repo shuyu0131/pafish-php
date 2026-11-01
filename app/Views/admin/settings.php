@@ -175,11 +175,6 @@ $keywordsText = $listText('comment_spam_keywords', "\n");
         <span>用户投稿审核后发布</span>
       </label>
       <p class="admin-field-hint">关闭投稿审核后，普通用户的新投稿和更新会直接公开；管理员与编辑仍按现有文章权限发布。</p>
-      <label class="admin-check-row">
-        <input type="checkbox" name="md_allow_raw_html" value="true" <?= $boolVal('md_allow_raw_html', 'false') ? 'checked' : '' ?>>
-        <span>允许文章中的原始 HTML</span>
-      </label>
-      <p class="admin-field-hint">开启后文章可直接运行 HTML 与脚本，请仅允许可信作者使用。</p>
     </div>
     </section>
     <section id="settings-media" data-settings-panel="media" aria-label="上传与媒体">

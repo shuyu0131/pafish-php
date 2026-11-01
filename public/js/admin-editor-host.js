@@ -87,9 +87,12 @@
     if (isNewContent && !options.field.value.trim() && selected !== 'default') {
       options.setFormat(selectedFormat);
     }
-    var incompatible = selected !== 'default' && selectedFormat !== options.getFormat() && (options.field.value.trim() || !isNewContent);
-    // Never let an HTML editor open Markdown (or vice versa). The core source
-      // 没有匹配插件时保留原格式内容。
+    // HTML 编辑器可以把已有 Markdown 先转换成可视内容；只有作者实际修改
+    // 后才由编辑器通过 sync() 把格式切换为 HTML。反向把 HTML 交给 Markdown
+    // 编辑器仍然不安全，因此保留核心源码编辑器兜底。
+    var incompatible = selected !== 'default' && selectedFormat !== options.getFormat()
+      && !(selectedFormat === 'html' && options.getFormat() === 'markdown')
+      && (options.field.value.trim() || !isNewContent);
     if (incompatible) selected = 'default';
 
     function message(text) {

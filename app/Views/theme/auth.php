@@ -29,6 +29,7 @@ $title = $titleMap[$mode] ?? '登录';
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= e($title . ' · ' . $siteName) ?></title>
+<link rel="icon" href="<?= e(asset_url('/favicon.svg')) ?>" type="image/svg+xml">
 <link rel="stylesheet" href="<?= e(asset_url('/css/auth.css')) ?>">
 <script>
 /* API 路径适配：pretty_urls=false 时请求走 index.php?p=api/...，query 用 & 拼接 */
@@ -44,7 +45,8 @@ window.pafishApi = function (p) {
 <div class="auth-page">
   <div class="card auth-card">
     <div class="auth-head">
-      <h1 class="auth-title"><?= e($siteName) ?></h1>
+      <img class="auth-logo" src="<?= e(asset_url('/favicon.svg')) ?>" alt="<?= e($siteName) ?>" width="64" height="64">
+      <h1 class="auth-title"><?= e($title) ?></h1>
       <p class="auth-sub"><?= e($subtitle) ?></p>
     </div>
 
@@ -85,7 +87,7 @@ window.pafishApi = function (p) {
       <input type="hidden" name="_csrf" value="<?= e($csrf) ?>">
       <input type="hidden" name="_intent" value="send-code">
       <input type="hidden" name="from" value="<?= e($from) ?>">
-      <div class="auth-step"><span>第 1 步</span><strong>验证邮箱</strong></div>
+      <div class="auth-step"><strong>验证邮箱</strong></div>
       <div>
         <label class="label" for="reg-email-code">邮箱</label>
         <div class="auth-row">
@@ -94,7 +96,7 @@ window.pafishApi = function (p) {
         </div>
       </div>
       <button type="submit" name="_change_email" value="1" formnovalidate class="auth-link-btn"<?= $registerCodeSent ? '' : ' hidden' ?>>更换邮箱</button>
-      <p id="register-code-notice" class="auth-notice" role="status"<?= !$registerCodeSent && $formNotice === '' ? ' hidden' : '' ?>><?= e($formNotice !== '' ? $formNotice : ($registerCodeSent ? '验证码已发送至 ' . $registerEmail . '，10 分钟内有效。' : '')) ?></p>
+      <p id="register-code-notice" class="auth-notice" role="status"<?= !$registerCodeSent && $formNotice === '' ? ' hidden' : '' ?>><?= e($formNotice !== '' ? $formNotice : ($registerCodeSent ? '验证码已发送，10 分钟内有效。' : '')) ?></p>
       <p id="register-code-error" class="auth-error" role="alert"<?= $formError === '' || $registerCodeSent ? ' hidden' : '' ?>><?= e(!$registerCodeSent ? $formError : '') ?></p>
     </form>
     <?php endif; ?>
@@ -104,12 +106,12 @@ window.pafishApi = function (p) {
       <input type="hidden" name="_intent" value="register">
       <input type="hidden" name="from" value="<?= e($from) ?>">
       <?php if ($requireVerify): ?>
-        <div class="auth-step"><span>第 2 步</span><strong>设置账号</strong></div>
+        <div class="auth-step"><strong>填写账号</strong></div>
         <input type="hidden" id="reg-email-value" name="email" value="<?= e($registerEmail) ?>">
         <div>
           <label class="label" for="reg-code">邮箱验证码</label>
           <input id="reg-code" name="code" class="input auth-code" placeholder="6 位数字" maxlength="6" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" required>
-          <p class="auth-hint">如果没有收到验证码，请检查垃圾箱或重新发送。</p>
+          <p class="auth-hint">验证码有效期 10 分钟，未收到请检查垃圾邮件。</p>
         </div>
       <?php else: ?>
         <div>
@@ -143,11 +145,11 @@ window.pafishApi = function (p) {
     <form id="forgot-send-form" class="auth-form" method="post" action="<?= e(url_to('/forgot-password')) ?>"<?= $forgotStep === 'reset' ? ' hidden' : '' ?>>
       <input type="hidden" name="_csrf" value="<?= e($csrf) ?>">
       <input type="hidden" name="_intent" value="send-code">
-      <div class="auth-step"><span>第 1 步</span><strong>输入邮箱</strong></div>
+      <div class="auth-step"><strong>输入邮箱</strong></div>
       <div>
         <label class="label" for="forgot-email">注册邮箱</label>
         <input id="forgot-email" name="email" type="email" class="input" placeholder="请输入注册时使用的邮箱" autocomplete="email" value="<?= e($forgotEmail) ?>" required>
-        <p class="auth-hint">如果该邮箱对应已注册且可用的账号，系统会发送验证码；如未收到，请检查垃圾邮件或稍后重试。</p>
+        <p class="auth-hint">验证码有效期 10 分钟，未收到请检查垃圾邮件。</p>
       </div>
       <p class="auth-error" role="alert"<?= $formError === '' ? ' hidden' : '' ?>><?= e($formError) ?></p>
       <button type="submit" class="btn btn-primary auth-submit">发送验证码</button>
@@ -159,8 +161,8 @@ window.pafishApi = function (p) {
       <input type="hidden" name="_csrf" value="<?= e($csrf) ?>">
       <input type="hidden" name="_intent" value="reset">
       <input type="hidden" name="email" value="<?= e($forgotEmail) ?>">
-      <div class="auth-step"><span>第 2 步</span><strong>验证并设置新密码</strong></div>
-      <p class="auth-notice" role="status" aria-live="polite">我们已处理邮箱 <span id="forgot-email-show" class="auth-strong"><?= e($forgotEmail) ?></span> 的请求。若它对应可用账号，验证码会发送至该邮箱，10 分钟内有效。</p>
+      <div class="auth-step"><strong>验证邮箱并设置密码</strong></div>
+      <p class="auth-notice" role="status" aria-live="polite">若邮箱对应可用账号，验证码已发送，10 分钟内有效。</p>
       <div>
         <label class="label" for="forgot-code">邮箱验证码</label>
         <input id="forgot-code" name="code" class="input auth-code" placeholder="6 位数字" maxlength="6" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" required>
@@ -382,7 +384,6 @@ window.pafishApi = function (p) {
         document.getElementById('forgot-reset-form').hidden = false;
         document.querySelector('#forgot-reset-form [name="email"]').value = email;
         document.querySelector('#forgot-change-email-form [name="email"]').value = email;
-        document.getElementById('forgot-email-show').textContent = email;
         var resend = document.getElementById('resend-code-btn');
         resend.dataset.orig = resend.textContent;
         startCountdown(resend);

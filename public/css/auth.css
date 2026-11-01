@@ -45,12 +45,12 @@ body.auth-body {
 }
 
 .auth-head { margin-bottom: 24px; text-align: center; }
+.auth-logo { display: block; width: 64px; height: 64px; margin: 0 auto 20px; border-radius: 14px; }
 .auth-title { margin: 0; color: var(--auth-title); font-size: 30px; font-weight: 500; line-height: 1.2; letter-spacing: -.02em; }
 .auth-sub { margin: 8px 0 0; color: var(--auth-muted); font-size: 14px; }
 .auth-form { display: flex; flex-direction: column; gap: 16px; }
 .auth-form#register-details-form:not([hidden]) { margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--auth-border); }
 .auth-step { display: flex; align-items: baseline; gap: 8px; margin-bottom: -4px; color: var(--auth-title); }
-.auth-step span { color: var(--auth-muted); font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
 .auth-step strong { font-size: 16px; font-weight: 600; }
 .label { display: block; margin-bottom: 6px; color: var(--auth-title); font-size: 14px; font-weight: 400; }
 

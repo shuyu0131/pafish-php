@@ -1,10 +1,14 @@
 # AI Foundation
 
-The built-in plugin stores multiple OpenAI Chat Completions compatible chat models, lets administrators test them, and exposes a provider-neutral text completion capability to other plugins.
+The built-in plugin stores multiple OpenAI Chat Completions compatible chat models, lets administrators test them, and exposes a provider-neutral text completion capability to other plugins. It is included in the release package and Docker image; do not copy individual core files into an installed site.
 
-## Installing on Pafish 1.2.3
+## Enable and configure
 
-Use the current `app/Services/OutboundHttp.php` from the core alongside this plugin. Its request API adds the response-chunk callback required for streaming and multipart bodies required for audio transcription. The extension schema, lifecycle, routes and custom settings APIs already exist in 1.2.3; no core database migration is needed for this patch. Activation creates the plugin's five declared tables.
+Open the **AI Foundation** entry under the administration system menu, enable
+the bundled plugin if it is disabled, and open the Models tab. Add one or more
+chat, embedding, image, or audio providers and choose a default model. The
+plugin creates its five declared tables when it is activated; no manual SQL or
+core migration is required.
 
 Settings open on the Models tab. Opening settings does not call the model provider; connection checks run only when requested by the administrator.
 

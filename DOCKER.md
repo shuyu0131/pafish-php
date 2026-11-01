@@ -13,15 +13,17 @@ from the project repository, then copy `.env.example` to `.env`:
 cp .env.example .env
 ```
 
-Edit `.env` and set two different, long random passwords. Then start the site:
+Edit `.env` and set two different, long random passwords. If the GHCR image is
+already available, start the site with:
 
 ```sh
 docker compose up -d
 ```
 
-The prebuilt image becomes available after the first version tag is published
-and the GHCR package is made public. Until then, build from a source checkout
-with the development override shown under Image publication.
+Before the first public GHCR release, or when you want to run the checkout you
+are currently editing, use the source-build command under
+[Image publication](#image-publication) instead. The default Compose file
+otherwise tries to pull `ghcr.io/shuyu0131/pafish-php:latest`.
 
 Open <http://localhost:8080/install.php>. As with emlog, finish the setup in
 the browser. Compose supplies the database connection automatically, so the
@@ -111,6 +113,11 @@ For a local checkout, build from source with the development override:
 ```sh
 docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 ```
+
+The override builds the `app` and `scheduler` services from the current
+checkout; MySQL still uses the official `mysql:8.4` image. After changing
+source files, repeat the command to rebuild the application image. Pin
+`PAFISH_IMAGE` to a release tag in production instead of relying on `latest`.
 
 Docker Official Images require an upstream source repository and maintainers
 who commit to timely version and security updates, a repeatable build, Docker

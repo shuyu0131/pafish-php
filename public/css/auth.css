@@ -118,6 +118,4 @@ body.auth-body {
 @media (max-width: 420px) {
   .auth-page { padding-right: 8px; padding-left: 8px; }
   .auth-card { padding-right: 8px; padding-left: 8px; }
-  .auth-row { align-items: stretch; flex-direction: column; }
-  .auth-send-btn { width: 100%; }
 }

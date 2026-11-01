@@ -74,7 +74,7 @@ final class CommentApiController
         $targetIdRaw = (string) ($body['targetId'] ?? $body['postId'] ?? '');
 
         // 登录检测：已登录用户自动使用登录身份（服务端强制，忽略 body 伪造的昵称/邮箱）
-        // 未登录游客必须通过图形验证码（后台可关闭）
+        // 未登录游客检查图形验证码（后台可关闭）。
         $sessionUser = Auth::user();
         $name = '';
         $email = '';
@@ -123,13 +123,12 @@ final class CommentApiController
             return $this->json($response, ['error' => $e->getMessage()], $e->getCode());
         }
 
-        // Rejected targets (for example, pages with comments disabled) must not
         // consume the quota for a later valid submission from the same visitor.
         if (self::isCommentTooFast($ip)) {
             return $this->json($response, ['error' => '评论太频繁，请稍后再试'], 429);
         }
 
-        // 回复校验：父评论必须存在、属于同一篇文章且已通过审核
+        // 回复只接受同一内容下已审核的父评论。
         $parentId = null;
         $parentEmail = null;
         $targetColumn = $targetType === 'post' ? 'post_id' : 'page_id';

@@ -9,7 +9,7 @@ use Pafish\Core\Session;
 
 /**
  * 注册 / 忘记密码验证码：会话内按用途保存最新一份，绑定邮箱，不写数据库。
- * 使用 PHP 会话锁串行消费；自定义 session handler 也必须支持同一会话的互斥。
+ * 使用 PHP 会话锁串行消费验证码。
  */
 final class EmailCode
 {

@@ -161,8 +161,7 @@ final class ExtensionRoutes
         }
         return null;
     }
-
-    /** True when a core-owned path must never be shadowed by a content alias. */
+    /** 判断路径是否由核心运行时保留。 */
     public static function isReservedRuntimePath(string $path): bool
     {
         // Extension declarations have a deliberately small path limit, but a

@@ -5,8 +5,7 @@ declare(strict_types=1);
 namespace Pafish\Services;
 
 use Pafish\Core\DB;
-
-/** Shared structured records for extensions that do not need their own relational tables. */
+/** 扩展使用的结构化记录服务。 */
 final class ExtensionRecords
 {
     private const MAX_PAYLOAD_BYTES = 262_144;

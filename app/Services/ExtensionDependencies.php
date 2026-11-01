@@ -8,7 +8,7 @@ namespace Pafish\Services;
  * 扩展依赖的统一声明与检查。
  *
  * 清单中的 requires 只描述本地扩展依赖，不与商店目录的 requiresPhp 混用。
- * 支持字符串 `plugin:name` / `theme:name`，以及带版本约束的
+ * 支持插件和主题依赖声明。
  * `plugin:name >=1.0.0`；对象形式用于需要更明确的清单：
  * {"type":"plugin","name":"foo","version":">=1.0.0"}。
  */
@@ -16,7 +16,6 @@ final class ExtensionDependencies
 {
     private const NAME_PATTERN = '/^[a-z0-9_-]{1,50}$/D';
     private const CONSTRAINT_PATTERN = '/^(?:[<>=!~^]*\s*)?[0-9]+(?:\.[0-9]+){0,2}(?:[-+][0-9A-Za-z.-]+)?$/D';
-
     /** @return array<int, array{kind:string,name:string,constraint:string}> */
     public static function normalize(mixed $requires): array
     {

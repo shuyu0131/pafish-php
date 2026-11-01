@@ -39,7 +39,7 @@ final class Cache
                 || !isset($payload['expires']) || !array_key_exists('value', $payload)
                 || !self::current($key, $payload, $state)
                 || ((int)$payload['expires'] > 0 && (int)$payload['expires'] <= time())) {
-                // Do not unlink under a shared reader lock; a later fill replaces expired data.
+
                 self::count('misses');
                 return $default;
             }
@@ -82,7 +82,7 @@ final class Cache
             if ($waited >= 1) self::count('lock_waits');
             if (!$acquired) {
                 self::count('lock_timeouts');
-                // Bounded wait: an unavailable cache must not indefinitely block a page.
+
                 return self::load($load, true);
             }
             $value = self::get($key, $missing);
@@ -127,7 +127,7 @@ final class Cache
             $state = self::nextState($lock);
             if (!self::storeState($lock, $state)) return;
             if (!self::write($key, $value, $ttl, $state)) {
-                // A failed explicit replacement must not leave its previous value readable.
+
                 $state['keys'][$key] = $state['revision'];
                 self::storeState($lock, self::boundState($state));
             }

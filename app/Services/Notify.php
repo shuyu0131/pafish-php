@@ -63,8 +63,7 @@ final class Notify
                 ])
             );
         } catch (\Throwable $e) {
-            // 不阻塞评论流程，但必须留痕：否则 SMTP 配置错误、端口被封、证书过期
-            // 会让通知信"悄悄坏几个月"，站长完全无从察觉。
+            // 记录通知错误，不影响评论流程。
             \Pafish\Core\Logger::error(
                 '[pafish-notify] 新评论通知发送失败，收件人=' . self::maskEmail($to)
                 . ' 文章=' . (string) ($ctx['postTitle'] ?? '') . '：' . $e->getMessage()
@@ -94,7 +93,7 @@ final class Notify
                 ])
             );
         } catch (\Throwable $e) {
-            // 同上：被回复者收不到通知时必须留痕
+            // 记录通知错误，不影响回复流程。
             \Pafish\Core\Logger::error(
                 '[pafish-notify] 回复通知发送失败，收件人=' . self::maskEmail((string) $input['toEmail'])
                 . '：' . $e->getMessage()

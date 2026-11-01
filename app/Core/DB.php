@@ -120,7 +120,7 @@ final class DB
         return self::$pdo !== null && self::$pdo->inTransaction();
     }
 
-    /** 提交后副作用必须使用 DB::transaction 管理最外层提交。 */
+    /** 注册事务提交后的回调。 */
     public static function afterCommit(callable $callback): void
     {
         if (!self::inTransaction()) {

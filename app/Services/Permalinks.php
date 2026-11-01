@@ -33,7 +33,7 @@ final class Permalinks
     public static function postPath(array $post, ?string $template = null): string
     {
         $date = strtotime((string) ($post['published_at'] ?? $post['created_at'] ?? ''));
-        // Missing dates must not make a URL change every time it is rendered.
+
         if ($date === false) $date = 0;
         return str_replace(
             ['%postname%', '%year%', '%month%'],
@@ -165,9 +165,7 @@ final class Permalinks
             $leaf = \Pafish\Core\DB::fetchOne('SELECT id,slug FROM categories WHERE slug = ? LIMIT 1', [end($segments)]);
             if ($leaf === null) return null;
 
-            // A single-segment category URL is a supported legacy shape. Multi-level
-            // URLs must match the category's actual ancestry; changed ancestry is
-            // handled by the saved 301 alias before this controller runs.
+            // 单段分类地址保持兼容；多级地址由已保存的 301 别名处理。
             if (count($segments) > 1) {
                 $current = array_map('rawurldecode', explode('/', self::categoryPath((int) $leaf['id'])));
                 if ($segments !== $current) return null;
@@ -193,7 +191,7 @@ final class Permalinks
         if (preg_match('#^' . $prefix . '([^/]+)' . $suffix . '$#u', '/' . ltrim($path, '/'), $m)) {
             return ['slug' => rawurldecode($m[1])];
         }
-        // Current and historical standard prefixes remain readable after settings change.
+        // 设置变化后继续识别现有标准前缀。
         $fallback = match ($type) {
             'page' => '#^/(?:pages|page)/([^/]+)$#u',
             'category' => '#^/(?:category|categories)/([^/]+)$#u',

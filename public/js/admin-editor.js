@@ -326,7 +326,7 @@
         autosaveFailed = false;
         autoRequestToken = null;
         // 回填实际存储值：自动取到的图只更新预览，不落进地址框。
-        // 请求期间的新输入或移除操作不应被旧响应覆盖。
+        // 旧响应不覆盖请求期间的新输入或移除操作。
         if (typeof d.coverUrl === "string" && els.coverUrl.value.trim() === savedPayload.get("cover_url") &&
             (els.autoCover.checked ? "1" : "0") === savedPayload.get("auto_cover")) {
           setAutoCoverUrl(d.coverAuto ? d.coverUrl : "");
@@ -350,7 +350,7 @@
       });
   }
 
-  // ---------- 分类选择（对齐 category-select.tsx） ----------
+  // ---------- 分类选择 ----------
   function catOptionList() {
     var q = catQuery.trim().toLowerCase();
     var list = [{ value: "", label: "无分类", depth: -1 }];
@@ -772,7 +772,7 @@
       }
     });
     els.slug.addEventListener("input", function () { slugTouched = true; if (slugAuto) slugAuto.value = "0"; });
-    // 自动保存令牌只对应当前内容；内容变化后必须生成新的请求令牌。
+    // 内容变化后更新自动保存令牌。
     els.form.addEventListener("input", function () { autoRequestToken = null; });
 
     // 提交按钮

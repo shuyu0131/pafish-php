@@ -164,7 +164,7 @@ final class Session
         }
 
         // Proxies may send a comma-separated chain; the first value is the
-        // client-facing scheme. Empty, "off" and "http" must remain plain HTTP.
+
         $forwarded = strtolower(trim((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')));
         $scheme = strtolower(trim(explode(',', $forwarded, 2)[0] ?? ''));
         return $scheme === 'https';

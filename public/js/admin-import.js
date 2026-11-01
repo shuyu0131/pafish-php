@@ -126,7 +126,7 @@
     if (files.length === 0) return;
     var status = form.querySelector('input[name="status"]:checked');
     var fd = new FormData();
-    // 注意：PHP 8.4+ 新 multipart 解析器对同名 files 字段只保留最后一个，必须用 files[] 形式
+    // 多文件上传使用 files[] 字段名。
     files.forEach(function (f) { fd.append("files[]", f.file, f.name); });
     fd.append("status", status ? status.value : "draft");
     fd.append("_csrf", CSRF);

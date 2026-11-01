@@ -121,8 +121,7 @@ final class AppearanceController extends AdminController
         // 先收集并完成全部校验，再统一写库（校验失败不产生部分写入）
         $pairs = [];
         $errors = [];
-        // group 容器自身不存值，其子字段才是真实设置项——必须先展平，
-        // 否则容器里的设置会被整块忽略（用户填了却保存不上）
+        // 展平分组字段后统计实际设置项。
         foreach (\Pafish\Services\ExtensionKernel::flattenFields(Theme::settingsFields($name)) as $field) {
             $key = (string) $field['key'];
             if (!array_key_exists($key, $body)) {
@@ -140,7 +139,7 @@ final class AppearanceController extends AdminController
             } else {
                 $value = is_scalar($raw) ? trim((string) $raw) : '';
             }
-            // 由 schema 声明的约束统一校验（长度 / 必填 / 正则 / 候选项 / 颜色）
+            // 使用 schema 字段校验值。
             $error = \Pafish\Services\ExtensionKernel::validateSettingValue($field, $value);
             if ($error !== null) {
                 $errors[$key] = $error;

@@ -70,8 +70,7 @@ final class MediaReferences
             self::replace($type, (string) $key, $row ?? []);
         });
     }
-
-    /** Must share the caller's permanent deletion transaction. */
+    /** 清理指定对象关联的媒体引用。 */
     public static function forget(string $type, string|int $key): void
     {
         self::source($type);
@@ -100,7 +99,7 @@ final class MediaReferences
             if ($row === null) throw new \RuntimeException('媒体不存在或已删除', 404);
             $count = count(DB::fetchAll('SELECT upload_id FROM media_references WHERE upload_id = ? FOR UPDATE', [$id]));
             if ($count > 0 && !$force) throw new \RuntimeException('媒体仍被内容引用，请确认后强制删除', 409);
-            // Duplicate catalog entries must not delete the file behind a surviving entry.
+
             $shared = $row['url_hash'] !== null && DB::value('SELECT id FROM uploads WHERE url_hash = ? AND id <> ? LIMIT 1', [$row['url_hash'], $id]) !== null;
             DB::execute('DELETE FROM uploads WHERE id = ?', [$id]);
             return $row + ['keep_file' => $shared];

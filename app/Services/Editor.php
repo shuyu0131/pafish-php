@@ -70,7 +70,7 @@ final class Editor
         return $url . (str_contains($url, '?') ? '&' : '?') . 'v=' . filemtime($file);
     }
 
-    /** 仅公开启用插件 assets/ 下的静态文件，真实路径也必须留在该目录内。 */
+    /** 公开启用插件 assets/ 下的静态文件。 */
     public static function assetFile(string $plugin, string $path): ?string
     {
         if (preg_match('/^[a-z0-9_-]{1,50}$/', $plugin) !== 1

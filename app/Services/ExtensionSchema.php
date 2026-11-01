@@ -184,14 +184,14 @@ final class ExtensionSchema
             foreach ((array) ($table['indexes'] ?? []) as $index) {
                 $indexName = (string) $index['name'];
                 $columnsSql = implode(', ', array_map(static fn (string $v): string => '`' . $v . '`', $index['columns']));
-                // 索引必须走 CREATE INDEX：`INDEX name ON table (...)` 不是合法的独立语句。
+
                 $type = !empty($index['unique']) ? 'CREATE UNIQUE INDEX' : 'CREATE INDEX';
                 if (!self::indexExists($physical, $indexName)) {
                     self::ddl($pdo, $type . ' `' . $indexName . '` ON `' . $physical . '` (' . $columnsSql . ')');
                 }
             }
         }
-        // 全部列和索引完成后再加约束；历史孤儿数据必须显式修复，不静默删除或改写。
+
         foreach ((array) ($schema['tables'] ?? []) as $table) {
             $physical = self::physicalName($kind, $name, (string) $table['name']);
             foreach ($table['columns'] as $column) {
@@ -215,7 +215,7 @@ final class ExtensionSchema
 
     public static function installedFingerprint(string $kind, string $name): string
     {
-        // 首次升级必须登记现有业务表的归属，即使原 schema 指纹没有变化。
+
         if (ExtensionStorage::get($kind, $name, 'table_ownership_version') !== '1') return '';
         return (string) Settings::get('extension_schema_fingerprint:' . $kind . ':' . $name, '');
     }
@@ -229,8 +229,7 @@ final class ExtensionSchema
     {
         Settings::set('extension_schema_fingerprint:' . $kind . ':' . $name, self::fingerprint($schema));
     }
-
-    /** 显式数据清理接口；调用方必须先取得管理员确认。 */
+    /** 删除扩展注册的自有数据表。 */
     public static function drop(string $kind, string $name, mixed $schema): void
     {
         $error = self::validateDeclaration($schema, $kind, $name);
@@ -413,7 +412,7 @@ final class ExtensionSchema
         $target = $ref['table'];
         $name = $column['name'];
         $pdo = DB::pdo();
-        // 不自动 MODIFY 老列：符号、宽度或 NULL 规则漂移都需要显式迁移。
+        // 已有列的结构通过迁移调整。
         foreach ([[$physical, $name, !empty($column['nullable'])], [$target, 'id', false]] as [$table, $field, $nullable]) {
             $stmt = $pdo->prepare('SELECT DATA_TYPE, COLUMN_TYPE, IS_NULLABLE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME=?');
             $stmt->execute([$table, $field]);

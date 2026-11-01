@@ -299,8 +299,7 @@ final class NavController extends AdminController
         Cache::clearPrefix('nav.');
         return $this->json($response, ['ok' => true, 'slug' => $slug]);
     }
-
-    /** Make one menu the default returned to themes that do not specify a menu slug. */
+    /** 返回主题未指定 slug 时使用的主菜单。 */
     public function primaryMenu(Request $request, Response $response, array $args): Response
     {
         $this->guardAdmin();

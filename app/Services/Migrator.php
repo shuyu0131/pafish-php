@@ -38,11 +38,7 @@ final class Migrator
         return array_map('strval', $rows);
     }
 
-    /**
-     * 运行 migrations/ 下未应用的迁移，返回 ['applied' => [版本...]]。
-     * DML 分段事务，DDL 单独执行；DDL 无法回滚，迁移本身必须支持中断重试。
-     * 不得在业务事务内运行；同一个数据库的迁移由连接级锁串行执行。
-     */
+    /** 运行未应用的迁移并返回已应用版本。 */
     public static function run(\PDO $pdo, string $migrationsDir): array
     {
         if (!is_dir($migrationsDir)) {
@@ -79,8 +75,7 @@ final class Migrator
         self::ensureTable($pdo);
 
         // 存量库（已有业务表且缺少 baseline 记录）→ baseline 视为已应用基线。
-        // 早期测试库可能已经登记过某些增量迁移，但仍没有正式 baseline；
-        // 此时不能再次执行含全文索引 DDL 的基线文件。
+        // 已登记增量迁移但缺少基线的数据库不重复执行基线文件。
         $recorded = self::appliedVersions($pdo);
         if (!in_array('baseline', $recorded, true) && self::tableExists($pdo, 'users')) {
             self::markApplied($pdo, 'baseline');
@@ -372,7 +367,7 @@ final class Migrator
     private static function foreignKeyExists(\PDO $pdo, string $table, string $constraint): bool
     {
         try {
-            // Some isolated-schema runners prefix constraint names along with table
+
             // names. Match the declared name either exactly (normal installs) or as
             // the suffix after that runner-specific prefix.
             $stmt = $pdo->prepare('SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = ? AND (CONSTRAINT_NAME = ? OR RIGHT(CONSTRAINT_NAME, CHAR_LENGTH(?)) = ?) AND CONSTRAINT_TYPE = ?');

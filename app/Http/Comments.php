@@ -92,7 +92,7 @@ final class Comments
         }
         $parents = [];
         foreach ($all as $c) $parents[(string) $c['id']] = (string) ($c['parent_id'] ?? '');
-        // Defensive handling of historical corrupt parent chains, including visible pending nodes.
+        // 处理损坏的评论父链。
         $checked = [];
         foreach (array_keys($parents) as $id) {
             $path = [];
@@ -139,7 +139,7 @@ final class Comments
             try {
                 return (string) \Pafish\Services\Content::imageUrl($avatarUrl);
             } catch (\RuntimeException) {
-                // Invalid saved values must not turn into paths relative to the current page.
+
             }
         }
         return Url::asset('/images/default-avatar.svg');

@@ -21,7 +21,7 @@ final class Settings
 
     public static function core(): array
     {
-        // Transactional reads must not escape into the request cache after a rollback.
+
         if (DB::pdo()->inTransaction()) {
             return array_column(DB::fetchAll('SELECT `key`, `value` FROM settings'), 'value', 'key');
         }

@@ -197,7 +197,7 @@ final class CommentsController extends AdminController
     /** POST /admin/comments/block-ip：拉黑 IP（settings blocked_ips JSON 数组，去重追加；不删已有评论） */
     public function blockIp(Request $request, Response $response): Response
     {
-        // IP 黑名单影响全站，不应由仅管理自己内容的编辑设置。
+        // IP 黑名单是全站设置。
         $this->guardAdmin();
         $ip = trim((string) ($request->getParsedBody()['ip'] ?? ''));
         if (filter_var($ip, FILTER_VALIDATE_IP) === false) {

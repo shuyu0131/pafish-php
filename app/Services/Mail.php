@@ -84,7 +84,7 @@ final class Mail
             self::cmd($fp, "EHLO " . (gethostname() ?: 'localhost'));
             self::expect($fp, '250');
             if (!$secure) {
-                // 587 端口必须完成 TLS 升级，禁止回退到明文认证。
+                // 587 端口在认证前升级到 TLS。
                 self::cmd($fp, 'STARTTLS');
                 $code = self::expect($fp, '220', false);
                 if ($code !== '220') {

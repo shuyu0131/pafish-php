@@ -4,7 +4,7 @@
 -- 状态字段一律 VARCHAR + 应用层常量
 -- 要求：MySQL 5.7.6+（ngram 全文解析器）或 8.0
 --
--- 迁移基线：本文件必须与 app/install/schema.sql 内容一致
+-- 迁移基线
 -- （build-release.php 会校验，不一致直接报错）。安装走 schema.sql 并把本
 -- 基线标记为已应用；存量库升级时自动视为已应用；后续结构演进新增
 -- migrations/ 下的语义增量文件（见 app/Services/Migrator.php）

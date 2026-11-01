@@ -212,12 +212,8 @@ final class Plugin
     /** 规范化 manifest（过滤 settings/injects/pageTemplates/storage） */
     private static function normalize(array $json): array
     {
-        // 设置项一律委托 ExtensionKernel 规范化，不再自建一份。
-        //
-        // 这里原来有一套独立的类型白名单与字段拷贝逻辑，只放行 9 种类型和
-        // 7 个键——于是插件写 desc / section / maxlength / pattern / fields
-        // 会被**静默丢弃**，插件作者在后台看不到自己的设置项，日志里也没有任何提示。
-        // 规则必须只有一份，否则一定会随内核演进而分叉。
+        // 设置项统一由 ExtensionKernel 规范化。
+
         $settings = [];
         foreach ((array) ($json['settings'] ?? []) as $s) {
             $field = ExtensionKernel::describeSetting($s, 'plugin');
@@ -248,7 +244,6 @@ final class Plugin
                 $pageTemplates[] = ['name' => $t['name'], 'title' => $t['title']];
             }
         }
-
 
         $routes = ExtensionRoutes::fromManifest($json, 'plugin', (string) $json['name']);
         $schema = is_array($json['schema'] ?? null) ? $json['schema'] : null;
@@ -312,7 +307,6 @@ final class Plugin
         ];
     }
 
-    /** 校验声明式后台菜单：只能挂载已有 capability，并且必须指向 admin GET 路由。 */
     private static function validateAdminDeclaration(array $json, string $name): ?string
     {
         if (!array_key_exists('admin', $json)) {
@@ -496,7 +490,7 @@ final class Plugin
 
     // ---------- 生命周期 ----------
 
-    /** 注册插件钩子（约定函数 registerHooks(ctx)） */
+    /** 注册插件声明的生命周期钩子。 */
     public static function registerHooks(string $name): void
     {
         if (isset(self::$registeredHooks[$name])) {
@@ -733,15 +727,7 @@ final class Plugin
         return ['manifest' => self::normalize($json), 'error' => null];
     }
 
-    /**
-     * 按 manifest schema 保存插件设置。
-     *
-     * 校验走 ExtensionKernel::validateSettingValue，与主题侧同一套规则；
-     * 原来这里只硬编码了颜色格式检查，插件声明的 maxlength / pattern /
-     * 数值区间 / 复合结构全部不生效。
-     *
-     * @return array<string, string>
-     */
+    /** @return array<string, string> */
     public static function saveSettings(string $name, array $body): array
     {
         if (!self::isActive($name)) {
@@ -780,17 +766,7 @@ final class Plugin
         self::setSettings($name, $clean);
         return $clean;
     }
-
-    /**
-     * 插件设置字段（合并 plugin.json 声明与运行时 $ctx->settings() 注册）。
-     *
-     * 注意：`manifest()` 已经过一次 normalizeSetting，字段结构里带 `rules`；
-     * 若这里再规范化一遍，`normalizeSetting` 会去读顶层的 maxlength/required
-     * （它们已经被折叠进 rules），第二次规范化反而会把约束**丢掉**。
-     * 因此只在字段尚未规范化（缺 rules）时才补一次。
-     *
-     * @return array<int, array<string, mixed>>
-     */
+    /** 返回插件声明的设置字段。 */
     public static function settingsFields(string $name): array
     {
         // 判断字段是否**已经**规范化过。容器与复合类型没有顶层 `rules`，
@@ -846,7 +822,7 @@ final class Plugin
             if ($manifest === null) {
                 continue;
             }
-            // v1 插件保持历史行为；v2 插件必须显式声明 injects，避免越权注入未声明位置。
+
             if ((int) ($manifest['apiVersion'] ?? 1) >= 2
                 && !in_array($target, (array) ($manifest['injects'] ?? []), true)) {
                 continue;
@@ -1012,12 +988,7 @@ final class Plugin
 
     // ---------- 安装 / 启动 ----------
 
-    /**
-     * 每次请求启动（bootstrap 调用）：
-     * - 注册系统注入渲染器（主题模板里 do_action('head_inject'/'sidebar_inject'/'footer_inject') 输出插件注入）
-     * - 接入云存储管线（Upload/MediaController 的 apply_filters 调用点）
-     * - 注册全部激活插件的钩子（PHP 每请求新进程）
-     */
+    /** 注册激活插件的请求级钩子和存储处理器。 */
     public static function boot(): void
     {
         try {

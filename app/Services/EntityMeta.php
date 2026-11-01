@@ -41,7 +41,7 @@ final class EntityMeta
             DB::fetchAll('SELECT meta_key,meta_value FROM entity_meta WHERE subject_type=? AND subject_id=? AND scope=? ORDER BY position,id', [$subjectType, $subjectId, $scope]));
     }
 
-    /** Read the migrated custom-field rows, falling back to the retained legacy column during rollout. */
+    /** 读取文章自定义字段，必要时回退到旧字段列。 */
     public static function postCustomFields(int $postId, mixed $legacyValue = null): array
     {
         $fields = self::all('post', $postId, self::POST_FIELDS_SCOPE);
@@ -138,7 +138,7 @@ final class EntityMeta
         }
     }
 
-    /** Replace one owner's rows while preserving caller order and legacy duplicate keys. */
+    /** 按调用方顺序替换一个归属下的字段。 */
     public static function replace(string $subjectType, int $subjectId, string $scope, array $fields): void
     {
         self::validate($subjectType, $subjectId, $scope, '');
@@ -206,7 +206,7 @@ final class EntityMeta
         });
     }
 
-    /** Idempotent import used by the versioned PHP migration; malformed legacy values remain in posts.custom_fields. */
+    /** 从旧字段列导入文章自定义字段。 */
     public static function migrateLegacyPostFields(\PDO $pdo): void
     {
         $lastId = 0;

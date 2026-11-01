@@ -429,10 +429,10 @@ final class UsersController extends AdminController
 
         try {
             \Pafish\Services\MediaReferences::transaction(function () use ($id, $meId): void {
-                // 先转移有 NOT NULL 外键的内容，避免删除用户触发约束失败或丢失微语。
+                // 删除用户前转移其文章和微语。
                 DB::execute('UPDATE posts SET author_id = ? WHERE author_id = ?', [$meId, $id]);
                 DB::execute('UPDATE micro_statuses SET author_id = ? WHERE author_id = ?', [$meId, $id]);
-                // FK 级联只删除关系，不会维护文章上的汇总计数；保留匿名互动部分。
+                // 删除用户互动后更新文章汇总计数。
                 DB::execute("UPDATE posts p JOIN (
                     SELECT post_id, SUM(kind = 'like') AS likes, SUM(kind = 'favorite') AS favorites
                     FROM post_reactions WHERE user_id = ? GROUP BY post_id

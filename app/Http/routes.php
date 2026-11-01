@@ -328,8 +328,7 @@ $app->get('/micro', [MicroController::class, 'index']);
 // 新主题资源使用 /themes/{name}/... 直链；该入口只兼容旧模板生成的 /theme-assets/... 地址。
 $app->get('/theme-assets/{theme:[a-z0-9_-]+}/{path:.*}', [ThemeAssetController::class, 'serve']);
 $app->get('/{dir:css|fonts|js|uploads|vendor}/{path:.*}', [StaticFileController::class, 'serve']);
-// 当前主题与声明 public:true 的插件自然路径；必须位于文章 slug 兜底之前。
-// 仅注册已声明的精确模式，不能用 catch-all，否则会吞掉 /{slug} 文章兜底。
+// 当前主题与公开插件路由优先于文章 slug 兜底。
 foreach (\Pafish\Services\ExtensionRoutes::publicRoutes() as $extensionRoute) {
     // 不能用 static 闭包：Slim 的 CallableResolver 会把路由闭包 bindTo 容器，
     // 而静态闭包无法绑定，bindTo 返回 null 后触发 TypeError（所有扩展自然路径都会 500）。

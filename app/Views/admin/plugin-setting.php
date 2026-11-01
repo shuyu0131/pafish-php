@@ -18,7 +18,6 @@ $supportsStorageTest = (bool) ($supportsStorageTest ?? false);
 $pluginActive = (bool) ($active ?? false);
 $hasCustomSettingsPage = is_array($manifest) && in_array('plugin_setting', (array) ($manifest['injects'] ?? []), true);
 
-// 字段渲染统一走共享 partial（主题页与插件页必须同一份实现）
 $renderField = require __DIR__ . '/partials/schema-field.php';
 $buildGroups = require __DIR__ . '/partials/schema-groups.php';
 

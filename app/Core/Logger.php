@@ -4,16 +4,7 @@ declare(strict_types=1);
 
 namespace Pafish\Core;
 
-/**
- * 应用日志写入器：统一位置、脱敏、去重、锁写和有限轮转。
- * runtime/ 由安装器创建；日志写入失败时静默返回，避免错误处理再次递归报错。
- *
- * 关于"日志短时间内涨到几 MB"：
- * 单个持续故障（如数据库连不上）每个请求都会完整落一次堆栈，实测约 350 B/次。
- * 日访问 1 万次的站点遇到这种故障，一天就能写出约 3.3 MB，并很快击穿 2 MB
- * 轮转阈值——而轮转恰恰会冲掉最有价值的那段历史。因此这里对**相同故障**做
- * 窗口内合并：首次完整记录，后续只累加次数，请求结束时补一行汇总。
- */
+/** 应用日志写入器：脱敏、去重、锁写和有限轮转。 */
 final class Logger
 {
     private const MAX_BYTES = 2097152;
@@ -137,13 +128,7 @@ final class Logger
         self::error($message . ': ' . $exception->getMessage() . PHP_EOL . self::trace($exception));
     }
 
-    /**
-     * 压缩堆栈：去掉站点绝对路径并限制帧数。
-     *
-     * 实测堆栈占日志体积的 66%，且每帧都重复 ~255 字节的绝对路径
-     * （`C:\Users\xxx\ZCodeProject\pafish-php\vendor\...`）。这里把根路径替换成
-     * `<root>`，并只保留前 12 帧，既能定位又不淹没日志。
-     */
+    /** 生成去除绝对路径且限制帧数的堆栈文本。 */
     private static function trace(\Throwable $exception): string
     {
         $frames = $exception->getTrace();

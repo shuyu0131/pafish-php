@@ -36,7 +36,7 @@ final class PostReactions
             throw new \DomainException('请先登录后再收藏', 401);
         }
         if ($userId === null && DB::pdo()->inTransaction()) {
-            // 会话状态不受数据库回滚控制，匿名操作必须持有最外层事务。
+            // 匿名互动不在业务事务中修改会话状态。
             throw new \LogicException('匿名互动不能在已有业务事务中调用');
         }
         $result = DB::transaction(static function () use ($postId, $kind, $userId, $active): array {

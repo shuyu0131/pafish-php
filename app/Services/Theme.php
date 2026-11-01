@@ -67,7 +67,7 @@ final class Theme
             self::$bootedTheme = null;
             return false;
         }
-        // schema 兜底必须先于主题早退判断；按 manifest 版本/schema 记忆，避免一次请求内重复查库。
+
         $schemaKey = self::schemaBootKey($name);
         $schemaReady = true;
         if (self::$schemaBootKey !== $schemaKey) {
@@ -213,8 +213,7 @@ final class Theme
         // 文件尚不存在时仍返回稳定的主题路径。
         return $candidates[0];
     }
-
-    /** 返回主题静态文件的真实路径；仅允许浏览器静态资源扩展名。 */
+    /** 返回主题静态资源的真实路径。 */
     public static function assetFile(string $name, string $path): ?string
     {
         $relative = self::resolveAssetPath($name, $path);
@@ -408,12 +407,7 @@ final class Theme
         return $json;
     }
 
-    /**
-     * 主题至少提供一个实际的模板或样式/封面文件。
-     *
-     * theme.json 和 extension.php 只是描述/业务入口，不能单独把一个
-     * 没有任何展示层的目录识别为主题，否则激活后会静默落到系统模板。
-     */
+    /** 判断目录是否包含主题展示文件。 */
     private static function isThemeDirectory(string $dir): bool
     {
         if (!is_dir($dir)) {
@@ -598,13 +592,7 @@ final class Theme
             return $data;
         });
     }
-
-    /**
-     * 主题设置的 schema 键清单（真实存库的设置项）。
-     *
-     * 必须展平 `group` 容器：容器自身不存值，里面的子字段才是设置项。
-     * 否则导出会漏掉容器内的设置，卸载主题时也会留下孤儿键。
-     */
+    /** 返回主题设置的存储键。 */
     public static function schemaKeys(string $name): array
     {
         $keys = [];
@@ -615,17 +603,7 @@ final class Theme
         }
         return $keys;
     }
-
-    /**
-     * 主题设置字段（合并 theme.json 声明与运行时 $ctx->settings() 注册）。
-     *
-     * 两条来源都必须经过 ExtensionKernel 规范化：
-     * 否则 theme.json 里声明的 desc / section / maxlength / pattern 等约束会原样透传
-     * （键名不在统一的 rules 结构里），渲染层读不到、保存校验也拿不到——
-     * 表现为"主题里写了校验，但后台既不显示提示也不拦截"。
-     *
-     * @return array<int, array<string, mixed>>
-     */
+    /** 返回主题声明的设置字段。 */
     public static function settingsFields(string $name): array
     {
         $manifest = self::manifest($name);
@@ -676,8 +654,7 @@ final class Theme
     {
         return self::customTemplates($name, 'page-');
     }
-
-    /** 文章自定义布局与分类覆盖文件分开命名，不要求清单声明。 */
+    /** 返回主题提供的文章模板。 */
     public static function postTemplates(string $name): array
     {
         return self::customTemplates($name, 'post-template-');
@@ -901,7 +878,7 @@ final class Theme
         }
 
         // 背景：图片只放行 http(s) 与站内绝对路径，挡掉 javascript: 之类；
-        // 尺寸必须跟位置写在一起，否则 background-size 会被简写整个覆盖掉。
+
         $bg = $json('page_bg');
         if ($bg !== []) {
             $parts = [];
@@ -995,7 +972,7 @@ final class Theme
         }
 
         // 边框同时承担「列表分隔线」与「卡片描边」两种角色；
-        // 宽度为 0 时必须显式关掉，否则列表模式下仍有分隔线残留。
+
         $border = $json('card_border');
         if ($border !== []) {
             $bw = isset($border['width']) && is_numeric($border['width']) ? (float) $border['width'] : null;
@@ -1078,23 +1055,12 @@ final class Theme
         };
     }
 
-    /**
-     * 字体名清洗：只留字母、数字、汉字与空格逗号连字符引号，最长 80 字符。
-     * 字体名会直接进 CSS，必须挡掉 } { ; 等能让规则逃逸的字符。
-     */
     private static function cssFontFamily(string $value): string
     {
         $clean = preg_replace('/[^A-Za-z0-9\x{4e00}-\x{9fa5}\s,\-\'"]/u', '', $value) ?? '';
         return mb_substr(trim($clean), 0, 80);
     }
-
-    /**
-     * 指定主题的设置值：schema 默认值 + theme_settings:{name}:{key} 覆盖。
-     *
-     * 必须展平 `group` 容器：容器自身不存值，其子字段才是真实设置项。
-     * 只遍历顶层会让容器内的设置**永远读不到**（`theme_value()` 返回默认值、
-     * 导出也漏掉），即使保存接口报告成功。
-     */
+    /** 返回主题设置的当前值。 */
     public static function valuesFor(string $name): array
     {
         if (!self::isValidName($name)) {

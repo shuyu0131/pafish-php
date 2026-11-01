@@ -14,7 +14,6 @@ use Slim\Factory\AppFactory;
 
 define('PAFISH_ROOT', dirname(__DIR__));
 
-// 入口阶段也必须保持生产环境不回显 PHP 路径、配置和数据库错误。
 ini_set('display_errors', '0');
 require_once __DIR__ . '/Core/Logger.php';
 require_once __DIR__ . '/Core/RequestPath.php';
@@ -83,7 +82,7 @@ if ($__dir !== null) {
         exit;
     }
     // 某些 Nginx 配置通过 error_page 404 回退到 index.php，
-    // 此时 PHP 进程会继承上游 404；文件已找到时必须明确恢复成功状态。
+
     http_response_code(200);
     $__types = [
         'css' => 'text/css; charset=utf-8',

@@ -19,7 +19,6 @@ if (is_file($luminaRecovery) && !is_dir(PAFISH_ROOT . '/themes/lumina')) {
 }
 @unlink($luminaRecovery);
 
-// 1.0.9 起主题必须声明统一 extension.php 入口。在线更新保留已安装
 // themes/，旧站点上随旧包安装的 default 没有该文件，升级后会因
 // Theme::manifest() 返回 null 而直接失去前台主题；这里只给 default
 // 补一个空入口，不触碰其他主题。

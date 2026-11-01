@@ -37,7 +37,7 @@ function theme_value(string $key, string $default = ''): string
  * 站点名称（站点名的唯一权威来源）。
  *
  * 管理员清空设置时回退到默认名，避免前台标题、RSS、API 出现空白站名。
- * 其他调用点请一律使用本函数，不要各自写 Settings::get('site_name', ...)。
+ * 其他调用点通过本函数读取站点名称。
  */
 function site_name(): string
 {

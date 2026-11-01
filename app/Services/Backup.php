@@ -149,7 +149,7 @@ final class Backup
         preg_match_all('/CREATE TABLE IF NOT EXISTS (\w+)/', (string) file_get_contents(dirname(__DIR__) . '/install/schema.sql'), $matches);
         $names = array_fill_keys(array_merge($matches[1], ['schema_migrations']), true);
         foreach (DB::fetchAll("SELECT data_key FROM extension_storage WHERE extension_type='system' AND extension_name='table_owners'") as $row) $names[(string) $row['data_key']] = true;
-        // Disabled extensions and legacy installs may not yet have table_owners entries.
+        // 未启用的扩展或旧安装可能尚未登记表归属。
         foreach (['plugin'=>'plugins', 'theme'=>'themes'] as $kind=>$dir) {
             foreach (glob(dirname(__DIR__, 2) . '/' . $dir . '/*/' . $kind . '.json') ?: [] as $file) {
                 $name = basename(dirname($file));

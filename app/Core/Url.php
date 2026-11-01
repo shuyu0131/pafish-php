@@ -181,11 +181,7 @@ final class Url
         }
         return $base . self::to($path);
     }
-
-    /**
-     * Build an absolute URL only from the administrator-provided canonical site URL.
-     * Security-sensitive links must not fall back to the untrusted Host header.
-     */
+    /** 根据站点配置构建可信的绝对地址。 */
     public static function trustedAbsolute(string $path = ''): ?string
     {
         $base = rtrim((string) Config::get('site_url', ''), '/');

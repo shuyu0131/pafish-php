@@ -341,7 +341,7 @@ final class ApiController extends AdminController
         $excerpt = '';
         $externalUrl = '';
 
-        // Markdown 导入也是文章写入入口，必须遵守与编辑器相同的保存前拦截契约。
+        // Markdown 导入复用文章保存前的过滤流程。
         $before = \apply_decision_filters('before_post_save', [
             'id' => null,
             'title' => $title,

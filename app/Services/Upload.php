@@ -7,15 +7,7 @@ namespace Pafish\Services;
 use Pafish\Core\DB;
 use Pafish\Core\Hooks;
 
-/**
- * 媒体上传：
- * - 大小受 upload_max_mb 设置（夹在 1–200MB）约束
- * - 扩展名白名单：图片/文档/压缩包/音频/视频
- * - 图片压缩（GD）：仅 png/jpg/jpeg/webp——EXIF 方向转正 → 长边 >1920 缩放
- *   → png compressionLevel 9 / webp q82 / jpeg q82；GIF 保留动画、SVG 保留矢量跳过；失败回退原图
- * - 云存储插件优先：激活插件中第一个声明 storage 且实现 storeFile 的生效，失败回退本地
- * - 本地存储 public/uploads/{随机16hex}.{ext}，入库 uploads 表
- */
+/** 媒体上传、处理和存储服务。 */
 final class Upload
 {
     private const MAX_SIDE = 1920;   // 长边上限

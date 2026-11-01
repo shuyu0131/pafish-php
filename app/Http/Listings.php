@@ -17,7 +17,7 @@ final class Listings
 {
     /**
      * 分页查询已发布文章（返回 [posts, total, perPage, pageNum]）
-     * @param string $extraWhere 内部 SQL 条件（不含前导 AND），值必须用 $params 绑定
+     * @param string $extraWhere 内部 SQL 条件（不含前导 AND）
      * @param string $order 内部固定排序，不接受请求中的原始 SQL
      * @param list<int> $categoryIds 分类及其后代；非空时使用分类内置顶顺序
      */

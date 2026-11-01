@@ -221,7 +221,7 @@
       };
     }
     if (preserveFocus) {
-      // Formatting commands must not blur the textarea and hide its selection.
+
       trigger.addEventListener('mousedown', function (event) { event.preventDefault(); });
       menu.addEventListener('mousedown', function (event) { event.preventDefault(); });
     }

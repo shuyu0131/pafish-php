@@ -8,7 +8,7 @@ use Pafish\Core\Auth;
 use Pafish\Core\DB;
 use Pafish\Services\Settings;
 
-/** Comment lifecycle and bounded previews; writes serialize on the article row, retain real FKs. */
+/** Comment lifecycle and bounded previews. */
 final class Comments
 {
     public const STATUSES = ['PENDING', 'APPROVED', 'REJECTED', 'SPAM', 'TRASH'];

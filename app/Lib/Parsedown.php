@@ -1055,8 +1055,6 @@ class Parsedown
     {
         $markup = '';
 
-        # $excerpt is based on the first occurrence of a marker
-
         while ($excerpt = strpbrk($text, $this->inlineMarkerList))
         {
             $marker = $excerpt[0];

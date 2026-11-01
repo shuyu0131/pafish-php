@@ -148,13 +148,7 @@ final class Store
         return Version::compare($a, $b);
     }
 
-    /**
-     * 读取商店目录。
-     *
-     * @param 'read'|'refresh' $intent
-     *        read    —— 列表页：优先用缓存，允许过期数据兜底，失败后按阶梯退避；
-     *        refresh —— 安装/更新/手动刷新：必须尽量取到最新，且不受退避限制。
-     */
+    /** 读取应用商店目录。 */
     public static function catalog(string $kind, string $intent = 'read'): StoreCatalog
     {
         if (!in_array($kind, array_keys(self::KIND_FILE), true)) {
@@ -438,13 +432,6 @@ final class Store
         ];
     }
 
-    /**
-     * 写入目录缓存。
-     *
-     * @param int|null $at   数据真正的获取时间；失败路径必须传入旧值，不能用 time()
-     * @param array|null $fail 连续失败记录；成功时为 null（清空退避）
-     * @param string $etag   官方源返回的 ETag，用于下次条件请求
-     */
     private static function writeCatalogCache(string $kind, array $items, ?int $at = null, ?array $fail = null, string $etag = ''): void
     {
         $payload = ['v' => self::CATALOG_CACHE_VERSION, 'at' => $at ?? time(), 'items' => $items];
@@ -457,16 +444,7 @@ final class Store
         self::atomicWrite(PAFISH_ROOT . '/runtime/store_catalog_' . $kind . '.json', $payload);
     }
 
-    /**
-     * 原子写 JSON：先写同目录临时文件，再 rename 覆盖。
-     *
-     * 不能用 file_put_contents + LOCK_EX——那只锁写入方，读者仍可能读到写了一半的
-     * 文件，json_decode 失败后会被当成「缓存损坏」，结果又去打一次网络。
-     *
-     * Windows 上读者短暂持有文件句柄会让 rename 拿到 Access denied（实测并发下约两成），
-     * 所以这里重试几次；仍然失败就放弃这次写入。丢掉一次更新远好过写出一份半截缓存：
-     * 读不到的旧缓存是完整可用的，写坏的缓存只会触发额外的网络请求。
-     */
+    /** 以临时文件和 rename 原子写入目录缓存。 */
     private static function atomicWrite(string $path, array $payload): void
     {
         $json = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
@@ -498,7 +476,7 @@ final class Store
             throw new \RuntimeException('商店条目缺少 zip 地址');
         }
         $headers = [];
-        // 付费应用必须携带官网账号令牌，由官方商店按购买记录放行。
+
         if (!empty($item['paid'])) {
             $token = trim((string) Settings::get('store_account_token', ''));
             if ($token === '') {
@@ -512,7 +490,7 @@ final class Store
             try {
                 $buffer = self::httpGet(rtrim($base, '/') . '/' . ltrim($zip, '/'), $headers);
             } catch (\Throwable $e) {
-                // 仅免费包允许本地兜底；付费包必须经过官网权益校验。
+
                 if (!empty($item['paid'])) {
                     throw $e;
                 }
@@ -638,11 +616,6 @@ final class Store
         return $items;
     }
 
-    /**
-     * 下载包预校验：唯一顶层目录、无穿越、大小合法。
-     * 不再要求顶层目录等于条目名——安装名以包内顶层目录为准（Theme/Plugin::installFromBuffer
-     * 会校验其合法性），官网侧同样放宽了该约束。
-     */
     private static function validateZip(string $buffer): void
     {
         if (strlen($buffer) <= 0 || strlen($buffer) > self::MAX_ZIP_BYTES) {
@@ -783,20 +756,14 @@ final class Store
         return array_values(array_unique($out));
     }
 
-    /**
-     * The catalog is controlled remotely. Descriptions are deliberately shown
-     * as text in the admin UI, so convert legacy rich-text values here instead
-     * of rendering remote HTML or exposing its tags to administrators.
-     */
+    /** 将目录描述转换为后台可显示的纯文本。 */
     private static function plainText(mixed $value): string
     {
         if (!is_scalar($value) && $value !== null) {
             return '';
         }
         $html = (string) $value;
-        // Older catalog records may have stored the complete rich-text value
-        // as entities (for example &lt;p&gt;...&lt;/p&gt;). Two passes cover that
-        // representation without repeatedly decoding arbitrary input.
+        // 兼容实体编码的旧目录描述。
         for ($i = 0; $i < 2; $i++) {
             $decoded = html_entity_decode($html, ENT_QUOTES | ENT_HTML5, 'UTF-8');
             if ($decoded === $html) {

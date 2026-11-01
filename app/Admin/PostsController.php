@@ -575,8 +575,7 @@ final class PostsController extends AdminController
         if (mb_strlen($title) > 255) {
             throw new \RuntimeException('标题不能超过 255 个字符');
         }
-        // 外链要在这里读：导航站/书签站的条目只有标题 + 外链、没有自己的详情正文，
-        // 所以「填了外链」是允许正文为空的唯一条件，必须赶在正文校验之前拿到。
+        // 外链文章可以没有正文，先读取外链值。
         $externalUrl = trim((string) ($body['external_url'] ?? ''));
         if (mb_strlen($externalUrl) > 500) {
             $externalUrl = '';
@@ -589,8 +588,7 @@ final class PostsController extends AdminController
             $extensionMeta = is_array($body['extension_meta']) ? $body['extension_meta'] : json_decode((string) $body['extension_meta'], true);
             if (!is_array($extensionMeta)) throw new \RuntimeException('扩展字段数据格式无效');
         }
-        // An extension must explicitly attest that its structured fields carry the
-        // post body. Merely selecting a type or toggle must never bypass the
+
         // ordinary non-empty-content check.
         $hasExtensionContent = !empty($body['extension_content']);
         if (trim($content) === '' && $externalUrl === '' && !$hasExtensionContent) {
@@ -778,7 +776,7 @@ final class PostsController extends AdminController
                 $coverUrl = (string) \Pafish\Services\Content::imageUrl((string) self::extractCover($content, $contentFormat));
                 $coverAuto = $coverUrl !== '';
             } catch (\RuntimeException) {
-                // A relative image in the body must not create a cover relative to the admin URL.
+
                 $coverUrl = '';
             }
         }

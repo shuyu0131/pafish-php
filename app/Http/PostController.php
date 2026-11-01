@@ -47,9 +47,9 @@ final class PostController
 
         // 评论分页参数（cpage），非法值回退第 1 页
         $commentPage = max(1, (int) ($request->getQueryParams()['cpage'] ?? 1));
-        // Single-post templates only need the public site name; do not expose SMTP/API credentials.
+
         $settings = ['site_name' => \site_name()];
-        // 可选展示由主题自己声明；未声明的主题不应因系统兜底默认值被动开启。
+        // 可选展示由主题声明控制。
         $showCustomFields = \theme_value('show_custom_fields', '0') !== '0';
         $showRelated = \theme_value('show_related_posts', '0') !== '0';
 
@@ -181,7 +181,7 @@ final class PostController
         return $this->json($response, $result);
     }
 
-    /** 互动事件契约：点赞/收藏成功切换后触发；匿名用户 userId 为 null。 */
+    /** 触发点赞或收藏事件。 */
     private function fireReactionHooks(int $postId, string $kind, bool $active, int $count, ?int $userId): void
     {
         $payload = [

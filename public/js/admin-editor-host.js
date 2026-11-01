@@ -89,7 +89,7 @@
     }
     var incompatible = selected !== 'default' && selectedFormat !== options.getFormat() && (options.field.value.trim() || !isNewContent);
     // Never let an HTML editor open Markdown (or vice versa). The core source
-    // editor remains available for historical content when no matching plugin exists.
+      // 没有匹配插件时保留原格式内容。
     if (incompatible) selected = 'default';
 
     function message(text) {

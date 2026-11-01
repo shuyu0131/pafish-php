@@ -410,8 +410,7 @@ img {
     left: 0;
     bottom: 0;
     width: 40%;
-    /* 高度固定成 --sidebar-footer-height：左栏底部留白必须与它严格对齐，
-       多行（含备案号）时靠内边距吸收，不能反过来撑高去压左栏。 */
+
     box-sizing: border-box;
     height: var(--sidebar-footer-height);
     display: flex;
@@ -432,7 +431,7 @@ img {
   margin-top: 0.35rem;
 }
 
-/* 内容容器（对应 page.tsx 的 max-w-3xl + 内外边距） */
+/* 内容容器 */
 .container {
   margin: 0 auto;
   width: 100%;
@@ -635,7 +634,7 @@ input[type="radio"]:focus-visible {
   background: color-mix(in srgb, #e8a052 12%, transparent);
 }
 
-/* ============ 正文排版：行高按参考站拉到 1.9 ============ */
+/* ============ 正文排版 ============ */
 .md-content {
   line-height: 1.9;
 }

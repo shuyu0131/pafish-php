@@ -10,7 +10,7 @@ use Pafish\Services\Backup;
 final class Upgrade
 {
     private const DEFAULT_GITEE_REPO = 'shuyugit/pafish-php';
-    // OutboundHttp 的统一响应上限为 16 MB，升级包上限必须与其一致。
+    // 升级包大小与统一 HTTP 响应上限保持一致。
     private const MAX_ZIP_BYTES = 16 * 1024 * 1024;
     private const CACHE_TTL = 3600; // 自动检查最多延迟 1 小时发现新 Release
     private const FAILURE_CACHE_TTL = 900; // 失败后 15 分钟再自动重试
@@ -135,7 +135,7 @@ final class Upgrade
         self::$lastFailurePath = '';
         try {
             // 状态文件是故障恢复的唯一应用层现场记录。若 runtime 只能创建锁文件、
-            // 却不能可靠地写入状态，就不要继续覆盖程序文件。
+
             self::writeStateOrThrow($root, $phase, ['target' => (string)$info['latest']]);
             if ($tmpZip === false) {
                 throw new \RuntimeException('无法创建临时文件');
@@ -412,7 +412,6 @@ final class Upgrade
     /** 由证书工具或 Web 服务器管理、升级时不得删除的根目录。 */
     private const PRESERVE_ROOT_DIRS = ['runtime', 'backups', '.well-known'];
 
-    /** 升级备份排除运行期数据，主题和插件必须进入备份以支持完整回滚。 */
     private const BACKUP_EXCLUDE_DIRS = ['runtime', 'backups', 'public/uploads', '.well-known'];
 
     /** 解析 Gitee Release 安装包地址。 */
@@ -645,7 +644,6 @@ final class Upgrade
         return $dir;
     }
 
-    /** 核心文件必须存在，避免不完整备份被用于恢复站点。 */
     private static function hasCoreFiles(string $root): bool
     {
         return is_file($root . '/index.php') && is_file($root . '/app/bootstrap.php');
@@ -702,7 +700,7 @@ final class Upgrade
                 $targetExists = file_exists($target) || is_link($target);
                 if ($relative === 'upgrade.php') {
                     $hasUpgradeScript = true;
-                    // 迁移入口必须随每次发行包重新落地并执行，即使旧站点残留了同名内容。
+
                     $changed[] = $entry;
                     if (!$targetExists) {
                         $newFiles[] = $relative;

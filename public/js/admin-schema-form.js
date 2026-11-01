@@ -1,24 +1,4 @@
-/**
- * SchemaForm 运行时：主题设置页与插件设置页共用的字段行为。
- *
- * 为什么要有这个文件：
- *   这两个页面原先各写一份内联脚本（分组导航 / show_if / 颜色 / 图片 / 滑块 /
- *   间距 / 排版 / repeater / 字段报错）。字段渲染抽成共享 partial 之后，
- *   行为却仍是两份——插件页因此少了滑块、间距、排版、repeater 的处理，
- *   repeater 渲染出空壳、保存时复合值直接丢失。
- *   规则与行为都只能有一份。
- *
- * 用法：
- *   PafishSchemaForm.init({
- *     formId: 'themeSettingForm',
- *     saveUrl: '/admin/appearance/save',
- *     csrf: '...',
- *     name: 'default',            // 可选：随表单提交的额外标识
- *     saveBtnId: 'themeSaveBtn',
- *     msgId: 'themeSettingMsg',   // 可选：无 toast 时的兜底提示容器
- *     beforeSubmit: function (showMsg) { ... return false 可阻止提交 }
- *   });
- */
+/** 主题设置页和插件设置页共用的字段交互。 */
 (function () {
   "use strict";
 
@@ -62,8 +42,7 @@
     if (!form) { return null; }
 
     // 平铺模式（单栏设置页）：所有分组同屏顺排，没有分组导航。
-    // 此时 hash 路由必须整体让开——从分组导航版留下的 #tab=xxx 会把其余分组
-    // 全部隐藏，页面上只剩一个分组，看起来就像"设置项丢了"。
+    // 平铺模式清除分组 hash，避免隐藏其他分组。
     var flatMode = !!form.querySelector(".admin-sf-layout-flat");
 
     var CSRF = opts.csrf || "";
@@ -120,8 +99,7 @@
     }
 
     // hashchange 是异步的，自己写的 hash 不该再触发一次 switchGroup。
-    // 声明必须在 switchGroup 首次被调用之前（初始化在下方），否则赋值会被
-    // 后面的 `= false` 覆盖回去——这里贴着 syncHash 放，就是为了让顺序一眼可见。
+    // 记录 hash 更新状态，避免重复触发切换。
     var suppressHashChange = false;
 
     // 把当前分组写回地址栏。replaceState 不产生历史记录：
@@ -169,7 +147,7 @@
       });
       if (expandBtn) {
         expandBtn.setAttribute("aria-pressed", expanded ? "true" : "false");
-        // 图标-only（贴 VAM 的 vam-expand-all）：状态靠 title/aria-label 与 CSS 高亮表达
+        // 图标按钮的状态通过 title、aria-label 和 CSS 高亮表达。
         expandBtn.title = expanded ? "收起全部" : "展开全部";
         expandBtn.setAttribute("aria-label", expanded ? "收起全部" : "展开全部");
       }
@@ -309,8 +287,7 @@
       e.preventDefault();
       e.returnValue = "";
     });
-    // beforeunload 只兜"关标签/刷新/外链"。站内导航（改 URL 但不重载）不走它，
-    // 用户在设置页里点分组、点侧栏菜单跳走时会被静默丢弃，所以单独拦一道。
+    // 站内导航也检查未保存的修改。
     document.addEventListener("click", function (e) {
       if (!isDirty) { return; }
       var a = e.target && e.target.closest && e.target.closest("a[href]");
@@ -387,7 +364,7 @@
       if (grp && grp.classList.contains("hidden")) { switchGroup(grp.dataset.sfGroup); }
     }
 
-    // invalid 事件不冒泡，必须用捕获阶段监听
+    // invalid 事件不冒泡，使用捕获阶段监听。
     form.addEventListener("invalid", function (e) {
       if (e.target && e.target.closest) {
         var f = e.target.closest(".admin-sf-field");
@@ -399,8 +376,7 @@
 
     // ---------- show_if 联动 ----------
     function getVal(key) {
-      // 视觉选择型与复合型的真值都放在隐藏域里，必须先读它；
-      // 否则 querySelector 会命中前面的 <button>，读到 undefined。
+      // 视觉选择型与复合型的值存放在隐藏域中。
       var hid = form.querySelector('input[type="hidden"][data-sf-key="' + key + '"]');
       if (hid && HIDDEN_VALUE_TYPES.indexOf(hid.dataset.sfType) !== -1) {
         return hid.value;
@@ -461,7 +437,7 @@
     });
     refreshShowIf();
 
-    // 长复选项组沿用 VAM 的即时筛选：保留所有已勾选项，只隐藏不匹配项，
+    // 长复选项组即时筛选：保留所有已勾选项，只隐藏不匹配项，
     // 这样用户搜索后不会误以为之前的选择被清空。
     form.querySelectorAll("[data-sf-checkbox-search]").forEach(function (searchInput) {
       var wrap = searchInput.closest("[data-sf-checks]");
@@ -657,7 +633,7 @@
           lab.textContent = sf.label || sf.key;
           cell.appendChild(lab);
 
-          // 多选保持 VAM 熟悉的勾选列表；候选项较多时直接在列表内搜索，
+          // 多选使用勾选列表；候选项较多时直接在列表内搜索，
           // 不依赖原生多选框的 Ctrl/Command 操作。
           if (sf.type === "checkboxes") {
             var options = sf.options || {};
@@ -972,7 +948,7 @@
         armed = null;
         var before = hid.value;
         commit();     // 按 DOM 顺序写回隐藏 JSON
-        renderAll();  // 行头按钮的闭包里存着按下标算的 index，换序后必须整排重建
+        renderAll();  // 换序后重建行头按钮。
         if (hid.value !== before) { setDirty(true); }
       });
 
@@ -1261,8 +1237,7 @@
         if (t && isNarrow()) { close(); }
       });
 
-      // 从窄屏拉宽到桌面时，必须清掉抽屉状态：
-      // 否则 .is-open 会残留，回到窄屏时"自己开着"。
+      // 从窄屏切换到桌面时关闭抽屉。
       var mq = window.matchMedia("(max-width: 900px)");
       var onChange = function () { if (!isNarrow()) { close(); } };
       if (mq.addEventListener) { mq.addEventListener("change", onChange); }
@@ -1310,8 +1285,7 @@
       });
     }
 
-    // 无结果的提示必须落在内容区：页头那枚计数离内容有整屏的距离，
-    // 长页面上滚到中段时它根本不在视野里，只剩一片空白——和"还没开始搜"长得一样。
+    // 无结果提示显示在内容区。
     var noResultEl = null;
     function setNoResult(on, query) {
       if (!on) {
@@ -1396,7 +1370,7 @@
       sync();
     })();
 
-    // 底部操作区静态落在表单末尾（VAM 的页脚：保存 + 主题名），不浮起——
+    // 底部操作区静态落在表单末尾，不浮起——
     // 悬浮条会把滚动中的内容永久压住一截，静态条填到底就地保存更干净。
     // 任何滚动位置仍可由吸顶工具条上的保存按钮提交。
 
@@ -1470,8 +1444,7 @@
 
     // ---------- 提交 ----------
     // 提交飞行途中锁住可改区域：CSS 的 .is-saving 负责变淡与 pointer-events，
-    // inert 补上键盘那一半（Tab 仍能进到输入框）。必须在 markFieldErrors() 之前
-    // 放开——那里要 focus() 到第一个出错的字段，inert 会把聚焦挡回去。
+    // 在标记错误前恢复 inert，便于聚焦错误字段。
     var saving = false;
     var savePanes = form.querySelector(".admin-sf-panes");
     var saveSide = form.querySelector(".admin-sf-side");
@@ -1485,8 +1458,8 @@
     }
 
     // 保存按钮：原生校验不通过时自己接管，保证一定有可见反馈。
-    // 否则字段若在收起区块里，Chrome 会静默放弃提交，用户只看到"点了没反应"。
-    // 页头与表单末尾各有一个保存按钮（贴 VAM 双保存），守卫要绑到全部 submit 按钮上，
+    // 收起区块中的字段也要显示校验错误。
+    // 页头与表单末尾各有一个保存按钮，守卫要绑定到全部 submit 按钮上，
     // 不能只认页尾那一个。
     form.querySelectorAll('button[type="submit"]').forEach(function (guardBtn) {
       guardBtn.addEventListener("click", function (e) {

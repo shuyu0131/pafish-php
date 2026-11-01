@@ -3,7 +3,7 @@
    admin.css 不再依赖任何激活主题的 style.css —— 主题样式只作用于前台）
    ========================================================================== */
 
-/* ---------- 设计令牌（Anatole 风格：白 / 极简 / 蓝链接；后台固定配色） ---------- */
+/* ---------- 设计令牌：后台固定配色 ---------- */
 :root {
   --bg: #ffffff;
   --fg: #464646;
@@ -20,7 +20,7 @@
   /* 整页动作按钮的实心底色：主操作走蓝（.btn-primary），
      其余整页动作（测试连接 / 导入导出）走这一档绿实心；
      描边（.btn-outline/.btn-ghost）只留给字段行内的小工具——有没有底色是主次的分界。
-     颜色写成字面色而非由 --accent 推导：这套绿是独立于蓝色主色的一档强调色。 */
+     绿色使用独立的强调色。 */
   --solid: #1cc88a;
   --solid-hover: #17a673;
   --solid-active: #169b6b;
@@ -35,9 +35,7 @@
   --radius-md: 10px;
   --radius-lg: 14px;
   --focus-ring: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
-  /* 新版字段表单（.admin-sf-*）消费的补充令牌。
-     不新增色板、只补名字：值全部由上面这套 Anatole 令牌推导，
-     换配色时两者同步，不会出现"改了 --border、输入框还是旧色"。 */
+  /* 字段表单使用的补充令牌。 */
   --input-border: color-mix(in srgb, var(--border) 88%, var(--accent) 12%);
   --tip-bg: rgba(0, 0, 0, 0.85);
   --tip-fg: #ffffff;
@@ -88,8 +86,7 @@ a {
 img {
   max-width: 100%;
 }
-/* hidden 兜底：UA 样式会被 .btn 等组件的 display 声明覆盖（类选择器优先级更高），
-   带 hidden 属性的元素必须真正隐藏（更新页按钮/提示条/弹层均依赖此规则） */
+
 [hidden] {
   display: none !important;
 }
@@ -478,7 +475,7 @@ input[type="radio"]:focus-visible {
   background: color-mix(in srgb, #e8a052 12%, transparent);
 }
 
-/* ---------- 整体布局（对齐 admin/layout.tsx：桌面侧边栏 + 内容区） ---------- */
+/* ---------- 整体布局：桌面侧边栏与内容区 ---------- */
 .admin-body {
   display: flex;
   min-height: 100vh;
@@ -1962,7 +1959,6 @@ input[type="radio"]:focus-visible {
 }
 
 @media (max-width: 420px) {
-
 
   .admin-modal-head { gap: 8px; }
   .admin-modal-tab { gap: 3px; padding-inline: 5px; }
@@ -4229,13 +4225,7 @@ a.admin-overview-card:hover { border-color: var(--muted); }
   margin-top: 0;
 }
 /* ============ 设置表单布局 ============ */
-/* 面板的四条形态约定：
-   1. 容器**没有边框**，只有柔和投影 + 圆角；内部由「顶部工具条 / 左侧分组导航 /
-      右侧字段」三段构成，整块看起来是一个面板，而不是"卡片里再套结构"；
-   2. 分组导航条目之间**不画横线**，只用浅底色 + 主色文字表示选中——
-      给每个条目加下边框会立刻变成表格观感（这是上一版显得"嵌套"的主因）；
-   3. 字段行是「标签左 200px / 控件右」，行间一条 #f2f2f2 发丝线；
-   4. 保存按钮落在**表单末尾**（填完再保存的节奏），顶部工具条只放标题、未保存提示与搜索。 */
+
 .admin-schema-form {
   --sf-nav: 200px;   /* 左侧分组导航宽度 */
   --sf-lab: 200px;   /* 字段标签列宽度 */
@@ -4243,8 +4233,7 @@ a.admin-overview-card:hover { border-color: var(--muted); }
   border: 0;
   border-radius: var(--radius-md);
   box-shadow: 0 0 20px rgba(82, 82, 82, 0.06);
-  /* 这里**不能**用 overflow:hidden——它会让内部的粘性工具条失效。
-     圆角改由工具条自己承担。 */
+  /* 工具条需要可见的溢出区域，圆角由工具条承担。 */
 }
 
 /* ---- 表单操作区：回到表单末尾，不做吸顶条 ----
@@ -4301,16 +4290,16 @@ a.admin-overview-card:hover { border-color: var(--muted); }
   transition: opacity 0.15s ease;
 }
 
-/* ---- 底部操作区（VAM 的页脚；只给带分组导航的面板）----
+/* ---- 底部操作区：只给带分组导航的面板 ----
    静态落在表单末尾、不浮起：悬浮条会把滚动中的内容永久压住一截，
    静态条填到底就地保存更干净；任何滚动位置仍可由吸顶工具条上的保存按钮提交。
-   内容：主题名（VAM 的 footer_text）+ 保存按钮。
+   内容：主题名与保存按钮。
    插件设置页是朴素表单（.admin-plain-form）且没有分组导航，不挂这条。 */
 .admin-sf-footer-brand {
   font-size: 13px;
   color: var(--muted);
 }
-/* 底栏内容：主题名靠左、保存按钮靠右（VAM 页脚的左右分布）。 */
+/* 底栏内容：主题名靠左、保存按钮靠右。 */
 .admin-theme-settings .admin-sf-footer .admin-sf-actions {
   display: flex;
   align-items: center;
@@ -4349,14 +4338,7 @@ a.admin-overview-card:hover { border-color: var(--muted); }
   grid-template-columns: minmax(0, 1fr);
 }
 
-/* ---- 单栏「平铺」模式：设置项少的页面（如插件配置）用 ----
-   从下往上顺次列出分节，不再有左侧分组导航。
-   为什么需要它：分组导航是给"分组多到需要索引"的页面（主题设置）用的；
-   插件配置往往只有一两个分组，硬加一个侧栏反而是**为了对齐而牺牲易用**。
-
-   实现上不是删掉导航，而是把它降级成"分组标题内联"：
-   每个分组渲染成一条小节标题，直接排在表单里。
-   这样字段渲染、校验、show_if 全都不用改，只换外观。 */
+/* ---- 单栏平铺模式：设置项较少的页面使用。 */
 .admin-sf-layout-flat {
   display: block;
 }
@@ -4376,8 +4358,7 @@ a.admin-overview-card:hover { border-color: var(--muted); }
 .admin-sf-layout-flat .admin-sf-group + .admin-sf-group {
   margin-top: 22px;
 }
-/* 搜索过滤后整组无命中：连标题一起收起。
-   必须带 .admin-sf-layout-flat 才能压住上面那条 display:block !important。 */
+
 .admin-sf-layout-flat .admin-sf-group.admin-sf-group-empty {
   display: none !important;
 }
@@ -4399,13 +4380,11 @@ a.admin-overview-card:hover { border-color: var(--muted); }
 /* 带导航的模式里，"当前在哪个分组"由左侧导航表达，正文再顶一条分组名是同一信息说两遍，
    所以分组标题平时收掉——只有「展开全部」时才请它上场（那时导航已退场，见 is-expanded）。
    is-expanded 挂在表单上、is-searching 挂在布局上，两个排除项要分开写在各自的宿主上。
-   搜索态连标题也收掉：搜索要的是纯命中列表，多一条分组名只是噪声（对齐 VAM search-all）。 */
+   搜索态连标题也收掉，保留连续的命中列表。 */
 .admin-schema-form:not(.is-expanded) .admin-sf-layout:not(.admin-sf-layout-flat):not(.is-searching) .admin-sf-group > .admin-sf-group-title {
   display: none;
 }
-/* 搜索态单独收掉标题（对齐 VAM search-all 的纯命中列表）。
-   不能靠上面那条 :not(.is-searching) 收：那条只在"非搜索"时生效，
-   搜索时标题落回 UA 默认的 block，必须正面压一条。 */
+
 .admin-sf-layout.is-searching .admin-sf-group > .admin-sf-group-title {
   display: none;
 }
@@ -4427,8 +4406,7 @@ a.admin-overview-card:hover { border-color: var(--muted); }
   padding: 20px 20px 0;
   margin-bottom: 12px;
 }
-/* 必须带 .admin-sf-layout-flat：上面那条平铺规则 .admin-sf-layout-flat .admin-sf-panes
-   的 padding:0 与本条同为 (0,2,0) 且写在前面，靠单级选择器会被它盖回 0。 */
+
 .admin-plain-form .admin-sf-layout-flat .admin-sf-panes {
   padding: 0 20px 20px;
 }
@@ -4559,20 +4537,11 @@ a.admin-overview-card:hover { border-color: var(--muted); }
 .admin-sf-navgrp.is-open > .admin-sf-navsubs {
   display: block;
 }
-/* 二级缩进必须**减去**自己也要占的图标宽度，否则两级文字会落到同一 x 上。
-   一级文字左 = 16(padding) + 6(caret) + 6(gap) + 16(图标) + 7(图标外边距) = 51
-   二级文字左 = padding-left + 16(图标) + 6(图标外边距)
-   令二级 = 一级 + 18，得 padding-left = 51 + 18 - 16 - 6 = 47。
-   早先这里是 30（那时一级还没有图标，30 恰好比 35 缩进得多）；
-   加上图标后两级文字左边缘**变成同一个值、缩进归零**——层级直接看不出来了。
-   注意：这套推导是给"图标 16px / caret 在左"的基准形态用的。
-   这两页目前都走平铺模式（导航整体不渲染），改 caret / 图标槽前先确认
-   是否还有页面在用带导航的那一档。 */
+
 .admin-sf-sidenav-sub {
   padding-left: 47px;
   font-size: 12px;
-  /* 必须显式归正：一级父级是 600，子级不写就会**继承**成同样粗细，
-     两级只剩缩进一个区分维度。 */
+
   font-weight: 400;
   color: var(--muted);
 }
@@ -4616,7 +4585,7 @@ a.admin-overview-card:hover { border-color: var(--muted); }
   font-weight: 600;
   border-color: var(--accent);
 }
-/* ---- 展开全部（对齐 VAM show-all）----
+/* ---- 展开全部 ----
    按下后整张表单平铺：左侧导航、遮罩、唤出按钮一起退场，内容通栏，
    分组标题上场（让纯列表有可读的目录）。与搜索态共用一套"退场/上场"规则，
    只是搜索态连标题也收掉（搜索要的是纯命中列表）。 */
@@ -4645,11 +4614,6 @@ a.admin-overview-card:hover { border-color: var(--muted); }
   padding: 0 20px;
 }
 
-/* ---- 字段行：标签右对齐 / 控件左对齐 ----
-   标签**右**对齐：右边缘齐平、紧贴控件。
-   左对齐时，两字标签（如「开关」）会在 200px 的列里留下一大段死区，
-   眼睛必须跨过空白才能把标签和控件配起来——这就是"说不上来哪里别扭"的来源。
-   右对齐让「标签 ↔ 控件」的间距恒等于列间距，配对关系一眼可见。 */
 .admin-sf-row,
 .admin-sf-block {
   padding: 20px 0;
@@ -4822,10 +4786,6 @@ a.admin-overview-card:hover { border-color: var(--muted); }
     background: var(--bg-soft);
   }
 
-  /* 抽屉里恢复**纵向**两级结构（这才是分组的本意）。
-     注意：这里只给容器内边距，**不要**覆盖 .admin-sf-sidenav 自己的
-     padding —— 那条基础规则是 `12px 16px`，横向 16px 正是层级缩进的基准；
-     一旦压成 8px，一级与二级文字会落到同一个 x 上（实测 parent=181 sub=181）。 */
   .admin-sf-sidenav {
     display: block;
     width: 100%;
@@ -4844,13 +4804,7 @@ a.admin-overview-card:hover { border-color: var(--muted); }
   .admin-sf-navgrp.is-open .admin-sf-navsubs {
     display: block;
   }
-  /* 抽屉里把缩进还回来。
-     一级文字左 = 16(padding) + 6(caret) + 6(gap) + 16(图标) + 7(图标外边距) = 51
-     二级文字左 = padding-left + 16(图标) + 6(图标外边距)
-     令二级 = 一级 + 16 → padding-left = 51 + 16 - 16 - 6 = 45。
-     （桌面端用 47；抽屉窄一点，45 足够看清层级又不多占宽度。）
-     之前这里写 20：算下来二级文字左 = 42，**反而比一级的 51 更靠左**，
-     层级直接反了——实测 parent=189 / sub=181 就是这个原因。 */
+  /* 窄屏导航的子级缩进。 */
   .admin-sf-sidenav-sub {
     padding-left: 45px;
   }
@@ -4911,18 +4865,12 @@ a.admin-overview-card:hover { border-color: var(--muted); }
     display: none;
   }
 }
-/* 字段行折成单列：断点必须与上面那条「导航转抽屉」一致（900px），
-   不能各留一个。两个断点错开时，701–900px 这一段会同时出现
-   「导航已经收进抽屉」和「字段还是左右两列」——200px 标签列 + 20px 列距
-   把控件列挤到 460px 上下，图片行、颜色行、repeater 都会缩成一团。
-   这里用 900px 而不是另设一个窄断点：后台顶栏/内容区本来就在 900px 换挡，
-   两处合成一处，少一个来源。 */
+
 @media (max-width: 900px) {
   .admin-sf-row {
     grid-template-columns: minmax(0, 1fr);
   }
-  /* 桌面端把标签与控件都钉在 grid-row:1（左右分列），单列时必须一起解除，
-     否则两者落在同一格里**上下重叠**——列数看着是 1，渲染却是叠着的。 */
+
   .admin-sf-row > .admin-sf-label {
     grid-column: 1;
     grid-row: auto;
@@ -4938,9 +4886,7 @@ a.admin-overview-card:hover { border-color: var(--muted); }
   }
 }
 
-/* 单选组纵向排列：选项文字可能是整句话（如「开启后可通过 /index.php/user/card 访问…」），
-   横向排会被挤成多行、彼此错位；纵向每项一行。
-   （实际规则在下面的 .admin-sf-radio-group 处，此处仅留说明。） */
+/* 单选项纵向排列。 */
 
 /* ---- 视觉选择型：button_set / image_select / palette ----
    这三类的意义是让站长「看图选」，而不是读懂 `layout-2col` 这种值再想象效果。 */
@@ -5141,7 +5087,7 @@ a.admin-overview-card:hover { border-color: var(--muted); }
   box-shadow: var(--focus-ring);
 }
 
-/* ---- 搜索态：内容平铺，分组导航与标题一起退场（贴 VAM search-all）----
+/* ---- 搜索态：内容平铺，分组导航与标题一起退场 ----
    搜索时所有分组都已展开（命中项可能在任何一个分组里），此时左侧导航点哪一个都不再
    改变内容，留着只会让人以为"点了没反应"；分组标题也一样——搜索要的是一条
    连续的命中列表，标题只会把列表切成一段一段的噪声。 */
@@ -5155,8 +5101,7 @@ a.admin-overview-card:hover { border-color: var(--muted); }
 .admin-sf-layout.is-searching .admin-sf-group.admin-sf-group-empty {
   display: none;
 }
-/* 无结果提示：必须落在内容区。页头那枚计数离内容有一屏之远，长页面上滚到中段时
-   它不在视野里，只剩一片空白——和"还没开始搜"长得一样，用户会以为卡住了。 */
+
 .admin-sf-noresult {
   margin: 0;
   padding: 4px 0 2px;
@@ -5166,14 +5111,7 @@ a.admin-overview-card:hover { border-color: var(--muted); }
 }
 
 /* ---- 字段帮助气泡：常驻说明用 desc，展开细节才用 help，避免表单变吵 ---- */
-/* ---- 字段说明提示 ----
-   关键取舍：
-   1) **深色浮层**（rgba(0,0,0,.85) + 白字），不是浅色卡片。
-      深色块在浅色表单上"跳"出来，一眼知道是浮层而非内容。
-   2) **单例浮层挂到 body**（.admin-tip），由 JS 定位。
-      不内嵌在标签里：字段行 / 折叠块带 overflow，内嵌浮层会被裁掉半边。
-   3) 触发是 **hover 标签末尾的 ? 图标**，不是点击后才出现——
-      鼠标扫过一遍就能读完全部说明。 */
+/* ---- 字段说明提示 ---- */
 .admin-sf-hint {
   display: inline-flex;
   align-items: center;
@@ -5217,8 +5155,7 @@ a.admin-overview-card:hover { border-color: var(--muted); }
   color: var(--tip-fg);
   background: var(--tip-bg);
   border-radius: var(--tip-radius);
-  /* 不加 transition：参考实现是即时出现（animation: fade .5s），
-     悬停扫过时逐条延迟淡入反而拖沓、读起来一顿一顿 */
+  /* 提示出现时直接切换透明度。 */
   pointer-events: none;
   opacity: 0;
   transition: opacity .12s ease;
@@ -5777,7 +5714,6 @@ input[type="radio"]:disabled { cursor: not-allowed; opacity: .58; }
     padding: 8px 0;
   }
 
-  /* 表格横向滚动（不要卡片化）*/
   .admin-table-wrap {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
@@ -6598,12 +6534,6 @@ input[type="radio"]:disabled { cursor: not-allowed; opacity: .58; }
   .admin-batch-bar .admin-batch-op { flex-basis: 156px; width: 156px; }
   .admin-batch-bar .admin-batch-move { flex-basis: 150px; width: 150px; }
 
-
-
-
-
-
-
   .admin-user-batch-bar { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
   .admin-user-batch-bar::-webkit-scrollbar { display: none; }
   .admin-user-batch-bar .admin-user-bulk-select { flex: 0 0 156px; }
@@ -6672,10 +6602,7 @@ input[type="radio"]:disabled { cursor: not-allowed; opacity: .58; }
   flex-wrap: wrap;
   gap: 10px;
 }
-/* 恢复默认是破坏性操作：备份组里唯一带危险色的一颗，且必须二次确认（在页面脚本里）。
-   全局 .btn-danger 是描边款（列表行内的删除用它），这里单独覆盖成实心红——
-   它和旁边两颗绿实心同属"整页动作"，底色上不能比它们弱一档。
-   选择器要带 .btn 才压得住 .dark .btn 那条通用规则。 */
+
 .btn.admin-sf-backup-reset {
   background: var(--danger);
   border-color: var(--danger);
@@ -6691,10 +6618,7 @@ input[type="radio"]:disabled { cursor: not-allowed; opacity: .58; }
 }
 .admin-sf-backup-msg { margin: 12px 0 0; }
 
-/* ============================================================================
-   朴素表单：让插件字段与操作区共用完整宽度
-   ----------------------------------------------------------------------------
-   ============================================================================ */
+/* 朴素表单使用完整宽度。 */
 /* 字段不限宽 680px：单栏表单里字段与末尾操作区共用同一条右边界 */
 .admin-plain-form .admin-sf-field { max-width: none; }
 /* 操作区已有自己的上边线（.admin-sf-footer），内层按钮组不能再画一条 */
@@ -6703,16 +6627,6 @@ input[type="radio"]:disabled { cursor: not-allowed; opacity: .58; }
   border-top: 0;
 }
 
-/* ============================================================================
-   主题设置页：CSF 两栏面板的容器尺寸（必须落在文件末尾）
-   ----------------------------------------------------------------------------
-   旧的通用设置页样式已移除，主题设置继续使用独立的两栏面板布局：
-     1) 限宽 820px，减去 200px 分组导航只剩 620px；标签列再占 200px + 20px 列距，
-        控件列被压到 300px 出头，文本框、图片行、textarea 全挤在一起；
-     2) 内边距 22/24 会把左侧导航从卡片边缘推进来，看起来是"卡片里又套了一层"，
-        而面板形态的前提就是整块只有一个容器（见 .admin-schema-form 的说明）。
-   面板自带 padding:0，内边距分给工具条 / 字段区 / 操作区各自承担。
-   ============================================================================ */
 .admin-theme-settings { max-width: 1120px; }
 .admin-theme-settings .admin-schema-form {
   --sf-nav: 176px;
@@ -6736,8 +6650,7 @@ input[type="radio"]:disabled { cursor: not-allowed; opacity: .58; }
   font-weight: 400;
 }
 .admin-theme-settings-title { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
-/* 面板顶部工具条（标题 + 未保存提示 + 搜索）在卡片内部，需要自己的内边距；
-   下边距交给字段区自己（.admin-sf-row 有 20px 上内边距），这里不再叠加 */
+/* 主题设置页工具条。 */
 .admin-theme-settings .admin-schema-form > .admin-page-head {
   padding: 20px 24px;
   margin-bottom: 0;
@@ -6816,12 +6729,7 @@ input[type="radio"]:disabled { cursor: not-allowed; opacity: .58; }
   border-color: var(--accent);
 }
 .admin-theme-settings .admin-sf-footer { padding: 16px 24px; }
-/* 工具条吸顶：面板动不动就比屏幕高好几屏，未保存提示和搜索框一滚走就等于没有
-   （这正是它此前"长页面里像被隐藏了"的根因）。
-   偏移量由脚本按顶栏实际底边写入 --sf-head-top，写死 56px 只是脚本还没跑时的兜底。
-   层级 20 必须低于顶栏的 30，否则会把账户区盖住。
-   底板用 --card：工具条下沿之外的内容要能干净地被挡住，而不是透出来。
-   未吸顶时补回卡片圆角（容器自己没有 overflow:hidden，圆角得由工具条承担）。 */
+
 .admin-theme-settings .admin-schema-form > .admin-page-head {
   position: sticky;
   top: var(--sf-head-top, 56px);
@@ -7493,10 +7401,7 @@ input[type="radio"]:disabled { cursor: not-allowed; opacity: .58; }
 }
 
 /* ============================================================================
-   Theme schema fields: VAM finish pass
-   ----------------------------------------------------------------------------
-   Keep the administration palette and VAM-style field rhythm while giving
-   compound controls enough room to reflow on narrow screens.
+   主题设置字段：复合控件在窄屏下保持可读的布局
    ============================================================================ */
 .admin-theme-settings .admin-sf-control > .input {
   width: 100%;

@@ -1,44 +1,7 @@
 <?php
-/**
- * 分组构建器：把顶层字段按 `group` 声明组织成**两级**导航结构。
- *
- * 两级导航的 section 模型：
- *   sections 是一张扁平表，每项可带 `parent` 指向父级；
- *   有 parent 的挂到父级 subs 下，没有 parent 的成为一级；
- *   内容区按 "父/子" 作为 section id。
- *
- * pafish 没有独立的 section 声明，分组是靠字段的 `group` 推导出来的，
- * 所以用**路径写法**表达层级：
- *
- *   "group": "内容"              → 一级：内容
- *   "group": "外观设置/颜色"      → 二级：外观设置 › 颜色
- *
- * 这样保持向后兼容（老主题写的一级分组照常工作），
- * 也不用在每个字段上重复声明父子关系。
- *
- * 一条规则要说明：某父级**既有直属字段又有子分组**时，
- * 直属字段会归入名为「常规」的子项，而不是被丢掉——
- * 常见做法是父级当纯容器（自身字段不渲染），但那需要显式声明容器；
- * 我们这里是推导出来的，静默丢字段会更糟。
- *
- * 用法：
- *   $tree = require __DIR__ . '/partials/schema-groups.php';
- *   $built = $tree($fields);
- *   // $built['tabs']   → 导航用（一级数组，每项可能有 children）
- *   // $built['panes']  → 内容区用（叶子面板，含 fields）
- *   // $built['hasNav'] → 是否需要显示导航
- */
+/** 按字段 group 值构建设置页导航和内容分组。 */
 return static function (array $fields): array {
-    // 分组图标：从组内**第一个声明了 nav_icon 的字段**推导。
-    //
-    // 为什么用独立的 `nav_icon` 而不是复用字段的 `icon`：
-    //   `icon` 在字段上的语义是"这个字段自己的装饰图标"（如 group 折叠区块标题前的 ⚙），
-    //   它与导航无关。若拿 `icon` 当导航图标，`group` 内那个 ⚙ 会变成整组的导航图标，
-    //   而作者从没这么声明过——是**猜错语义**，不是少写一个字段。
-    //
-    // 若分组有独立的声明表，图标就能写在分组级；
-    // pafish 的分组从字段推导、没有分组声明，所以把 nav_icon 写在组内任意字段上，
-    // 取该组第一个声明的值。只在组内查，避免"某组的图标来自另一个组"。
+    // 使用组内首个 nav_icon 作为分组图标。
     $iconOf = static function (array $groupFields): string {
         foreach ($groupFields as $f) {
             if (is_array($f) && is_string($f['nav_icon'] ?? null) && trim($f['nav_icon']) !== '') {

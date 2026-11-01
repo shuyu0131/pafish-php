@@ -229,7 +229,7 @@ function inst_checks(string $root): array
         '当前 ' . ini_get('upload_max_filesize') . '（修改 php.ini 后需重启 Web 服务）',
         $uploadMax < 10
     );
-    // 安装向导自身不依赖 vendor，但装完后的前台必须有它。源码包解压出来没有这个目录，
+
     // 安装会顺利完成、首页却直接 500（日志：Failed opening required .../vendor/autoload.php），
     // 所以这里按阻塞项拦下，而不是等到装完才发现。
     $autoload = $root . '/vendor/autoload.php';
@@ -396,7 +396,7 @@ function inst_run(array $post, string $root): array
             'timezone' => 'Asia/Shanghai',
         ];
         $exported = var_export($config, true);
-        $configContent = "<?php\n\n// 由安装向导生成（" . date('Y-m-d H:i:s') . "）。如需自定义请参考 config.example.php\nreturn {$exported};\n";
+        $configContent = "<?php\n\n// 由安装向导生成（" . date('Y-m-d H:i:s') . "）。\nreturn {$exported};\n";
         inst_write_state($root, 'writing_config');
         [$configWritten, $configError] = inst_write_config($configPath, $configContent);
         if (!$configWritten) {

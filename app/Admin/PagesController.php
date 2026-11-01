@@ -232,7 +232,7 @@ final class PagesController extends AdminController
         }
         $status = ($body['status'] ?? '') === 'PUBLISHED' ? 'PUBLISHED' : 'DRAFT';
 
-        // 新选择必须可用；主题切换或插件停用后允许原样保留历史选择。
+        // 保存时保留主题或插件暂时不可用的历史选择。
         $template = trim((string) ($body['template'] ?? ($stored['template'] ?? 'default')));
         if ($template === '') {
             $template = 'default';

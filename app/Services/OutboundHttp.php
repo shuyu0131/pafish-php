@@ -230,7 +230,7 @@ final class OutboundHttp
         if ($ini !== '') {
             $candidates[] = $ini;
         }
-        // 与 scripts/git-push-api.php 约定一致的用户级证书链
+
         $home = (string) (getenv('USERPROFILE') ?: getenv('HOME') ?: '');
         if ($home !== '') {
             $candidates[] = rtrim(str_replace('\\', '/', $home), '/') . '/.cacert.pem';
@@ -271,17 +271,7 @@ final class OutboundHttp
         return array_values(array_unique($ips));
     }
 
-    /**
-     * 构造 CURLOPT_RESOLVE 条目。
-     *
-     * 同一主机若同时有 A 与 AAAA，只固定 IPv4：把 IPv6 一起写进固定列表后，
-     * 在没有 IPv6 出口的机器上 curl 会直接判连接失败（实测 0ms 报
-     * "Could not connect to server"），不会回退到 IPv4，导致整站抓取失败。
-     * 所有进入列表的地址都已通过 isPrivate() 校验，固定哪一个都不影响防重绑定。
-     *
-     * @param string[] $ips
-     * @return string[]
-     */
+    /** @param string[] $ips @return string[] */
     private static function resolveEntries(string $host, int $port, array $ips): array
     {
         $v4 = array_values(array_filter($ips, static fn (string $ip): bool => !str_contains($ip, ':')));

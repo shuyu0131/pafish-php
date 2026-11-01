@@ -18,7 +18,6 @@ $values = $values ?? [];
 $settings = is_array($settings ?? null) ? $settings : (array) ($manifest['settings'] ?? []);
 $title = $manifest['title'] ?? $themeName;
 
-// 字段渲染统一走共享 partial（主题页与插件页必须同一份实现）
 $renderField = require __DIR__ . '/partials/schema-field.php';
 $buildGroups = require __DIR__ . '/partials/schema-groups.php';
 
@@ -191,7 +190,7 @@ $hasIconFields = $canConfigure && \Pafish\Services\ExtensionKernel::hasSettingTy
     name: NAME,
     saveBtnId: "themeSaveBtn",
     searchId: "sfSearch",
-    // 保存不刷新页面，所以不要把提示写进 sessionStorage——
+
     // 那样用户下次打开任意页面会看到一条早就过期的「已保存」。
     // 只有导入（会 reload）才需要 persistMsg，见下方导入流程。
     onMessage: function (text, isError) { showMsg(text, isError); },
@@ -255,7 +254,7 @@ $hasIconFields = $canConfigure && \Pafish\Services\ExtensionKernel::hasSettingTy
     });
 
     // 恢复默认：清空已保存的设置（回落到 theme.json 的默认值）。
-    // 破坏性操作——必须二次确认，成功后重载让表单显示默认值。
+
     backupBtn("reset").addEventListener("click", function () {
       (window.pafishConfirm ? window.pafishConfirm("将清空本主题已保存的全部设置并恢复默认值，确定继续吗？", { title: "恢复默认设置" }) : Promise.resolve(window.confirm("确认恢复默认？"))).then(function (ok) {
         if (!ok) { return; }

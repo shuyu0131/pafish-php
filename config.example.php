@@ -18,7 +18,6 @@ return [
     // ---- 会话签名密钥：请更换为随机长字符串（安装向导自动生成） ----
     'auth_secret' => 'CHANGE-ME-TO-A-LONG-RANDOM-STRING',
 
-    // ---- 站点绝对 URL（RSS / sitemap / OG 基准），结尾不要带斜杠 ----
     'site_url' => 'http://localhost',
 
     // ---- 是否启用伪静态（.htaccess / nginx try_files 已配置时保持 true） ----
@@ -26,7 +25,7 @@ return [
     'pretty_urls' => true,
 
     // ---- 可信反向代理 IP/CIDR；默认不接受客户端转发头 ----
-    // 仅填写实际连接 PHP 的代理地址，不要照抄整个内网或任意来源。
+
     'trusted_proxies' => [],
 
     // ---- 邮件 SMTP 请在后台“站点设置 → 邮件服务”中配置；本文件不读取 SMTP 键 ----

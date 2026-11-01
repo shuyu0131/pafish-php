@@ -6,7 +6,7 @@ namespace Pafish\Services;
 
 use Pafish\Core\DB;
 
-/** 轻量、可审计的整数积分账本。所有余额变化都必须同时写入流水。 */
+/** 积分余额和流水记录服务。 */
 final class Points
 {
     public static function available(): bool

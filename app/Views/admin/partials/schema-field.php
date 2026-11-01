@@ -1,14 +1,6 @@
 <?php
 /**
- * 共享字段渲染器：主题设置页与插件设置页共用同一份实现。
- *
- * 这两个页面原本各写一份类型分支（主题 13 种 / 插件 9 种），已经分叉：
- * 插件页不支持 desc、section、字段级校验与折叠容器，插件作者写的新类型
- * 会被静默丢弃。规则与渲染都必须只有一份。
- *
- * 用法：
- *   $renderField = require __DIR__ . '/partials/schema-field.php';
- *   $renderField($field, $values, $lastSection);
+ * 创建后台设置字段渲染器。
  *
  * @return Closure(array<string,mixed>, array<string,mixed>, ?string, bool): void
  */
@@ -29,7 +21,6 @@ $renderField = function (array $field, array $values, ?string &$lastSection, boo
     $rules = is_array($field['rules'] ?? null) ? $field['rules'] : [];
     $section = is_string($rules['section'] ?? null) ? $rules['section'] : null;
 
-    // 原生约束：让浏览器先行拦截，服务端仍会二次校验
     $native = '';
     if (isset($rules['maxlength'])) { $native .= ' maxlength="' . (int) $rules['maxlength'] . '"'; }
     if (isset($rules['minlength'])) { $native .= ' minlength="' . (int) $rules['minlength'] . '"'; }

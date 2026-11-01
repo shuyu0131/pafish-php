@@ -53,7 +53,7 @@ final class Content
         return $value;
     }
 
-    /** Historical rows may contain an invalid cover address; omit it at render time. */
+    /** 过滤无效的封面地址。 */
     public static function safeImageUrl(mixed $value): ?string
     {
         try {

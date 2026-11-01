@@ -214,7 +214,6 @@ $roleLabel = static function (string $role): string {
     });
   });
 
-  // 删除用户：后端会把文章和微语转移给当前管理员，必须二次确认。
   document.querySelectorAll(".admin-user-delete").forEach(function (btn) {
     btn.addEventListener("click", function () {
       var row = btn.closest(".admin-user-row");

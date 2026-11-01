@@ -48,7 +48,7 @@ final class PermalinkRedirects
                 self::preservePublicPaths($type, $oldPaths, Permalinks::path($type, $newEntity), (int) ($newEntity['id'] ?? 0));
             } else {
                 // A private edit may change the target of aliases left by an
-                // earlier published version, but must not create new aliases.
+
                 self::forgetUnownedClaimedPaths($type, $newPaths, (int) ($newEntity['id'] ?? 0));
                 self::retargetTargets($oldPaths, Permalinks::path($type, $newEntity));
             }
@@ -63,7 +63,7 @@ final class PermalinkRedirects
         self::recordPaths($type, $oldPaths, Permalinks::path($type, $newEntity), $newPaths, (int) ($newEntity['id'] ?? 0));
     }
 
-    /** Preserve public source paths across temporary unpublishing without exposing a redirect yet. */
+    /** 暂时下线期间保留公开源路径。 */
     private static function preservePublicPaths(string $type, array $paths, string $target, int $entityId): void
     {
         $target = self::normalize($target);
@@ -314,7 +314,7 @@ final class PermalinkRedirects
         return $target;
     }
 
-    /** Historical aliases are inactive while a known destination is private. */
+    /** 目标设为私有时停用历史别名。 */
     private static function isPublicContentAtPath(string $path): ?bool
     {
         $post = Permalinks::postFromPath($path);

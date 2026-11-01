@@ -168,7 +168,7 @@ final class ExtensionKernel
                 if ($existing['method'] === $normalized['method']
                     && $existing['fullPath'] === $normalized['fullPath']) {
                     // manifest 描述路由元数据，extension.php 绑定实际处理器；
-                    // 两处声明同一路径是统一入口的正常用法，不应被当成重复路由。
+
                     if ($existing['handler'] !== $normalized['handler'] && !is_callable($handler)) {
                         throw new \InvalidArgumentException('扩展路由处理器与清单不一致：' . $method . ' ' . $path);
                     }
@@ -341,7 +341,7 @@ final class ExtensionKernel
             || !in_array($field['type'], self::SETTING_TYPES, true)
             || ($kind === 'theme' && $field['type'] === 'password')) {
             // 丢弃非法字段是必要的（不能把未校验的 schema 交给渲染层），
-            // 但静默丢弃会让开发者「设置项凭空消失」而无从排查——必须留痕。
+
             self::logRejectedSetting($field, $kind);
             return null;
         }
@@ -363,8 +363,7 @@ final class ExtensionKernel
                 $out[$key] = (string) $field[$key];
             }
         }
-        // 早期插件清单使用 description 表达字段说明；保留它作为 desc 的兼容别名，
-        // 这样旧扩展不会在统一 schema 规范化时静默丢失帮助文案。
+        // 兼容清单中的 description 字段。
         if (!isset($out['desc']) && is_scalar($field['description'] ?? null)) {
             $description = trim((string) $field['description']);
             if ($description !== '') {
@@ -378,9 +377,6 @@ final class ExtensionKernel
             $out['nav_icon'] = trim($field['nav_icon']);
         }
 
-        // 字段级校验约束（主题作者声明，服务端与前端共用）。
-        // 原来只有 color 在保存时硬编码校验，其余类型写什么都收；
-        // 现在由 schema 声明，保存时统一执行，前端同步加原生约束。
         $rules = [];
         if (is_int($field['maxlength'] ?? null) && $field['maxlength'] > 0) {
             $rules['maxlength'] = $field['maxlength'];
@@ -389,7 +385,7 @@ final class ExtensionKernel
             $rules['minlength'] = $field['minlength'];
         }
         if (is_string($field['pattern'] ?? null) && $field['pattern'] !== '') {
-            // 只接受能编译的正则，避免把坏 pattern 交给前端导致整个表单静默失效
+            // 仅保留格式有效的正则。
             if (@preg_match('/' . str_replace('/', '\/', $field['pattern']) . '/u', '') !== false) {
                 $rules['pattern'] = $field['pattern'];
             }
@@ -425,7 +421,7 @@ final class ExtensionKernel
         }
 
         // 图标字段：默认使用 Remix Icon，也可声明 Font Awesome 4 或 both。
-        // `library`、`icon_library` 与 VAM 风格的 `use_icons` 都接受，便于迁移。
+        // `library`、`icon_library` 与 `use_icons` 都接受。
         if ($out['type'] === 'icon') {
             $customIcons = $field['custom_icons'] ?? $field['customIcons'] ?? $field['icons'] ?? null;
             $customIcons = self::normalizeIconCatalog($customIcons);
@@ -596,27 +592,7 @@ final class ExtensionKernel
         return $out;
     }
 
-    /**
-     * 规范化 show_if —— 单条件与**多条件组合**。
-     *
-     * 单条件（原有写法，保持兼容）：
-     *   "show_if": { "key": "dark_mode", "value": "1", "op": "eq" }
-     *
-     * 多条件，两种写法都接受：
-     *
-     *   1) 显式数组 + 关系词（推荐，可读性最好）
-     *      "show_if": { "relation": "or", "rules": [
-     *          { "key": "layout", "value": "grid" },
-     *          { "key": "layout", "value": "masonry" }
-     *      ]}
-     *
-     *   2) 竖线简写（对齐参考实现的 `keys|ops|values` 形式）
-     *      "show_if": { "key": "a|b", "op": "eq|ne", "value": "1|2" }
-     *      —— 三段各自按 `|` 切开后**逐位对应**；长度不齐的位按缺省补齐。
-     *
-     * 返回值统一为 ['relation' => 'and'|'or', 'rules' => [ {key,value,op,values}, … ]]，
-     * 前端只认这一种结构，避免两个设置页再次分叉。
-     */
+    /** 规范化 show_if 条件并返回统一结构。 */
     private static function normalizeShowIf(mixed $raw): ?array
     {
         if (!is_array($raw)) {
@@ -680,7 +656,6 @@ final class ExtensionKernel
         return ['relation' => 'and', 'rules' => [$rule]];
     }
 
-    /** 规范化单条 show_if 规则；key/value 必须都是字符串（沿用原有严格性） */
     private static function normalizeShowIfRule(mixed $one): ?array
     {
         if (!is_array($one) || !is_string($one['key'] ?? null) || !is_string($one['value'] ?? null)) {
@@ -741,17 +716,6 @@ final class ExtensionKernel
         return [];
     }
 
-    /**
-     * 规范化容器 / repeater 的子字段。
-     *
-     * 子字段复用顶层完全相同的规则（类型白名单、key 格式、校验规则），
-     * 这样行内 `required` / `maxlength` / `pattern` 才会真正生效。
-     *
-     * @param array<string, mixed> $parent        父字段定义
-     * @param string[]             $dropTypes     额外要丢弃的类型（如 repeater 不要纯标题）
-     * @param bool                 $allowCompound 是否放行单值复合型作子字段（group 放行，repeater 不放行）
-     * @return array<int, array<string, mixed>> 规范化后的子字段列表
-     */
     private static function normalizeSubFields(array $parent, string $kind, array $dropTypes, string $for, bool $allowCompound = false): array
     {
         $sub = [];
@@ -765,7 +729,7 @@ final class ExtensionKernel
                 || in_array($normalized['type'], $dropTypes, true)
                 || ($allowCompound && in_array($normalized['type'], self::COMPOUND_INLINE_TYPES, true));
             if (!$allowed) {
-                // 被丢掉就必须留下痕迹，否则主题作者只会看到字段凭空消失
+
                 $hint = in_array($normalized['type'], self::CONTAINER_TYPES, true)
                     ? '（不允许嵌套容器）'
                     : '（不允许在 ' . $for . ' 的子字段里使用）';
@@ -778,15 +742,7 @@ final class ExtensionKernel
         return array_values($sub);
     }
 
-    /**
-     * 规范化图标字段的自定义图标库。
-     *
-     * 支持 VAM 风格的 [{title, icons: [...] }]，也接受简单的 class 数组或
-     * {"品牌": ["ri-github-fill"]} 写法。class 仍只允许安全标识符，避免把
-     * 自定义 HTML/CSS 片段塞进前台 class 属性。
-     *
-     * @return array<int, array{title:string,icons:array<int,string>}>
-     */
+    /** @return array<int, array{title:string,icons:array<int,string>}> */
     private static function normalizeIconCatalog(mixed $raw): array
     {
         if (!is_array($raw) || $raw === []) {
@@ -891,15 +847,7 @@ final class ExtensionKernel
         return false;
     }
 
-    /**
-     * 展平容器字段，返回其中全部真实设置项。
-     *
-     * `group` 自身不存值，因此保存与导出必须下钻到子字段；
-     * 否则容器里的设置会被整块忽略。
-     *
-     * @param array<int, array<string, mixed>> $fields
-     * @return array<int, array<string, mixed>>
-     */
+    /** 返回容器字段展开后的设置项。 */
     public static function flattenFields(array $fields): array
     {
         $out = [];
@@ -927,14 +875,7 @@ final class ExtensionKernel
         return self::SETTING_TYPES;
     }
 
-    /**
-     * 按 schema 声明的约束校验一个设置值。
-     *
-     * 与后台设置页共用同一套语义；主题与插件都走这里，避免各自实现漂移。
-     *
-     * @param array<string, mixed> $field 规范化后的字段定义
-     * @return string|null 错误文案；null 表示通过
-     */
+    /** 校验设置字段值，返回错误信息或 null。 */
     public static function validateSettingValue(array $field, string $value): ?string
     {
         $label = (string) ($field['label'] ?? $field['key'] ?? '');
@@ -993,7 +934,6 @@ final class ExtensionKernel
             }
         }
 
-        // ---- 复合型：值必须是合法 JSON 且结构正确 ----
         if (in_array($type, self::JSON_TYPES, true)
             || ($type === 'image_select' && ($field['multiple'] ?? false) === true)) {
             return self::validateComposite($field, $value, $label);
@@ -1008,12 +948,6 @@ final class ExtensionKernel
         return rtrim(rtrim(number_format($n, 4, '.', ''), '0'), '.');
     }
 
-    /**
-     * 复合类型（spacing / typography / repeater）的结构校验。
-     *
-     * 它们以 JSON 字符串存库，因此必须防住：非法 JSON、类型不符、
-     * 未声明的键、以及数值越界——否则脏数据会直接进模板输出。
-     */
     private static function validateComposite(array $field, string $value, string $label): ?string
     {
         $type = (string) $field['type'];
@@ -1104,7 +1038,7 @@ final class ExtensionKernel
                     return $label . ' 的「' . (string) $part . '」取值不合法';
                 }
                 $v = (string) $v;
-                // 固定取值域的子项必须是候选项之一：手填的拼写错误在这里被挡住
+
                 if (isset($choices[$part]) && !array_key_exists($v, (array) $choices[$part])) {
                     return $label . ' 的「' . (string) $part . '」取值不在候选中';
                 }
@@ -1173,7 +1107,7 @@ final class ExtensionKernel
                     return '第 ' . ($i + 1) . ' 行：' . $subErr;
                 }
             }
-            // 行内声明 required 的字段即使没有出现在 JSON 中也必须报错。
+
             foreach ($subFields as $subKey => $subField) {
                 $rules = is_array($subField['rules'] ?? null) ? $subField['rules'] : [];
                 if (($rules['required'] ?? false) !== true || array_key_exists($subKey, $row)) {

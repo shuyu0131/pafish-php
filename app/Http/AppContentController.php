@@ -131,7 +131,7 @@ final class AppContentController
         $totalPages = max(1, (int) ceil($total / $perPage));
         $page = min($page, $totalPages);
         $offset = ($page - 1) * $perPage;
-        $rows = DB::fetchAll("SELECT c.id,c.post_id,c.author_name,c.author_email,c.content,c.status,c.is_pinned,c.parent_id,c.created_at,
+        $rows = DB::fetchAll("SELECT c.id,c.post_id,c.author_name,c.author_email,c.author_url,c.content,c.status,c.is_pinned,c.parent_id,c.created_at,
                 p.title AS post_title, u.avatar_url AS author_avatar_url
             FROM comments c
             JOIN posts p ON p.id=c.post_id
@@ -142,6 +142,7 @@ final class AppContentController
             'comments' => array_map(static fn (array $row): array => [
                 'id' => (int) $row['id'], 'postId' => (int) $row['post_id'], 'postTitle' => (string) $row['post_title'],
                 'authorName' => (string) $row['author_name'], 'content' => (string) $row['content'],
+                'authorUrl' => \Pafish\Http\Comments::safeAuthorUrl((string) ($row['author_url'] ?? '')),
                 // 头像与网页后台同一套回退：自定义头像 → 站点默认头像，客户端不再自造文字占位。
                 'authorAvatar' => \Pafish\Http\Comments::avatarUrl($row['author_avatar_url'] ?? null, (string) ($row['author_email'] ?? '')),
                 'status' => (string) $row['status'], 'pinned' => (bool) $row['is_pinned'],

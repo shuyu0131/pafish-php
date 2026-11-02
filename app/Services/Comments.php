@@ -78,9 +78,18 @@ final class Comments
             }
             if (!in_array($data['status'], self::STATUSES, true)) throw new \InvalidArgumentException('评论状态无效');
             if (trim((string) $data['content']) === '') throw new \DomainException('回复内容不能为空', 400);
-            DB::execute('INSERT INTO comments (post_id,page_id,author_name,author_email,user_id,content,status,parent_id,notify_reply,ip) VALUES (?,?,?,?,?,?,?,?,?,?)', [
+            $authorUrl = trim((string) ($data['author_url'] ?? ''));
+            if ($authorUrl !== '') {
+                $parts = parse_url($authorUrl);
+                if (filter_var($authorUrl, FILTER_VALIDATE_URL) === false || !is_array($parts)
+                    || !in_array(strtolower((string) ($parts['scheme'] ?? '')), ['http', 'https'], true)
+                    || isset($parts['user'], $parts['pass'])) {
+                    throw new \DomainException('网址格式不正确', 400);
+                }
+            }
+            DB::execute('INSERT INTO comments (post_id,page_id,author_name,author_email,author_url,user_id,content,status,parent_id,notify_reply,ip) VALUES (?,?,?,?,?,?,?,?,?,?,?)', [
                 $type === 'post' ? $targetId : null, $type === 'page' ? $targetId : null,
-                $data['author_name'], $data['author_email'], $data['user_id'] ?? null,
+                $data['author_name'], $data['author_email'], $authorUrl, $data['user_id'] ?? null,
                 $data['content'], $data['status'], $parentId, !empty($data['notify_reply']) ? 1 : 0, $data['ip'] ?? null,
             ]);
             return DB::lastInsertId();

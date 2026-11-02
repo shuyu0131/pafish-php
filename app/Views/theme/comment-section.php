@@ -183,6 +183,8 @@ $sep = str_contains($baseUrl, '?') ? '&' : '?';
     } else {
       body.name = form.querySelector('[name="name"]').value;
       body.email = form.querySelector('[name="email"]').value;
+      body.url = (form.querySelector('[name="url"]') || {}).value || '';
+      body.remember = !!(form.querySelector('[name="remember"]') || {}).checked;
       body.captchaToken = form.dataset.captchaToken || '';
       body.captchaAnswer = (form.querySelector('[name="captchaAnswer"]') || {}).value || '';
     }

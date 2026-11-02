@@ -4,7 +4,8 @@ $tabs = ['ALL' => '全部', 'PENDING' => '待审核', 'APPROVED' => '已通过',
 $postId = (int) ($postId ?? 0);
 $per = (int) ($per ?? 20);
 $postTitle = (string) ($postTitle ?? '');
-$querySuffix = ($postId > 0 ? '&post_id=' . $postId : '') . ($per !== 20 ? '&per=' . $per : '');
+$search = (string) ($search ?? '');
+$querySuffix = ($postId > 0 ? '&post_id=' . $postId : '') . ($search !== '' ? '&q=' . rawurlencode($search) : '') . ($per !== 20 ? '&per=' . $per : '');
 $listUrl = url_to('/admin/comments') . '?status=' . $status . $querySuffix;
 ?>
 <div class="admin-stack admin-list-page admin-comments-page">
@@ -25,6 +26,14 @@ $listUrl = url_to('/admin/comments') . '?status=' . $status . $querySuffix;
         </a>
       <?php endforeach; ?>
     </nav>
+    <form class="admin-list-search" method="get" action="<?= e(url_to('/admin/comments')) ?>">
+      <input type="hidden" name="status" value="<?= e($status) ?>">
+      <?php if ($postId > 0): ?><input type="hidden" name="post_id" value="<?= $postId ?>"><?php endif; ?>
+      <label class="sr-only" for="comment-search">搜索评论</label>
+      <input class="input" id="comment-search" name="q" value="<?= e($search) ?>" placeholder="搜索作者、邮箱、内容或 IP" maxlength="120">
+      <button class="btn btn-outline" type="submit">搜索</button>
+      <?php if ($search !== ''): ?><a class="btn btn-ghost" href="<?= e(url_to('/admin/comments') . '?status=' . rawurlencode($status) . ($postId > 0 ? '&post_id=' . $postId : '')) ?>">清除</a><?php endif; ?>
+    </form>
   </div>
 
   <?php if ($items !== []): ?>
@@ -111,8 +120,8 @@ $listUrl = url_to('/admin/comments') . '?status=' . $status . $querySuffix;
       </table>
     </div>
 
-    <?= admin_pagination($page, $pages, $total, static function (int $p, int $per = 20) use ($status, $postId): string {
-      return url_to('/admin/comments') . '?status=' . rawurlencode($status) . ($postId > 0 ? '&post_id=' . $postId : '') . ($p > 1 ? '&page=' . $p : '') . ($per !== 20 ? '&per=' . $per : '');
+    <?= admin_pagination($page, $pages, $total, static function (int $p, int $per = 20) use ($status, $postId, $search): string {
+      return url_to('/admin/comments') . '?status=' . rawurlencode($status) . ($postId > 0 ? '&post_id=' . $postId : '') . ($search !== '' ? '&q=' . rawurlencode($search) : '') . ($p > 1 ? '&page=' . $p : '') . ($per !== 20 ? '&per=' . $per : '');
     }, $per, [20, 50, 100]) ?>
   <?php endif; ?>
 </div>

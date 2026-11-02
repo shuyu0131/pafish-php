@@ -101,6 +101,7 @@ final class CommentApiController
         }
 
         $content = mb_substr(trim((string) ($body['content'] ?? '')), 0, 2000);
+        $authorUrl = mb_substr(trim((string) ($body['url'] ?? '')), 0, 500);
         $parentIdRaw = (string) ($body['parentId'] ?? '');
         // 勾选"有新回复邮件通知我"：有人回复这条评论时给评论者发邮件
         $notifyReply = ($body['notifyReply'] ?? false) === true;
@@ -108,8 +109,17 @@ final class CommentApiController
         if ($targetIdRaw === '' || !ctype_digit($targetIdRaw) || $name === '' || $content === '') {
             return $this->json($response, ['error' => '昵称和评论内容不能为空'], 400);
         }
-        if (!preg_match('/^[^@\s]+@[^@\s]+\.[^@\s]+$/', $email)) {
+        if ($email !== '' && !preg_match('/^[^@\s]+@[^@\s]+\.[^@\s]+$/', $email)) {
             return $this->json($response, ['error' => '邮箱格式不正确'], 400);
+        }
+        if ($authorUrl !== '') {
+            $parts = parse_url($authorUrl);
+            if (filter_var($authorUrl, FILTER_VALIDATE_URL) === false
+                || !is_array($parts)
+                || !in_array(strtolower((string) ($parts['scheme'] ?? '')), ['http', 'https'], true)
+                || isset($parts['user'], $parts['pass'])) {
+                return $this->json($response, ['error' => '网址格式不正确'], 400);
+            }
         }
         $isAdminUser = $sessionUser !== null && (string) ($sessionUser['role'] ?? '') === 'ADMIN';
         if (!$isAdminUser && CommentSpamProtection::isEmailBlocked($email)) {
@@ -134,7 +144,7 @@ final class CommentApiController
         $targetColumn = $targetType === 'post' ? 'post_id' : 'page_id';
         if ($parentIdRaw !== '') {
             $parent = DB::fetchOne(
-                'SELECT id, post_id, page_id, status, author_email, user_id FROM comments WHERE id = ?',
+                'SELECT id, post_id, page_id, status, author_email, user_id, notify_reply FROM comments WHERE id = ?',
                 [(int) ($parentIdRaw ?: 0)]
             );
             if (!$parent || (int) ($parent[$targetColumn] ?? 0) !== (int) $targetIdRaw) {
@@ -174,6 +184,7 @@ final class CommentApiController
             'postTitle' => (string) $target['title'],
             'author' => $name,
             'email' => $email,
+            'authorUrl' => $authorUrl,
             'content' => $content,
             'parentId' => $parentId !== null ? (string) $parentId : null,
             'userId' => $userId !== null ? (string) $userId : null,
@@ -197,7 +208,7 @@ final class CommentApiController
         try {
             $commentId = \Pafish\Services\Comments::create([
                 'target_type'=>$targetType, 'target_id'=>(int) $target['id'], 'author_name'=>$name, 'author_email'=>$email,
-                'user_id'=>$userId, 'content'=>$content, 'status'=>$commentStatus,
+                'author_url'=>$authorUrl, 'user_id'=>$userId, 'content'=>$content, 'status'=>$commentStatus,
                 'parent_id'=>$parentId, 'notify_reply'=>$notifyReply, 'ip'=>$ip === 'unknown' ? null : $ip,
             ]);
         } catch (\DomainException $e) {
@@ -209,6 +220,12 @@ final class CommentApiController
             $pendingIds = array_values(array_unique(array_map('intval', (array) Session::get('pending_comment_ids', []))));
             $pendingIds[] = $commentId;
             Session::set('pending_comment_ids', array_slice(array_values(array_unique($pendingIds)), -50));
+        }
+
+        // 访客可选择在当前浏览器记住昵称和邮箱，和主流博客的评论体验保持一致。
+        // Cookie 仅用于回填表单，使用 HttpOnly + SameSite=Lax，关闭记忆时立即清除。
+        if ($userId === null) {
+            $this->rememberGuestIdentity($body, $name, $email, $request);
         }
 
         // 仅发送可选邮件提醒。
@@ -228,7 +245,8 @@ final class CommentApiController
             ]);
 
             // 被回复者邮件通知：父评论者勾选了通知且不是自己回复自己时发送
-            if ($isReply && $parentEmail !== null && $parentEmail !== $email) {
+            if ($isReply && !empty($parent['notify_reply']) && $parentEmail !== null
+                && filter_var($parentEmail, FILTER_VALIDATE_EMAIL) !== false && $parentEmail !== $email) {
                 Notify::sendReplyEmail([
                     'toEmail' => $parentEmail,
                     'replier' => $name,
@@ -263,6 +281,39 @@ final class CommentApiController
     private function clientIp(Request $request): string
     {
         return \Pafish\Core\ClientIp::fromRequest($request);
+    }
+
+    /** 记住或清除游客评论表单的昵称与邮箱。 */
+    private function rememberGuestIdentity(array $body, string $name, string $email, Request $request): void
+    {
+        $remember = filter_var($body['remember'] ?? true, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+        $remember = $remember !== false;
+        $path = \Pafish\Core\Url::base() ?: '/';
+        $secure = strtolower((string) ($request->getUri()->getScheme() ?? '')) === 'https'
+            || (!empty($_SERVER['HTTPS']) && strtolower((string) $_SERVER['HTTPS']) !== 'off');
+        $options = static function (int $expires) use ($path, $secure): array {
+            return [
+                'expires' => $expires,
+                'path' => $path,
+                'secure' => $secure,
+                'httponly' => true,
+                'samesite' => 'Lax',
+            ];
+        };
+        $expires = $remember ? time() + 31536000 : time() - 3600;
+        @setcookie('pafish_comment_name', $remember ? preg_replace('/[\x00-\x1F\x7F]/u', '', $name) : '', $options($expires));
+        @setcookie('pafish_comment_email', $remember ? preg_replace('/[\x00-\x1F\x7F]/u', '', $email) : '', $options($expires));
+        @setcookie('pafish_comment_url', $remember ? (string) ($this->normalizedAuthorUrl($body['url'] ?? '')) : '', $options($expires));
+    }
+
+    private function normalizedAuthorUrl(mixed $value): string
+    {
+        $url = mb_substr(trim((string) $value), 0, 500);
+        if ($url === '') return '';
+        $parts = parse_url($url);
+        return filter_var($url, FILTER_VALIDATE_URL) !== false && is_array($parts)
+            && in_array(strtolower((string) ($parts['scheme'] ?? '')), ['http', 'https'], true)
+            && !isset($parts['user'], $parts['pass']) ? $url : '';
     }
 
     /** 验证码绑定会话和来源地址，避免 token 被跨会话转用 */

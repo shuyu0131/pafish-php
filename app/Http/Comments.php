@@ -79,6 +79,7 @@ final class Comments
             $nodes[(string) $c['id']] = [
                 'id' => (string) $c['id'],
                 'authorName' => (string) ($c['nickname'] ?: $c['author_name']),
+                'authorUrl' => self::safeAuthorUrl((string) ($c['author_url'] ?? '')),
                 // Explicit identity for themes that mark the article author's replies.
                 'userId' => $c['user_id'] !== null ? (string) (int) $c['user_id'] : '',
                 'avatar' => self::avatarUrl($c['avatar_url'], (string) $c['author_email']),
@@ -145,9 +146,22 @@ final class Comments
         return Url::asset('/images/default-avatar.svg');
     }
 
+    /** 公开评论作者网址只允许无凭据的 http(s) 地址。 */
+    public static function safeAuthorUrl(string $url): string
+    {
+        $url = trim($url);
+        $parts = $url === '' ? false : parse_url($url);
+        if ($parts === false || filter_var($url, FILTER_VALIDATE_URL) === false
+            || !in_array(strtolower((string) ($parts['scheme'] ?? '')), ['http', 'https'], true)
+            || isset($parts['user'], $parts['pass'])) {
+            return '';
+        }
+        return $url;
+    }
+
     private static function columns(): string
     {
-        return 'c.id, c.author_name, c.author_email, c.user_id, c.content, c.status, c.created_at, c.parent_id, c.is_pinned, u.nickname, u.avatar_url';
+        return 'c.id, c.author_name, c.author_email, c.author_url, c.user_id, c.content, c.status, c.created_at, c.parent_id, c.is_pinned, u.nickname, u.avatar_url';
     }
 
     /** 仅管理员、登录评论者本人或当前访客会话可见的待审评论。 */

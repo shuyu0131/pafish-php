@@ -223,6 +223,7 @@ final class Migrator
                 && self::foreignKeyExists($pdo, 'nav_items', 'fk_nav_items_page')
                 && self::foreignKeyExists($pdo, 'nav_items', 'fk_nav_items_post')
                 && self::foreignKeyExists($pdo, 'nav_items', 'fk_nav_items_tag'),
+            'zzzzzzzzz_comment_author_url' => self::tableHasColumns($pdo, 'comments', ['author_url']),
             default => false,
         };
     }

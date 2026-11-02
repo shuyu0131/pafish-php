@@ -324,7 +324,7 @@ final class V1Controller
         $params = [$targetId, 'APPROVED'];
         $total = (int) DB::value("SELECT COUNT(*) FROM comments WHERE {$where}", $params);
         $rows = DB::fetchAll(
-            "SELECT id, post_id, page_id, parent_id, author_name, content, created_at, is_pinned
+            "SELECT id, post_id, page_id, parent_id, author_name, author_url, content, created_at, is_pinned
              FROM comments
              WHERE {$where}
              ORDER BY is_pinned DESC, created_at ASC
@@ -338,6 +338,7 @@ final class V1Controller
             'pageId' => $c['page_id'] !== null ? (string) $c['page_id'] : null,
             'parentId' => $c['parent_id'] !== null ? (string) $c['parent_id'] : null,
             'authorName' => $c['author_name'],
+            'authorUrl' => \Pafish\Http\Comments::safeAuthorUrl((string) ($c['author_url'] ?? '')),
             'content' => $c['content'],
             'createdAt' => (new \DateTimeImmutable($c['created_at'], $tz))
                 ->setTimezone(new \DateTimeZone('UTC'))

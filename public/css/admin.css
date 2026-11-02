@@ -5558,6 +5558,22 @@ input[type="radio"]:disabled { cursor: not-allowed; opacity: .58; }
   padding: 0;
   border: 0;
 }
+.admin-list-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 1 460px;
+  margin: 0;
+}
+.admin-list-search .input {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.admin-comments-page .admin-list-search {
+  width: 100%;
+  max-width: 620px;
+  align-self: flex-end;
+}
 .admin-list-filter-form {
   justify-content: flex-start;
   gap: 8px;

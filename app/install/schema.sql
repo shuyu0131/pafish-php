@@ -264,6 +264,7 @@ CREATE TABLE IF NOT EXISTS comments (
   page_id      BIGINT UNSIGNED NULL COMMENT '自定义页面 ID；文章或页面评论目标之一',
   author_name  VARCHAR(100)    NOT NULL COMMENT '访客填写的评论昵称',
   author_email VARCHAR(255)    NOT NULL COMMENT '访客填写的邮箱，不公开返回',
+  author_url   VARCHAR(500)    NOT NULL DEFAULT '' COMMENT '访客填写的网址，不公开作为原始字段返回',
   content      TEXT            NOT NULL COMMENT '正文或组件内容',
   status       VARCHAR(20)     NOT NULL DEFAULT 'PENDING' COMMENT 'PENDING/APPROVED/REJECTED/SPAM/TRASH，隐藏级联子树，通过沿祖先',
   ip           VARCHAR(45)     NULL COMMENT '来源 IP',

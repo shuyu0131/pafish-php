@@ -3,7 +3,8 @@
  * 评论表单（系统默认模板；主题可覆盖 themes/{active}/comment-form.php）
  * 评论表单：
  * - 已登录用户：自动使用登录身份，隐藏昵称/邮箱输入（服务端强制，不可伪造）
- * - 未登录游客：昵称/邮箱 + 图形验证码（后台可关），SVG 点击刷新
+ * - 未登录游客：昵称/邮箱/网址（邮箱和网址可选） + 图形验证码（后台可关），SVG 点击刷新
+ * - 游客资料可选择记住在当前浏览器中
  * - 回复评论时 compact 模式（嵌套在楼中楼里）
  * 可用数据：$postId、$parentId（回复目标，可空）、$compact、$user（登录用户数组或 null）、
  *           $captchaEnabled、$needReview
@@ -18,6 +19,9 @@ $captchaEnabled = $captchaEnabled ?? true;
 $needReview = $needReview ?? true;
 $loggedIn = $user !== null;
 $needCaptcha = !$loggedIn && $captchaEnabled;
+$rememberName = !$loggedIn ? mb_substr(trim((string) ($_COOKIE['pafish_comment_name'] ?? '')), 0, 50) : '';
+$rememberEmail = !$loggedIn ? mb_substr(trim((string) ($_COOKIE['pafish_comment_email'] ?? '')), 0, 255) : '';
+$rememberUrl = !$loggedIn ? mb_substr(trim((string) ($_COOKIE['pafish_comment_url'] ?? '')), 0, 500) : '';
 ?>
 <form class="comment-form<?= $compact ? ' compact' : '' ?>"
       data-comment-form
@@ -33,8 +37,9 @@ $needCaptcha = !$loggedIn && $captchaEnabled;
     </p>
   <?php else: ?>
     <div class="comment-fields">
-      <input class="input" name="name" placeholder="昵称 *" maxlength="50" autocomplete="nickname" required>
-      <input class="input" name="email" type="email" placeholder="邮箱（不会公开显示）" maxlength="255" autocomplete="email">
+      <input class="input" name="name" value="<?= e($rememberName) ?>" placeholder="昵称 *" maxlength="50" autocomplete="nickname" required>
+      <input class="input" name="email" type="email" value="<?= e($rememberEmail) ?>" placeholder="邮箱（不会公开显示，可选）" maxlength="255" autocomplete="email">
+      <input class="input" name="url" type="url" value="<?= e($rememberUrl) ?>" placeholder="个人网站（可选）" maxlength="500" autocomplete="url">
     </div>
   <?php endif; ?>
 
@@ -70,6 +75,12 @@ $needCaptcha = !$loggedIn && $captchaEnabled;
       <input type="checkbox" name="notifyReply" class="comment-notify-check">
       <span>有人回复我时邮件通知</span>
     </label>
+    <?php if (!$loggedIn): ?>
+      <label class="comment-remember">
+        <input type="checkbox" name="remember" value="1" checked>
+        <span>记住我的信息</span>
+      </label>
+    <?php endif; ?>
     <div class="comment-form-actions">
       <p class="comment-review-tip"><?= $needReview ? '待审核评论仅自己和管理员可见' : '评论将直接显示' ?></p>
       <button type="submit" class="btn btn-primary comment-submit">发表评论</button>

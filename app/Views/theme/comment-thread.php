@@ -24,7 +24,11 @@ $renderItem = function (array $node, int $depth) use (&$renderItem, $postId, $ta
         <?php if ($depth > 0): ?>
           <span class="comment-reply-mark" aria-hidden="true">↳</span>
         <?php endif; ?>
-        <span class="comment-author"><?= e($node['authorName']) ?></span>
+        <?php if (!empty($node['authorUrl'])): ?>
+          <a class="comment-author" href="<?= e($node['authorUrl']) ?>" target="_blank" rel="nofollow noopener noreferrer"><?= e($node['authorName']) ?></a>
+        <?php else: ?>
+          <span class="comment-author"><?= e($node['authorName']) ?></span>
+        <?php endif; ?>
         <?php if (!empty($node['isPinned']) && $depth === 0): ?>
           <span class="comment-pinned"><?= admin_icon('pin', 13) ?> 置顶</span>
         <?php endif; ?>

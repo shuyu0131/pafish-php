@@ -40,15 +40,18 @@ final class CommentsController extends AdminController
             $perPage = self::PAGE_SIZES[0];
         }
         $postId = ctype_digit((string) ($_GET['post_id'] ?? '')) ? (int) $_GET['post_id'] : 0;
+        $search = mb_substr(trim((string) ($request->getQueryParams()['q'] ?? $_GET['q'] ?? '')), 0, 120);
         $statusFilter = $status === 'ALL' ? '' : ' AND c.status = ?';
         $statusParams = $status === 'ALL' ? [] : [$status];
         $postFilter = $postId > 0 ? ' AND c.post_id = ?' : '';
         $postParams = $postId > 0 ? [$postId] : [];
+        $searchFilter = $search === '' ? '' : ' AND (c.author_name LIKE ? OR c.author_email LIKE ? OR c.content LIKE ? OR c.ip LIKE ?)';
+        $searchParams = $search === '' ? [] : array_fill(0, 4, '%' . $search . '%');
 
         $scope = $this->editorScope();
         $total = (int) DB::value(
-            'SELECT COUNT(*) FROM comments c LEFT JOIN posts scope_post ON scope_post.id = c.post_id WHERE 1=1' . $statusFilter . $postFilter . $scope['sql'],
-            array_merge($statusParams, $postParams, $scope['params'])
+            'SELECT COUNT(*) FROM comments c LEFT JOIN posts scope_post ON scope_post.id = c.post_id WHERE 1=1' . $statusFilter . $postFilter . $searchFilter . $scope['sql'],
+            array_merge($statusParams, $postParams, $searchParams, $scope['params'])
         );
         $pages = max(1, (int) ceil($total / $perPage));
         $page = min($page, $pages);
@@ -64,10 +67,10 @@ final class CommentsController extends AdminController
              LEFT JOIN pages pg ON pg.id = c.page_id
              LEFT JOIN comments parent ON parent.id = c.parent_id
              LEFT JOIN posts scope_post ON scope_post.id = c.post_id
-             WHERE 1=1" . $statusFilter . $postFilter . $scope['sql'] . '
+             WHERE 1=1" . $statusFilter . $postFilter . $searchFilter . $scope['sql'] . '
              ORDER BY c.created_at DESC
              LIMIT ' . $perPage . ' OFFSET ' . (($page - 1) * $perPage),
-            array_merge($statusParams, $postParams, $scope['params'])
+            array_merge($statusParams, $postParams, $searchParams, $scope['params'])
         );
 
         foreach ($items as &$item) {
@@ -97,6 +100,7 @@ final class CommentsController extends AdminController
             'statusCounts' => $this->statusCounts($postId),
             'postId' => $postId,
             'postTitle' => $postTitle,
+            'search' => $search,
         ], '评论审核'));
         return $response;
     }

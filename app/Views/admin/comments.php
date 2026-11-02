@@ -29,7 +29,7 @@ $listUrl = url_to('/admin/comments') . '?status=' . $status . $querySuffix;
     <form class="admin-list-search" method="get" action="<?= e(url_to('/admin/comments')) ?>">
       <input type="hidden" name="status" value="<?= e($status) ?>">
       <?php if ($postId > 0): ?><input type="hidden" name="post_id" value="<?= $postId ?>"><?php endif; ?>
-      <label class="sr-only" for="comment-search">搜索评论</label>
+      <label class="admin-sr-only" for="comment-search">搜索评论</label>
       <input class="input" id="comment-search" name="q" value="<?= e($search) ?>" placeholder="搜索作者、邮箱、内容或 IP" maxlength="120">
       <button class="btn btn-outline" type="submit">搜索</button>
       <?php if ($search !== ''): ?><a class="btn btn-ghost" href="<?= e(url_to('/admin/comments') . '?status=' . rawurlencode($status) . ($postId > 0 ? '&post_id=' . $postId : '')) ?>">清除</a><?php endif; ?>

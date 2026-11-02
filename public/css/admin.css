@@ -2801,16 +2801,32 @@ a.admin-pg-btn:hover {
 
 /* ---------- 评论审核 ---------- */
 .admin-comments-page .admin-list-toolbar {
-  align-items: stretch;
-  flex-direction: column;
-  gap: 0;
-  border-bottom: 0;
-  padding-bottom: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, min(460px, 100%));
+  align-items: end;
+  gap: 12px 20px;
 }
 .admin-comment-tabs {
   width: 100%;
   min-width: 0;
   margin: 0;
+}
+.admin-comments-page .admin-list-search {
+  width: 100%;
+  max-width: none;
+  align-self: end;
+}
+
+@media (max-width: 768px) {
+  .admin-comments-page .admin-list-toolbar {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+  .admin-comments-page .admin-comment-tabs,
+  .admin-comments-page .admin-list-search {
+    width: 100%;
+    max-width: none;
+  }
 }
 
 .admin-comment-card {

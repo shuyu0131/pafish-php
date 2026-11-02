@@ -1,28 +1,28 @@
-/* 默认主题的颜色令牌；后台配色不受影响。 */
+/* Default theme colors */
 :root {
-  --bg: #fbfaf8;
-  --fg: #344054;
-  --muted: #667085;
+  --bg: #ffffff;
+  --fg: #343a40;
+  --muted: #68727c;
   --card: #ffffff;
-  --border: #e4e7ec;
-  --accent: #58799e;
-  --accent-soft: #edf3f8;
-  --danger: #c2413b;
-  --title: #1d2939;
-  --meta: #98a2b3;
-  --side: #52606d;
+  --border: #e1e5e8;
+  --accent: #464646;
+  --accent-soft: #eeeeee;
+  --danger: #a84848;
+  --title: #252a2f;
+  --meta: #76808a;
+  --side: #535d66;
 }
 
 .dark {
-  --bg: #101820;
-  --fg: #d7e0e8;
-  --muted: #93a4b2;
-  --card: #15212b;
-  --border: #293946;
-  --accent: #9fc4e2;
-  --accent-soft: #1d3040;
-  --danger: #ed8a7d;
-  --title: #f0f4f8;
-  --meta: #7d909f;
-  --side: #b2c1cc;
+  --bg: #181b1e;
+  --fg: #d5d9dc;
+  --muted: #a4adb4;
+  --card: #1f2327;
+  --border: #363c42;
+  --accent: #767676;
+  --accent-soft: #363636;
+  --danger: #e29388;
+  --title: #edf0f2;
+  --meta: #9da6ad;
+  --side: #c0c7cb;
 }

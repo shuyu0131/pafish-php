@@ -103,8 +103,8 @@ For a project-owned image, replace `your-account` with the Docker Hub
 organization or account that owns the repository:
 
 ```sh
-docker build -t your-account/pafish:1.2.7 -t your-account/pafish:latest .
-docker push your-account/pafish:1.2.7
+docker build -t your-account/pafish:1.3.0 -t your-account/pafish:latest .
+docker push your-account/pafish:1.3.0
 docker push your-account/pafish:latest
 ```
 

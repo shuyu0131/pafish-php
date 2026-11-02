@@ -71,10 +71,6 @@ $rememberUrl = !$loggedIn ? mb_substr(trim((string) ($_COOKIE['pafish_comment_ur
   <p class="comment-message" hidden></p>
 
   <div class="comment-form-foot">
-    <label class="comment-notify">
-      <input type="checkbox" name="notifyReply" class="comment-notify-check">
-      <span>有人回复我时邮件通知</span>
-    </label>
     <?php if (!$loggedIn): ?>
       <label class="comment-remember">
         <input type="checkbox" name="remember" value="1" checked>
@@ -82,7 +78,9 @@ $rememberUrl = !$loggedIn ? mb_substr(trim((string) ($_COOKIE['pafish_comment_ur
       </label>
     <?php endif; ?>
     <div class="comment-form-actions">
-      <p class="comment-review-tip"><?= $needReview ? '待审核评论仅自己和管理员可见' : '评论将直接显示' ?></p>
+      <?php if ($needReview): ?>
+        <p class="comment-review-tip">评论审核后显示</p>
+      <?php endif; ?>
       <button type="submit" class="btn btn-primary comment-submit">发表评论</button>
     </div>
   </div>

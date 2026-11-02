@@ -1,11 +1,11 @@
 {
   "name": "default",
   "title": "默认主题",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "apiVersion": 2,
   "injects": [],
   "systemTemplateFallback": ["index", "post", "page", "category", "tag", "search", "archives", "micro", "user"],
-  "description": "pafish 默认主题，单栏阅读布局。",
+  "description": "Pafish 默认主题。",
   "author": "纸鱼官方",
   "authorUrl": "https://pafish.cn/developers/pafish",
   "homepage": "https://www.pafish.cn",
@@ -16,13 +16,20 @@
       "type": "text",
       "group": "内容",
       "default": "",
-      "placeholder": "留空使用默认（© 年份 站点名 · 用 PHP 构建）"
+      "placeholder": "留空使用默认（© 年份 站点名）"
     },
     {
       "key": "show_custom_fields",
       "label": "文章页显示自定义字段",
       "type": "checkbox",
       "group": "内容",
+      "default": "1"
+    },
+    {
+      "key": "sidebar_enabled",
+      "label": "显示侧栏",
+      "type": "checkbox",
+      "group": "布局",
       "default": "1"
     },
     {

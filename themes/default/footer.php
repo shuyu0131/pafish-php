@@ -5,7 +5,7 @@
  */
 $siteName = site_name();
 $footerText = (string) theme_value('footer_text');
-$footerDefault = '© ' . date('Y') . ' ' . $siteName . ' · 用 PHP 构建';
+$footerDefault = '© ' . date('Y') . ' ' . $siteName;
 $icp = (string) settings('site_icp', '');
 ?>
   </main>

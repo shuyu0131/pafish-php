@@ -22,6 +22,10 @@ final class Markdown
             self::$parser = new \ParsedownExtra();
         }
 
+        $inlineCodeRanges = [];
+        self::codeRanges($md, $inlineCodeRanges);
+        $md = self::normalizeInlineCodeSpans($md, $inlineCodeRanges);
+
         // Keep explicitly-authored media elements usable in safe Markdown while
         // sanitizing their attributes and sources before restoring them.
         $media = [];
@@ -140,7 +144,7 @@ final class Markdown
     }
 
     /** @return list<array{0:int,1:int}> */
-    private static function codeRanges(string $markdown): array
+    private static function codeRanges(string $markdown, ?array &$inlineRanges = null): array
     {
         $ranges = [];
         $parts = preg_split('/(\r\n|\n|\r)/', $markdown, -1, PREG_SPLIT_DELIM_CAPTURE);
@@ -174,7 +178,7 @@ final class Markdown
 
         // Protect inline code spans, including spans that cross a line break.
         $length = strlen($markdown);
-        $inlineRanges = [];
+        $inlineRanges ??= [];
         $blockIndex = 0;
         for ($i = 0; $i < $length;) {
             while (isset($ranges[$blockIndex]) && $ranges[$blockIndex][1] <= $i) ++$blockIndex;
@@ -191,6 +195,19 @@ final class Markdown
             $i = $end;
         }
         return self::mergeRanges($ranges, $inlineRanges);
+    }
+
+    /** CommonMark treats line breaks inside code spans as spaces. */
+    private static function normalizeInlineCodeSpans(string $markdown, array $ranges): string
+    {
+        for ($i = count($ranges) - 1; $i >= 0; --$i) {
+            [$start, $end] = $ranges[$i];
+            $span = substr($markdown, $start, $end - $start);
+            if (strpbrk($span, "\r\n") === false) continue;
+            $span = str_replace(["\r\n", "\r", "\n"], ' ', $span);
+            $markdown = substr_replace($markdown, $span, $start, $end - $start);
+        }
+        return $markdown;
     }
 
     /** @param list<array{0:int,1:int}> $ranges */

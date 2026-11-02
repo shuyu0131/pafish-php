@@ -176,7 +176,6 @@ $sep = str_contains($baseUrl, '?') ? '&' : '?';
       parentId: parentId,
       website: (form.querySelector('[name="website"]') || {}).value || '',
       content: form.querySelector('[name="content"]').value,
-      notifyReply: !!(form.querySelector('[name="notifyReply"]') || {}).checked,
     };
     if (form.dataset.loggedIn === '1') {
       // 已登录：身份由服务端强制，不提交昵称邮箱

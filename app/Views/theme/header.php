@@ -107,7 +107,7 @@ window.pafishApi = function (p) {
 </script>
 </head>
 <body>
-<div class="app-shell">
+<div class="app-shell<?= $showSidebar ? ' app-shell-with-sidebar' : '' ?>">
 
 <?php if ($showSidebar): ?>
 <aside class="app-sidebar">
@@ -115,7 +115,11 @@ window.pafishApi = function (p) {
     <span class="app-brand-name"><?= e($siteName) ?></span>
     <?php if ($subtitle !== ''): ?><span class="app-brand-sub"><?= e($subtitle) ?></span><?php endif; ?>
   </a>
+  <?php $sidebarWidgets = widget_items('sidebar'); ?>
   <?= render_partial('sidebar-widgets', ['area' => 'sidebar']) ?>
+  <?php if ($activeTheme === 'default'): ?>
+    <?= render_partial('default-sidebar', ['hasCustomWidgets' => $sidebarWidgets !== []]) ?>
+  <?php endif; ?>
   <?php $sidebarInjectContext = ['template' => $GLOBALS['pafish_tpl_ctx'] ?? []]; ?>
   <?= \Pafish\Services\Theme::renderInjection('sidebar', $sidebarInjectContext) ?>
   <?php /* 插件侧边栏注入 */ do_action('sidebar_inject', $sidebarInjectContext); ?>

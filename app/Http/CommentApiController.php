@@ -54,6 +54,10 @@ final class CommentApiController
             && CommentSpamProtection::honeypotTriggered($body)) {
             return $this->json($response, ['ok' => true]);
         }
+        $csrf = $body['_csrf'] ?? null;
+        if (!is_string($csrf) || !Session::verifyCsrf($csrf)) {
+            return $this->json($response, ['error' => '会话已过期，请刷新页面重试'], 419);
+        }
 
         // 反垃圾前置检查：无 UA 或疑似爬虫一律拒绝；同一 IP 限速
         $ua = (string) ($request->getHeaderLine('User-Agent') ?? '');
@@ -117,7 +121,7 @@ final class CommentApiController
             if (filter_var($authorUrl, FILTER_VALIDATE_URL) === false
                 || !is_array($parts)
                 || !in_array(strtolower((string) ($parts['scheme'] ?? '')), ['http', 'https'], true)
-                || isset($parts['user'], $parts['pass'])) {
+                || isset($parts['user']) || isset($parts['pass'])) {
                 return $this->json($response, ['error' => '网址格式不正确'], 400);
             }
         }
@@ -313,7 +317,7 @@ final class CommentApiController
         $parts = parse_url($url);
         return filter_var($url, FILTER_VALIDATE_URL) !== false && is_array($parts)
             && in_array(strtolower((string) ($parts['scheme'] ?? '')), ['http', 'https'], true)
-            && !isset($parts['user'], $parts['pass']) ? $url : '';
+            && !isset($parts['user']) && !isset($parts['pass']) ? $url : '';
     }
 
     /** 验证码绑定会话和来源地址，避免 token 被跨会话转用 */

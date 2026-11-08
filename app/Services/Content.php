@@ -63,6 +63,38 @@ final class Content
         }
     }
 
+    /** Validate clickable external links; local paths are allowed for internal links. */
+    public static function linkUrl(mixed $value, bool $allowLocal = true): ?string
+    {
+        if (!is_string($value)) throw new \RuntimeException('链接地址必须是文本');
+        $value = trim($value);
+        if ($value === '') return null;
+        if (mb_strlen($value) > 500 || preg_match('/[\x00-\x20\x7f\\\\]/', $value)) {
+            throw new \RuntimeException('链接地址无效');
+        }
+        if ($allowLocal && \Pafish\Core\Url::isLocalPath($value)) return $value;
+        $parts = parse_url($value);
+        if (!is_array($parts) || !in_array(strtolower((string) ($parts['scheme'] ?? '')), ['http', 'https'], true)
+            || empty($parts['host']) || isset($parts['user']) || isset($parts['pass'])) {
+            throw new \RuntimeException('链接地址仅支持站内路径或 HTTP/HTTPS 地址');
+        }
+        return $value;
+    }
+
+    public static function safeLinkUrl(mixed $value, bool $allowLocal = true): ?string
+    {
+        try {
+            return self::linkUrl($value, $allowLocal);
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    public static function safeExternalUrl(mixed $value): ?string
+    {
+        return self::safeLinkUrl($value, false);
+    }
+
     /** Audio/video sources accept only HTTP(S) URLs or valid site-relative paths. */
     public static function mediaUrl(mixed $value): ?string
     {

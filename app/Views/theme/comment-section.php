@@ -170,6 +170,7 @@ $sep = str_contains($baseUrl, '?') ? '&' : '?';
     messageEl.hidden = true;
 
     var body = {
+      _csrf: form.dataset.csrfToken || '',
       postId: postId,
       targetType: targetType,
       targetId: targetId,

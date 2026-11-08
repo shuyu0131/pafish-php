@@ -49,6 +49,11 @@ $avatar = \Pafish\Http\Comments::avatarUrl($me['avatar_url'] ?? null, (string) (
         <input class="input" type="email" name="email" value="<?= e((string) ($me['email'] ?? '')) ?>" maxlength="255" required>
         <p class="admin-field-hint">用于找回密码与接收评论通知</p>
       </div>
+      <div class="admin-field">
+        <span class="label">当前密码</span>
+        <input class="input" type="password" name="current_password" autocomplete="current-password">
+        <p class="admin-field-hint">修改用户名或邮箱时必填</p>
+      </div>
       <div class="admin-form-actions">
         <p class="admin-editor-error" id="profileError" hidden></p>
         <button type="submit" id="profileSaveBtn" class="btn btn-primary">保存资料</button>

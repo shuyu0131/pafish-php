@@ -85,6 +85,7 @@ final class WidgetsController extends AdminController
                 if (trim($content) === '') {
                     throw new \RuntimeException('自定义组件内容不能为空');
                 }
+                $content = \Pafish\Services\Content::sanitize($content);
             }
 
             \Pafish\Services\MediaReferences::transaction(function () use (&$id, $type, $title, $content, $area): void {

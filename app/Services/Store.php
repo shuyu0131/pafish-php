@@ -485,6 +485,9 @@ final class Store
             $headers[] = 'Authorization: Bearer ' . $token;
         }
         if (preg_match('#^https?://#i', $zip) === 1) {
+            if (!empty($item['paid'])) {
+                throw new \RuntimeException('付费应用安装包必须通过官方商城地址下载');
+            }
             $buffer = self::httpGet($zip, $headers);
         } elseif ($base !== '') {
             try {
@@ -533,14 +536,19 @@ final class Store
     /** 从 public/store 读取本地安装包（zip 路径如 /store/{name}.zip） */
     private static function readLocalZip(string $zip): ?string
     {
+        if ($zip === '' || str_contains($zip, '\\') || preg_match('/[\x00-\x1f\x7f]/', $zip)) {
+            return null;
+        }
         $name = ltrim($zip, '/');
         if (str_starts_with($name, 'store/')) {
             $name = substr($name, strlen('store/'));
         }
-        $path = dirname(__DIR__, 2) . '/public/store/' . $name;
-        if (!is_file($path)) {
+        if ($name === '' || preg_match('#(?:^|/)\.\.(?:/|$)#', $name)) {
             return null;
         }
+        $root = realpath(dirname(__DIR__, 2) . '/public/store');
+        $path = $root === false ? false : realpath($root . DIRECTORY_SEPARATOR . $name);
+        if ($root === false || $path === false || !str_starts_with($path, $root . DIRECTORY_SEPARATOR) || !is_file($path)) return null;
         $data = @file_get_contents($path);
         return $data === false ? null : $data;
     }

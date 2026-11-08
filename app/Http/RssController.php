@@ -39,20 +39,20 @@ final class RssController
                 ? '本文章已加密，请输入密码后查看'
                 : (string) ($p['excerpt'] ?? '');
             $items .= "<item>\n" .
-                "    <title><![CDATA[" . $p['title'] . "]]></title>\n" .
-                "    <link>" . $url . "</link>\n" .
-                "    <guid>" . $url . "</guid>\n" .
+                "    <title>" . $this->xml((string) $p['title']) . "</title>\n" .
+                "    <link>" . $this->xml($url) . "</link>\n" .
+                "    <guid>" . $this->xml($url) . "</guid>\n" .
                 "    <pubDate>" . ($p['published_at'] ? date('r', strtotime((string) $p['published_at'])) : '') . "</pubDate>\n" .
-                "    <description><![CDATA[" . $excerpt . "]]></description>\n" .
+                "    <description>" . $this->xml($excerpt) . "</description>\n" .
                 "  </item>";
         }
 
         $xml = '<?xml version="1.0" encoding="UTF-8"?>' . "\n" .
             '<rss version="2.0">' . "\n" .
             '  <channel>' . "\n" .
-            "    <title><![CDATA[{$siteName}]]></title>\n" .
-            "    <link>{$homeUrl}</link>\n" .
-            "    <description><![CDATA[{$description}]]></description>\n" .
+            "    <title>" . $this->xml($siteName) . "</title>\n" .
+            "    <link>" . $this->xml($homeUrl) . "</link>\n" .
+            "    <description>" . $this->xml($description) . "</description>\n" .
             "    <language>zh-CN</language>\n" .
             "    <lastBuildDate>" . gmdate('D, d M Y H:i:s') . " GMT</lastBuildDate>\n" .
             $items . "\n" .
@@ -63,5 +63,10 @@ final class RssController
         return $response
             ->withHeader('Content-Type', 'application/rss+xml; charset=utf-8')
             ->withHeader('Cache-Control', 'no-store');
+    }
+
+    private function xml(string $value): string
+    {
+        return htmlspecialchars($value, ENT_XML1 | ENT_QUOTES, 'UTF-8');
     }
 }

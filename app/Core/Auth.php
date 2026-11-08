@@ -84,6 +84,12 @@ final class Auth
             return null;
         }
         self::$user = DB::fetchOne('SELECT * FROM users WHERE id = ? AND disabled = 0', [(int) $id]) ?? [];
+        $sessionHash = Session::get('auth_password_hash');
+        if (self::$user && (!is_string($sessionHash) || !hash_equals((string) self::$user['password_hash'], $sessionHash))) {
+            Session::destroy();
+            self::$user = [];
+            return null;
+        }
         if (self::$user) {
             self::touchActivity();
         }
@@ -120,8 +126,11 @@ final class Auth
 
     public static function login(int $userId): void
     {
+        $user = DB::fetchOne('SELECT password_hash FROM users WHERE id = ? AND disabled = 0', [$userId]);
+        if ($user === null) throw new \RuntimeException('账号不可用');
         session_regenerate_id(true);
         Session::set(self::SESSION_KEY, $userId);
+        Session::set('auth_password_hash', (string) $user['password_hash']);
         Session::remove('last_active_touch');
         self::$user = null;
         self::$activityTouched = false;
@@ -130,6 +139,7 @@ final class Auth
     public static function logout(): void
     {
         Session::remove(self::SESSION_KEY);
+        Session::remove('auth_password_hash');
         Session::remove('last_active_touch');
         self::$user = null;
         self::$activityTouched = false;

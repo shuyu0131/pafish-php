@@ -98,10 +98,11 @@ final class Backup
     /** 删除备份文件（upload-* 不可删） */
     public static function delete(string $file): void
     {
-        $path = self::resolve($file);
-        if (str_starts_with($file, self::PREFIX_UPLOAD)) {
+        $name = basename(trim($file));
+        if (str_starts_with($name, self::PREFIX_UPLOAD)) {
             throw new \RuntimeException('上传的恢复文件不可直接删除，请恢复后手动清理');
         }
+        $path = self::resolve($file);
         if (!@unlink($path)) {
             throw new \RuntimeException('删除失败：文件不存在或不可写');
         }

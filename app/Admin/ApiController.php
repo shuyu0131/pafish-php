@@ -369,6 +369,7 @@ final class ApiController extends AdminController
                 || $slug === '' || mb_strlen($slug) > 255 || mb_strlen($excerpt) > 500 || mb_strlen($externalUrl) > 500) {
                 throw new \RuntimeException('文章保存前过滤器返回了无效内容');
             }
+            $externalUrl = (string) (\Pafish\Services\Content::linkUrl($externalUrl, false) ?? '');
             if (DB::value('SELECT COUNT(*) FROM posts WHERE slug = ?', [$slug]) > 0) {
                 throw new \RuntimeException('别名已被使用，请更换');
             }

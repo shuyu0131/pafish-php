@@ -298,6 +298,13 @@ function inst_run(array $post, string $root): array
     if ($db['database'] === '' || $adminUser === '' || $adminEmail === '' || $adminPass === '') {
         $errors[] = '请填写全部必填项';
     }
+    $siteParts = $siteUrl === '' ? false : parse_url($siteUrl);
+    if ($siteUrl === '' || $siteParts === false
+        || !in_array(strtolower((string) ($siteParts['scheme'] ?? '')), ['http', 'https'], true)
+        || empty($siteParts['host']) || isset($siteParts['user']) || isset($siteParts['pass'])
+        || preg_match('/[\x00-\x20\x7f]/', $siteUrl)) {
+        $errors[] = '请填写有效的站点地址（HTTP 或 HTTPS），不能从请求 Host 自动推导';
+    }
     if (mb_strlen($adminPass) < 8) {
         $errors[] = '管理员密码至少 8 位';
     }
@@ -390,7 +397,7 @@ function inst_run(array $post, string $root): array
         $config = [
             'db' => $db,
             'auth_secret' => bin2hex(random_bytes(32)),
-            'site_url' => $siteUrl !== '' ? $siteUrl : 'http://' . ($_SERVER['HTTP_HOST'] ?? 'localhost'),
+            'site_url' => $siteUrl,
             'pretty_urls' => $prettyUrls,
             'debug' => false,
             'timezone' => 'Asia/Shanghai',
@@ -779,7 +786,7 @@ HTML;
   <div class="card" style="margin-top:16px">
     <h2>站点信息</h2>
     <label>站点名称</label><input type="text" name="site_name" value="{$field('site_name', '纸鱼博客')}">
-    <label>站点地址（不带结尾斜杠，用于 RSS / 站点地图）</label><input type="text" name="site_url" value="{$field('site_url', 'http://' . $host)}">
+    <label>站点地址（不带结尾斜杠，用于 RSS / 站点地图）</label><input type="url" name="site_url" value="{$field('site_url')}" placeholder="https://example.com" required>
     <div class="checkbox"><input type="checkbox" name="pretty_urls" value="1"{$prettyChecked} id="pu">
       <label for="pu" style="margin:0">启用伪静态（Apache .htaccess / Nginx try_files 已配置时勾选；否则取消勾选，链接自动用 index.php?p= 形式）</label></div>
   </div>
@@ -824,13 +831,14 @@ if ($action === 'install') {
     $installerStep = inst_database_defaults() !== null
         ? '<li>Docker 镜像内的安装器会在完成后自动识别安装状态，无需手动删除文件。</li>'
         : '<li><b>删除根目录的 install.php</b>，避免他人重装覆盖数据。</li>';
+    $adminHtml = inst_e((string) $result['admin']);
     echo inst_layout('安装完成', <<<HTML
 <div class="card done">
   <div class="big ok">✓</div>
   <p class="detail" style="margin:8px 0 6px; letter-spacing:.08em">INSTALLATION COMPLETE</p>
   <h2 style="margin:0 0 18px">安装完成</h2>
   <p class="info">
-    管理员账号：<b>{$result['admin']}</b><br>
+    管理员账号：<b>{$adminHtml}</b><br>
     管理员密码：安装时设置的密码
   </p>
   {$warnHtml}

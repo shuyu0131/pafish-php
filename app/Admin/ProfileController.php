@@ -115,6 +115,12 @@ final class ProfileController extends AdminController
         $nickname = mb_substr(trim((string) ($body['nickname'] ?? '')), 0, 50);
         $username = mb_substr(trim((string) ($body['username'] ?? '')), 0, 50);
         $email = mb_substr(trim((string) ($body['email'] ?? '')), 0, 255);
+        if ($username !== (string) $me['username'] || strtolower($email) !== strtolower((string) $me['email'])) {
+            $currentPassword = $body['current_password'] ?? null;
+            if (!is_string($currentPassword) || !password_verify($currentPassword, (string) $me['password_hash'])) {
+                return $this->json($response, ['error' => '修改用户名或邮箱前，请验证当前密码'], 400);
+            }
+        }
         try {
             $avatarUrl = (string) \Pafish\Services\Content::imageUrl($body['avatar_url'] ?? '');
         } catch (\RuntimeException $e) {

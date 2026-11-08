@@ -179,6 +179,7 @@ window.pafishApi = function (p) {
       <input type="hidden" name="_change_email" value="1">
       <input type="hidden" name="email" value="<?= e($forgotEmail) ?>">
     </form>
+    <?php if ($formNotice !== ''): ?><p class="auth-notice" role="status"><?= e($formNotice) ?></p><?php endif; ?>
     <div id="forgot-done" class="auth-closed" hidden>
       <p>密码已重置，请使用新密码登录。</p>
       <a href="<?= e(url_to('/login')) ?>" class="btn btn-primary auth-wide">去登录</a>

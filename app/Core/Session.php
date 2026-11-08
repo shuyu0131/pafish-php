@@ -80,6 +80,9 @@ final class Session
     public static function destroy(): void
     {
         $_SESSION = [];
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            return;
+        }
         if (ini_get('session.use_cookies')) {
             $params = session_get_cookie_params();
             setcookie(
@@ -156,17 +159,16 @@ final class Session
         $_SESSION['_request_replays'][$scope] = array_slice($records, -32, 32, true);
     }
 
-    private static function isHttps(): bool
+    public static function isHttps(): bool
     {
         $https = strtolower(trim((string) ($_SERVER['HTTPS'] ?? '')));
         if (in_array($https, ['1', 'on', 'https', 'true'], true)) {
             return true;
         }
 
-        // Proxies may send a comma-separated chain; the first value is the
-
+        $peer = trim((string) ($_SERVER['REMOTE_ADDR'] ?? ''));
+        if (!ClientIp::isTrustedProxy($peer)) return false;
         $forwarded = strtolower(trim((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')));
-        $scheme = strtolower(trim(explode(',', $forwarded, 2)[0] ?? ''));
-        return $scheme === 'https';
+        return $forwarded !== '' && !str_contains($forwarded, ',') && $forwarded === 'https';
     }
 }

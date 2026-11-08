@@ -153,7 +153,7 @@ final class Comments
         $parts = $url === '' ? false : parse_url($url);
         if ($parts === false || filter_var($url, FILTER_VALIDATE_URL) === false
             || !in_array(strtolower((string) ($parts['scheme'] ?? '')), ['http', 'https'], true)
-            || isset($parts['user'], $parts['pass'])) {
+            || isset($parts['user']) || isset($parts['pass'])) {
             return '';
         }
         return $url;

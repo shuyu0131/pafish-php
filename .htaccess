@@ -24,4 +24,7 @@
 # 禁止访问运行时目录
 <IfModule mod_rewrite.c>
     RewriteRule ^runtime/ - [F,L]
+    RewriteRule ^(?:backups|storage)/ - [F,L,NC]
 </IfModule>
+
+Options -Indexes

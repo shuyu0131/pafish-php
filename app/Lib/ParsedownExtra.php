@@ -474,8 +474,9 @@ class ParsedownExtra extends Parsedown
 
     # ~
 
-    protected function processTag($elementMarkup) # recursive
+    protected function processTag($elementMarkup, int $depth = 0) # recursive
     {
+        if ($depth >= 32) return $elementMarkup;
         # http://stackoverflow.com/q/1148928/200145
         libxml_use_internal_errors(true);
 
@@ -510,7 +511,7 @@ class ParsedownExtra extends Parsedown
 
                 if ($Node instanceof DOMElement and ! in_array($Node->nodeName, $this->textLevelElements))
                 {
-                    $elementText .= $this->processTag($nodeMarkup);
+                    $elementText .= $this->processTag($nodeMarkup, $depth + 1);
                 }
                 else
                 {

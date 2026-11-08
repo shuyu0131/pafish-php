@@ -68,8 +68,8 @@ get_header();
           </span>
         <?php endif; ?>
       </div>
-      <?php if (!empty($post['external_url'])): ?>
-        <a href="<?= e($post['external_url']) ?>" target="_blank" rel="noopener noreferrer" class="post-original">
+      <?php if (($externalUrl = \Pafish\Services\Content::safeLinkUrl($post['external_url'] ?? null, false)) !== null): ?>
+        <a href="<?= e($externalUrl) ?>" target="_blank" rel="noopener noreferrer" class="post-original">
           <?= admin_icon('external-link', 14) ?> 查看原文
         </a>
       <?php endif; ?>
@@ -139,7 +139,7 @@ get_header();
         'mainEntityOfPage' => ['@type' => 'WebPage', '@id' => $postUrl],
         'articleSection' => $post['category_name'] ?? null,
         'keywords' => implode(', ', array_column($post['tags'] ?? [], 'name')),
-    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>
     </script>
 
     <?php /* 点赞/收藏：明确提交目标状态，避免双击和网络重试反向切换。 */ ?>

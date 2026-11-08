@@ -87,7 +87,7 @@ final class V1Controller
             'categoryPinned' => (bool) $p['category_pinned'],
             'hasPassword' => $hasPassword,
             'commentsEnabled' => \Pafish\Services\Posts::commentsOpen($p),
-            'externalUrl' => $p['external_url'],
+            'externalUrl' => \Pafish\Services\Content::safeExternalUrl($p['external_url'] ?? null),
             'category' => $p['category_name'] !== null ? ['name' => $p['category_name'], 'slug' => $p['category_slug']] : null,
             'tags' => $p['tags'],
             'author' => $p['author_name'],
@@ -152,7 +152,7 @@ final class V1Controller
             $params[] = $tagSlug;
         }
         if ($q !== '') {
-            $where .= ' AND (p.title LIKE ? OR p.content LIKE ?)';
+            $where .= ' AND (p.title LIKE ? OR ((p.password IS NULL OR p.password = \'\') AND p.content LIKE ?))';
             $like = '%' . $q . '%';
             $params[] = $like;
             $params[] = $like;
@@ -375,7 +375,13 @@ final class V1Controller
     {
         $fail = ApiKey::check($request); if ($fail !== null) return $this->authError($response, $fail);
         $rows = DB::fetchAll('SELECT id,name,url,description,icon_url FROM links WHERE visible=1 ORDER BY sort_order,id');
-        return $this->json($response, ['links' => array_map(static fn(array $r): array => ['id'=>(string)$r['id'],'name'=>$r['name'],'url'=>$r['url'],'description'=>$r['description'],'iconUrl'=>$r['icon_url']], $rows)]);
+        return $this->json($response, ['links' => array_map(static fn(array $r): array => [
+            'id' => (string) $r['id'],
+            'name' => $r['name'],
+            'url' => (string) (\Pafish\Services\Content::safeLinkUrl($r['url'] ?? null) ?? ''),
+            'description' => $r['description'],
+            'iconUrl' => \Pafish\Services\Content::safeImageUrl($r['icon_url'] ?? null),
+        ], $rows)]);
     }
 
     public function menus(Request $request, Response $response): Response

@@ -234,8 +234,8 @@ final class Logger
             $message
         ) ?? $message;
 
-        $message = str_replace(["\r\n", "\r"], "\n", $message);
-        $message = preg_replace('/[^\P{C}\n\t]/u', '?', $message) ?? $message;
+        $message = preg_replace('/[\r\n\x{0085}\x{2028}\x{2029}]+/u', ' ', $message) ?? str_replace(["\r", "\n"], ' ', $message);
+        $message = preg_replace('/[^\P{C}\t]/u', '?', $message) ?? $message;
         return self::truncate($message, self::MAX_ENTRY_BYTES);
     }
 

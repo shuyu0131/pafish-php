@@ -42,6 +42,7 @@ final class LinksController extends AdminController
             if ($name === '' || $url === '') {
                 throw new \RuntimeException('名称和地址不能为空');
             }
+            $url = (string) \Pafish\Services\Content::linkUrl($url);
             if (mb_strlen($name) > 100 || mb_strlen($url) > 500 || mb_strlen($description) > 255) {
                 throw new \RuntimeException('内容超出长度限制');
             }

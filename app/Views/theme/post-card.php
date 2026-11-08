@@ -5,7 +5,7 @@
  *               is_password_protected/external_url/view_count/author_name/category_name/category_slug/tags[]）
  */
 $post = $post ?? [];
-$isExternal = trim((string) ($post['external_url'] ?? ''));
+$isExternal = \Pafish\Services\Content::safeLinkUrl($post['external_url'] ?? null, false) ?? '';
 $isPinned = (bool) ($post['is_pinned'] ?? false);
 $isCategoryPinned = (bool) ($post['category_pinned'] ?? false);
 $hasPassword = (bool) ($post['is_password_protected'] ?? $post['password'] ?? false);

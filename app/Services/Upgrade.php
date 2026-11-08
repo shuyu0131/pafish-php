@@ -376,6 +376,10 @@ final class Upgrade
         // 如果 zip 资产本身没有 sha256 字段（Gitee API 不提供），尝试获取 .sha256 文件
         if ($digest === '' && $digestUrl !== '') {
             try {
+                if (preg_match('#^https://gitee\.com/' . preg_quote($repo, '#') . '/releases/download/v'
+                    . preg_quote($version, '#') . '/pafish-php-v' . preg_quote($version, '#') . '\.zip\.sha256(?:\?.*)?$#i', $digestUrl) !== 1) {
+                    throw new \RuntimeException('Gitee Release 校验文件地址不安全');
+                }
                 $result = self::httpGet($digestUrl);
                 if ((int) ($result['status'] ?? 0) === 200) {
                     // 标准 sha256sum 格式: "abc123...  pafish-php-v1.2.3.zip\n"
@@ -383,8 +387,11 @@ final class Upgrade
                     $digest = strtolower(trim((string) ($parts[0] ?? '')));
                 }
             } catch (\Throwable $e) {
-                // .sha256 文件获取失败不阻断升级（向后兼容），仅记录
+                throw new \RuntimeException('无法获取更新包完整性校验值，已停止升级', 0, $e);
             }
+        }
+        if (preg_match('/^[0-9a-f]{64}$/', $digest) !== 1) {
+            throw new \RuntimeException('Release 缺少有效 SHA-256 校验值，已停止升级');
         }
 
         return [
@@ -477,7 +484,7 @@ final class Upgrade
     {
         $expected = strtolower(trim($expected));
         if ($expected === '') {
-            return;
+            throw new \RuntimeException('更新元数据缺少 SHA-256 校验值，已停止升级');
         }
         if (preg_match('/^[0-9a-f]{64}$/', $expected) !== 1) {
             throw new \RuntimeException('更新元数据 sha256 格式不合法');

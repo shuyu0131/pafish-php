@@ -29,6 +29,7 @@ $rememberUrl = !$loggedIn ? mb_substr(trim((string) ($_COOKIE['pafish_comment_ur
       data-target-type="<?= e($targetType) ?>"
       data-target-id="<?= $targetId ?>"
       data-parent-id="<?= e($parentId) ?>"
+      data-csrf-token="<?= e(\Pafish\Core\Session::csrfToken()) ?>"
       data-logged-in="<?= $loggedIn ? '1' : '0' ?>">
   <?php if ($loggedIn): ?>
     <p class="comment-as">

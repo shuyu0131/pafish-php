@@ -178,12 +178,15 @@ final class AuthApiController
         if (!RateLimiter::allow('auth-code-send-ip', $this->remoteIp($request), 10, 3600)) {
             return $this->json($response, ['error' => '请求过于频繁，请稍后再试'], 429);
         }
+        if (!RateLimiter::allow('auth-code-send-email', $purpose . '|' . $email, 1, 60)) {
+            return $this->json($response, ['error' => '发送过于频繁，请稍后再试'], 429);
+        }
 
-        // 注册场景直接提示邮箱已注册；忘记密码场景统一响应。
+        // Do not reveal whether an address belongs to an existing account.
         if ($purpose === 'register') {
             $exists = DB::fetchOne('SELECT id FROM users WHERE email = ?', [$email]);
             if ($exists) {
-                return $this->json($response, ['error' => '该邮箱已注册，可直接登录'], 409);
+                return $this->json($response, ['ok' => true]);
             }
         }
 
@@ -207,6 +210,7 @@ final class AuthApiController
         } catch (\Throwable) {
             EmailCode::forget($purpose);
             Session::remove($purpose === 'register' ? 'auth_register_email' : 'auth_reset_email');
+            if ($purpose === 'reset') return $this->json($response, ['ok' => true]);
             return $this->json($response, ['error' => '邮件服务未配置或发送失败，请联系管理员'], 400);
         }
 
@@ -281,7 +285,7 @@ final class AuthApiController
         $user = DB::fetchOne('SELECT id, username, disabled FROM users WHERE email = ?', [$email]);
         // 统一响应，避免暴露邮箱是否注册
         if (!$user || (int) $user['disabled'] === 1) {
-            return $this->json($response, ['ok' => true, 'sent' => false]);
+            return $this->json($response, ['ok' => true]);
         }
 
         $token = bin2hex(random_bytes(32));
@@ -296,7 +300,7 @@ final class AuthApiController
                 'UPDATE users SET reset_token = NULL, reset_token_expires = NULL WHERE id = ? AND reset_token = ?',
                 [(int) $user['id'], $token]
             );
-            return $this->json($response, ['ok' => true, 'sent' => false]);
+            return $this->json($response, ['ok' => true]);
         }
         $mailed = false;
         try {
@@ -307,10 +311,10 @@ final class AuthApiController
                 'UPDATE users SET reset_token = NULL, reset_token_expires = NULL WHERE id = ? AND reset_token = ?',
                 [(int) $user['id'], $token]
             );
-            return $this->json($response, ['ok' => true, 'sent' => false]);
+            return $this->json($response, ['ok' => true]);
         }
 
-        return $this->json($response, ['ok' => true, 'sent' => $mailed]);
+        return $this->json($response, ['ok' => true]);
     }
 
     public function reset(Request $request, Response $response): Response

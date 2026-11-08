@@ -176,8 +176,7 @@ final class Url
         }
         $base = rtrim((string) Config::get('site_url', ''), '/');
         if ($base === '') {
-            $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-            $base = $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost');
+            $base = 'http://localhost';
         }
         return $base . self::to($path);
     }

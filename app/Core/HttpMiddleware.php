@@ -48,5 +48,16 @@ final class HttpMiddleware
         });
         $errorMiddleware = $app->addErrorMiddleware($debug, true, true);
         $errorMiddleware->setDefaultErrorHandler(new ErrorHandler($app->getCallableResolver(), $app->getResponseFactory()));
+        $app->add(function ($request, $handler) {
+            $response = $handler->handle($request)
+                ->withHeader('X-Content-Type-Options', 'nosniff')
+                ->withHeader('X-Frame-Options', 'SAMEORIGIN')
+                ->withHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
+                ->withHeader('Content-Security-Policy', "frame-ancestors 'self'");
+            if (Session::isHttps()) {
+                $response = $response->withHeader('Strict-Transport-Security', 'max-age=31536000');
+            }
+            return $response;
+        });
     }
 }

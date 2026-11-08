@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Pafish\Services;
 
 /**
- * 图形验证码：SVG 生成（零依赖，currentColor 自适应亮暗主题）+ 文件缓存校验
+ * 图形验证码：PNG 栅格化并嵌入 SVG + 文件缓存校验
  * 验证码：4 位、5 分钟有效、校验通过即销毁（用后即焚）
  * 字符集避开 0/O/1/I/L 等易混字符
  */
@@ -28,34 +28,37 @@ final class Captcha
         return [$token, $svg];
     }
 
-    /** 校验：正确则销毁（用后即焚），错误保留可重试 */
+    /** 校验：文件锁使失败计数与一次性消费在并发请求间保持原子 */
     public static function verify(string $token, string $answer, string $identity = ''): bool
     {
         if ($token === '' || !preg_match('/^[a-f0-9]{32}$/', $token) || $answer === '') {
             return false;
         }
         $file = self::file($token);
-        $raw = is_file($file) ? (string) file_get_contents($file) : '';
-        if ($raw === '') {
+        $lock = @fopen($file . '.lock', 'c');
+        if ($lock === false || !flock($lock, LOCK_EX)) {
+            if (is_resource($lock)) fclose($lock);
             return false;
         }
-        $parts = explode('|', $raw, 3);
-        $savedAnswer = (string) ($parts[0] ?? '');
-        $expiresAt = (string) ($parts[1] ?? '0');
-        $savedIdentity = (string) ($parts[2] ?? '');
-        if ((int) $expiresAt < time()) {
-            @unlink($file);
+        try {
+            $raw = @file_get_contents($file);
+            if (!is_string($raw) || $raw === '') return false;
+            $parts = explode('|', $raw, 4);
+            $savedAnswer = (string) ($parts[0] ?? '');
+            $expiresAt = (int) ($parts[1] ?? 0);
+            $savedIdentity = (string) ($parts[2] ?? '');
+            $attempts = (int) ($parts[3] ?? 0);
+            if ($expiresAt < time()) { @unlink($file); return false; }
+            if ($identity !== '' && ($savedIdentity === '' || !hash_equals($savedIdentity, self::identityHash($identity)))) return false;
+            if (hash_equals($savedAnswer, strtoupper(trim($answer)))) { @unlink($file); return true; }
+            $attempts++;
+            if ($attempts >= 5) { @unlink($file); return false; }
+            if (@file_put_contents($file, $savedAnswer . '|' . $expiresAt . '|' . $savedIdentity . '|' . $attempts, LOCK_EX) === false) return false;
             return false;
+        } finally {
+            flock($lock, LOCK_UN);
+            fclose($lock);
         }
-        if ($identity !== '' && ($savedIdentity === ''
-            || !hash_equals($savedIdentity, self::identityHash($identity)))) {
-            return false;
-        }
-        if (strtoupper($savedAnswer) === strtoupper(trim($answer))) {
-            @unlink($file);
-            return true;
-        }
-        return false;
     }
 
     private static function dir(): string
@@ -75,7 +78,7 @@ final class Captcha
     private static function store(string $token, string $answer, string $identity = ''): void
     {
         $identityHash = $identity !== '' ? self::identityHash($identity) : '';
-        @file_put_contents(self::file($token), $answer . '|' . (time() + self::TTL) . '|' . $identityHash, LOCK_EX);
+        @file_put_contents(self::file($token), $answer . '|' . (time() + self::TTL) . '|' . $identityHash . '|0', LOCK_EX);
         // 顺带清理过期文件（每次写入最多扫 32 个，防膨胀）
         $files = glob(self::dir() . '/*.cap');
         if (is_array($files) && count($files) > 200) {
@@ -104,41 +107,33 @@ final class Captcha
     /** 渲染 4 位验证码 SVG：随机旋转 + 干扰线，currentColor 适配亮暗主题 */
     private static function renderSvg(array $chars): string
     {
-        $width = 120;
-        $height = 40;
-        $parts = [];
-        $parts[] = '<svg xmlns="http://www.w3.org/2000/svg" width="' . $width . '" height="' . $height
-            . '" viewBox="0 0 ' . $width . ' ' . $height . '" role="img" aria-label="验证码">';
-
-        // 干扰线（3 条，随机角度位置）
-        for ($i = 0; $i < 3; $i++) {
-            $x1 = random_int(0, $width);
-            $y1 = random_int(0, $height);
-            $x2 = random_int(0, $width);
-            $y2 = random_int(0, $height);
-            $parts[] = '<line x1="' . $x1 . '" y1="' . $y1 . '" x2="' . $x2 . '" y2="' . $y2
-                . '" stroke="currentColor" stroke-opacity="0.25" stroke-width="1" />';
+        if (!function_exists('imagecreatetruecolor') || !function_exists('imagepng')) {
+            throw new \RuntimeException('图形验证码需要启用 PHP GD 扩展');
         }
-
-        // 干扰点（12 个）
-        for ($i = 0; $i < 12; $i++) {
-            $parts[] = '<circle cx="' . random_int(0, $width) . '" cy="' . random_int(0, $height)
-                . '" r="1" fill="currentColor" fill-opacity="0.3" />';
+        $width = 150;
+        $height = 48;
+        $image = imagecreatetruecolor($width, $height);
+        $background = imagecolorallocate($image, 246, 248, 250);
+        imagefill($image, 0, 0, $background);
+        for ($i = 0; $i < 5; $i++) {
+            $color = imagecolorallocate($image, random_int(120, 210), random_int(120, 210), random_int(120, 210));
+            imageline($image, random_int(0, $width), random_int(0, $height), random_int(0, $width), random_int(0, $height), $color);
         }
-
-        // 字符（随机旋转 ±25°，轻微上下浮动）
-        $step = $width / (count($chars) + 1);
-        foreach ($chars as $i => $ch) {
-            $x = (int) (($i + 1) * $step);
-            $y = (int) (28 + random_int(-4, 4));
-            $rot = random_int(-25, 25);
-            $parts[] = '<text x="' . $x . '" y="' . $y
-                . '" text-anchor="middle" dominant-baseline="middle" font-size="22" font-family="monospace" '
-                . 'font-weight="bold" fill="currentColor" transform="rotate(' . $rot . ' ' . $x . ' ' . $y . ')">'
-                . $ch . '</text>';
+        for ($i = 0; $i < 36; $i++) {
+            $color = imagecolorallocate($image, random_int(120, 220), random_int(120, 220), random_int(120, 220));
+            imagesetpixel($image, random_int(0, $width - 1), random_int(0, $height - 1), $color);
         }
-
-        $parts[] = '</svg>';
-        return implode('', $parts);
+        foreach ($chars as $index => $char) {
+            $color = imagecolorallocate($image, random_int(10, 75), random_int(10, 75), random_int(10, 75));
+            $font = random_int(4, 5);
+            imagestring($image, $font, 17 + $index * 31 + random_int(-2, 2), random_int(13, 20), $char, $color);
+        }
+        ob_start();
+        imagepng($image);
+        $png = ob_get_clean();
+        imagedestroy($image);
+        if (!is_string($png) || $png === '') throw new \RuntimeException('无法生成图形验证码');
+        return '<svg xmlns="http://www.w3.org/2000/svg" width="150" height="48" viewBox="0 0 150 48" role="img" aria-label="验证码">'
+            . '<image width="150" height="48" href="data:image/png;base64,' . base64_encode($png) . '"/></svg>';
     }
 }

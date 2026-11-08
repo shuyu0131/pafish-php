@@ -61,6 +61,19 @@ final class PostController
 
             // POST 提交密码：验证通过 → 写入服务端会话 → 重定向回本页（PRG）
             if ($method === 'POST') {
+                $ip = \Pafish\Core\ClientIp::fromRequest($request);
+                $limitKey = $ip . '|' . $postId;
+                if (!RateLimiter::allow('post-password', $limitKey, 5, 300)) {
+                    return $this->renderPost($request, $response, $post, [
+                        'passwordError' => '尝试次数过多，请 5 分钟后重试',
+                        'commentPage' => $commentPage,
+                        'settings' => $settings,
+                        'theme' => \Theme::values(),
+                        'showCustomFields' => $showCustomFields,
+                        'showRelated' => $showRelated,
+                        'locked' => true,
+                    ], $this->neighbors($post));
+                }
                 if (!$this->verifyPassword((string) ($request->getParsedBody()['password'] ?? ''), $post['password'])) {
                     return $this->renderPost($request, $response, $post, [
                         'passwordError' => '密码错误，请重试',
@@ -72,6 +85,7 @@ final class PostController
                         'locked' => true,
                     ], $this->neighbors($post));
                 }
+                RateLimiter::clear('post-password', $limitKey);
                 Session::unlockPost($postId, (string) $post['password'], time() + self::UNLOCK_TTL);
                 return $response
                     ->withHeader('Location', \url_to(Permalinks::postPath($post)))

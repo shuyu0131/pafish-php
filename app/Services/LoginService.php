@@ -11,13 +11,13 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 /** Shared password verification and attempt limits for browser and app logins. */
 final class LoginService
 {
+    private const DUMMY_PASSWORD_HASH = '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2uheWG/igi.';
     /** @return array{user?:array,error?:string,status?:int,loginKey?:string} */
     public static function attempt(Request $request, string $username, string $password): array
     {
         if ($username === '' || $password === '') return ['error' => '请输入用户名和密码', 'status' => 400];
 
-        $ip = trim((string) (($request->getServerParams()['REMOTE_ADDR'] ?? '') ?: 'unknown'));
-        if (filter_var($ip, FILTER_VALIDATE_IP) === false) $ip = 'unknown';
+        $ip = \Pafish\Core\ClientIp::fromRequest($request);
         $loginKey = $ip . '|' . mb_strtolower($username, 'UTF-8');
         if (!RateLimiter::allow('auth-login-ip', $ip, 30, 300)
             || !RateLimiter::allow('auth-login-combo', $loginKey, 8, 600)) {
@@ -42,7 +42,8 @@ final class LoginService
 
         // nickname/avatar_url 供 App 登录后直接渲染账号卡片，不必再补一次 /me。
         $user = DB::fetchOne('SELECT id, username, nickname, avatar_url, password_hash, role, disabled FROM users WHERE username = ?', [$username]);
-        if (!$user || !password_verify($password, (string) $user['password_hash'])) {
+        $passwordValid = password_verify($password, (string) ($user['password_hash'] ?? self::DUMMY_PASSWORD_HASH));
+        if (!$user || !$passwordValid) {
             return ['error' => '用户名或密码错误', 'status' => 401];
         }
         if ((int) $user['disabled'] === 1) return ['error' => '账号已被禁用，请联系管理员', 'status' => 403];

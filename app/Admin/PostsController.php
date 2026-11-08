@@ -577,9 +577,7 @@ final class PostsController extends AdminController
         }
         // 外链文章可以没有正文，先读取外链值。
         $externalUrl = trim((string) ($body['external_url'] ?? ''));
-        if (mb_strlen($externalUrl) > 500) {
-            $externalUrl = '';
-        }
+        $externalUrl = (string) (\Pafish\Services\Content::linkUrl($externalUrl, false) ?? '');
         $contentFormat = \Pafish\Services\Content::format($body['content_format'] ?? ($id !== null ? (DB::value('SELECT content_format FROM posts WHERE id = ?', [$id]) ?: 'markdown') : 'markdown'));
         $content = (string) ($body['content'] ?? '');
         if ($contentFormat === 'html') $content = \Pafish\Services\Content::sanitize($content);

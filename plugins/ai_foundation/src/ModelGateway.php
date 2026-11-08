@@ -269,6 +269,7 @@ final class ModelGateway
         }
         
         // 达到最大轮次
+        self::logUsage($model, $options['callerPlugin'] ?? 'unknown', $totalUsage, $reservation);
         throw new ServiceException('AI 连续调用工具 ' . $maxToolCalls . ' 次后仍未返回最终答案。');
     }
 
@@ -506,12 +507,10 @@ final class ModelGateway
     {
         try {
             $table = self::table('usage_log');
-            if ($usage['total_tokens'] > 0) {
-                DB::execute(
-                    "INSERT INTO {$table} (model_id, caller_plugin, prompt_tokens, completion_tokens, total_tokens) VALUES (?, ?, ?, ?, ?)",
-                    [(int) ($model['id'] ?? 0), substr($callerPlugin, 0, 100), $usage['prompt_tokens'], $usage['completion_tokens'], $usage['total_tokens']]
-                );
-            }
+            DB::execute(
+                "INSERT INTO {$table} (model_id, caller_plugin, prompt_tokens, completion_tokens, total_tokens) VALUES (?, ?, ?, ?, ?)",
+                [(int) ($model['id'] ?? 0), substr($callerPlugin, 0, 100), $usage['prompt_tokens'], $usage['completion_tokens'], max(0, $usage['total_tokens'])]
+            );
             self::releaseQuota($reservation);
         } catch (\Throwable $e) {
             throw new ServiceException('用量记录失败，已停止本次调用以避免绕过配额。', 0, $e);

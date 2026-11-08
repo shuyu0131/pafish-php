@@ -26,8 +26,12 @@ final class OutboundHttp
     public static function fetch(string $url, int $maxBytes = 512000, array $headers = []): array
     {
         $currentUrl = trim($url);
+        $initialOrigin = self::origin($currentUrl);
         for ($redirect = 0; $redirect <= 3; $redirect++) {
-            $result = self::request('GET', $currentUrl, '', $headers, $maxBytes, 20, true);
+            $requestHeaders = self::origin($currentUrl) === $initialOrigin
+                ? $headers
+                : array_values(array_filter($headers, static fn ($header): bool => stripos((string) $header, 'Authorization:') !== 0));
+            $result = self::request('GET', $currentUrl, '', $requestHeaders, $maxBytes, 20, true);
             $status = (int) ($result['status'] ?? 0);
             if (in_array($status, [301, 302, 303, 307, 308], true)) {
                 if ($redirect >= 3) {
@@ -47,6 +51,16 @@ final class OutboundHttp
             ];
         }
         throw new \RuntimeException('目标重定向失败');
+    }
+
+    private static function origin(string $url): string
+    {
+        $parts = parse_url($url);
+        if (!is_array($parts)) return '';
+        $scheme = strtolower((string) ($parts['scheme'] ?? ''));
+        $host = strtolower((string) ($parts['host'] ?? ''));
+        $port = (int) ($parts['port'] ?? ($scheme === 'https' ? 443 : 80));
+        return $scheme . '://' . $host . ':' . $port;
     }
 
     /**

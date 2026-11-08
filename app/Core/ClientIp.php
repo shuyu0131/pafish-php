@@ -13,7 +13,7 @@ final class ClientIp
     {
         $peer = trim((string) ($request->getServerParams()['REMOTE_ADDR'] ?? ''));
         if (filter_var($peer, FILTER_VALIDATE_IP) === false) return 'unknown';
-        if (!self::trusted($peer)) return $peer;
+        if (!self::isTrustedProxy($peer)) return $peer;
         $forwarded = trim($request->getHeaderLine('X-Forwarded-For'));
         if ($forwarded === '') $forwarded = trim($request->getHeaderLine('X-Real-IP'));
         if ($forwarded === '' || strlen($forwarded) > 2048) return $peer;
@@ -21,11 +21,11 @@ final class ClientIp
         if (count($chain) > 32) return $peer;
         foreach ($chain as $ip) if (filter_var($ip, FILTER_VALIDATE_IP) === false) return $peer;
         $current = $peer;
-        for ($i=count($chain)-1; $i>=0 && self::trusted($current); $i--) $current = $chain[$i];
+        for ($i=count($chain)-1; $i>=0 && self::isTrustedProxy($current); $i--) $current = $chain[$i];
         return $current;
     }
 
-    private static function trusted(string $ip): bool
+    public static function isTrustedProxy(string $ip): bool
     {
         $binary = inet_pton($ip);
         foreach ((array) Config::get('trusted_proxies', []) as $network) {

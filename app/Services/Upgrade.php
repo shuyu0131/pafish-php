@@ -523,7 +523,7 @@ final class Upgrade
                     throw new \RuntimeException('更新包必须全部位于 pafish/ 顶层目录');
                 }
                 foreach ($parts as $seg) {
-                    if ($seg === '..' || $seg === '') {
+                    if ($seg === '..' || $seg === '.' || $seg === '') {
                         throw new \RuntimeException('更新包包含意外路径：' . $entryName);
                     }
                     if (str_contains($seg, ':')) {
@@ -532,8 +532,10 @@ final class Upgrade
                 }
                 $relative = implode('/', array_slice($parts, 1));
                 foreach (['.well-known', 'runtime', 'backups', 'public/uploads'] as $protected) {
-                    if (($relative === $protected || str_starts_with($relative, $protected . '/'))
-                        && $relative !== $protected . '/.gitkeep') {
+                    $relativeLower = strtolower($relative);
+                    $protectedLower = strtolower($protected);
+                    if (($relativeLower === $protectedLower || str_starts_with($relativeLower, $protectedLower . '/'))
+                        && $relativeLower !== $protectedLower . '/.gitkeep') {
                         throw new \RuntimeException('更新包不得覆盖受保护目录：' . $entryName);
                     }
                 }

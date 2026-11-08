@@ -29,6 +29,8 @@ final class ApiController extends AdminController
     private const IMPORT_MAX_FILES = 50;
     private const IMPORT_MAX_SIZE = 1048576; // 1MB
     private const UPLOAD_CHUNK_BYTES = 1024 * 1024;
+    private const UPLOAD_CHUNK_USER_BYTES = 32 * 1024 * 1024;
+    private const UPLOAD_CHUNK_USER_SESSIONS = 3;
 
     /** POST /api/upload：multipart 上传（兼容历史 file[] 多文件与当前单文件调用） */
     public function upload(Request $request, Response $response): Response
@@ -123,10 +125,14 @@ final class ApiController extends AdminController
         if ($size <= 0 || $size > self::UPLOAD_CHUNK_BYTES) return $this->json($response, ['error' => '分片大小无效'], 400);
         $root = dirname(__DIR__, 2) . '/storage/chunks/' . $uploadId;
         $this->cleanupExpiredChunks(dirname($root));
+        $userId = (int)(Auth::id() ?? 0);
+        [$activeSessions, $activeBytes] = $this->chunkUsage(dirname($root), $userId, $root);
+        if (!is_dir($root) && $activeSessions >= self::UPLOAD_CHUNK_USER_SESSIONS) {
+            return $this->json($response, ['error' => '未完成上传数量已达上限，请完成或等待临时文件过期'], 429);
+        }
         if (!is_dir($root) && !@mkdir($root, 0700, true)) return $this->json($response, ['error' => '无法创建上传临时目录'], 500);
         $metaPath = $root . '/meta.json';
         $meta = is_file($metaPath) ? json_decode((string)@file_get_contents($metaPath), true) : null;
-        $userId = (int)(Auth::id() ?? 0);
         if (!is_array($meta)) {
             $meta = ['user' => $userId, 'filename' => $filename, 'total' => $total, 'size' => 0, 'created' => time()];
             @file_put_contents($metaPath, json_encode($meta, JSON_UNESCAPED_UNICODE), LOCK_EX);
@@ -135,6 +141,11 @@ final class ApiController extends AdminController
             return $this->json($response, ['error' => '上传会话无效'], 403);
         }
         $partPath = $root . '/' . $index . '.part';
+        $previousPartSize = is_file($partPath) ? (int) @filesize($partPath) : 0;
+        $currentBytes = array_sum(array_map(static fn (string $part): int => (int) @filesize($part), glob($root . '/*.part') ?: []));
+        if ($activeBytes + $currentBytes - $previousPartSize + $size > self::UPLOAD_CHUNK_USER_BYTES) {
+            return $this->json($response, ['error' => '未完成上传占用空间已达上限'], 429);
+        }
         try {
             $file->moveTo($partPath);
         } catch (\Throwable) {
@@ -176,10 +187,27 @@ final class ApiController extends AdminController
     {
         if (!is_dir($base)) return;
         foreach (glob($base . '/*/meta.json') ?: [] as $metaPath) {
-            if ((int) @filemtime($metaPath) < time() - 86400) {
+            if ((int) @filemtime($metaPath) < time() - 3600) {
                 $this->removeChunkDirectory(dirname($metaPath));
             }
         }
+    }
+
+    /** @return array{int, int} */
+    private function chunkUsage(string $base, int $userId, string $excludeRoot): array
+    {
+        $sessions = 0;
+        $bytes = 0;
+        foreach (glob($base . '/*') ?: [] as $directory) {
+            if (!is_dir($directory) || $directory === $excludeRoot) continue;
+            $meta = json_decode((string) @file_get_contents($directory . '/meta.json'), true);
+            if (!is_array($meta) || (int) ($meta['user'] ?? -1) !== $userId) continue;
+            $sessions++;
+            foreach (glob($directory . '/*') ?: [] as $file) {
+                if (is_file($file)) $bytes += (int) @filesize($file);
+            }
+        }
+        return [$sessions, $bytes];
     }
 
     /** GET /api/uploads：媒体库（page / q / type 5 类筛选） */

@@ -162,6 +162,12 @@ final class Mail
     private static function fallbackFrom(): string
     {
         $user = (string) Settings::get('smtp_user', '');
-        return $user !== '' ? $user : 'noreply@' . ($_SERVER['HTTP_HOST'] ?? 'localhost');
+        if ($user !== '') return $user;
+        $siteUrl = \Pafish\Core\Config::get('site_url', '');
+        $host = is_string($siteUrl) ? parse_url($siteUrl, PHP_URL_HOST) : null;
+        if (!is_string($host) || filter_var($host, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME) === false) {
+            return 'noreply@localhost';
+        }
+        return 'noreply@' . strtolower($host);
     }
 }

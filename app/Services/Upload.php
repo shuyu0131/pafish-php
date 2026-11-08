@@ -351,10 +351,11 @@ final class Upload
                             if (!$attribute) {
                                 continue;
                             }
-                            $attrName = strtolower($attribute->name);
+                            $attrName = strtolower($attribute->localName ?: $attribute->name);
                             $value = trim($attribute->value);
+                            $isHref = $attrName === 'href';
                             if (str_starts_with($attrName, 'on')
-                                || (in_array($attrName, ['href', 'xlink:href'], true) && $value !== '' && !str_starts_with($value, '#'))
+                                || ($isHref && $value !== '' && !str_starts_with($value, '#'))
                                 || ($attrName === 'style' && preg_match('/(?:url|expression|@import)/i', $value) === 1)) {
                                 $child->removeAttributeNode($attribute);
                             }
@@ -370,10 +371,11 @@ final class Upload
                 if (!$attribute) {
                     continue;
                 }
-                $attrName = strtolower($attribute->name);
+                $attrName = strtolower($attribute->localName ?: $attribute->name);
                 $value = trim($attribute->value);
+                $isHref = $attrName === 'href';
                 if (str_starts_with($attrName, 'on')
-                    || (in_array($attrName, ['href', 'xlink:href'], true) && $value !== '' && !str_starts_with($value, '#'))
+                    || ($isHref && $value !== '' && !str_starts_with($value, '#'))
                     || ($attrName === 'style' && preg_match('/(?:url|expression|@import)/i', $value) === 1)) {
                     $root->removeAttributeNode($attribute);
                 }

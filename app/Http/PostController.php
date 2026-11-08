@@ -61,6 +61,12 @@ final class PostController
 
             // POST 提交密码：验证通过 → 写入服务端会话 → 重定向回本页（PRG）
             if ($method === 'POST') {
+                $body = $request->getParsedBody();
+                $body = is_array($body) ? $body : [];
+                $token = $body['_csrf'] ?? $request->getHeaderLine('X-CSRF-Token');
+                if (!is_string($token) || !Session::verifyCsrf($token)) {
+                    return $this->json($response, ['error' => '会话已过期，请刷新页面重试'], 419);
+                }
                 $ip = \Pafish\Core\ClientIp::fromRequest($request);
                 $limitKey = $ip . '|' . $postId;
                 if (!RateLimiter::allow('post-password', $limitKey, 5, 300)) {
@@ -74,7 +80,7 @@ final class PostController
                         'locked' => true,
                     ], $this->neighbors($post));
                 }
-                if (!$this->verifyPassword((string) ($request->getParsedBody()['password'] ?? ''), $post['password'])) {
+                if (!$this->verifyPassword((string) ($body['password'] ?? ''), $post['password'])) {
                     return $this->renderPost($request, $response, $post, [
                         'passwordError' => '密码错误，请重试',
                         'commentPage' => $commentPage,

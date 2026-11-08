@@ -355,6 +355,9 @@ final class UsersController extends AdminController
         if ($user instanceof Response) {
             return $user;
         }
+        if ((int) $user['id'] === 1 && (string) $user['role'] === 'ADMIN' && (int) (Auth::id() ?? 0) !== 1) {
+            return $this->json($response, ['error' => '创始人账号只能由本人重置密码'], 403);
+        }
         $new = (string) ($body['password'] ?? '');
         if (!Auth::validPassword($new)) {
             return $this->json($response, ['error' => Auth::PASSWORD_RULE], 400);

@@ -45,7 +45,7 @@ final class Store
     public static function baseUrl(): string
     {
         $env = trim((string) getenv('PAFISH_STORE_URL'));
-        if ($env !== '' && preg_match('#^https?://#i', $env) === 1) {
+        if ($env !== '' && preg_match('#^https://#i', $env) === 1) {
             return rtrim($env, '/');
         }
         return self::OFFICIAL_STORE_URL;
@@ -485,6 +485,9 @@ final class Store
             $headers[] = 'Authorization: Bearer ' . $token;
         }
         if (preg_match('#^https?://#i', $zip) === 1) {
+            if (preg_match('#^https://#i', $zip) !== 1) {
+                throw new \RuntimeException('商店安装包必须通过 HTTPS 下载');
+            }
             if (!empty($item['paid'])) {
                 throw new \RuntimeException('付费应用安装包必须通过官方商城地址下载');
             }
@@ -513,7 +516,10 @@ final class Store
             }
             $buffer = $local;
         }
-        // 目录声明 sha256 时校验包完整性（防下载篡改/损坏；旧目录无该字段则跳过）
+        // Remote packages must be pinned to the digest declared by their catalog.
+        if ($base !== '' && trim((string) ($item['sha256'] ?? '')) === '') {
+            throw new \RuntimeException('远程商店条目缺少 sha256，已拒绝安装');
+        }
         self::verifySha256($buffer, (string) ($item['sha256'] ?? ''));
         return $buffer;
     }

@@ -53,7 +53,7 @@ final class HttpMiddleware
                 ->withHeader('X-Content-Type-Options', 'nosniff')
                 ->withHeader('X-Frame-Options', 'SAMEORIGIN')
                 ->withHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
-                ->withHeader('Content-Security-Policy', "frame-ancestors 'self'");
+                ->withHeader('Content-Security-Policy', "object-src 'none'; base-uri 'self'; frame-ancestors 'self'");
             if (Session::isHttps()) {
                 $response = $response->withHeader('Strict-Transport-Security', 'max-age=31536000');
             }

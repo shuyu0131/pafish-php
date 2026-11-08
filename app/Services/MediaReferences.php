@@ -220,7 +220,12 @@ final class MediaReferences
         }
         foreach ($matches[0] as $url) {
             $url = rtrim($url, '.,;!');
-            while (str_ends_with($url, ')') && substr_count($url, ')') > substr_count($url, '(')) $url = substr($url, 0, -1);
+            $open = substr_count($url, '(');
+            $close = substr_count($url, ')');
+            $unmatched = max(0, $close - $open);
+            $trailingClosers = strlen($url) - strlen(rtrim($url, ')'));
+            $trimCount = min($unmatched, $trailingClosers);
+            if ($trimCount > 0) $url = substr($url, 0, -$trimCount);
             $normalized = self::normalizeUrl($url);
             if ($normalized !== null) $out[] = hash('sha256', $normalized);
         }

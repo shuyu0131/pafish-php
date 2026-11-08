@@ -268,7 +268,8 @@ function inst_exec_schema(PDO $pdo, string $sqlFile): array
             if (($e->errorInfo[1] ?? null) === 1061 && stripos($stmt, 'ft_posts_search') !== false) {
                 continue;
             }
-            $warnings[] = substr($stmt, 0, 60) . '... → ' . $e->getMessage();
+            error_log('Pafish installer schema statement failed: ' . $e->getMessage());
+            $warnings[] = '部分数据库结构未能创建，请检查服务器日志。';
         }
     }
     return $warnings;
@@ -384,7 +385,8 @@ function inst_run(array $post, string $root): array
             \Pafish\Services\Migrator::markApplied($pdo, 'baseline');
             \Pafish\Services\Migrator::run($pdo, $root . '/migrations');
         } catch (Throwable $e) {
-            $warnings[] = '增量迁移失败（不影响基础安装，后续可在升级流程重试）：' . $e->getMessage();
+            error_log('Pafish installer migration failed: ' . $e->getMessage());
+            $warnings[] = '增量迁移失败（不影响基础安装，后续可在升级流程重试）。';
         }
 
         // 3. 种子数据
@@ -417,8 +419,9 @@ function inst_run(array $post, string $root): array
             $pdo->rollBack();
         }
         @unlink($configTmp);
-        inst_write_state($root, 'failed', $e->getMessage());
-        return ['errors' => ['安装失败：' . $e->getMessage()]];
+        error_log('Pafish installer failed: ' . $e->getMessage());
+        inst_write_state($root, 'failed', '安装失败，请检查服务器日志后重试。');
+        return ['errors' => ['安装失败，请检查服务器日志后重试。']];
     }
 }
 

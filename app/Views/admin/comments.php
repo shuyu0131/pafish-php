@@ -160,7 +160,13 @@ $listUrl = url_to('/admin/comments') . '?status=' . $status . $querySuffix;
     batchForm.querySelector(".admin-batch-count-number").textContent = String(count);
     var select = batchForm.elements.op;
     var apply = batchForm.querySelector('button[type="submit"]');
-    select.disabled = count === 0;
+    var selectDisabled = count === 0;
+    if (select.disabled !== selectDisabled) {
+      select.disabled = selectDisabled;
+      // admin-controls.js mirrors the native select's disabled state on its
+      // visible trigger; keep that trigger usable as selections change.
+      select.dispatchEvent(new Event("pafish:control-sync"));
+    }
     apply.disabled = count === 0;
     if (checkAll) {
       checkAll.checked = count > 0 && count === rowChecks.length;

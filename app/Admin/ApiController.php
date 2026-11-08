@@ -29,7 +29,7 @@ final class ApiController extends AdminController
     private const IMPORT_MAX_FILES = 50;
     private const IMPORT_MAX_SIZE = 1048576; // 1MB
     private const UPLOAD_CHUNK_BYTES = 1024 * 1024;
-    private const UPLOAD_CHUNK_USER_BYTES = 32 * 1024 * 1024;
+    private const UPLOAD_CHUNK_USER_BYTES = 256 * 1024 * 1024;
     private const UPLOAD_CHUNK_USER_SESSIONS = 3;
 
     /** POST /api/upload：multipart 上传（兼容历史 file[] 多文件与当前单文件调用） */

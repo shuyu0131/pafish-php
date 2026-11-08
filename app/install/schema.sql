@@ -376,6 +376,27 @@ CREATE TABLE IF NOT EXISTS point_transactions (
   CONSTRAINT fk_point_transactions_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT='积分增减流水';
 
+CREATE TABLE IF NOT EXISTS orders (
+  id             BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '订单主键',
+  app_name       VARCHAR(60) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT '扩展命名空间，如 plugin:shop',
+  order_uid      BIGINT UNSIGNED NULL COMMENT '下单用户；用户删除后保留订单并清空关联',
+  sku_name       VARCHAR(50) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT '商品类型',
+  sku_id         VARCHAR(100) NULL COMMENT '商品 ID',
+  price          DECIMAL(12,2) NOT NULL COMMENT '订单金额',
+  pay_price      DECIMAL(12,2) NOT NULL DEFAULT 0.00 COMMENT '实际支付金额',
+  refund_amount  DECIMAL(12,2) NOT NULL DEFAULT 0.00 COMMENT '退款金额',
+  status         VARCHAR(20) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT 'pending' COMMENT 'pending/paid/failed/cancelled/refunded',
+  pay_type       VARCHAR(30) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT '支付方式',
+  out_trade_no   VARCHAR(128) NULL COMMENT '支付平台外部交易号',
+  created_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  updated_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_orders_app_trade (app_name, out_trade_no),
+  KEY idx_orders_app_user_created (app_name, order_uid, created_at, id),
+  KEY idx_orders_app_status_created (app_name, status, created_at, id),
+  CONSTRAINT fk_orders_user FOREIGN KEY (order_uid) REFERENCES users (id) ON DELETE SET NULL
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT='主题与插件共用的隔离订单';
+
 SET FOREIGN_KEY_CHECKS = 1;
 
 CREATE TABLE IF NOT EXISTS media_references (

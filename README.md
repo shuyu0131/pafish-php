@@ -56,6 +56,24 @@
 
 普通使用不需要看开发文档。
 
+### 扩展订单
+
+插件或主题可用扩展上下文创建、读取和更新自己命名空间中的订单：
+
+```php
+$orderId = $ctx->createOrder('resource', 'item-42', '12.50', 'wechat');
+$order = $ctx->getOrder($orderId);
+
+// 支付回调完成签名和金额校验后再更新订单
+$ctx->updateOrder($orderId, [
+    'status' => 'paid',
+    'pay_price' => '12.50',
+    'out_trade_no' => $gatewayTradeNumber,
+]);
+```
+
+订单状态由核心限制为 `pending`、`paid`、`failed`、`cancelled` 和 `refunded`。订单保存在共享表中，但插件和主题之间相互隔离；核心只记录订单，不代替扩展接入或验证支付网关回调。
+
 ## 常见问题
 
 - 首页 500，提示 `vendor/autoload.php` 缺失：用了源码包，换发行包。

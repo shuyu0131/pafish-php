@@ -182,4 +182,22 @@ final class ExtensionContext
         }
         throw new \RuntimeException('未声明的扩展数据表：' . $logicalName);
     }
+
+    /** Create an order owned by this extension; returns the numeric order ID. */
+    public function createOrder(string $skuName, string|int|null $skuId, string|int|float $price, string $payType, ?int $userId = null): int
+    {
+        return Orders::create($this->kind . ':' . $this->name, $skuName, $skuId, $price, $payType, $userId);
+    }
+
+    /** Read an order only within this extension's namespace. */
+    public function getOrder(int $orderId): ?array
+    {
+        return Orders::get($this->kind . ':' . $this->name, $orderId);
+    }
+
+    /** Apply a verified payment callback or refund result to this extension's order. */
+    public function updateOrder(int $orderId, array $payment): array
+    {
+        return Orders::update($this->kind . ':' . $this->name, $orderId, $payment);
+    }
 }

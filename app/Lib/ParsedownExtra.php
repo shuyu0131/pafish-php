@@ -15,6 +15,7 @@
 
 class ParsedownExtra extends Parsedown
 {
+    private $processTagDepth = 0;
     # ~
 
     const version = '0.8.1';
@@ -476,7 +477,9 @@ class ParsedownExtra extends Parsedown
 
     protected function processTag($elementMarkup, int $depth = 0) # recursive
     {
-        if ($depth >= 32) return $elementMarkup;
+        if ($depth >= 32 || $this->processTagDepth >= 32) return $elementMarkup;
+        $this->processTagDepth++;
+        try {
         # http://stackoverflow.com/q/1148928/200145
         libxml_use_internal_errors(true);
 
@@ -527,6 +530,9 @@ class ParsedownExtra extends Parsedown
         $markup = str_replace('placeholder\x1A', $elementText, $markup);
 
         return $markup;
+        } finally {
+            $this->processTagDepth--;
+        }
     }
 
     # ~

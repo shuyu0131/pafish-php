@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace Pafish\Http;
 
 use Pafish\Core\Auth;
+use Pafish\Core\ClientIp;
 use Pafish\Core\DB;
+use Pafish\Core\RateLimiter;
+use Pafish\Core\Session;
 use Pafish\Services\ExtensionKernel;
 use Pafish\Services\Points;
 use Pafish\Services\Theme;
@@ -73,6 +76,17 @@ final class UserController
 
     public function mutate(Request $request, Response $response): Response
     {
+        $body = $request->getParsedBody();
+        $token = is_array($body) && is_string($body['_csrf'] ?? null) ? $body['_csrf'] : $request->getHeaderLine('X-CSRF-Token');
+        if (!Session::verifyCsrf($token)) {
+            return Responses::json($response, ['code' => 1, 'data' => [], 'msg' => '请求已过期，请刷新页面重试'], 419);
+        }
+        if (Auth::id() === null) {
+            return Responses::json($response, ['code' => 1, 'data' => [], 'msg' => '请先登录'], 401);
+        }
+        if (!RateLimiter::allow('user-mutate', ClientIp::fromRequest($request), 10, 60)) {
+            return Responses::json($response, ['code' => 1, 'data' => [], 'msg' => '操作过于频繁，请稍后再试'], 429);
+        }
         $provider = ExtensionKernel::providerFor('theme', Theme::active(), 'userMutate');
         if (is_callable($provider)) return $provider($request, $response, []);
         return Responses::json($response, ['code' => 1, 'data' => [], 'msg' => '当前主题不支持该操作'], 404);

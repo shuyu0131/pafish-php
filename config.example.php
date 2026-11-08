@@ -10,13 +10,13 @@ return [
         'host'     => '127.0.0.1',
         'port'     => 3306,
         'database' => 'pafish',
-        'username' => 'root',
-        'password' => '',
+        'username' => 'pafish',
+        'password' => 'CHANGE-ME-TO-A-UNIQUE-DATABASE-PASSWORD',
         'charset'  => 'utf8mb4',
     ],
 
     // ---- 会话签名密钥：请更换为随机长字符串（安装向导自动生成） ----
-    'auth_secret' => 'CHANGE-ME-TO-A-LONG-RANDOM-STRING',
+    'auth_secret' => '', // Generate with: php -r "echo bin2hex(random_bytes(32)), PHP_EOL;"
 
     'site_url' => 'http://localhost',
 

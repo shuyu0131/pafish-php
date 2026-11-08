@@ -129,7 +129,7 @@ final class AuthPageController
             ]);
             if ($status < 400 && !empty($data['ok'])) {
                 Session::set('auth_register_email', $email);
-                $this->setFlash('register', ['email' => $email, 'from' => $from, 'notice' => '验证码已发送至 ' . $email . '，10 分钟内有效。']);
+                $this->setFlash('register', ['email' => $email, 'from' => $from, 'notice' => '如果该邮箱尚未注册且邮件服务可用，验证码会发送至该邮箱。']);
             } else {
                 $this->setFlash('register', [
                     'error' => (string) ($data['error'] ?? '验证码发送失败，请重试'),

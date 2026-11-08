@@ -16,7 +16,7 @@ final class ContentTransfer
         $categories = DB::fetchAll('SELECT c.id,c.name,c.slug,c.description,c.parent_id,c.sort_order,c.cover_url,c.seo_title,c.meta_description,p.slug AS parent_slug FROM categories c LEFT JOIN categories p ON p.id=c.parent_id ORDER BY c.id');
         $tags = DB::fetchAll('SELECT id, name, slug, description, seo_title, meta_description FROM tags ORDER BY id');
         $pages = DB::fetchAll('SELECT title, slug, content, content_format, status, template, published_at, allow_comments, seo_title, meta_description, created_at, updated_at FROM pages ORDER BY id');
-        $posts = DB::fetchAll('SELECT p.id, p.title, p.slug, p.excerpt, p.content, p.content_format, p.template, p.cover_url, p.status, p.published_at, p.view_count, p.is_pinned, p.category_pinned, p.password, p.external_url, p.custom_fields, p.category_id, p.allow_comments, p.seo_title, p.meta_description, c.slug AS category_slug, p.created_at, p.updated_at FROM posts p LEFT JOIN categories c ON c.id = p.category_id WHERE p.deleted_at IS NULL ORDER BY p.id');
+        $posts = DB::fetchAll('SELECT p.id, p.title, p.slug, p.excerpt, p.content, p.content_format, p.template, p.cover_url, p.status, p.published_at, p.view_count, p.is_pinned, p.category_pinned, p.external_url, p.custom_fields, p.category_id, p.allow_comments, p.seo_title, p.meta_description, c.slug AS category_slug, p.created_at, p.updated_at FROM posts p LEFT JOIN categories c ON c.id = p.category_id WHERE p.deleted_at IS NULL ORDER BY p.id');
         $tagMap = [];
         foreach (DB::fetchAll('SELECT pt.post_id, t.slug FROM post_tags pt JOIN tags t ON t.id = pt.tag_id') as $row) {
             $tagMap[(int) $row['post_id']][] = $row['slug'];
@@ -197,7 +197,8 @@ final class ContentTransfer
         $cat = isset($row['category_slug']) ? ($categoryIds[$row['category_slug']] ?? null) : ($row['category_id'] ?? null);
         // 导出包的字段是数组；旧 TEXT 镜像需序列化，不能让 PDO 把它写成 "Array"。
         if (is_array($row['custom_fields'] ?? null)) $row['custom_fields'] = json_encode($row['custom_fields'], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
-        $values = [(string) ($row['title'] ?? $slug), (string) ($row['excerpt'] ?? ''), (string) ($row['content'] ?? ''), $row['cover_url'] ?? null, (string) ($row['status'] ?? 'DRAFT'), $row['published_at'] ?? null, (int) ($row['is_pinned'] ?? 0), (int) ($row['category_pinned'] ?? 0), $row['password'] ?? null, $row['external_url'] ?? null, $row['custom_fields'] ?? null, $author, $cat];
+        $password = array_key_exists('password', $row) ? $row['password'] : ($existing['password'] ?? null);
+        $values = [(string) ($row['title'] ?? $slug), (string) ($row['excerpt'] ?? ''), (string) ($row['content'] ?? ''), $row['cover_url'] ?? null, (string) ($row['status'] ?? 'DRAFT'), $row['published_at'] ?? null, (int) ($row['is_pinned'] ?? 0), (int) ($row['category_pinned'] ?? 0), $password, $row['external_url'] ?? null, $row['custom_fields'] ?? null, $author, $cat];
         if ($existing) {
             PermalinkRedirects::recordEntityChange('post', $existing, array_replace($existing, [
                 'slug' => $slug, 'status' => $values[4], 'published_at' => $values[5],

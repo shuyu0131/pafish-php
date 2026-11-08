@@ -329,6 +329,12 @@ final class ModelGateway
 
         $body = json_decode((string) ($response['body'] ?? ''), true);
         self::validateResponse((int) ($response['status'] ?? 0), is_array($body) ? $body : []);
+
+        // Providers may omit usage in SSE responses; charge the reserved budget instead of zero.
+        if ($usage['total_tokens'] <= 0) {
+            $reserved = (int) DB::value('SELECT reserved_tokens FROM ' . self::table('quota_reservations') . ' WHERE id = ?', [$reservation]);
+            $usage = ['prompt_tokens' => 0, 'completion_tokens' => $reserved, 'total_tokens' => $reserved];
+        }
         
         self::logUsage($model, $options['callerPlugin'] ?? 'unknown', $usage, $reservation);
         return ['usage' => $usage];
@@ -427,6 +433,9 @@ final class ModelGateway
         }
         
         $payload = ['model' => $modelId, 'messages' => $safeMessages, 'stream' => $stream];
+        if ($stream) {
+            $payload['stream_options'] = ['include_usage' => true];
+        }
         if (isset($options['temperature']) && is_numeric($options['temperature'])) {
             $payload['temperature'] = max(0, min(2, (float) $options['temperature']));
         }

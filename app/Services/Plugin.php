@@ -1080,6 +1080,7 @@ final class Plugin
             if ($count <= 0) {
                 throw new \RuntimeException('解压失败：zip 包为空（已回滚）');
             }
+            ZipSafety::assertWithinLimits($zip);
             $top = null;
             for ($i = 0; $i < $count; $i++) {
                 $entryName = (string) $zip->getNameIndex($i);

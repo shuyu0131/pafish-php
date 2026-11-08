@@ -7,6 +7,7 @@ namespace Pafish\Http;
 use Pafish\Core\Auth;
 use Pafish\Core\DB;
 use Pafish\Core\RateLimiter;
+use Pafish\Core\ClientIp;
 use Pafish\Core\Session;
 use Pafish\Core\Url;
 use Pafish\Services\EmailCode;
@@ -86,6 +87,10 @@ final class AuthApiController
         }
         if ((string) Settings::get('allow_registration', 'true') === 'false') {
             return $this->json($response, ['error' => '注册已关闭'], 403);
+        }
+        $registerIp = $this->remoteIp($request);
+        if (!RateLimiter::allow('auth-register-ip', $registerIp, 10, 3600)) {
+            return $this->json($response, ['error' => '注册请求过于频繁，请稍后再试'], 429);
         }
 
         $username = mb_substr(trim((string) ($body['username'] ?? '')), 0, 50);
@@ -211,7 +216,8 @@ final class AuthApiController
             EmailCode::forget($purpose);
             Session::remove($purpose === 'register' ? 'auth_register_email' : 'auth_reset_email');
             if ($purpose === 'reset') return $this->json($response, ['ok' => true]);
-            return $this->json($response, ['error' => '邮件服务未配置或发送失败，请联系管理员'], 400);
+            \Pafish\Core\Logger::error('Auth verification email delivery failed for purpose=register');
+            return $this->json($response, ['ok' => true]);
         }
 
         Session::set($purpose === 'register' ? 'auth_register_email' : 'auth_reset_email', $email);
@@ -289,16 +295,17 @@ final class AuthApiController
         }
 
         $token = bin2hex(random_bytes(32));
+        $tokenHash = hash('sha256', $token);
         DB::execute(
             'UPDATE users SET reset_token = ?, reset_token_expires = ? WHERE id = ?',
-            [$token, date('Y-m-d H:i:s', time() + 30 * 60), (int) $user['id']]
+            [$tokenHash, date('Y-m-d H:i:s', time() + 30 * 60), (int) $user['id']]
         );
 
         $resetUrl = Url::trustedAbsolute('/reset-password?token=' . rawurlencode($token));
         if ($resetUrl === null) {
             DB::execute(
                 'UPDATE users SET reset_token = NULL, reset_token_expires = NULL WHERE id = ? AND reset_token = ?',
-                [(int) $user['id'], $token]
+                [(int) $user['id'], $tokenHash]
             );
             return $this->json($response, ['ok' => true]);
         }
@@ -309,7 +316,7 @@ final class AuthApiController
         } catch (\Throwable) {
             DB::execute(
                 'UPDATE users SET reset_token = NULL, reset_token_expires = NULL WHERE id = ? AND reset_token = ?',
-                [(int) $user['id'], $token]
+                [(int) $user['id'], $tokenHash]
             );
             return $this->json($response, ['ok' => true]);
         }
@@ -331,9 +338,10 @@ final class AuthApiController
         }
         if (preg_match('/^[a-f0-9]{64}$/D', $token) !== 1) return $this->json($response, ['error' => '重置链接无效或已过期'], 400);
 
+        $tokenHash = hash('sha256', $token);
         $user = DB::fetchOne(
-            'SELECT id, disabled FROM users WHERE reset_token = ? AND reset_token_expires > NOW()',
-            [$token]
+            'SELECT id, disabled FROM users WHERE reset_token IN (?, ?) AND reset_token_expires > NOW()',
+            [$tokenHash, $token]
         );
         if (!$user) {
             return $this->json($response, ['error' => '重置链接无效或已过期'], 400);
@@ -343,11 +351,11 @@ final class AuthApiController
         }
 
         // 条件更新同时消费令牌；两个请求即使都完成了上面的读取，也只允许一个成功。
-        $changed = DB::transaction(static function () use ($password, $user, $token): int {
+        $changed = DB::transaction(static function () use ($password, $user, $token, $tokenHash): int {
             $changed = DB::execute(
                 'UPDATE users SET password_hash = ?, reset_token = NULL, reset_token_expires = NULL
-                 WHERE id = ? AND reset_token = ? AND reset_token_expires > NOW() AND disabled = 0',
-                [password_hash($password, PASSWORD_BCRYPT, ['cost' => 10]), (int) $user['id'], $token]
+                 WHERE id = ? AND reset_token IN (?, ?) AND reset_token_expires > NOW() AND disabled = 0',
+                [password_hash($password, PASSWORD_BCRYPT, ['cost' => 10]), (int) $user['id'], $tokenHash, $token]
             );
             if ($changed === 1) \Pafish\Services\AppTokens::revokeAll((int) $user['id']);
             return $changed;
@@ -366,7 +374,7 @@ final class AuthApiController
 
     private function remoteIp(Request $request): string
     {
-        $ip = trim((string) (($request->getServerParams()['REMOTE_ADDR'] ?? '') ?: 'unknown'));
+        $ip = trim(ClientIp::fromRequest($request));
         return filter_var($ip, FILTER_VALIDATE_IP) !== false ? $ip : 'unknown';
     }
 }

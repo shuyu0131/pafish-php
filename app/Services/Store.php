@@ -648,6 +648,7 @@ final class Store
             if ($count <= 0) {
                 throw new \RuntimeException('zip 包为空');
             }
+            ZipSafety::assertWithinLimits($zip);
             $top = null;
             for ($i = 0; $i < $count; $i++) {
                 $entryName = (string) $zip->getNameIndex($i);

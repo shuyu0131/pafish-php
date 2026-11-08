@@ -1256,6 +1256,7 @@ final class Theme
             if ($count <= 0) {
                 throw new \RuntimeException('zip 包为空');
             }
+            ZipSafety::assertWithinLimits($zip);
             // 唯一顶层目录 + 穿越防护
             $top = null;
             for ($i = 0; $i < $count; $i++) {

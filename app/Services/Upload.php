@@ -317,6 +317,7 @@ final class Upload
      */
     private static function sanitizeSvg(string $svg): string
     {
+        $referenceAttributes = ['fill', 'stroke', 'filter', 'clip-path', 'mask', 'marker-start', 'marker-mid', 'marker-end'];
         $dom = new \DOMDocument('1.0', 'UTF-8');
         $dom->preserveWhiteSpace = false;
         $dom->resolveExternals = false;
@@ -331,7 +332,7 @@ final class Upload
             }
 
             $blocked = ['script', 'foreignobject', 'iframe', 'object', 'embed', 'audio', 'video', 'animate', 'animatemotion', 'animatetransform', 'set'];
-            $walk = function (\DOMNode $node) use (&$walk, $blocked): void {
+            $walk = function (\DOMNode $node) use (&$walk, $blocked, $referenceAttributes): void {
                 for ($child = $node->firstChild; $child !== null;) {
                     $next = $child->nextSibling;
                     if ($child instanceof \DOMElement) {
@@ -341,7 +342,7 @@ final class Upload
                             $child = $next;
                             continue;
                         }
-                        if ($name === 'style' && preg_match('/(?:url|expression|@import)/i', $child->textContent) === 1) {
+                        if ($name === 'style') {
                             $node->removeChild($child);
                             $child = $next;
                             continue;
@@ -354,9 +355,13 @@ final class Upload
                             $attrName = strtolower($attribute->localName ?: $attribute->name);
                             $value = trim($attribute->value);
                             $isHref = $attrName === 'href';
+                            $internalReference = preg_match('/^url\(\s*#[A-Za-z_][A-Za-z0-9_.:-]*\s*\)$/i', $value) === 1;
+                            $unsafeReference = in_array($attrName, $referenceAttributes, true)
+                                && !$internalReference
+                                && preg_match('/url|\\\\|\/\*/i', $value) === 1;
                             if (str_starts_with($attrName, 'on')
                                 || ($isHref && $value !== '' && !str_starts_with($value, '#'))
-                                || ($attrName === 'style' && preg_match('/(?:url|expression|@import)/i', $value) === 1)) {
+                                || $attrName === 'style' || $unsafeReference) {
                                 $child->removeAttributeNode($attribute);
                             }
                         }
@@ -374,9 +379,13 @@ final class Upload
                 $attrName = strtolower($attribute->localName ?: $attribute->name);
                 $value = trim($attribute->value);
                 $isHref = $attrName === 'href';
+                $internalReference = preg_match('/^url\(\s*#[A-Za-z_][A-Za-z0-9_.:-]*\s*\)$/i', $value) === 1;
+                $unsafeReference = in_array($attrName, $referenceAttributes, true)
+                    && !$internalReference
+                    && preg_match('/url|\\\\|\/\*/i', $value) === 1;
                 if (str_starts_with($attrName, 'on')
                     || ($isHref && $value !== '' && !str_starts_with($value, '#'))
-                    || ($attrName === 'style' && preg_match('/(?:url|expression|@import)/i', $value) === 1)) {
+                    || $attrName === 'style' || $unsafeReference) {
                     $root->removeAttributeNode($attribute);
                 }
             }

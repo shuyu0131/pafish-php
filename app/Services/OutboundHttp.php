@@ -7,9 +7,9 @@ namespace Pafish\Services;
 /** 受控服务端 HTTP 出站网关：仅 http(s)，拒绝内网地址；GET 下载安全跟随有限次重定向。 */
 final class OutboundHttp
 {
-    public static function get(string $url, int $maxBytes = 512000, array $headers = []): string
+    public static function get(string $url, int $maxBytes = 512000, array $headers = [], int $timeout = 20): string
     {
-        $result = self::fetch($url, $maxBytes, $headers);
+        $result = self::fetch($url, $maxBytes, $headers, $timeout);
         if ($result['status'] < 200 || $result['status'] >= 300) {
             throw new \RuntimeException('目标返回 HTTP ' . $result['status']);
         }
@@ -23,7 +23,7 @@ final class OutboundHttp
      *
      * @return array{status:int, body:string, headers:array<string,string>}
      */
-    public static function fetch(string $url, int $maxBytes = 512000, array $headers = []): array
+    public static function fetch(string $url, int $maxBytes = 512000, array $headers = [], int $timeout = 20): array
     {
         $currentUrl = trim($url);
         $initialOrigin = self::origin($currentUrl);
@@ -31,7 +31,7 @@ final class OutboundHttp
             $requestHeaders = self::origin($currentUrl) === $initialOrigin
                 ? $headers
                 : array_values(array_filter($headers, static fn ($header): bool => stripos((string) $header, 'Authorization:') !== 0));
-            $result = self::request('GET', $currentUrl, '', $requestHeaders, $maxBytes, 20, true);
+            $result = self::request('GET', $currentUrl, '', $requestHeaders, $maxBytes, $timeout, true);
             $status = (int) ($result['status'] ?? 0);
             if (in_array($status, [301, 302, 303, 307, 308], true)) {
                 if ($redirect >= 3) {

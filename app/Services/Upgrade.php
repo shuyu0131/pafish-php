@@ -475,7 +475,7 @@ final class Upgrade
     /** 下载 zip 地址（Gitee Release 包和 .sha256 文件） */
     private static function httpGet(string $url): array
     {
-        $content = OutboundHttp::get($url, self::MAX_ZIP_BYTES, ['Accept: application/json, application/zip, text/plain']);
+        $content = OutboundHttp::get($url, self::MAX_ZIP_BYTES, ['Accept: application/json, application/zip, text/plain'], 60);
         return ['status' => 200, 'content' => $content];
     }
 

@@ -61,6 +61,13 @@ final class Permalinks
         }
         $config = self::CONTENT_TEMPLATES[$type] ?? null;
         if ($config === null) return [];
+        if ($type === 'category') {
+            return [
+                '/category/%category%' => '/category/分类别名（单级）',
+                '/category/%category_path%' => '/category/父级/子级（层级路径）',
+                '/categories/%category%' => '/categories/分类别名（单级）',
+            ];
+        }
         $prefix = ['page' => '页面', 'category' => '分类', 'tag' => '标签'][$type];
         return array_combine($config['templates'], array_map(
             static fn (string $template): string => str_replace(

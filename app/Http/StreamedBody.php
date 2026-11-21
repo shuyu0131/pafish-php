@@ -18,6 +18,7 @@ final class StreamedBody implements StreamInterface
     /** @var callable():void */
     private $callback;
     private bool $done = false;
+    private bool $closed = false;
 
     /** @param callable():void $callback */
     public function __construct(callable $callback)
@@ -32,11 +33,14 @@ final class StreamedBody implements StreamInterface
 
     public function close(): void
     {
+        $this->closed = true;
+        $this->done = true;
+        $this->callback = static function (): void {};
     }
 
     public function detach()
     {
-        $this->done = true;
+        $this->close();
         return null;
     }
 
@@ -84,11 +88,14 @@ final class StreamedBody implements StreamInterface
 
     public function isReadable(): bool
     {
-        return true;
+        return !$this->closed;
     }
 
     public function read(int $length): string
     {
+        if ($this->closed) throw new \RuntimeException('流式响应体已关闭');
+        if ($length < 0) throw new \RuntimeException('读取长度不能为负数');
+        if ($length === 0) return '';
         if (!$this->done) {
             $this->run();
         }
@@ -97,6 +104,7 @@ final class StreamedBody implements StreamInterface
 
     public function getContents(): string
     {
+        if ($this->closed) throw new \RuntimeException('流式响应体已关闭');
         if (!$this->done) {
             $this->run();
         }

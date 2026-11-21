@@ -1136,18 +1136,20 @@ final class Plugin
             }
             if (is_dir($target)) {
                 $backup = self::root() . '/.' . $top . '.backup-' . bin2hex(random_bytes(4));
-                if (!@rename($target, $backup)) {
+                if (!self::renameWithRetry($target, $backup)) {
                     self::rmDir($stage);
                     throw new \RuntimeException('无法替换已安装插件，请检查目录权限');
                 }
             }
             // Windows 上刚被 rename 走的路径会短暂持有目录句柄（WinError 5 拒绝访问），
-            // 立刻把新目录 rename 到同名路径会稳定失败；Linux 无此问题。
-            // 重试若干次（共约 2 秒）等待句柄释放，避免更新插件在 Windows 上必然失败。
+            // 重试若干次（共约 2 秒）等待句柄释放。
             if (!self::renameWithRetry($stagedTarget, $target)) {
-                if ($backup !== null) self::renameWithRetry($backup, $target);
+                $restored = $backup === null || self::renameWithRetry($backup, $target);
                 self::rmDir($stage);
-                throw new \RuntimeException('插件更新失败（已回滚）');
+                if (!$restored) {
+                    throw new \RuntimeException('插件更新失败，自动回滚未完成；原插件保留在 plugins/' . basename($backup) . '，请恢复该目录后重试');
+                }
+                throw new \RuntimeException($backup === null ? '插件安装失败，未安装新插件' : '插件更新失败（已回滚）');
             }
             self::rmDir($stage);
             if ($backup !== null) self::rmDir($backup);
@@ -1197,10 +1199,10 @@ final class Plugin
                 return true;
             }
             if (!is_dir($from)) {
-                // 源已不存在（例如被并发操作移动），没必要继续等
-                return is_dir($to);
+                // 目标存在并不能证明本次移动成功，不能因此删除原插件备份。
+                return false;
             }
-            usleep($intervalMicros);
+            if ($i + 1 < $attempts) usleep($intervalMicros);
         }
         return false;
     }

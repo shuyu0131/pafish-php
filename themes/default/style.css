@@ -29,7 +29,6 @@ body {
   font-family: var(--font-sans);
   font-size: 16px;
   line-height: 1.6;
-  transition: background-color 0.3s ease, color 0.3s ease;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -100,9 +99,6 @@ img {
 @media (prefers-reduced-motion: reduce) {
   .post-card {
     animation: none;
-  }
-  body {
-    transition: none;
   }
 }
 
@@ -2004,6 +2000,7 @@ input[type="radio"]:focus-visible {
   min-width: 0;
   max-height: calc(100vh - 2rem);
   overflow-y: auto;
+  scrollbar-width: none;
   overscroll-behavior: contain;
   flex-direction: column;
   gap: 2rem;
@@ -2011,6 +2008,11 @@ input[type="radio"]:focus-visible {
   margin-top: 3.25rem;
   padding: 0 0 2rem 1.35rem;
   background: transparent;
+}
+
+/* 侧栏保留独立滚动，但不与页面主滚动条重复显示。 */
+.app-sidebar::-webkit-scrollbar {
+  display: none;
 }
 
 .app-sidebar > .app-brand {

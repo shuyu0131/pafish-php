@@ -1,96 +1,43 @@
 # pafish（纸鱼博客）
 
-轻量、独立部署的 PHP 博客 CMS，适合个人博客、内容站和小型团队站点。只需要 PHP 和 MySQL。
+轻量、独立部署的 PHP 博客 CMS，适合个人博客和内容站。
 
 [官网](https://www.pafish.cn) · [使用文档](https://docs.pafish.cn/docs) · [应用商店](https://www.pafish.cn/store) · [Gitee](https://gitee.com/shuyugit/pafish-php) · [GitHub](https://github.com/shuyu0131/pafish-php)
 
-发行包自带默认主题、Sitemap 插件和 AI Foundation 插件；其他主题与插件在应用商店安装。
+## 主要功能
 
-## 快速开始
-
-1. 从[官网下载页](https://www.pafish.cn/download)下载发行包 `pafish-php-vX.Y.Z.zip`。
-2. 解压到网站根目录，确保根目录能看到 `index.php`、`app/`、`public/`。
-3. 访问 `https://你的域名/install.php`，填写数据库和管理员信息。
-4. 安装完成后删除 `install.php`，访问 `https://你的域名/admin/` 登录后台。
-
-> 不要用仓库页的「下载 ZIP」部署。源码包不含 `vendor/`，装完首页会 500。请认准发行版里的同名 zip，并用附带的 `.sha256` 校验。
-
-详细步骤、伪静态和目录权限见[安装说明](https://docs.pafish.cn/docs/install)；宝塔用户见[宝塔面板部署](https://docs.pafish.cn/docs/install-bt)。
-
-## 能做什么
-
-- 写作：默认 Markdown 编辑器，也支持通过编辑器插件切换富文本格式；另有草稿、定时发布、置顶、密码文章、独立页面、微语、分类和标签。
-- 阅读：评论和楼中楼、点赞收藏、搜索、归档、RSS、sitemap、亮暗模式。
-- 运营：媒体库、评论审核、导航菜单、友情链接、侧边栏组件、SMTP 邮件。
-- 管理：用户和角色、数据备份、内容迁移、在线更新、开放 API、手机管理 App。
-- 扩展：主题、插件和应用商店。
-
-### 正文格式与编辑器
-
-新内容的自动英文或拼音别名最多 8 个字符（含重名后缀），已有别名和手动输入不受该自动长度限制。后台设置中还可选择按文章 ID 生成固定链接，例如 `/post/id/123`；原有别名地址继续跳转至当前固定链接。
-
-默认编辑器保存 Markdown，渲染器使用仓库内置的 Parsedown 1.7.4 / Parsedown Extra 0.8.1 实现，不依赖后台临时下载第三方编辑器。Markdown 中的标准 HTML 会经过核心 HTML 白名单净化后渲染，危险标签和属性会被移除。
-
-富文本编辑器以插件形式接入。插件声明 `format: html` 后，核心会保存正文格式并在保存时用 `HTMLPurifier` 白名单净化 HTML；停用或更换插件不会改变已经保存的正文。启用 HTML 富文本编辑器后，已有 Markdown 文章会先按 Markdown 渲染到编辑器中，编辑并保存后转为 HTML；已有 HTML 正文继续使用源码编辑器或 HTML 编辑器编辑。插件开发契约见[编辑器插件说明](https://docs.pafish.cn/docs/plugin#编辑器插件)。
+- 内容管理：Markdown 编辑器、草稿、定时发布、密码文章、独立页面、微语、分类和标签；可通过插件接入富文本编辑器。
+- 阅读与互动：评论及回复、点赞收藏、站内搜索、归档、RSS、Sitemap 和亮暗模式。
+- 站点管理：媒体库、评论审核、导航菜单、友情链接、侧边栏组件、SMTP 邮件、用户和角色。
+- 维护与扩展：数据备份、内容迁移、在线更新、开放 API、主题和插件商店；核心后台支持简体中文和 English。
 
 ## 环境要求
 
 | 项目 | 要求 |
 | --- | --- |
-| PHP | 8.1+，启用 `pdo`、`pdo_mysql`、`gd`、`zip`、`mbstring`、`intl`、`curl`、`openssl`、`json`、`fileinfo` |
+| PHP | 8.1+ |
+| PHP 扩展 | `pdo`、`pdo_mysql`、`gd`、`zip`、`mbstring`、`intl`、`curl`、`openssl`、`json`、`fileinfo` |
 | MySQL | 5.7.6+，推荐 8.0 |
 | Web 服务 | Nginx 或 Apache |
 
-安装前请确认 `post_max_size >= 16M`、`upload_max_filesize >= 12M`。发行包已包含 Composer 依赖，生产环境不需要执行 Composer。
+上传限制建议：`post_max_size >= 16M`、`upload_max_filesize >= 12M`。
 
-## 部署
+## 安装
 
-- **普通主机 / 宝塔**：按[安装说明](https://docs.pafish.cn/docs/install)上传发行包，访问 `install.php` 安装。
-- **Docker**：见 [DOCKER.md](DOCKER.md)。GHCR 镜像可直接运行；首次发布前或需要从当前源码运行时，用 `docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build` 本地构建。
-- **伪静态**：Nginx 和 Apache 规则见[安装说明的伪静态部分](https://docs.pafish.cn/docs/install#6-伪静态配置)。
-- **定时发布**：建议每分钟执行 `php /路径/cron.php`；不配置也能用，前台访问会低频补发。
-- **在线更新**：后台「系统更新」从 Gitee 检查新版本，备份和恢复使用纯 PHP，不依赖 `exec()`、`mysqldump` 或 `mysql` 命令。
+1. 从[官网下载页](https://www.pafish.cn/download)或仓库发行版下载完整发行包。
+2. 解压到网站根目录，配置伪静态和目录权限。
+3. 访问 `/install.php`，按提示填写数据库和管理员信息。
+4. 安装完成后删除 `install.php`，访问 `/admin/` 登录后台。
+
+完整发行包包含 Composer 运行依赖、默认主题、Sitemap 插件和 AI Foundation 插件，无需在服务器执行 Composer。仓库自动生成的源码 ZIP 不含运行依赖，不能直接用于部署。
+
+详细步骤见[安装说明](https://docs.pafish.cn/docs/install)和[宝塔部署](https://docs.pafish.cn/docs/install-bt)；Docker 部署见 [DOCKER.md](DOCKER.md)。
 
 ## 文档
 
-- 使用：[开始使用](https://docs.pafish.cn/docs/welcome)、[安装说明](https://docs.pafish.cn/docs/install)、[常见问题](https://docs.pafish.cn/docs/faq)、[配置说明](https://docs.pafish.cn/docs/config)
-- 开发：[主题开发](https://docs.pafish.cn/docs/theme)、[插件开发](https://docs.pafish.cn/docs/plugin)、[API](https://docs.pafish.cn/docs/api)、[App 接口](https://docs.pafish.cn/docs/app-api)、[扩展内核](https://docs.pafish.cn/docs/extension-kernel)、[事件钩子](https://docs.pafish.cn/docs/extension-hooks)、[通用函数](https://docs.pafish.cn/docs/develop-func)、[数据库迁移](https://docs.pafish.cn/docs/migrations)
-
-普通使用不需要看开发文档。
-
-### 后台语言
-
-在「站点设置 → 常规 → 系统语言」选择简体中文或 English，保存后切换后台界面。默认简体中文，所有账号共用这一设置；文章、站点名称等已保存内容保持原样。当前只覆盖核心后台，前台主题及扩展自己的文案由各自维护。
-
-内置语言包位于 `app/Languages/zh-CN.json` 和 `app/Languages/en.json`，无需额外依赖或数据库迁移。PHP 使用 `t('key', ['name' => $value])`，HTML 输出使用 `e(t(...))`；后台 JS 使用 `window.pafishT('js.key', {name: value})`，优先写入 `textContent`。语言包使用 `{name}` 参数，缺失翻译按「当前语言 → 中文 → 键名」回退。新增文案需同步两份语言包；浏览器只接收 `js.*` 与 `common.*` 文案。
-
-### 扩展订单
-
-插件或主题可用扩展上下文创建、读取和更新自己命名空间中的订单：
-
-```php
-$orderId = $ctx->createOrder('resource', 'item-42', '12.50', 'wechat');
-$order = $ctx->getOrder($orderId);
-
-// 支付回调完成签名和金额校验后再更新订单
-$ctx->updateOrder($orderId, [
-    'status' => 'paid',
-    'pay_price' => '12.50',
-    'out_trade_no' => $gatewayTradeNumber,
-]);
-```
-
-订单状态由核心限制为 `pending`、`paid`、`failed`、`cancelled` 和 `refunded`。已关闭订单不会重新打开待支付，但验证过的渠道延迟回调仍可把 `cancelled` 补记为 `paid`。订单保存在共享表中，但插件和主题之间相互隔离；核心只记录订单，不代替扩展接入或验证支付网关回调。
-
-## 常见问题
-
-- 首页 500，提示 `vendor/autoload.php` 缺失：用了源码包，换发行包。
-- 文章地址 404：伪静态没生效，见安装说明。
-- 图片上传失败：检查上传限制和 `public/uploads/` 权限。
-- 中文搜索没有结果：确认 MySQL 5.7.6+ 和全文索引。
-
-更多见[常见问题](https://docs.pafish.cn/docs/faq)。
+- 使用：[开始使用](https://docs.pafish.cn/docs/welcome) · [配置说明](https://docs.pafish.cn/docs/config) · [常见问题](https://docs.pafish.cn/docs/faq)
+- 开发：[主题](https://docs.pafish.cn/docs/theme) · [插件](https://docs.pafish.cn/docs/plugin) · [API](https://docs.pafish.cn/docs/api) · [扩展内核](https://docs.pafish.cn/docs/extension-kernel) · [事件钩子](https://docs.pafish.cn/docs/extension-hooks)
 
 ## 许可证
 
-MIT
+[MIT](LICENSE)

@@ -509,12 +509,8 @@ final class ModelGateway
         }
         
         if (!is_string($content) || trim($content) === '') {
-            // 模型只回了工具调用（部分中转站把 tool_calls 的 finish_reason 报成 stop）时，
-            // 空文本是合法状态，交给调用方按 tool_calls 继续处理，不能当成服务故障。
-            $hasToolCalls = !empty($message['tool_calls']) || ($choice['finish_reason'] ?? '') === 'tool_calls';
-            if ($hasToolCalls) {
-                return '';
-            }
+            // 可执行的工具调用已由 completeWithTools 处理；普通补全或被截断的
+            // 工具回复不能以空字符串冒充最终答案。
             throw new ServiceException('模型服务没有返回文本内容。');
         }
         

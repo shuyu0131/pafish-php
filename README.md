@@ -33,6 +33,34 @@
 
 详细步骤见[安装说明](https://docs.pafish.cn/docs/install)和[宝塔部署](https://docs.pafish.cn/docs/install-bt)；Docker 部署见 [DOCKER.md](DOCKER.md)。
 
+## Nginx 伪静态
+
+网站根目录指向项目根目录。安装完成后，将以下规则放入站点的 `server` 配置；已有 `location /` 时合并替换，PHP 拦截规则放在通用 PHP-FPM 规则之前。
+
+```nginx
+location ~* ^/(config\.php|composer\.(json|lock)|\.env)(/|$) {
+    deny all;
+}
+
+location ^~ /runtime/ {
+    deny all;
+}
+
+location ^~ /backups/ {
+    deny all;
+}
+
+location ~ ^/(?!index\.php$|cron\.php$).*\.php(?:/|$) {
+    deny all;
+}
+
+location / {
+    try_files $uri $uri/ /index.php?$query_string;
+}
+```
+
+执行 `nginx -t` 检查通过后重载配置。完整示例见 [docs/nginx-bt.conf.example](docs/nginx-bt.conf.example)；Apache 使用发行包自带的 `.htaccess`。
+
 ## 文档
 
 - 使用：[开始使用](https://docs.pafish.cn/docs/welcome) · [配置说明](https://docs.pafish.cn/docs/config) · [常见问题](https://docs.pafish.cn/docs/faq)

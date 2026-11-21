@@ -26,7 +26,7 @@ final class LinksController extends AdminController
         $items = DB::fetchAll('SELECT * FROM links ORDER BY sort_order ASC, id ASC');
         $response->getBody()->write($this->render('links', [
             'items' => $items,
-        ], '友情链接'));
+        ], t('admin.friend_links')));
         return $response;
     }
 
@@ -40,15 +40,15 @@ final class LinksController extends AdminController
             $url = trim((string) ($request->getParsedBody()['url'] ?? ''));
             $description = trim((string) ($request->getParsedBody()['description'] ?? ''));
             if ($name === '' || $url === '') {
-                throw new \RuntimeException('名称和地址不能为空');
+                throw new \RuntimeException(t('admin.name_and_url_are_required'));
             }
             $url = (string) \Pafish\Services\Content::linkUrl($url);
             if (mb_strlen($name) > 100 || mb_strlen($url) > 500 || mb_strlen($description) > 255) {
-                throw new \RuntimeException('内容超出长度限制');
+                throw new \RuntimeException(t('admin.content_exceeds_the_length_limit'));
             }
             $description = $description === '' ? null : $description;
             $stored = $id > 0 ? DB::fetchOne('SELECT icon_url FROM links WHERE id=?', [$id]) : null;
-            if ($id > 0 && !$stored) throw new \RuntimeException('链接不存在');
+            if ($id > 0 && !$stored) throw new \RuntimeException(t('admin.link_not_found'));
             $iconUrl = \Pafish\Services\Content::imageUrl($request->getParsedBody()['icon_url'] ?? $stored['icon_url'] ?? '');
 
             \Pafish\Services\MediaReferences::transaction(function () use (&$id, $name, $url, $description, $iconUrl): void {
@@ -76,7 +76,7 @@ final class LinksController extends AdminController
             return $this->json($response, ['ok' => true]);
         }
         Cache::clearPrefix('links.');
-        $this->flash('success', $id > 0 ? '链接已更新' : '链接已添加');
+        $this->flash('success', $id > 0 ? t('admin.link_updated') : t('admin.link_added'));
         return $this->redirect($response, '/admin/links');
     }
 

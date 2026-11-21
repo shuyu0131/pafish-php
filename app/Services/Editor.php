@@ -18,7 +18,7 @@ final class Editor
     {
         $providers = self::providers($type);
         if ($providers !== []) return $providers[0];
-        return ['id' => 'default', 'label' => '系统编辑器（Markdown）', 'format' => 'markdown', 'scripts' => [], 'styles' => []];
+        return ['id' => 'default', 'label' => \Pafish\Core\I18n::translate('admin.default_markdown_editor'), 'format' => 'markdown', 'scripts' => [], 'styles' => []];
     }
 
     public static function providers(string $type): array

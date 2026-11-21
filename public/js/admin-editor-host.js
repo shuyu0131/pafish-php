@@ -15,7 +15,7 @@
         clearTimeout(timeout);
         node.remove();
         delete resources[url];
-        reject(new Error('编辑器资源加载失败，已恢复默认编辑器'));
+        reject(new Error(window.pafishT("js.unable_to_load_editor_assets_the_default_editor")));
       }
       node.onload = function () { clearTimeout(timeout); resolve(); };
       node.onerror = fail;
@@ -165,7 +165,7 @@
       var mediaButton = document.querySelector('[data-editor-media]');
       if (mediaButton) mediaButton.disabled = true;
       options.mount.setAttribute('aria-busy', 'true');
-      message(id === 'default' ? '' : '正在加载编辑器…');
+      message(id === 'default' ? '' : window.pafishT("js.loading_editor"));
       var provider = available[id] || available.default;
       var sequence = Promise.all(provider.styles.map(function (url) { return asset(url, true); }));
       provider.scripts.forEach(function (url) { sequence = sequence.then(function () { return asset(url, false); }); });
@@ -178,21 +178,21 @@
         options.mount.replaceChildren();
         options.field.hidden = true;
         var factory = id === 'default' ? createDefault : factories[id];
-        if (!factory) throw new Error('编辑器未能启动，已恢复默认编辑器');
+        if (!factory) throw new Error(window.pafishT("js.the_editor_could_not_start_the_default_editor"));
         var controller = new AbortController();
         var timeout;
         var expired = false;
         var boot = Promise.resolve().then(function () {
           return factory(Object.assign({}, options, { onChange: sync, signal: controller.signal, format: options.getFormat() }));
         }).then(function (editor) {
-          if (expired) { if (editor && editor.destroy) editor.destroy(); throw new Error('编辑器启动超时'); }
+          if (expired) { if (editor && editor.destroy) editor.destroy(); throw new Error(window.pafishT("js.editor_startup_timed_out")); }
           return editor;
         });
         return Promise.race([boot, new Promise(function (_, reject) {
-          timeout = setTimeout(function () { expired = true; controller.abort(); reject(new Error('编辑器启动超时，已恢复默认编辑器')); }, 20000);
+          timeout = setTimeout(function () { expired = true; controller.abort(); reject(new Error(window.pafishT("js.editor_startup_timed_out_the_default_editor_has"))); }, 20000);
         })]).finally(function () { clearTimeout(timeout); });
       }).then(function (editor) {
-        if (!editor || typeof editor.getValue !== 'function' || typeof editor.destroy !== 'function') throw new Error('编辑器接口不完整');
+        if (!editor || typeof editor.getValue !== 'function' || typeof editor.destroy !== 'function') throw new Error(window.pafishT("js.the_editor_interface_is_incomplete"));
         instance = editor;
         selected = id;
         message('');
@@ -203,7 +203,7 @@
         if (instance && instance.destroy) instance.destroy();
         instance = createDefault();
         selected = 'default';
-        message(error.message || '编辑器加载失败，已恢复默认编辑器');
+        message(error.message || window.pafishT("js.unable_to_load_the_editor_the_default_editor"));
         notifyReady();
         return false;
       }).then(function (ok) {
@@ -238,7 +238,7 @@
     options.externalMedia = true;
     options.onMediaUploaded = insertMedia;
     var ready = replace(selected).then(function (ok) {
-      if (ok && incompatible) message('此正文格式与当前插件不匹配，已使用核心源码编辑器保留原格式。');
+      if (ok && incompatible) message(window.pafishT("js.this_content_format_does_not_match_the_active"));
       return ok;
     });
     function insertMedia(url, mime, name) {
@@ -254,7 +254,7 @@
       if (options.getFormat() === 'html' || available[selected].format === 'html') {
         var node = document.createElement(String(mime).indexOf('image/') === 0 ? 'img' : 'a');
         if (node.tagName === 'IMG') { node.src = url; node.alt = name || ''; }
-        else { node.href = url; node.textContent = name || '下载附件'; }
+        else { node.href = url; node.textContent = name || window.pafishT("js.download_attachment"); }
         var html = '<p>' + node.outerHTML + '</p>';
         if (typeof instance.insertHtml === 'function') instance.insertHtml(html);
         else instance.insert(html);
@@ -303,9 +303,9 @@
     query: function (url, params) { return url + (url.indexOf('?') >= 0 ? '&' : '?') + params.toString(); },
     mediaMarkdown: function (url, mime, name) {
       var safeUrl = String(url || '');
-      if (!/^(?:https?:\/\/|\/(?!\/))/.test(safeUrl) || /[\\\u0000-\u001f\u007f]/.test(safeUrl)) throw new Error('媒体地址无效');
+      if (!/^(?:https?:\/\/|\/(?!\/))/.test(safeUrl) || /[\\\u0000-\u001f\u007f]/.test(safeUrl)) throw new Error(window.pafishT("js.invalid_media_url"));
       safeUrl = safeUrl.replace(/[\s()<>]/g, function (c) { return encodeURIComponent(c); });
-      var label = (String(name || '媒体').replace(/\.[^.]+$/, '') || '媒体').replace(/[\r\n]/g, ' ').replace(/[\\[\]]/g, '\\$&');
+      var label = (String(name || window.pafishT("js.media")).replace(/\.[^.]+$/, '') || window.pafishT("js.media")).replace(/[\r\n]/g, ' ').replace(/[\\[\]]/g, '\\$&');
       return (String(mime).indexOf('image/') === 0 ? '![' : '[') + label + '](' + safeUrl + ')';
     }
   };

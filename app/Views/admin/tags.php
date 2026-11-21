@@ -8,10 +8,10 @@
 <div class="admin-stack admin-list-page admin-detail-page admin-tags-page">
   <div class="admin-page-head">
     <div>
-      <h1 class="admin-h1">标签管理</h1>
-      <p class="admin-page-sub">共 <?= count($tags) ?> 个标签 · 按名称排序</p>
+      <h1 class="admin-h1"><?= e(t('admin.tags')) ?></h1>
+      <p class="admin-page-sub"><?= e(t('admin.total')) ?> <?= count($tags) ?> <?= e(t('admin.tags_sorted_by_name')) ?></p>
     </div>
-    <button type="button" class="btn btn-primary" data-entity-new="tagsModal"><?= admin_icon('plus', 15) ?>新建标签</button>
+    <button type="button" class="btn btn-primary" data-entity-new="tagsModal"><?= admin_icon('plus', 15) ?><?= e(t('admin.new_tag')) ?></button>
   </div>
 
   <div class="admin-category-list">
@@ -21,9 +21,9 @@
         <table class="admin-table admin-tags-table">
           <thead>
             <tr>
-              <th>名称</th>
-              <th class="admin-col-sm">文章</th>
-              <th class="admin-col-ops">操作</th>
+              <th><?= e(t('common.name')) ?></th>
+              <th class="admin-col-sm"><?= e(t('common.post')) ?></th>
+              <th class="admin-col-ops"><?= e(t('common.actions')) ?></th>
             </tr>
           </thead>
           <tbody>
@@ -31,7 +31,7 @@
               <tr><td colspan="3">
                 <div class="admin-empty-list">
                   <?= admin_icon('tags', 32) ?>
-                  <p>还没有标签</p>
+                  <p><?= e(t('admin.no_tags_yet')) ?></p>
                 </div>
               </td></tr>
             <?php else: ?>
@@ -50,9 +50,9 @@
                   <td class="admin-col-sm"><span class="badge"><?= (int) $t['post_count'] ?></span></td>
                   <td class="admin-col-ops">
                     <div class="admin-row-ops">
-                      <button type="button" class="admin-icon-btn" data-entity-edit="tagsModal" title="编辑"><?= admin_icon('edit', 15) ?></button>
+                      <button type="button" class="admin-icon-btn" data-entity-edit="tagsModal" title="<?= e(t('common.edit')) ?>"><?= admin_icon('edit', 15) ?></button>
                       <button type="button" class="admin-icon-btn admin-icon-danger" data-delete-tag="<?= (int) $t['id'] ?>"
-                              data-name="<?= e($t['name']) ?>" title="删除"><?= admin_icon('trash', 15) ?></button>
+                              data-name="<?= e($t['name']) ?>" title="<?= e(t('common.delete')) ?>"><?= admin_icon('trash', 15) ?></button>
                     </div>
                   </td>
                 </tr>
@@ -69,15 +69,15 @@
 <?php ob_start(); ?>
 
         <div class="admin-field">
-          <label class="label" for="fTagName">名称 *</label>
-          <input class="input" type="text" id="fTagName" name="name" placeholder="标签名称" maxlength="100" required>
+          <label class="label" for="fTagName"><?= e(t('admin.name')) ?></label>
+          <input class="input" type="text" id="fTagName" name="name" placeholder="<?= e(t('admin.tag_name')) ?>" maxlength="100" required>
         </div>
         <div class="admin-field">
-          <label class="label" for="fTagSlug">地址</label>
-          <input class="input" type="text" id="fTagSlug" name="slug" placeholder="留空自动生成英文或拼音，可自定义" maxlength="100">
+          <label class="label" for="fTagSlug"><?= e(t('admin.url')) ?></label>
+          <input class="input" type="text" id="fTagSlug" name="slug" placeholder="<?= e(t('admin.leave_blank_to_generate_an_english_or_pinyin')) ?>" maxlength="100">
         </div>
         <div class="admin-field">
-          <label class="label" for="tagDescription">描述</label>
+          <label class="label" for="tagDescription"><?= e(t('admin.description')) ?></label>
           <textarea class="input" id="tagDescription" name="description" rows="2" maxlength="500"></textarea>
         </div>
         <?php $seoValues = []; $seoPrefix = 'tag'; require __DIR__ . '/partials/seo-fields.php'; ?>
@@ -85,7 +85,7 @@
 $entityFields = (string) ob_get_clean();
 $entityModalId = 'tagsModal';
 $entityFormId = 'tagForm';
-$entityConfig = ['createTitle'=>'新建标签', 'editTitle'=>'编辑标签', 'savedMessage'=>'标签已保存',
+$entityConfig = ['createTitle'=>t('admin.new_tag'), 'editTitle'=>t('admin.edit_tag'), 'savedMessage'=>t('admin.tag_saved'),
     'savePath'=>'/admin/tags/save', 'basePath'=>'/admin/tags', 'fields'=>['name'=>'name','slug'=>'slug','description'=>'desc','seo_title'=>'seo-title','meta_description'=>'meta-description']];
 require __DIR__ . '/partials/entity-modal.php';
 ?>
@@ -106,15 +106,15 @@ require __DIR__ . '/partials/entity-modal.php';
   document.querySelectorAll("[data-delete-tag]").forEach(function (btn) {
     btn.addEventListener("click", function () {
       var name = btn.getAttribute("data-name") || "";
-      (window.pafishConfirm ? window.pafishConfirm("确定删除标签「" + name + "」？", { title: "删除标签" }) : Promise.resolve(window.confirm("确定删除标签「" + name + "」？"))).then(function (ok) {
+      (window.pafishConfirm ? window.pafishConfirm(window.pafishT("js.confirm_delete_tag", {name: name}), { title: window.pafishT("js.delete_tag_ff6fe4") }) : Promise.resolve(window.confirm(window.pafishT("js.confirm_delete_tag", {name: name})))).then(function (ok) {
         if (!ok) return;
         return post(<?= json_encode(url_to('/admin/tags')) ?> + "/" + btn.getAttribute("data-delete-tag") + "/delete")
         .then(function (r) { return r.json(); })
         .then(function (j) {
-          if (j && j.ok) pafishToastReload("标签已删除", "success");
-          else pafishNotify((j && j.error) || "删除失败", true);
+          if (j && j.ok) pafishToastReload(window.pafishT("js.tag_deleted"), "success");
+          else pafishNotify((j && j.error) || window.pafishT("js.delete_failed"), true);
         })
-        .catch(function () { pafishNotify("网络错误", true); });
+        .catch(function () { pafishNotify(window.pafishT("js.network_error"), true); });
       });
     });
   });

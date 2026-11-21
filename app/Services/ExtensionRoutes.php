@@ -341,7 +341,7 @@ final class ExtensionRoutes
             || $path === null
             || preg_match(self::HANDLER_PATTERN, $handler) !== 1
             || !in_array($auth, ['guest', 'login', 'editor', 'admin'], true)
-            || !in_array($response, ['html', 'json', 'redirect'], true)
+            || !in_array($response, ['html', 'json', 'redirect', 'stream'], true)
             || (array_key_exists('csrf', $route) && !is_bool($route['csrf']))
             || ($kind === 'theme' && (($route['public'] ?? true) !== true))
             || (array_key_exists('admin', $route) && !is_bool($route['admin']))

@@ -8,31 +8,31 @@
 <div class="admin-stack admin-list-page admin-pages-list">
   <div class="admin-page-head">
     <div>
-      <h1 class="admin-h1">页面管理</h1>
-      <p class="admin-page-sub">共 <?= (int) $total ?> 个页面</p>
+      <h1 class="admin-h1"><?= e(t('admin.pages')) ?></h1>
+      <p class="admin-page-sub"><?= e(t('admin.total')) ?> <?= (int) $total ?> <?= e(t('admin.pages_375d9f')) ?></p>
     </div>
-    <div class="admin-head-actions"><a class="btn btn-primary" href="<?= e(url_to('/admin/pages/new')) ?>"><?= admin_icon('file-plus', 15) ?><span>新建页面</span></a></div>
+    <div class="admin-head-actions"><a class="btn btn-primary" href="<?= e(url_to('/admin/pages/new')) ?>"><?= admin_icon('file-plus', 15) ?><span><?= e(t('admin.new_page')) ?></span></a></div>
   </div>
 
   <form class="admin-list-toolbar admin-list-filter-form" action="<?= e(url_to('/admin/pages')) ?>" method="get" role="search">
-    <input type="search" class="input" name="q" value="<?= e((string) ($filters['q'] ?? '')) ?>" placeholder="搜索标题或地址" autocomplete="off">
-    <select class="input" name="status" aria-label="筛选状态" onchange="this.form.submit()">
-      <option value="">全部状态</option>
-      <option value="PUBLISHED"<?= ($filters['status'] ?? '') === 'PUBLISHED' ? ' selected' : '' ?>>已发布</option>
-      <option value="DRAFT"<?= ($filters['status'] ?? '') === 'DRAFT' ? ' selected' : '' ?>>草稿</option>
+    <input type="search" class="input" name="q" value="<?= e((string) ($filters['q'] ?? '')) ?>" placeholder="<?= e(t('admin.search_title_or_url')) ?>" autocomplete="off">
+    <select class="input" name="status" aria-label="<?= e(t('admin.filter_status')) ?>" onchange="this.form.submit()">
+      <option value=""><?= e(t('admin.all_statuses')) ?></option>
+      <option value="PUBLISHED"<?= ($filters['status'] ?? '') === 'PUBLISHED' ? ' selected' : '' ?>><?= e(t('admin.published')) ?></option>
+      <option value="DRAFT"<?= ($filters['status'] ?? '') === 'DRAFT' ? ' selected' : '' ?>><?= e(t('admin.draft')) ?></option>
     </select>
-    <button class="btn btn-primary" type="submit">筛选</button>
-    <?php if (($filters['q'] ?? '') !== '' || ($filters['status'] ?? '') !== ''): ?><a class="btn btn-ghost" href="<?= e(url_to('/admin/pages')) ?>">清除</a><?php endif; ?>
+    <button class="btn btn-primary" type="submit"><?= e(t('admin.filter')) ?></button>
+    <?php if (($filters['q'] ?? '') !== '' || ($filters['status'] ?? '') !== ''): ?><a class="btn btn-ghost" href="<?= e(url_to('/admin/pages')) ?>"><?= e(t('common.clear')) ?></a><?php endif; ?>
   </form>
 
   <div class="admin-table-wrap">
     <table class="admin-table admin-pages-table">
       <thead>
         <tr>
-          <th>标题</th>
-          <th class="admin-page-template admin-table-secondary">模板</th>
-          <th class="admin-list-date admin-table-secondary">更新时间</th>
-          <th class="admin-col-ops">操作</th>
+          <th><?= e(t('common.title')) ?></th>
+          <th class="admin-page-template admin-table-secondary"><?= e(t('admin.template')) ?></th>
+          <th class="admin-list-date admin-table-secondary"><?= e(t('admin.updated')) ?></th>
+          <th class="admin-col-ops"><?= e(t('common.actions')) ?></th>
         </tr>
       </thead>
       <tbody>
@@ -40,8 +40,8 @@
           <tr><td colspan="4">
             <div class="admin-empty-list">
               <?= admin_icon('file-plus', 32) ?>
-              <p>还没有页面</p>
-              <a class="btn btn-outline" href="<?= e(url_to('/admin/pages/new')) ?>">新建第一个页面</a>
+              <p><?= e(t('admin.no_pages_yet')) ?></p>
+              <a class="btn btn-outline" href="<?= e(url_to('/admin/pages/new')) ?>"><?= e(t('admin.create_your_first_page')) ?></a>
             </div>
           </td></tr>
         <?php else: ?>
@@ -50,8 +50,8 @@
             <tr data-page-row="<?= (int) $p['id'] ?>">
               <td class="admin-post-title-cell">
                 <div class="admin-post-title-line">
-                  <?php if ($isHome): ?><span class="badge badge-accent">首页</span><?php endif; ?>
-                  <?php if ($p['status'] !== 'PUBLISHED'): ?><span class="admin-list-status">草稿</span><?php endif; ?>
+                  <?php if ($isHome): ?><span class="badge badge-accent"><?= e(t('admin.home')) ?></span><?php endif; ?>
+                  <?php if ($p['status'] !== 'PUBLISHED'): ?><span class="admin-list-status"><?= e(t('admin.draft')) ?></span><?php endif; ?>
                   <a class="admin-post-title" href="<?= e(url_to('/admin/pages/' . $p['id'] . '/edit')) ?>"><span class="admin-post-title-text"><?= e($p['title']) ?></span></a>
                 </div>
                 <div class="admin-post-meta">
@@ -59,24 +59,24 @@
                 </div>
                 <div class="admin-table-mobile-meta">
                   <span><?= e(($templateOptions[$p['template']] ?? $p['template'])) ?></span>
-                  <time title="更新时间" datetime="<?= e((string) $p['updated_at']) ?>"><?= e(format_date($p['updated_at'], 'yyyy-MM-dd')) ?></time>
+                  <time title="<?= e(t('admin.updated')) ?>" datetime="<?= e((string) $p['updated_at']) ?>"><?= e(format_date($p['updated_at'], 'yyyy-MM-dd')) ?></time>
                 </div>
               </td>
-              <td class="admin-page-template admin-table-secondary" data-label="模板"><?= e(($templateOptions[$p['template']] ?? $p['template'])) ?></td>
-              <td class="admin-list-date admin-table-secondary" data-label="更新时间"><?= e(format_date($p['updated_at'], 'yyyy-MM-dd')) ?></td>
-              <td class="admin-col-ops" data-label="操作">
+              <td class="admin-page-template admin-table-secondary" data-label="<?= e(t('admin.template')) ?>"><?= e(($templateOptions[$p['template']] ?? $p['template'])) ?></td>
+              <td class="admin-list-date admin-table-secondary" data-label="<?= e(t('admin.updated')) ?>"><?= e(format_date($p['updated_at'], 'yyyy-MM-dd')) ?></td>
+              <td class="admin-col-ops" data-label="<?= e(t('common.actions')) ?>">
                 <div class="admin-row-ops">
                   <?php if ($p['status'] === 'PUBLISHED'): ?>
-                    <a class="admin-icon-btn" href="<?= e(content_url('page', $p)) ?>" target="_blank" rel="noopener" title="查看"><?= admin_icon('eye', 15) ?></a>
+                    <a class="admin-icon-btn" href="<?= e(content_url('page', $p)) ?>" target="_blank" rel="noopener" title="<?= e(t('admin.view')) ?>"><?= admin_icon('eye', 15) ?></a>
                   <?php endif; ?>
                   <?php if ($isHome): ?>
-                    <button type="button" class="admin-icon-btn admin-icon-danger" data-set-home="<?= (int) $p['id'] ?>" data-set="0" title="取消首页"><?= admin_icon('home', 15) ?></button>
+                    <button type="button" class="admin-icon-btn admin-icon-danger" data-set-home="<?= (int) $p['id'] ?>" data-set="0" title="<?= e(t('admin.unset_homepage')) ?>"><?= admin_icon('home', 15) ?></button>
                   <?php else: ?>
-                    <button type="button" class="admin-icon-btn" data-set-home="<?= (int) $p['id'] ?>" data-set="1" title="设为首页"><?= admin_icon('home', 15) ?></button>
+                    <button type="button" class="admin-icon-btn" data-set-home="<?= (int) $p['id'] ?>" data-set="1" title="<?= e(t('admin.set_as_homepage')) ?>"><?= admin_icon('home', 15) ?></button>
                   <?php endif; ?>
-                  <a class="admin-icon-btn" href="<?= e(url_to('/admin/pages/' . $p['id'] . '/edit')) ?>" title="编辑"><?= admin_icon('edit', 15) ?></a>
+                  <a class="admin-icon-btn" href="<?= e(url_to('/admin/pages/' . $p['id'] . '/edit')) ?>" title="<?= e(t('common.edit')) ?>"><?= admin_icon('edit', 15) ?></a>
                   <button type="button" class="admin-icon-btn admin-icon-danger" data-delete-page="<?= (int) $p['id'] ?>"
-                          data-name="<?= e($p['title']) ?>" title="删除"><?= admin_icon('trash', 15) ?></button>
+                          data-name="<?= e($p['title']) ?>" title="<?= e(t('common.delete')) ?>"><?= admin_icon('trash', 15) ?></button>
                 </div>
               </td>
             </tr>
@@ -111,10 +111,10 @@
         set: btn.getAttribute("data-set")
       }).then(function (r) { return r.json(); })
         .then(function (j) {
-          if (j && j.ok) pafishToastReload("页面状态已更新", "success");
-          else pafishNotify((j && j.error) || "操作失败", true);
+          if (j && j.ok) pafishToastReload(window.pafishT("js.page_status_updated"), "success");
+          else pafishNotify((j && j.error) || window.pafishT("common.operation_failed"), true);
         })
-        .catch(function () { pafishNotify("网络错误", true); });
+        .catch(function () { pafishNotify(window.pafishT("js.network_error"), true); });
     });
   });
 
@@ -123,7 +123,7 @@
     btn.addEventListener("click", function () {
       var id = btn.getAttribute("data-delete-page");
       var name = btn.getAttribute("data-name") || "";
-      (window.pafishConfirm ? window.pafishConfirm("确定删除页面「" + name + "」？此操作不可恢复！", { title: "删除页面" }) : Promise.resolve(window.confirm("确定删除页面「" + name + "」？"))).then(function (ok) {
+      (window.pafishConfirm ? window.pafishConfirm(window.pafishT("js.confirm_delete_page", {name: name}), { title: window.pafishT("js.delete_page_661cc5") }) : Promise.resolve(window.confirm(window.pafishT("js.confirm_delete_page", {name: name})))).then(function (ok) {
         if (!ok) return;
         return post(<?= json_encode(url_to('/admin/pages')) ?> + "/" + id + "/delete")
         .then(function (r) { return r.json(); })
@@ -131,11 +131,11 @@
           if (j && j.ok) {
             var row = btn.closest("[data-page-row]");
             if (row) row.remove();
-            if (document.querySelector("[data-page-row]")) pafishToast("页面已删除", "success");
-            else pafishToastReload("页面已删除", "success");
-          } else pafishNotify((j && j.error) || "删除失败", true);
+            if (document.querySelector("[data-page-row]")) pafishToast(window.pafishT("js.page_deleted"), "success");
+            else pafishToastReload(window.pafishT("js.page_deleted"), "success");
+          } else pafishNotify((j && j.error) || window.pafishT("js.delete_failed"), true);
         })
-        .catch(function () { pafishNotify("网络错误", true); });
+        .catch(function () { pafishNotify(window.pafishT("js.network_error"), true); });
       });
     });
   });

@@ -31,12 +31,16 @@ Thumbs.db
 *.zip
 /CHANGELOG.md
 
+# emlog 版扩展同样是独立包，不进主仓库
+/emlog_plugins/
+
 # 主系统携带默认主题、内置 Sitemap 和 AI Foundation；其他扩展由商店/独立包分发
 /plugins/*
 !/plugins/ai_foundation/
 !/plugins/ai_foundation/**
 /plugins/ai_foundation/tests/
 /plugins/ai_foundation/TESTING.md
+/plugins/ai_foundation/runtime/
 !/plugins/sitemap/
 !/plugins/sitemap/**
 /themes/*

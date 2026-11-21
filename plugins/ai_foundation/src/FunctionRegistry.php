@@ -57,7 +57,9 @@ final class FunctionRegistry
             throw new \RuntimeException('参数 Schema 必须是 type=object 的 JSON Schema。');
         }
         
-        $schemaJson = json_encode($parametersSchema, JSON_UNESCAPED_UNICODE);
+        // 存库前修正空 properties：json_encode 会把 PHP 空数组写成 []，
+        // 而 JSON Schema 要求对象，取回后被上游拒参。
+        $schemaJson = json_encode(self::schemaForJson($parametersSchema), JSON_UNESCAPED_UNICODE);
         if ($schemaJson === false || strlen($schemaJson) > 10000) {
             throw new \RuntimeException('参数 Schema 过大或无法序列化。');
         }
@@ -118,12 +120,54 @@ final class FunctionRegistry
                 'function' => [
                     'name' => (string) $row['name'],
                     'description' => (string) $row['description'],
-                    'parameters' => $params,
+                    // properties 必须是 JSON 对象；PHP 空数组会被编码成 []，部分上游直接 400。
+                    'parameters' => self::schemaForJson($params),
                 ],
             ];
         }
         
         return $tools;
+    }
+
+    /**
+     * 修正 JSON Schema 中「必须是对象」的位置的空数组：PHP 的空数组编码成 []，
+     * 而 properties/patternProperties/definitions/$defs 必须是 {}，否则部分上游
+     * （如 newapi 中转站）会以「请求参数不被上游接受」拒绝整个请求。
+     */
+    private static function schemaForJson(array $schema): array
+    {
+        foreach (['properties', 'patternProperties', 'definitions', '$defs'] as $key) {
+            if (!array_key_exists($key, $schema) || !is_array($schema[$key])) continue;
+            $value = $schema[$key];
+            if ($value === []) {
+                $schema[$key] = new \stdClass();
+                continue;
+            }
+            if (array_is_list($value)) {
+                foreach ($value as $i => $item) {
+                    if (is_array($item)) $value[$i] = self::schemaForJson($item);
+                }
+                $schema[$key] = $value;
+                continue;
+            }
+            // 映射形式的 properties：每个值是子 schema，逐个递归
+            foreach ($value as $name => $sub) {
+                if (is_array($sub)) $value[$name] = self::schemaForJson($sub);
+            }
+            $schema[$key] = $value;
+        }
+        foreach (['items', 'additionalProperties', 'not', 'contains'] as $key) {
+            if (isset($schema[$key]) && is_array($schema[$key])) {
+                $schema[$key] = self::schemaForJson($schema[$key]);
+            }
+        }
+        foreach (['oneOf', 'anyOf', 'allOf', 'prefixItems'] as $key) {
+            if (!isset($schema[$key]) || !is_array($schema[$key])) continue;
+            foreach ($schema[$key] as $i => $item) {
+                if (is_array($item)) $schema[$key][$i] = self::schemaForJson($item);
+            }
+        }
+        return $schema;
     }
     
     /**

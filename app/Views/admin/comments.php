@@ -1,6 +1,8 @@
 <?php
 /** 评论审核：常用操作直接显示，来源与低频操作放入详情。 */
-$tabs = ['ALL' => '全部', 'PENDING' => '待审核', 'APPROVED' => '已通过', 'SPAM' => '垃圾', 'TRASH' => '已删除'];
+$tabs = ['ALL' => t('common.all'), 'PENDING' => t('admin.pending_review'), 'APPROVED' => t('admin.approved'), 'SPAM' => t('admin.spam'), 'TRASH' => t('admin.deleted')];
+$tabCounts = $statusCounts ?? [];
+$tabCounts['ALL'] = array_sum($tabCounts);
 $postId = (int) ($postId ?? 0);
 $per = (int) ($per ?? 20);
 $postTitle = (string) ($postTitle ?? '');
@@ -11,71 +13,71 @@ $listUrl = url_to('/admin/comments') . '?status=' . $status . $querySuffix;
 <div class="admin-stack admin-list-page admin-comments-page">
   <div class="admin-page-head">
     <div>
-      <h1 class="admin-h1">评论审核</h1>
-      <p class="admin-page-sub"><?= $total ?> 条评论<?= $status !== 'ALL' ? ' · ' . e($tabs[$status]) : '' ?><?= $postTitle !== '' ? ' · 《' . e($postTitle) . '》' : '' ?></p>
+      <h1 class="admin-h1"><?= e(t('admin.comment_moderation')) ?></h1>
+      <p class="admin-page-sub"><?= $total ?> <?= e(t('admin.comments')) ?><?= $status !== 'ALL' ? ' · ' . e($tabs[$status]) : '' ?><?= $postTitle !== '' ? ' · 《' . e($postTitle) . '》' : '' ?></p>
     </div>
   </div>
 
   <div class="admin-list-toolbar">
-    <nav class="admin-tabs admin-status-tabs admin-comment-tabs" aria-label="评论状态">
+    <nav class="admin-tabs admin-status-tabs admin-comment-tabs" aria-label="<?= e(t('admin.comment_status')) ?>">
       <?php foreach ($tabs as $s => $label): ?>
         <a class="admin-tab<?= $s === $status ? ' is-active' : '' ?>"
            <?= $s === $status ? 'aria-current="page"' : '' ?>
            href="<?= e(url_to('/admin/comments') . '?status=' . $s . $querySuffix) ?>">
-          <?= e($label) ?><?php if ($s !== 'ALL'): ?> <span class="admin-tab-count">(<?= (int) ($statusCounts[$s] ?? 0) ?>)</span><?php endif; ?>
+          <span><?= e($label) ?></span> <span class="admin-tab-count"><?= (int) ($tabCounts[$s] ?? 0) ?></span>
         </a>
       <?php endforeach; ?>
     </nav>
     <form class="admin-list-search" method="get" action="<?= e(url_to('/admin/comments')) ?>">
       <input type="hidden" name="status" value="<?= e($status) ?>">
       <?php if ($postId > 0): ?><input type="hidden" name="post_id" value="<?= $postId ?>"><?php endif; ?>
-      <label class="admin-sr-only" for="comment-search">搜索评论</label>
-      <input class="input" id="comment-search" name="q" value="<?= e($search) ?>" placeholder="搜索作者、邮箱、内容或 IP" maxlength="120">
-      <button class="btn btn-outline" type="submit">搜索</button>
-      <?php if ($search !== ''): ?><a class="btn btn-ghost" href="<?= e(url_to('/admin/comments') . '?status=' . rawurlencode($status) . ($postId > 0 ? '&post_id=' . $postId : '')) ?>">清除</a><?php endif; ?>
+      <label class="admin-sr-only" for="comment-search"><?= e(t('admin.search_comments')) ?></label>
+      <input class="input" id="comment-search" name="q" value="<?= e($search) ?>" placeholder="<?= e(t('admin.search_author_email_content_or_ip')) ?>" maxlength="120">
+      <button class="btn btn-outline" type="submit"><?= e(t('common.search')) ?></button>
+      <?php if ($search !== ''): ?><a class="btn btn-ghost" href="<?= e(url_to('/admin/comments') . '?status=' . rawurlencode($status) . ($postId > 0 ? '&post_id=' . $postId : '')) ?>"><?= e(t('common.clear')) ?></a><?php endif; ?>
     </form>
   </div>
 
   <?php if ($items !== []): ?>
   <div class="admin-comment-list-tools">
-    <label class="admin-comment-select-all"><input type="checkbox" id="commentCheckAll" aria-label="选择本页全部评论"> 全选本页</label>
-    <span>本页 <?= count($items) ?> 条</span>
+    <label class="admin-comment-select-all"><input type="checkbox" id="commentCheckAll" aria-label="<?= e(t('admin.select_all_comments_on_this_page')) ?>"> <?= e(t('admin.select_all_on_this_page')) ?></label>
+    <span><?= e(t('admin.this_page')) ?> <?= count($items) ?> <?= e(t('admin.items')) ?></span>
   </div>
   <form class="admin-batch-bar admin-comment-batch-bar" id="commentBatchForm" action="<?= e(url_to('/admin/comments/batch')) ?>" method="post" hidden>
     <?= csrf_field() ?>
-    <span class="admin-batch-count">已选 <strong class="admin-batch-count-number">0</strong> 条</span>
-    <select class="input admin-batch-op" name="op" aria-label="批量操作">
-      <option value="">选择操作</option>
-      <option value="approve">批量通过</option>
-      <option value="spam">标记为垃圾</option>
-      <option value="delete">删除</option>
+    <span class="admin-batch-count"><?= e(t('admin.selected')) ?> <strong class="admin-batch-count-number">0</strong> <?= e(t('admin.items')) ?></span>
+    <select class="input admin-batch-op" name="op" aria-label="<?= e(t('admin.batch_actions')) ?>">
+      <option value=""><?= e(t('admin.choose_action')) ?></option>
+      <option value="approve"><?= e(t('admin.approve_selected')) ?></option>
+      <option value="spam"><?= e(t('admin.mark_as_spam')) ?></option>
+      <option value="delete"><?= e(t('common.delete')) ?></option>
     </select>
-    <button class="btn btn-outline" type="submit">应用</button>
-    <button class="btn btn-ghost" type="button" data-comment-batch-clear>清除选择</button>
+    <button class="btn btn-outline" type="submit"><?= e(t('admin.app')) ?></button>
+    <button class="btn btn-ghost" type="button" data-comment-batch-clear><?= e(t('admin.clear_selection')) ?></button>
   </form>
   <?php endif; ?>
 
   <?php if ($items === []): ?>
     <div class="admin-empty-list card">
       <?= admin_icon('message', 32) ?>
-      <p>该状态下暂无评论</p>
+      <p><?= e(t('admin.no_comments_with_this_status')) ?></p>
     </div>
   <?php else: ?>
     <div class="admin-table-wrap admin-comment-table-wrap">
       <table class="admin-table admin-comment-table">
         <thead>
-          <tr><th class="admin-col-check" aria-label="选择"></th><th>评论</th><th class="admin-table-secondary">文章</th><th class="admin-table-secondary">时间</th><th class="admin-col-ops">操作</th></tr>
+          <tr><th class="admin-col-check" aria-label="<?= e(t('common.select')) ?>"></th><th><?= e(t('common.comments')) ?></th><th class="admin-table-secondary"><?= e(t('common.post')) ?></th><th class="admin-table-secondary"><?= e(t('admin.time')) ?></th><th class="admin-col-ops"><?= e(t('common.actions')) ?></th></tr>
         </thead>
         <tbody>
           <?php foreach ($items as $c): ?>
             <tr class="admin-comment-card" data-comment="<?= (int) $c['id'] ?>" data-ip="<?= e($c['ip'] ?? '') ?>" data-email="<?= e($c['author_email'] ?? '') ?>">
-              <td class="admin-col-check" data-label="选择"><input type="checkbox" class="comment-row-check" value="<?= (int) $c['id'] ?>" aria-label="选择评论 <?= (int) $c['id'] ?>"></td>
-              <td data-label="评论">
+              <td class="admin-col-check" data-label="<?= e(t('common.select')) ?>"><input type="checkbox" class="comment-row-check" value="<?= (int) $c['id'] ?>" aria-label="<?= e(t('admin.select_comment', ['id' => (int) $c['id']])) ?>"></td>
+              <td data-label="<?= e(t('common.comments')) ?>">
                 <div class="admin-comment-head">
                   <span class="admin-comment-author"><?= e($c['author_name']) ?></span>
                   <span class="admin-comment-state"><?= e($tabs[$c['status']]) ?></span>
-                  <?php if ((int) $c['is_pinned'] === 1): ?><span class="admin-comment-badge"><?= admin_icon('pin', 11) ?> 置顶</span><?php endif; ?>
-                  <?php if ($c['parent_name'] !== null): ?><span class="admin-comment-parent">回复 <?= e($c['parent_name']) ?></span><?php endif; ?>
+                  <?php if ((int) $c['is_pinned'] === 1): ?><span class="admin-comment-badge"><?= admin_icon('pin', 11) ?> <?= e(t('admin.pin')) ?></span><?php endif; ?>
+                  <?php if ($c['parent_name'] !== null): ?><span class="admin-comment-parent"><?= e(t('admin.reply')) ?> <?= e($c['parent_name']) ?></span><?php endif; ?>
                 </div>
                 <div class="admin-comment-content"><?= e($c['content']) ?></div>
                 <div class="admin-table-mobile-meta admin-comment-mobile-meta">
@@ -83,35 +85,35 @@ $listUrl = url_to('/admin/comments') . '?status=' . $status . $querySuffix;
                   <time><?= e(format_date($c['created_at'], 'yyyy-MM-dd HH:mm')) ?></time>
                 </div>
                 <details class="admin-comment-details">
-                  <summary>回复与更多操作</summary>
+                  <summary><?= e(t('admin.replies_and_more_actions')) ?></summary>
                   <div class="admin-comment-source">
                     <?php if ($c['author_email'] !== ''): ?><span><?= e($c['author_email']) ?></span><?php endif; ?>
                     <?php if (($c['ip'] ?? '') !== ''): ?><span>IP <?= e($c['ip']) ?></span><?php endif; ?>
                   </div>
                   <div class="admin-comment-detail-actions">
-                    <button type="button" class="btn btn-sm btn-ghost" data-reply="<?= (int) $c['id'] ?>">回复</button>
-                    <button type="button" class="btn btn-sm btn-ghost" data-pin="<?= (int) $c['id'] ?>"><?= (int) $c['is_pinned'] === 1 ? '取消置顶' : '置顶' ?></button>
+                    <button type="button" class="btn btn-sm btn-ghost" data-reply="<?= (int) $c['id'] ?>"><?= e(t('admin.reply')) ?></button>
+                    <button type="button" class="btn btn-sm btn-ghost" data-pin="<?= (int) $c['id'] ?>"><?= (int) $c['is_pinned'] === 1 ? t('admin.unpin') : t('admin.pin') ?></button>
                     <?php if (($c['ip'] ?? '') !== ''): ?>
-                      <button type="button" class="btn btn-sm btn-ghost admin-icon-danger" data-delete-ip="<?= e($c['ip']) ?>">按 IP 删除</button>
-                      <button type="button" class="btn btn-sm btn-ghost" data-block-ip="<?= e($c['ip']) ?>">拉黑 IP</button>
+                      <button type="button" class="btn btn-sm btn-ghost admin-icon-danger" data-delete-ip="<?= e($c['ip']) ?>"><?= e(t('admin.delete_by_ip')) ?></button>
+                      <button type="button" class="btn btn-sm btn-ghost" data-block-ip="<?= e($c['ip']) ?>"><?= e(t('admin.block_ip')) ?></button>
                     <?php endif; ?>
-                    <?php if (filter_var((string) ($c['author_email'] ?? ''), FILTER_VALIDATE_EMAIL) !== false): ?><button type="button" class="btn btn-sm btn-ghost" data-block-email="<?= e($c['author_email']) ?>">拉黑邮箱</button><?php endif; ?>
+                    <?php if (filter_var((string) ($c['author_email'] ?? ''), FILTER_VALIDATE_EMAIL) !== false): ?><button type="button" class="btn btn-sm btn-ghost" data-block-email="<?= e($c['author_email']) ?>"><?= e(t('admin.block_email')) ?></button><?php endif; ?>
                   </div>
                   <div class="admin-comment-replybox" hidden>
-                    <textarea class="admin-comment-reply-input" rows="3" maxlength="2000" aria-label="回复评论" placeholder="回复评论…"></textarea>
-                    <div class="admin-comment-reply-actions"><button type="button" class="btn btn-sm btn-primary" data-reply-submit="<?= (int) $c['id'] ?>">回复</button><button type="button" class="btn btn-sm btn-ghost" data-reply-cancel>取消</button></div>
+                    <textarea class="admin-comment-reply-input" rows="3" maxlength="2000" aria-label="<?= e(t('admin.reply_to_comment')) ?>" placeholder="<?= e(t('admin.write_a_reply')) ?>"></textarea>
+                    <div class="admin-comment-reply-actions"><button type="button" class="btn btn-sm btn-primary" data-reply-submit="<?= (int) $c['id'] ?>"><?= e(t('admin.reply')) ?></button><button type="button" class="btn btn-sm btn-ghost" data-reply-cancel><?= e(t('common.cancel')) ?></button></div>
                   </div>
                 </details>
               </td>
-              <td data-label="文章" class="admin-comment-post admin-table-secondary">
+              <td data-label="<?= e(t('common.post')) ?>" class="admin-comment-post admin-table-secondary">
                 <a href="<?= e(url_to($c['target_path'])) ?>" target="_blank" rel="noopener"><?= e($c['post_title']) ?></a>
               </td>
-              <td data-label="时间" class="admin-table-secondary admin-comment-time"><?= e(format_date($c['created_at'], 'yyyy-MM-dd HH:mm')) ?></td>
-              <td data-label="操作" class="admin-col-ops">
+              <td data-label="<?= e(t('admin.time')) ?>" class="admin-table-secondary admin-comment-time"><?= e(format_date($c['created_at'], 'yyyy-MM-dd HH:mm')) ?></td>
+              <td data-label="<?= e(t('common.actions')) ?>" class="admin-col-ops">
                 <div class="admin-comment-ops">
-                  <?php if ($c['status'] !== 'APPROVED'): ?><button type="button" class="btn btn-sm btn-ghost" data-status="<?= (int) $c['id'] ?>" data-next="APPROVED">通过</button><?php endif; ?>
-                  <?php if ($c['status'] !== 'SPAM'): ?><button type="button" class="btn btn-sm btn-ghost" data-status="<?= (int) $c['id'] ?>" data-next="SPAM">标垃圾</button><?php endif; ?>
-                  <button type="button" class="btn btn-sm btn-ghost admin-icon-danger" data-delete="<?= (int) $c['id'] ?>">删除</button>
+                  <?php if ($c['status'] !== 'APPROVED'): ?><button type="button" class="btn btn-sm btn-ghost" data-status="<?= (int) $c['id'] ?>" data-next="APPROVED"><?= e(t('admin.approve')) ?></button><?php endif; ?>
+                  <?php if ($c['status'] !== 'SPAM'): ?><button type="button" class="btn btn-sm btn-ghost" data-status="<?= (int) $c['id'] ?>" data-next="SPAM"><?= e(t('admin.mark_spam')) ?></button><?php endif; ?>
+                  <button type="button" class="btn btn-sm btn-ghost admin-icon-danger" data-delete="<?= (int) $c['id'] ?>"><?= e(t('common.delete')) ?></button>
                 </div>
               </td>
             </tr>
@@ -144,7 +146,7 @@ $listUrl = url_to('/admin/comments') . '?status=' . $status . $querySuffix;
       if (j && j.ok) return j;
      pafishNotify((j && j.error) || failMsg, true);
       return null;
-    }).catch(function () { pafishNotify("网络错误", true); return null; });
+    }).catch(function () { pafishNotify(window.pafishT("js.network_error"), true); return null; });
   }
 
   var batchForm = document.getElementById("commentBatchForm");
@@ -190,15 +192,15 @@ $listUrl = url_to('/admin/comments') . '?status=' . $status . $querySuffix;
       var ids = selectedCommentIds();
       var operation = batchForm.elements.op.value;
       if (!ids.length || !operation) {
-        pafishNotify("请选择评论和批量操作", true);
+        pafishNotify(window.pafishT("js.select_comments_and_a_batch_action"), true);
         return;
       }
-      var labels = {approve: "通过", spam: "标记为垃圾", delete: "删除"};
+      var labels = {approve: window.pafishT("js.approve"), spam: window.pafishT("js.mark_as_spam"), delete: window.pafishT("common.delete")};
       var prompt = operation === "delete"
-        ? "删除选中的 " + ids.length + " 条评论？此操作不可恢复。"
-        : labels[operation] + "选中的 " + ids.length + " 条评论？";
+        ? window.pafishT("js.confirm_delete_comments", {n: ids.length})
+        : window.pafishT("js.confirm_bulk_comment_action", {action: labels[operation], n: ids.length});
       var confirm = window.pafishConfirm
-        ? window.pafishConfirm(prompt, {title: "批量处理评论", danger: operation === "delete"})
+        ? window.pafishConfirm(prompt, {title: window.pafishT("js.batch_comment_actions"), danger: operation === "delete"})
         : Promise.resolve(window.confirm(prompt));
       confirm.then(function (ok) {
         if (!ok) return;
@@ -209,12 +211,12 @@ $listUrl = url_to('/admin/comments') . '?status=' . $status . $querySuffix;
         fetch(batchForm.action, {method: "POST", body: data, headers: {"X-Requested-With": "XMLHttpRequest"}})
           .then(function (response) { return response.json().then(function (json) { return {ok: response.ok, json: json}; }); })
           .then(function (result) {
-            if (!result.ok || !result.json.ok) throw new Error(result.json.error || "批量操作失败");
-            pafishToastReload("已处理 " + result.json.changed + " 条评论", "success");
+            if (!result.ok || !result.json.ok) throw new Error(result.json.error || window.pafishT("js.batch_operation_failed"));
+            pafishToastReload(window.pafishT("js.processed") + result.json.changed + window.pafishT("js.comments_f79a76"), "success");
           })
           .catch(function (error) {
             button.disabled = false;
-            pafishNotify(error.message || "网络错误", true);
+            pafishNotify(error.message || window.pafishT("js.network_error"), true);
           });
       });
     });
@@ -225,12 +227,12 @@ $listUrl = url_to('/admin/comments') . '?status=' . $status . $querySuffix;
   document.querySelectorAll("[data-status]").forEach(function (btn) {
     btn.addEventListener("click", function () {
       var next = btn.getAttribute("data-next");
-      var label = next === "APPROVED" ? "通过" : "标记为垃圾";
-      (window.pafishConfirm ? window.pafishConfirm("确定将该评论" + label + "？", { title: "更新评论状态" }) : Promise.resolve(window.confirm("确定继续？"))).then(function (ok) {
+      var label = next === "APPROVED" ? window.pafishT("js.approve") : window.pafishT("js.mark_as_spam");
+      (window.pafishConfirm ? window.pafishConfirm(window.pafishT("js.confirm_comment_action", {action: label}), { title: window.pafishT("js.update_comment_status") }) : Promise.resolve(window.confirm(window.pafishT("js.continue")))).then(function (ok) {
         if (!ok) return;
         return post(listUrl + "/" + btn.getAttribute("data-status") + "/status", { status: next })
-        .then(function (r) { return jsonOrAlert(r, "操作失败"); })
-        .then(function (j) { if (j) pafishToastReload("评论状态已更新", "success"); });
+        .then(function (r) { return jsonOrAlert(r, window.pafishT("common.operation_failed")); })
+        .then(function (j) { if (j) pafishToastReload(window.pafishT("js.comment_status_updated"), "success"); });
       });
     });
   });
@@ -239,8 +241,8 @@ $listUrl = url_to('/admin/comments') . '?status=' . $status . $querySuffix;
   document.querySelectorAll("[data-pin]").forEach(function (btn) {
     btn.addEventListener("click", function () {
       post(listUrl + "/" + btn.getAttribute("data-pin") + "/pin")
-        .then(function (r) { return jsonOrAlert(r, "操作失败"); })
-        .then(function (j) { if (j) pafishToastReload("评论置顶状态已更新", "success"); });
+        .then(function (r) { return jsonOrAlert(r, window.pafishT("common.operation_failed")); })
+        .then(function (j) { if (j) pafishToastReload(window.pafishT("js.comment_pin_status_updated"), "success"); });
     });
   });
 
@@ -249,11 +251,11 @@ $listUrl = url_to('/admin/comments') . '?status=' . $status . $querySuffix;
     btn.addEventListener("click", function () {
       var card = btn.closest("[data-comment]");
       var id = card.getAttribute("data-comment");
-      (window.pafishConfirm ? window.pafishConfirm("确定删除该评论？此操作不可恢复。", { title: "删除评论" }) : Promise.resolve(window.confirm("确定删除该评论？"))).then(function (ok) {
+      (window.pafishConfirm ? window.pafishConfirm(window.pafishT("js.delete_this_comment_this_cannot_be_undone"), { title: window.pafishT("js.delete_comment") }) : Promise.resolve(window.confirm(window.pafishT("js.delete_this_comment")))).then(function (ok) {
         if (!ok) return;
         post(listUrl + "/" + id + "/delete")
-          .then(function (r) { return jsonOrAlert(r, "删除失败"); })
-          .then(function (j) { if (j) pafishToastReload("评论已删除", "success"); });
+          .then(function (r) { return jsonOrAlert(r, window.pafishT("js.delete_failed")); })
+          .then(function (j) { if (j) pafishToastReload(window.pafishT("js.comment_deleted"), "success"); });
       });
     });
   });
@@ -262,12 +264,12 @@ $listUrl = url_to('/admin/comments') . '?status=' . $status . $querySuffix;
   document.querySelectorAll("[data-delete-ip]").forEach(function (btn) {
     btn.addEventListener("click", function () {
       var ip = btn.getAttribute("data-delete-ip");
-      (window.pafishConfirm ? window.pafishConfirm("删除该 IP 的全部评论？此操作不可恢复。", { title: "按 IP 删除评论" }) : Promise.resolve(window.confirm("确认删除？"))).then(function (ok) {
+      (window.pafishConfirm ? window.pafishConfirm(window.pafishT("js.delete_all_comments_from_this_ip_address_this"), { title: window.pafishT("js.delete_comments_by_ip") }) : Promise.resolve(window.confirm(window.pafishT("js.confirm_deletion")))).then(function (ok) {
         if (!ok) return;
         return post(listUrl + "/delete-by-ip", { ip: ip })
-        .then(function (r) { return jsonOrAlert(r, "操作失败"); })
+        .then(function (r) { return jsonOrAlert(r, window.pafishT("common.operation_failed")); })
         .then(function (j) {
-          if (j) pafishToastReload("已删除 " + (j.deleted || 0) + " 条评论", "success");
+          if (j) pafishToastReload(window.pafishT("js.deleted") + (j.deleted || 0) + window.pafishT("js.comments_f79a76"), "success");
         });
       });
     });
@@ -277,11 +279,11 @@ $listUrl = url_to('/admin/comments') . '?status=' . $status . $querySuffix;
   document.querySelectorAll("[data-block-ip]").forEach(function (btn) {
     btn.addEventListener("click", function () {
       var ip = btn.getAttribute("data-block-ip");
-      (window.pafishConfirm ? window.pafishConfirm("拉黑该 IP？之后它提交的评论将被拒绝（403）。", { title: "拉黑 IP" }) : Promise.resolve(window.confirm("确认拉黑？"))).then(function (ok) {
+      (window.pafishConfirm ? window.pafishConfirm(window.pafishT("js.block_this_ip_address_future_comments_will_be"), { title: window.pafishT("js.block_ip") }) : Promise.resolve(window.confirm(window.pafishT("js.confirm_block")))).then(function (ok) {
         if (!ok) return;
         return post(listUrl + "/block-ip", { ip: ip })
-        .then(function (r) { return jsonOrAlert(r, "操作失败"); })
-        .then(function (j) { if (j) pafishNotify("已拉黑 " + ip, false); });
+        .then(function (r) { return jsonOrAlert(r, window.pafishT("common.operation_failed")); })
+        .then(function (j) { if (j) pafishNotify(window.pafishT("js.blocked") + ip, false); });
       });
     });
   });
@@ -289,11 +291,11 @@ $listUrl = url_to('/admin/comments') . '?status=' . $status . $querySuffix;
   document.querySelectorAll("[data-block-email]").forEach(function (btn) {
     btn.addEventListener("click", function () {
       var email = btn.getAttribute("data-block-email");
-      (window.pafishConfirm ? window.pafishConfirm("拉黑该邮箱？之后它提交的评论将被拒绝（403）。", { title: "拉黑邮箱" }) : Promise.resolve(window.confirm("确认拉黑？"))).then(function (ok) {
+      (window.pafishConfirm ? window.pafishConfirm(window.pafishT("js.block_this_email_address_future_comments_will_be"), { title: window.pafishT("js.block_email") }) : Promise.resolve(window.confirm(window.pafishT("js.confirm_block")))).then(function (ok) {
         if (!ok) return;
         return post(listUrl + "/block-email", { email: email })
-        .then(function (r) { return jsonOrAlert(r, "操作失败"); })
-        .then(function (j) { if (j) pafishNotify("已拉黑 " + email, false); });
+        .then(function (r) { return jsonOrAlert(r, window.pafishT("common.operation_failed")); })
+        .then(function (j) { if (j) pafishNotify(window.pafishT("js.blocked") + email, false); });
       });
     });
   });
@@ -326,14 +328,14 @@ $listUrl = url_to('/admin/comments') . '?status=' . $status . $querySuffix;
       var box = card.querySelector(".admin-comment-replybox");
       var input = box.querySelector("textarea");
       var content = input.value.trim();
-      if (!content) { pafishNotify("回复内容不能为空", true); return; }
+      if (!content) { pafishNotify(window.pafishT("js.reply_content_is_required"), true); return; }
       post(listUrl + "/" + btn.getAttribute("data-reply-submit") + "/reply", { content: content })
-        .then(function (r) { return jsonOrAlert(r, "回复失败"); })
+        .then(function (r) { return jsonOrAlert(r, window.pafishT("js.reply_failed")); })
         .then(function (j) {
           if (j) {
             input.value = "";
             box.hidden = true;
-            pafishToastReload("已回复，评论将直接显示在前台", "success");
+            pafishToastReload(window.pafishT("js.reply_sent_the_comment_is_now_public"), "success");
           }
         });
     });

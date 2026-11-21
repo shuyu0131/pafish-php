@@ -295,7 +295,7 @@ final class Migrator
             $column->execute(['extension_records', $name]);
             $actual = $column->fetch(\PDO::FETCH_ASSOC);
             $extra = strtolower((string) ($actual['EXTRA'] ?? ''));
-            if (!$actual || strtolower((string) $actual['COLUMN_TYPE']) !== $type
+            if (!$actual || !self::sameColumnType((string) $actual['COLUMN_TYPE'], $type)
                 || $actual['IS_NULLABLE'] !== 'NO'
                 || strtolower((string) ($actual['CHARACTER_SET_NAME'] ?? '')) !== (string) $charset
                 || strtolower((string) ($actual['COLLATION_NAME'] ?? '')) !== (string) $collation
@@ -330,6 +330,16 @@ final class Migrator
                 ? 'current_timestamp' : $value;
         };
         return $normalize((string) $actual) === $normalize($expected);
+    }
+
+    /** MySQL 5.7 reports integer display widths in COLUMN_TYPE; newer versions may omit them. */
+    private static function sameColumnType(string $actual, string $expected): bool
+    {
+        $normalize = static function (string $type): string {
+            $type = strtolower(trim($type));
+            return preg_replace('/\\b(tinyint|smallint|mediumint|int|integer|bigint)\\s*\\(\\s*\\d+\\s*\\)/', '$1', $type) ?? $type;
+        };
+        return $normalize($actual) === $normalize($expected);
     }
 
     private static function indexIsUnique(\PDO $pdo, string $table, string $index): bool

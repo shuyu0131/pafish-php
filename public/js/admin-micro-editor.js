@@ -24,7 +24,7 @@
     form.addEventListener("submit", function (event) {
       if (uploading || (window.__pafishEditor && !window.__pafishEditor.isReady())) {
         event.preventDefault();
-        if (window.pafishNotify) window.pafishNotify('编辑器正在加载或上传，请稍候', true);
+        if (window.pafishNotify) window.pafishNotify(window.pafishT("js.the_editor_is_loading_or_uploading_please_wait"), true);
         return;
       }
       if (form.dataset.submitting === "1") {
@@ -57,11 +57,11 @@
         body.append('_csrf', CSRF);
         var response = await fetch(DATA.uploadUrl, { method: 'POST', body: body, headers: { 'X-Requested-With': 'XMLHttpRequest' } });
         var result = await response.json();
-        if (!response.ok || !result.url) throw new Error(result.error || '上传失败');
+        if (!response.ok || !result.url) throw new Error(result.error || window.pafishT("js.upload_failed"));
         window.__pafishEditor.insertMedia(result.url, result.mime, result.originalName || file.name);
       } catch (error) {
         window.__pafishEditor.cancelMedia();
-        if (window.pafishNotify) window.pafishNotify(error.message || '上传失败', true);
+        if (window.pafishNotify) window.pafishNotify(error.message || window.pafishT("js.upload_failed"), true);
       } finally {
         uploading = false;
         if (button) button.disabled = false;
@@ -89,7 +89,7 @@
       type: "micro",
       mount: mount,
       field: content,
-      placeholder: "记录此刻想说的话……（支持拖拽/粘贴图片上传）",
+      placeholder: window.pafishT("js.share_a_thought_drag_or_paste_images_to"),
       previewUrl: DATA.previewUrl,
       uploadUrl: DATA.uploadUrl,
       csrf: CSRF,

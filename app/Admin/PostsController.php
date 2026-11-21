@@ -23,8 +23,8 @@ final class PostsController extends AdminController
 {
     private const PER_PAGE_OPTIONS = [10, 20, 50];
     private const STATUS_LABEL = [
-        'DRAFT' => '草稿', 'PENDING' => '待审核', 'CHANGES_REQUESTED' => '退回修改',
-        'PUBLISHED' => '已发布', 'SCHEDULED' => '定时',
+        'DRAFT' => 'admin.draft', 'PENDING' => 'admin.pending_review', 'CHANGES_REQUESTED' => 'admin.request_changes',
+        'PUBLISHED' => 'admin.published', 'SCHEDULED' => 'admin.scheduled',
     ];
 
     // ---------- 列表 ----------
@@ -128,8 +128,8 @@ final class PostsController extends AdminController
             'counts' => $counts,
             'isTrash' => $isTrash,
             'catTree' => $catTree,
-            'statusLabel' => self::STATUS_LABEL,
-        ], '文章管理');
+            'statusLabel' => array_map('t', self::STATUS_LABEL),
+        ], t('admin.posts'));
 
         $response->getBody()->write($html);
         return $response;
@@ -139,7 +139,7 @@ final class PostsController extends AdminController
 
     public static function templateOptions(): array
     {
-        $options = ['default' => '默认模板'];
+        $options = ['default' => t('admin.default_template')];
         foreach (\Pafish\Services\Theme::postTemplates(\Pafish\Services\Theme::active()) as $template) {
             $options[$template['name']] = $template['title'];
         }
@@ -150,7 +150,7 @@ final class PostsController extends AdminController
     {
         $template = \Pafish\Services\Content::templateName($value);
         if ($template !== ($stored['template'] ?? null) && !array_key_exists($template, self::templateOptions())) {
-            throw new \RuntimeException('所选文章模板不可用，请重新选择');
+            throw new \RuntimeException(t('admin.the_selected_post_template_is_unavailable_choose_another'));
         }
         return $template;
     }
@@ -162,7 +162,7 @@ final class PostsController extends AdminController
         $html = $this->render('import', [
             'uploadUrl' => Url::to('/api/import-markdown'),
             'csrf' => \Pafish\Core\Session::csrfToken(),
-        ], '导入 Markdown');
+        ], t('admin.import_markdown'));
         $response->getBody()->write($html);
         return $response;
     }
@@ -179,11 +179,11 @@ final class PostsController extends AdminController
         $this->guardCanManage();
         $body = $request->getParsedBody();
         if (!Session::verifyCsrf(is_array($body) && is_string($body['_csrf'] ?? null) ? $body['_csrf'] : null)) {
-            return $this->json($response, ['error' => '请求已过期，请刷新页面重试'], 419);
+            return $this->json($response, ['error' => t('admin.the_request_has_expired_refresh_the_page_and')], 419);
         }
         $title = is_array($body) && is_string($body['title'] ?? null) ? trim($body['title']) : '';
         if (mb_strlen($title, 'UTF-8') > 255) {
-            return $this->json($response, ['error' => '标题过长'], 400);
+            return $this->json($response, ['error' => t('admin.title_is_too_long')], 400);
         }
         return $this->json($response, ['slug' => $title === '' ? '' : Slug::slugify($title)]);
     }
@@ -244,8 +244,8 @@ final class PostsController extends AdminController
             }
         } catch (\PDOException $e) {
             // 驱动异常只进日志：客户端拿到 SQLSTATE 与列名既是噪音，也泄露表结构。
-            \Pafish\Core\Logger::exception('文章保存失败', $e);
-            $message = '保存失败，请稍后重试';
+            \Pafish\Core\Logger::exception(t('admin.unable_to_save_post'), $e);
+            $message = t('admin.unable_to_save_please_try_again_later');
             if ($this->isAjax($request)) {
                 return $this->json($response, ['error' => $message], 500);
             }
@@ -263,9 +263,9 @@ final class PostsController extends AdminController
 
         $published = (string) ($result['status'] ?? '') === 'PUBLISHED';
         $statusMessage = match ((string) ($result['status'] ?? '')) {
-            'PENDING' => '投稿已提交，审核通过后发布',
-            'CHANGES_REQUESTED' => '文章已保存，请按审核意见修改后重新提交',
-            default => $published ? '文章已发布' : ($result['created'] ? '文章已保存' : '文章已更新'),
+            'PENDING' => t('admin.submission_sent_for_review_and_will_be_published'),
+            'CHANGES_REQUESTED' => t('admin.post_saved_address_the_review_feedback_and_resubmit'),
+            default => $published ? t('admin.post_published') : ($result['created'] ? t('admin.post_saved') : t('admin.post_updated')),
         };
         if ($this->isAjax($request)) {
             return $this->json($response, ['ok' => true, 'id' => $result['id'], 'status' => $result['status'], 'message' => $statusMessage, 'coverUrl' => $result['coverUrl'] ?? '', 'coverAuto' => (bool) ($result['coverAuto'] ?? false)]);
@@ -300,7 +300,7 @@ final class PostsController extends AdminController
         $ids = array_values(array_unique(array_filter(array_map('intval', is_array($rawIds) ? $rawIds : []))));
         $ids = array_slice($ids, 0, 100);
         if ($ids === []) {
-            return $this->json($response, ['error' => '未选择文章'], 400);
+            return $this->json($response, ['error' => t('admin.no_post_selected')], 400);
         }
         if (!\Pafish\Core\Auth::isAdmin()) {
             $rawIn = implode(',', array_fill(0, count($ids), '?'));
@@ -310,7 +310,7 @@ final class PostsController extends AdminController
             );
             $ids = array_map(static fn (array $row): int => (int) $row['id'], $visible);
             if ($ids === []) {
-                return $this->json($response, ['error' => '没有可操作的文章'], 403);
+                return $this->json($response, ['error' => t('admin.no_posts_available_for_this_action')], 403);
             }
         }
         $op = (string) ($body['op'] ?? '');
@@ -362,18 +362,18 @@ final class PostsController extends AdminController
                     $rawCat = (string) ($body['category_id'] ?? '');
                     $categoryId = $rawCat === 'none' ? null : (ctype_digit($rawCat) ? (int) $rawCat : null);
                     if ($rawCat === '') {
-                        return $this->json($response, ['error' => '请选择分类'], 400);
+                        return $this->json($response, ['error' => t('admin.choose_a_category')], 400);
                     }
                     if ($categoryId !== null && !DB::fetchOne('SELECT id FROM categories WHERE id = ?', [$categoryId])) {
-                        return $this->json($response, ['error' => '分类不存在'], 400);
+                        return $this->json($response, ['error' => t('admin.category_not_found')], 400);
                     }
                     DB::execute("UPDATE posts SET category_id = ? WHERE id IN ({$in})", array_merge([$categoryId], $ids));
                     break;
                 default:
-                    return $this->json($response, ['error' => '操作失败'], 400);
+                    return $this->json($response, ['error' => t('common.operation_failed')], 400);
             }
         } catch (\Throwable $e) {
-            return $this->json($response, ['error' => '操作失败'], 500);
+            return $this->json($response, ['error' => t('common.operation_failed')], 500);
         }
 
         \Pafish\Services\Comments::emit($commentEvents);
@@ -387,7 +387,7 @@ final class PostsController extends AdminController
         }
 
         if (!$this->isAjax($request)) {
-            $this->flash('success', '操作成功');
+            $this->flash('success', t('admin.operation_successful'));
             return $this->redirect($response, '/admin/posts');
         }
         return $this->json($response, ['ok' => true]);
@@ -407,17 +407,17 @@ final class PostsController extends AdminController
             return $this->redirect($response, '/admin/posts?status=PENDING');
         };
         if (!in_array($decision, ['publish', 'changes_requested'], true)) {
-            return $errorResponse('审核操作无效', 400);
+            return $errorResponse(t('admin.invalid_review_operation'), 400);
         }
         if ($decision === 'changes_requested' && ($note === '' || mb_strlen($note) > 2000)) {
-            return $errorResponse('请填写审核意见，最多 2000 个字符', 400);
+            return $errorResponse(t('admin.enter_review_feedback_up_to_2000_characters'), 400);
         }
         $id = (int) ($args['id'] ?? 0);
         try {
             $result = DB::transaction(static function () use ($id, $decision, $note): array {
                 $post = DB::fetchOne('SELECT * FROM posts WHERE id=? AND deleted_at IS NULL FOR UPDATE', [$id]);
                 if ($post === null || !in_array((string) $post['status'], ['PENDING', 'CHANGES_REQUESTED'], true)) {
-                    throw new \RuntimeException('这篇文章当前不在待审核状态');
+                    throw new \RuntimeException(t('admin.this_post_is_not_pending_review'));
                 }
                 $reviewedBy = (int) (\Pafish\Core\Auth::id() ?? 0);
                 if ($decision === 'publish') {
@@ -432,14 +432,14 @@ final class PostsController extends AdminController
                 return ['status' => 'CHANGES_REQUESTED'];
             });
         } catch (\PDOException $e) {
-            \Pafish\Core\Logger::exception('投稿审核失败', $e);
-            return $errorResponse('审核失败，请稍后重试', 500);
+            \Pafish\Core\Logger::exception(t('admin.submission_review_failed'), $e);
+            return $errorResponse(t('admin.review_failed_please_try_again_later'), 500);
         } catch (\RuntimeException $e) {
             return $errorResponse($e->getMessage(), 409);
         }
         \Pafish\Core\Cache::clearPrefix('nav.');
         if (!$this->isAjax($request)) {
-            $this->flash('success', $result['status'] === 'PUBLISHED' ? '投稿已通过并发布' : '已退回作者修改');
+            $this->flash('success', $result['status'] === 'PUBLISHED' ? t('admin.submission_approved_and_published') : t('admin.returned_to_the_author_for_changes'));
             return $this->redirect($response, '/admin/posts?status=PENDING');
         }
         return $this->json($response, ['ok' => true, 'status' => $result['status']]);
@@ -462,12 +462,12 @@ final class PostsController extends AdminController
     public function saveForCurrentUser(array $body, ?int $id = null): array
     {
         if (!\Pafish\Core\Auth::check()) {
-            throw new \RuntimeException('请先登录');
+            throw new \RuntimeException(t('admin.please_sign_in_first'));
         }
         $allowManagerEdit = \Pafish\Core\Auth::can('posts.manage');
         $submissionOpen = Settings::get('submissions_enabled', 'false') === 'true';
         if (!$allowManagerEdit && (!$submissionOpen && ($id === null || (string) ($body['action'] ?? 'draft') === 'publish'))) {
-            throw new \RuntimeException('当前站点已关闭用户投稿');
+            throw new \RuntimeException(t('admin.user_submissions_are_closed_on_this_site'));
         }
         $result = \Pafish\Services\MediaReferences::transaction(function () use ($body, $id, $allowManagerEdit): array {
             return $this->persistPost($body, $id, $allowManagerEdit, !$allowManagerEdit);
@@ -479,15 +479,15 @@ final class PostsController extends AdminController
     /** Front-end status changes preserve content and use the same lifecycle as admin operations. */
     public function moderateForCurrentUser(int $id, string $operation): array
     {
-        if (!\Pafish\Core\Auth::check()) throw new \RuntimeException('请先登录');
-        if (!in_array($operation, ['draft', 'publish', 'delete'], true)) throw new \InvalidArgumentException('操作无效');
+        if (!\Pafish\Core\Auth::check()) throw new \RuntimeException(t('admin.please_sign_in_first'));
+        if (!in_array($operation, ['draft', 'publish', 'delete'], true)) throw new \InvalidArgumentException(t('admin.invalid_operation'));
         $result = DB::transaction(static function () use ($id, $operation): array {
             $manager = \Pafish\Core\Auth::can('posts.manage');
             $post = DB::fetchOne(
                 'SELECT * FROM posts WHERE id=? AND deleted_at IS NULL' . ($manager ? '' : ' AND author_id=?') . ' FOR UPDATE',
                 $manager ? [$id] : [$id, (int) \Pafish\Core\Auth::id()]
             );
-            if ($post === null) throw new \RuntimeException('文章不存在或无权操作');
+            if ($post === null) throw new \RuntimeException(t('admin.the_post_does_not_exist_or_you_do'));
             if ($operation === 'delete') {
                 DB::execute('UPDATE posts SET deleted_at=NOW() WHERE id=?', [$id]);
                 $payload = self::postPayloadFromRow($post);
@@ -495,7 +495,7 @@ final class PostsController extends AdminController
                 return ['deleted' => true];
             }
             if (!$manager && $operation === 'publish' && Settings::get('submissions_enabled', 'false') !== 'true') {
-                throw new \RuntimeException('当前站点已关闭用户投稿');
+                throw new \RuntimeException(t('admin.user_submissions_are_closed_on_this_site'));
             }
             $reviewRequired = !$manager && Settings::get('submissions_need_review', 'true') !== 'false';
             $status = $operation === 'draft' ? 'DRAFT' : ($reviewRequired ? 'PENDING' : 'PUBLISHED');
@@ -523,16 +523,16 @@ final class PostsController extends AdminController
     {
         $action = (string) ($body['action'] ?? 'draft');
         if ($userSubmission && !in_array($action, ['draft', 'publish', 'auto'], true)) {
-            throw new \RuntimeException('普通用户只能保存草稿或提交审核');
+            throw new \RuntimeException(t('admin.users_can_only_save_drafts_or_submit_for'));
         }
         $mayEditAnyAuthor = \Pafish\Core\Auth::isAdmin()
             || ($allowManagerEdit && \Pafish\Core\Auth::can('posts.manage'));
         $stored = $id !== null ? DB::fetchOne('SELECT * FROM posts WHERE id = ? FOR UPDATE', [$id]) : null;
-        if ($id !== null && $stored === null) throw new \RuntimeException('文章不存在');
+        if ($id !== null && $stored === null) throw new \RuntimeException(t('admin.post_not_found'));
         if ($id !== null && !$mayEditAnyAuthor) {
             $owned = DB::fetchOne('SELECT id FROM posts WHERE id = ? AND author_id = ?' . ($userSubmission ? ' AND deleted_at IS NULL' : ''), [$id, (int) \Pafish\Core\Auth::id()]);
             if ($owned === null) {
-                throw new \RuntimeException('无权编辑这篇文章');
+                throw new \RuntimeException(t('admin.you_do_not_have_permission_to_edit_this'));
             }
         }
 
@@ -565,15 +565,15 @@ final class PostsController extends AdminController
 
         $seo = \Pafish\Services\Content::seoFields($body, $stored ?? []);
         $allowComments = $body['allow_comments'] ?? $stored['allow_comments'] ?? 1;
-        if (!in_array($allowComments, [true,false,1,0,'1','0'], true)) throw new \RuntimeException('评论开关无效');
+        if (!in_array($allowComments, [true,false,1,0,'1','0'], true)) throw new \RuntimeException(t('admin.invalid_comments_setting'));
         $template = self::templateForSave($body['template'] ?? ($stored['template'] ?? 'default'), $stored);
 
         $title = trim((string) ($body['title'] ?? ''));
         if ($title === '') {
-            throw new \RuntimeException('标题不能为空');
+            throw new \RuntimeException(t('admin.title_is_required'));
         }
         if (mb_strlen($title) > 255) {
-            throw new \RuntimeException('标题不能超过 255 个字符');
+            throw new \RuntimeException(t('admin.title_cannot_exceed_255_characters'));
         }
         // 外链文章可以没有正文，先读取外链值。
         $externalUrl = trim((string) ($body['external_url'] ?? ''));
@@ -584,16 +584,16 @@ final class PostsController extends AdminController
         $extensionMeta = null;
         if (array_key_exists('extension_meta', $body)) {
             $extensionMeta = is_array($body['extension_meta']) ? $body['extension_meta'] : json_decode((string) $body['extension_meta'], true);
-            if (!is_array($extensionMeta)) throw new \RuntimeException('扩展字段数据格式无效');
+            if (!is_array($extensionMeta)) throw new \RuntimeException(t('admin.invalid_extension_field_data'));
         }
 
         // ordinary non-empty-content check.
         $hasExtensionContent = !empty($body['extension_content']);
         if (trim($content) === '' && $externalUrl === '' && !$hasExtensionContent) {
-            throw new \RuntimeException('内容不能为空（若这是纯外链条目，请填写外链地址）');
+            throw new \RuntimeException(t('admin.content_is_required_unless_an_external_url_is'));
         }
         if (mb_strlen($content) > 16000000) {
-            throw new \RuntimeException('内容过长');
+            throw new \RuntimeException(t('admin.content_is_too_long'));
         }
 
         $slug = Slug::forSave(
@@ -606,7 +606,7 @@ final class PostsController extends AdminController
             ) > 0,
             !empty($body['slug_auto'])
         );
-        if (mb_strlen($slug, 'UTF-8') > 255) throw new \RuntimeException('文章地址不能超过 255 字');
+        if (mb_strlen($slug, 'UTF-8') > 255) throw new \RuntimeException(t('admin.post_slug_cannot_exceed_255_characters'));
 
         // 自动取图偏好与封面来源分别保存：手动地址优先，自动封面不能变成手动输入。
         // 缺省控件保留原有设置；关闭自动取图只清除派生封面，不影响手动封面。
@@ -614,7 +614,7 @@ final class PostsController extends AdminController
         [$manualCover, $storedAutoCoverOn] = $stored !== null ? self::coverEditorState($stored) : ['', false, ''];
         $coverUrl = (string) \Pafish\Services\Content::imageUrl($body['cover_url'] ?? $manualCover);
         $autoCover = $body['auto_cover'] ?? $storedAutoCoverOn;
-        if (!in_array($autoCover, [true, false, 1, 0, '1', '0'], true)) throw new \RuntimeException('自动封面选项无效');
+        if (!in_array($autoCover, [true, false, 1, 0, '1', '0'], true)) throw new \RuntimeException(t('admin.invalid_automatic_cover_setting'));
         $autoCoverOn = in_array($autoCover, [true, 1, '1'], true);
         $coverAuto = false;
         if ($excerpt === '') {
@@ -628,7 +628,7 @@ final class PostsController extends AdminController
         $categoryId = null;
         $newCategory = trim((string) ($body['new_category'] ?? ''));
         if ($newCategory !== '' && !\Pafish\Core\Auth::isAdmin()) {
-            throw new \RuntimeException('编辑不能新建分类，请选择已有分类');
+            throw new \RuntimeException(t('admin.editors_cannot_create_categories_select_an_existing_category'));
         }
         if ($newCategory !== '') {
             $categoryId = self::resolveNewCategory($newCategory);
@@ -637,14 +637,14 @@ final class PostsController extends AdminController
             $categoryId = ctype_digit($rawCat) && (int) $rawCat > 0 ? (int) $rawCat : null;
         }
         if ($categoryId !== null && DB::value('SELECT id FROM categories WHERE id=?', [$categoryId]) === null) {
-            throw new \RuntimeException('所选分类不存在');
+            throw new \RuntimeException(t('admin.the_selected_category_does_not_exist'));
         }
 
         // 标签：tagIds 已存在 + newTags 按名称匹配/新建
         $tagIds = self::parseIntList($body['tag_ids'] ?? []);
         $newTags = self::parseStringList($body['new_tags'] ?? []);
         if ($newTags !== [] && !\Pafish\Core\Auth::isAdmin()) {
-            throw new \RuntimeException('编辑不能新建标签，请选择已有标签');
+            throw new \RuntimeException(t('admin.editors_cannot_create_tags_select_an_existing_tag'));
         }
         $tagIds = array_values(array_unique(array_merge($tagIds, self::resolveNewTags($newTags))));
 
@@ -663,11 +663,11 @@ final class PostsController extends AdminController
         } elseif ($action === 'schedule') {
             $scheduledAt = (string) ($body['scheduled_at'] ?? '');
             if ($scheduledAt === '') {
-                throw new \RuntimeException('定时发布需要选择时间');
+                throw new \RuntimeException(t('admin.choose_a_time_for_scheduled_publication'));
             }
             $at = strtotime(str_replace('T', ' ', $scheduledAt));
             if ($at === false || $at <= time()) {
-                throw new \RuntimeException('定时发布时间必须晚于当前时间');
+                throw new \RuntimeException(t('admin.the_scheduled_time_must_be_in_the_future'));
             }
             $status = 'SCHEDULED';
             $publishedAt = date('Y-m-d H:i:s', $at);
@@ -678,7 +678,7 @@ final class PostsController extends AdminController
         $passwordSet = false;
         $newPass = (string) ($body['password'] ?? '');
         if (trim($newPass) !== '') {
-            if (strlen(trim($newPass)) > 72 || str_contains($newPass, "\0")) throw new \RuntimeException('文章密码过长或含无效字符，最多72字节');
+            if (strlen(trim($newPass)) > 72 || str_contains($newPass, "\0")) throw new \RuntimeException(t('admin.the_post_password_contains_invalid_characters_or_exceeds'));
             $password = password_hash(trim($newPass), PASSWORD_BCRYPT);
             $passwordSet = true;
         } elseif (!empty($body['remove_password'])) {
@@ -732,7 +732,7 @@ final class PostsController extends AdminController
             'action' => $action,
         ], ['id' => $id !== null ? (string) $id : null, 'created' => $id === null]);
         if ($before === false || (is_array($before) && ($before['allowed'] ?? true) === false)) {
-            throw new \RuntimeException(is_array($before) ? (string) ($before['error'] ?? '文章保存被扩展拒绝') : '文章保存被扩展拒绝');
+            throw new \RuntimeException(is_array($before) ? (string) ($before['error'] ?? t('admin.an_extension_rejected_saving_this_post')) : t('admin.an_extension_rejected_saving_this_post'));
         }
         if (is_array($before)) {
             $seo = \Pafish\Services\Content::seoFields([
@@ -740,7 +740,7 @@ final class PostsController extends AdminController
                 'meta_description' => $before['metaDescription'] ?? $seo['meta_description'],
             ]);
             $allowComments = $before['allowComments'] ?? $allowComments;
-            if (!in_array($allowComments, [true,false,1,0,'1','0'], true)) throw new \RuntimeException('文章保存前过滤器返回了无效评论开关');
+            if (!in_array($allowComments, [true,false,1,0,'1','0'], true)) throw new \RuntimeException(t('admin.a_pre_save_filter_returned_an_invalid_comments'));
             foreach (['title', 'slug', 'excerpt', 'content', 'externalUrl'] as $field) {
                 if (array_key_exists($field, $before) && is_scalar($before[$field])) {
                     ${$field} = trim((string) $before[$field]);
@@ -756,13 +756,13 @@ final class PostsController extends AdminController
                 || mb_strlen($content) > 16000000 || $title === '' || mb_strlen($title) > 255
                 || $slug === '' || mb_strlen($slug) > 255
                 || mb_strlen($excerpt) > 500 || mb_strlen($externalUrl) > 500) {
-                throw new \RuntimeException('文章保存前过滤器返回了无效内容');
+                throw new \RuntimeException(t('admin.a_pre_save_filter_returned_invalid_content'));
             }
             $slugConflict = $id !== null
                 ? DB::value('SELECT COUNT(*) FROM posts WHERE slug = ? AND id != ?', [$slug, $id]) > 0
                 : DB::value('SELECT COUNT(*) FROM posts WHERE slug = ?', [$slug]) > 0;
             if ($slugConflict) {
-                throw new \RuntimeException('别名已被使用，请更换');
+                throw new \RuntimeException(t('admin.this_slug_is_already_in_use_choose_another'));
             }
         }
 
@@ -795,6 +795,7 @@ final class PostsController extends AdminController
             ]);
             $id = (int) $pdo->lastInsertId();
             \Pafish\Services\PermalinkRedirects::forgetPaths(\Pafish\Services\Permalinks::paths('post', [
+                'id' => $id,
                 'slug' => $slug,
                 'published_at' => $publishedAt,
                 'created_at' => $now,
@@ -814,7 +815,7 @@ final class PostsController extends AdminController
                 $mayEditAnyAuthor ? [$id] : [$id, (int) \Pafish\Core\Auth::id()]
             );
             if (!$existing) {
-                throw new \RuntimeException('文章不存在');
+                throw new \RuntimeException(t('admin.post_not_found'));
             }
             $previousStatus = (string) $existing['status'];
             // auto（自动保存）：保留原状态与发布时间；投稿者编辑已发布内容时重新进入审核。
@@ -910,7 +911,7 @@ final class PostsController extends AdminController
             'submissionHasExtensionContent' => $submissionHasExtensionContent,
             'submissionCanSubmit' => $canSubmit,
             'submissionReviewRequired' => $reviewRequired,
-            'submissionStatusLabel' => self::STATUS_LABEL[(string) ($initial['status'] ?? 'DRAFT')] ?? (string) ($initial['status'] ?? 'DRAFT'),
+            'submissionStatusLabel' => t(self::STATUS_LABEL[(string) ($initial['status'] ?? 'DRAFT')] ?? (string) ($initial['status'] ?? 'DRAFT')),
             'postId' => $isEdit ? (int) $post['id'] : 0,
             'catTree' => Categories::tree(),
             'tags' => $tags,
@@ -920,10 +921,10 @@ final class PostsController extends AdminController
             'autoCoverUrl' => $autoCoverUrl,
             'hasPassword' => $isEdit && $initial['password'] !== null,
             'isScheduled' => $isEdit && $initial['status'] === 'SCHEDULED',
-            'statusLabel' => self::STATUS_LABEL,
+            'statusLabel' => array_map('t', self::STATUS_LABEL),
             'headExtra' => editor_head_extra() . ($submissionMode ? '' : \Pafish\Services\Theme::editorHeadExtra()),
             'hiddenCustomFieldKeys' => \Pafish\Services\Theme::inactiveEditorFieldKeys(),
-        ], $isEdit ? '编辑文章' : '写文章');
+        ], $isEdit ? t('admin.edit_post') : t('admin.write_a_post'));
 
         $response->getBody()->write($html);
         return $response;
@@ -938,7 +939,7 @@ final class PostsController extends AdminController
                 \Pafish\Core\Auth::isAdmin() ? [$id] : [$id, (int) \Pafish\Core\Auth::id()]
             );
             if (!$post) {
-                throw new \RuntimeException('文章不存在');
+                throw new \RuntimeException(t('admin.post_not_found'));
             }
             switch ($op) {
                 case 'delete':
@@ -967,11 +968,11 @@ final class PostsController extends AdminController
                     break;
             }
         } catch (\PDOException $e) {
-            \Pafish\Core\Logger::exception('文章操作失败', $e);
+            \Pafish\Core\Logger::exception(t('admin.post_operation_failed'), $e);
             if ($this->isAjax($request)) {
-                return $this->json($response, ['error' => '操作失败，请稍后重试'], 500);
+                return $this->json($response, ['error' => t('admin.operation_failed_please_try_again_later')], 500);
             }
-            $this->flash('error', '操作失败，请稍后重试');
+            $this->flash('error', t('admin.operation_failed_please_try_again_later'));
             return $this->redirect($response, '/admin/posts');
         } catch (\Throwable $e) {
             if ($this->isAjax($request)) {
@@ -982,7 +983,7 @@ final class PostsController extends AdminController
         }
         \Pafish\Core\Cache::clearPrefix('nav.');
         if (!$this->isAjax($request)) {
-            $this->flash('success', '操作成功');
+            $this->flash('success', t('admin.operation_successful'));
             return $this->redirect($response, '/admin/posts');
         }
         return $this->json($response, ['ok' => true]);

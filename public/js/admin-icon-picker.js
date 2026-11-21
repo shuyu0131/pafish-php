@@ -49,7 +49,7 @@
       if (!group || !Array.isArray(group.icons)) { return; }
       group.icons.forEach(function (name) {
         if (typeof name === "string" && name.trim()) {
-          items.push({ name: name.trim(), library: "custom", group: String(group.title || "自定义图标") });
+          items.push({ name: name.trim(), library: "custom", group: String(group.title || window.pafishT("js.custom_icons")) });
         }
       });
     });
@@ -120,20 +120,20 @@
       grid.appendChild(button);
     });
     if (filtered.length === 0) {
-      grid.innerHTML = '<p class="admin-icon-picker-empty">没有匹配的图标。可以直接在字段中输入自定义 class。</p>';
+      grid.innerHTML = ("<p class=\"admin-icon-picker-empty\">" + window.pafishI18n.escape(window.pafishT("js.no_matching_icons_you_can_enter_a_custom")) + "</p>");
     }
     if (shown.length < filtered.length) {
       var more = document.createElement("button");
       more.type = "button";
       more.className = "admin-icon-picker-more";
-      more.textContent = "加载更多（还有 " + (filtered.length - shown.length) + " 个）";
+      more.textContent = window.pafishT("js.load_more_remaining") + (filtered.length - shown.length) + window.pafishT("js.items_cd628e");
       more.addEventListener("click", function () { visibleCount += 168; render(); });
       grid.appendChild(more);
     }
-    var label = query ? "匹配 " + filtered.length + " 个" : (library === "custom"
-      ? "自定义图标共 " + filtered.length + " 个"
-      : (browseAll ? "图标库共 " + filtered.length + " 个" : "常用图标 · 图标库共 " + items.length + " 个"));
-    meta.textContent = label + (shown.length < filtered.length ? "，当前显示 " + shown.length + " 个" : "");
+    var label = query ? window.pafishT("js.matches") + filtered.length + window.pafishT("js.items_6ee50f") : (library === "custom"
+      ? window.pafishT("js.custom_icons_5f73a1") + filtered.length + window.pafishT("js.items_6ee50f")
+      : (browseAll ? window.pafishT("js.icons_in_library") + filtered.length + window.pafishT("js.items_6ee50f") : window.pafishT("js.common_icons_total_icons") + items.length + window.pafishT("js.items_6ee50f")));
+    meta.textContent = label + (shown.length < filtered.length ? window.pafishT("js.showing") + shown.length + window.pafishT("js.items_6ee50f") : "");
     browse.hidden = !!query || browseAll || library === "custom";
   }
 

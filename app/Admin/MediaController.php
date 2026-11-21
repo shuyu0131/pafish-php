@@ -78,7 +78,7 @@ final class MediaController extends AdminController
             'q' => $q,
             'type' => $type,
             'date' => $date,
-        ], '媒体库'));
+        ], t('admin.media_library')));
         return $response;
     }
 
@@ -90,7 +90,7 @@ final class MediaController extends AdminController
             $result = MediaReferences::rebuild();
         } catch (\Throwable $e) {
             \Pafish\Core\Logger::error('[media-rebuild] ' . $e->getMessage());
-            return $this->json($response, ['error' => '媒体引用重建失败，请检查日志后重试'], 500);
+            return $this->json($response, ['error' => t('admin.unable_to_rebuild_media_references_check_the_logs')], 500);
         }
         return $this->json($response, ['ok' => true] + $result);
     }
@@ -133,17 +133,17 @@ final class MediaController extends AdminController
         $body = $request->getParsedBody() ?? [];
         $url = trim((string) ($body['url'] ?? ''));
         if (!preg_match('#^https?://#i', $url)) {
-            return $this->json($response, ['error' => '仅支持 http/https 开头的完整地址'], 400);
+            return $this->json($response, ['error' => t('admin.enter_a_complete_url_beginning_with_http_or')], 400);
         }
         if (mb_strlen($url) > 500) {
-            return $this->json($response, ['error' => '地址过长（最多 500 字符）'], 400);
+            return $this->json($response, ['error' => t('admin.url_is_too_long_maximum_500_characters')], 400);
         }
         $name = trim((string) ($body['name'] ?? ''));
         if ($name === '') {
             $path = parse_url($url, PHP_URL_PATH) ?? '';
             $name = rawurldecode((string) basename($path));
             if ($name === '' || $name === '/') {
-                $name = '外部资源';
+                $name = t('admin.external_resource');
             }
         }
         $name = mb_substr($name, 0, 100);

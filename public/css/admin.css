@@ -548,7 +548,7 @@ input[type="radio"]:focus-visible {
   background: var(--accent-soft);
   color: var(--accent);
   font-weight: 500;
-  box-shadow: inset 2px 0 0 var(--accent);
+  box-shadow: none;
 }
 
 .admin-nav-item.active svg {
@@ -2800,35 +2800,6 @@ a.admin-pg-btn:hover {
 }
 
 /* ---------- 评论审核 ---------- */
-.admin-comments-page .admin-list-toolbar {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, min(460px, 100%));
-  align-items: end;
-  gap: 12px 20px;
-}
-.admin-comment-tabs {
-  width: 100%;
-  min-width: 0;
-  margin: 0;
-}
-.admin-comments-page .admin-list-search {
-  width: 100%;
-  max-width: none;
-  align-self: end;
-}
-
-@media (max-width: 768px) {
-  .admin-comments-page .admin-list-toolbar {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 8px;
-  }
-  .admin-comments-page .admin-comment-tabs,
-  .admin-comments-page .admin-list-search {
-    width: 100%;
-    max-width: none;
-  }
-}
-
 .admin-comment-card {
   padding: 14px 16px;
 }
@@ -7244,6 +7215,82 @@ input[type="radio"]:disabled { cursor: not-allowed; opacity: .58; }
 .admin-sort-error { color: var(--danger); }
 [data-admin-sort][aria-busy="true"] { cursor: progress; }
 
+/* 评论状态独占一行，搜索不挤压状态入口。 */
+.admin-comments-page .admin-list-toolbar {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 14px;
+  padding: 0;
+  border: 0;
+}
+.admin-comments-page .admin-comment-tabs {
+  flex: 0 0 auto;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  gap: 24px;
+  align-items: stretch;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+  scroll-snap-type: none;
+}
+.admin-comments-page .admin-comment-tabs .admin-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: 0 0 auto;
+  min-height: 44px;
+  margin: 0;
+  padding: 10px 1px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--fg);
+  font-weight: 400;
+  box-shadow: none;
+}
+.admin-comments-page .admin-comment-tabs .admin-tab:hover,
+.admin-comments-page .admin-comment-tabs .admin-tab.is-active {
+  background: transparent;
+  color: var(--accent);
+}
+.admin-comments-page .admin-comment-tabs .admin-tab.is-active {
+  border-bottom-color: var(--accent);
+  font-weight: 500;
+}
+.admin-comments-page .admin-comment-tabs .admin-tab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -3px;
+}
+.admin-comment-tabs .admin-tab-count {
+  min-width: 22px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--bg-soft);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 18px;
+  text-align: center;
+}
+.admin-comment-tabs .is-active .admin-tab-count {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.admin-comments-page .admin-list-search {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  width: 100%;
+  max-width: 460px;
+}
+
 /* 窄屏把次要列并入主体信息，保留表格横滑及直接操作。 */
 .admin-table-mobile-meta { display: none; }
 @media (max-width: 959px) {
@@ -7264,6 +7311,9 @@ input[type="radio"]:disabled { cursor: not-allowed; opacity: .58; }
   }
   .admin-status-tabs::-webkit-scrollbar { display: block; height: 4px; }
   .admin-status-tabs::-webkit-scrollbar-thumb { border-radius: 4px; background: var(--muted); }
+  .admin-comments-page .admin-comment-tabs { gap: 12px; }
+  .admin-comments-page .admin-comment-tabs .admin-tab { gap: 6px; font-size: 13px; }
+  .admin-comments-page .admin-tab-count { min-width: 20px; }
   .admin-comments-page .admin-comment-batch-bar { gap: 6px; padding: 9px; }
   .admin-comments-page .admin-comment-batch-bar .admin-batch-count { flex: 1 1 100%; }
   .admin-comments-page .admin-comment-batch-bar .admin-batch-op { flex: 1 1 130px; min-width: 0; }
@@ -7686,4 +7736,75 @@ input[type="radio"]:disabled { cursor: not-allowed; opacity: .58; }
   .admin-theme-settings .admin-sf-rep-body { grid-template-columns: minmax(0, 1fr); }
   .admin-theme-settings .admin-head-actions { grid-template-columns: 38px minmax(0, 1fr) auto; }
   .admin-theme-settings .admin-head-actions > .btn { padding: 7px 10px; }
+}
+
+/* ---------- 原有导航：仅补充桌面收起与移动抽屉状态 ---------- */
+/* 英文导航使用拉丁 UI 字体和明确行距，短标签仅作用于菜单，不改页面标题。 */
+html[lang="en"] .admin-nav {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+html[lang="en"] .admin-nav-item { min-height: 34px; line-height: 20px; }
+html[lang="en"] .admin-nav-item > span:not(.admin-nav-badge) { min-width: 0; overflow-wrap: anywhere; }
+html[lang="en"] .admin-nav-group-toggle { line-height: 16px; color: var(--title); }
+.admin-layout-toggle { display: inline-flex; }
+.admin-layout-toggle [data-nav-icon] { display: inline-flex; }
+.admin-session-notice {
+  position: sticky;
+  top: 72px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 20px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+  padding: 14px 16px;
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-soft);
+  color: var(--fg);
+}
+.admin-session-notice > div { flex: 1 1 260px; min-width: 0; }
+.admin-session-title { display: block; font-size: 14px; font-weight: 600; }
+.admin-session-notice p { margin: 4px 0 0; font-size: 13px; line-height: 1.7; }
+.admin-session-notice > a { flex: 0 0 auto; }
+.admin-sidebar { height: 100dvh; }
+.admin-nav { padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+.admin-nav-badge { flex-shrink: 0; }
+
+@media (min-width: 768px) {
+  .admin-sidebar-collapsed .admin-sidebar { width: 64px; }
+  .admin-sidebar-collapsed .admin-topbar { left: 64px; }
+  .admin-sidebar-collapsed .admin-nav { padding-right: 8px; padding-left: 8px; }
+  .admin-sidebar-collapsed .admin-nav-group-toggle,
+  .admin-sidebar-collapsed .admin-nav-item > span:not(.admin-nav-badge) { display: none; }
+  .admin-sidebar-collapsed .admin-nav-item {
+    position: relative;
+    justify-content: center;
+    min-height: 36px;
+    padding: 7px 0;
+  }
+  .admin-sidebar-collapsed .admin-nav-group { margin-top: 8px; }
+  .admin-sidebar-collapsed .admin-nav-badge {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 8px;
+    min-width: 8px;
+    height: 8px;
+    padding: 0;
+    overflow: hidden;
+    border: 1px solid var(--card);
+    font-size: 0;
+    line-height: 0;
+  }
+}
+
+@media (max-width: 767px) {
+  .admin-body.admin-drawer-open,
+  html.admin-drawer-open { overflow: hidden; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-sidebar { transition: none; }
 }

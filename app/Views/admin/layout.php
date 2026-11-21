@@ -1,8 +1,8 @@
 <?php
 /**
  * 后台布局：
- * 桌面：固定左侧导航 + 顶栏账户操作 + 内容区
- * 移动端：顶栏 + 抽屉（遮罩点击/Esc 关闭）；导航分组始终展开
+ * 桌面：可收起的左侧导航 + 顶栏账户操作 + 内容区；导航分组始终展开
+ * 移动端：顶栏 + 可访问的抽屉导航
  * 变量：$title $siteName $user $nav $currentPath $content
  */
 
@@ -58,7 +58,7 @@ $navActive = static function (array $item, string $currentPath) use ($currentQue
 };
 ?>
 <!doctype html>
-<html lang="zh-CN">
+<html lang="<?= e(\Pafish\Core\I18n::locale()) ?>">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -66,6 +66,7 @@ $navActive = static function (array $item, string $currentPath) use ($currentQue
 <meta name="robots" content="noindex,nofollow">
 <link rel="icon" href="<?= e(asset_url('/favicon.svg')) ?>" type="image/svg+xml">
 <link rel="stylesheet" href="<?= e(asset_url('/css/admin.css')) ?>">
+<?= i18n_script() ?>
 <script src="<?= e(asset_url('/js/admin-toast.js')) ?>"></script>
 <script src="<?= e(asset_url('/js/admin-ui.js')) ?>"></script>
 <script src="<?= e(asset_url('/js/admin-controls.js')) ?>"></script>
@@ -79,36 +80,52 @@ window.pafishApi = function (p) {
   return <?= json_encode(url_to('/api')) ?> + path + (query ? <?= json_encode(Config::get('pretty_urls', true) ? '?' : '&') ?> + query : '');
 };
 window.pafishSlugPreviewUrl = <?= json_encode(url_to('/admin/slug-preview')) ?>;
+window.pafishSessionConfig = <?= json_encode([
+    'adminUrl' => url_to('/admin'),
+    'statusUrl' => url_to('/api/auth/session'),
+    'loginUrl' => url_to('/login'),
+    'context' => hash('sha256', $user['id'] . ':' . csrf_token()),
+], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 </script>
+<script src="<?= e(asset_url('/js/admin-session.js')) ?>"></script>
 </head>
 <body class="admin-body">
   <!-- 顶栏：保留账户操作与移动端抽屉入口。 -->
   <header class="admin-topbar">
     <div class="admin-topbar-start">
-      <button type="button" class="admin-drawer-toggle admin-icon-btn" aria-label="打开菜单"><?= admin_icon('menu', 20) ?></button>
+      <button type="button" class="admin-layout-toggle admin-drawer-toggle admin-icon-btn"
+              aria-label="<?= e(t('admin.collapse_navigation')) ?>" title="<?= e(t('admin.collapse_navigation')) ?>"
+              aria-controls="adminSidebar" aria-expanded="true" data-label-open="<?= e(t('admin.open_menu')) ?>"
+              data-label-close="<?= e(t('common.close')) ?>" data-label-expand="<?= e(t('admin.expand_navigation')) ?>"
+              data-label-collapse="<?= e(t('admin.collapse_navigation')) ?>">
+        <span data-nav-icon="collapse"><?= admin_icon('panel-left-close', 18) ?></span>
+        <span data-nav-icon="expand" hidden><?= admin_icon('panel-left-open', 18) ?></span>
+        <span data-nav-icon="menu" hidden><?= admin_icon('menu', 18) ?></span>
+      </button>
     </div>
     <div class="admin-topbar-actions">
-      <a class="admin-topbar-front" href="<?= e(url_to('/')) ?>" target="_blank" rel="noopener"><?= admin_icon('external-link', 15) ?><span>查看网站</span></a>
-      <a class="admin-topbar-account" href="<?= e(url_to('/admin/profile')) ?>" aria-label="个人资料" title="个人资料">
+      <a class="admin-topbar-front" href="<?= e(url_to('/')) ?>" target="_blank" rel="noopener"><?= admin_icon('external-link', 15) ?><span><?= e(t('admin.view_site')) ?></span></a>
+      <a class="admin-topbar-account" href="<?= e(url_to('/admin/profile')) ?>" aria-label="<?= e(t('admin.profile')) ?>" title="<?= e(t('admin.profile')) ?>">
         <img class="admin-avatar-sm" src="<?= e(\Pafish\Http\Comments::avatarUrl($user['avatar_url'] ?? null, (string) $user['email'])) ?>" alt="" width="28" height="28">
         <span><?= e($user['nickname'] ?: $user['username']) ?></span>
       </a>
       <form class="admin-topbar-logout" method="post" action="<?= e(url_to('/api/auth/logout')) ?>">
         <?= csrf_field() ?>
-        <button type="submit" class="admin-topbar-exit" aria-label="退出登录" title="退出登录"><?= admin_icon('logout', 15) ?><span>退出登录</span></button>
+        <button type="submit" class="admin-topbar-exit" aria-label="<?= e(t('admin.sign_out')) ?>" title="<?= e(t('admin.sign_out')) ?>"><?= admin_icon('logout', 15) ?><span><?= e(t('admin.sign_out')) ?></span></button>
       </form>
     </div>
   </header>
-  <div class="admin-drawer-backdrop" hidden></div>
+  <div class="admin-drawer-backdrop" hidden aria-hidden="true"></div>
 
   <!-- 侧边栏 -->
-  <aside class="admin-sidebar" id="adminSidebar">
-    <nav class="admin-nav">
+  <aside class="admin-sidebar" id="adminSidebar" aria-label="<?= e(t('admin.admin')) ?>">
+    <nav class="admin-nav" aria-label="<?= e(t('admin.admin')) ?>">
       <?php foreach ($nav['top'] as $item): ?>
-        <a class="admin-nav-item<?= $navActive($item, $currentPath) ? ' active' : '' ?>"
-           href="<?= e($navHref($item)) ?>">
+        <?php $itemActive = $navActive($item, $currentPath); $itemLabel = t((string) ($item['navLabel'] ?? $item['label'])); ?>
+        <a class="admin-nav-item<?= $itemActive ? ' active' : '' ?>"
+           href="<?= e($navHref($item)) ?>" aria-label="<?= e($itemLabel) ?>" title="<?= e(t($item['label'])) ?>"<?= $itemActive ? ' aria-current="page"' : '' ?>>
           <?= admin_icon($item['icon']) ?>
-          <span><?= e($item['label']) ?></span>
+          <span><?= e($itemLabel) ?></span>
           <?php if (!empty($item['badge'])): ?><span class="admin-nav-badge"><?= (int) $item['badge'] > 99 ? '99+' : (int) $item['badge'] ?></span><?php endif; ?>
         </a>
       <?php endforeach; ?>
@@ -116,14 +133,15 @@ window.pafishSlugPreviewUrl = <?= json_encode(url_to('/admin/slug-preview')) ?>;
       <?php foreach ($nav['groups'] as $group): ?>
         <div class="admin-nav-group" data-group-id="<?= e($group['id']) ?>">
           <p class="admin-nav-group-toggle">
-            <span><?= e($group['label']) ?></span>
+            <span><?= e(t($group['label'])) ?></span>
           </p>
-            <div class="admin-nav-group-items">
+          <div class="admin-nav-group-items">
             <?php foreach ($group['items'] as $item): ?>
-              <a class="admin-nav-item<?= $navActive($item, $currentPath) ? ' active' : '' ?>"
-                 href="<?= e($navHref($item)) ?>">
+              <?php $itemActive = $navActive($item, $currentPath); $itemLabel = t((string) ($item['navLabel'] ?? $item['label'])); ?>
+              <a class="admin-nav-item<?= $itemActive ? ' active' : '' ?>"
+                 href="<?= e($navHref($item)) ?>" aria-label="<?= e($itemLabel) ?>" title="<?= e(t($item['label'])) ?>"<?= $itemActive ? ' aria-current="page"' : '' ?>>
                 <?= admin_icon($item['icon']) ?>
-                <span><?= e($item['label']) ?></span>
+                <span><?= e($itemLabel) ?></span>
                  <?php if (!empty($item['badge'])): ?><span class="admin-nav-badge"><?= (int) $item['badge'] > 99 ? '99+' : (int) $item['badge'] ?></span><?php endif; ?>
               </a>
             <?php endforeach; ?>
@@ -147,10 +165,10 @@ window.pafishSlugPreviewUrl = <?= json_encode(url_to('/admin/slug-preview')) ?>;
         ];
         $toastIcon = $toastIcons[$toastType] ?? $toastIcons['info'];
         $toastTitles = [
-          'success' => '成功',
-          'error' => '错误',
-          'warning' => '警告',
-          'info' => '提示',
+          'success' => t('common.success'),
+          'error' => t('common.error'),
+          'warning' => t('common.warning'),
+          'info' => t('common.info'),
         ];
         $toastTitle = $toastTitles[$toastType] ?? $toastTitles['info'];
       ?>
@@ -161,7 +179,7 @@ window.pafishSlugPreviewUrl = <?= json_encode(url_to('/admin/slug-preview')) ?>;
               <strong class="admin-toast-title"><?= e($toastTitle) ?></strong>
               <span class="admin-toast-msg"><?= e($flash['message']) ?></span>
             </span>
-            <button type="button" class="admin-toast-close" aria-label="关闭提示" title="关闭">&times;</button>
+            <button type="button" class="admin-toast-close" aria-label="<?= e(t('admin.dismiss_notification')) ?>" title="<?= e(t('common.close')) ?>">&times;</button>
           </div>
         </div>
       <?php endif; ?>
@@ -171,15 +189,6 @@ window.pafishSlugPreviewUrl = <?= json_encode(url_to('/admin/slug-preview')) ?>;
 
 <script>
 (function () {
-  // 移动端抽屉
-  var body = document.body;
-  var backdrop = document.querySelector('.admin-drawer-backdrop');
-  function open() { body.classList.add('admin-drawer-open'); if (backdrop) backdrop.hidden = false; }
-  function close() { body.classList.remove('admin-drawer-open'); if (backdrop) backdrop.hidden = true; }
-  document.querySelectorAll('.admin-drawer-toggle').forEach(function (b) { b.addEventListener('click', open); });
-  if (backdrop) backdrop.addEventListener('click', close);
-  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
-
   // 退出登录（POST + CSRF，成功后回首页）
 
   // 直接把页面导航到 /api/auth/logout 的 JSON 响应上（用户看到的"退出后跳到接口地址"）。
@@ -196,5 +205,11 @@ window.pafishSlugPreviewUrl = <?= json_encode(url_to('/admin/slug-preview')) ?>;
 
 })();
 </script>
+<script src="<?= e(asset_url('/js/admin-navigation.js')) ?>"></script>
+<?= \Pafish\Services\Plugin::renderInjection('admin_footer', [
+    'user' => $user,
+    'role' => (string) ($user['role'] ?? ''),
+    'currentPath' => (string) $currentPath,
+]) ?>
 </body>
 </html>

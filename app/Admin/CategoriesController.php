@@ -41,7 +41,7 @@ final class CategoriesController extends AdminController
             'counts' => $counts,
             'flatForSelect' => Categories::tree(),
             'disabledMap' => $disabledMap,
-        ], '分类管理'));
+        ], t('admin.categories')));
         return $response;
     }
 
@@ -71,7 +71,7 @@ final class CategoriesController extends AdminController
         if ($this->isAjax($request)) {
             return $this->json($response, ['ok' => true, 'id' => $result['id']]);
         }
-        $this->flash('success', $result['created'] ? '分类已创建' : '分类已更新');
+        $this->flash('success', $result['created'] ? t('admin.category_created') : t('admin.category_updated'));
         return $this->redirect($response, '/admin/categories');
     }
 
@@ -128,37 +128,37 @@ final class CategoriesController extends AdminController
             Cache::clearPrefix('nav.');
         } catch (\Throwable $e) {
             if ($this->isAjax($request)) {
-                return $this->json($response, ['error' => '删除失败'], 500);
+                return $this->json($response, ['error' => t('admin.delete_failed')], 500);
             }
-            $this->flash('error', '删除失败');
+            $this->flash('error', t('admin.delete_failed'));
             return $this->redirect($response, '/admin/categories');
         }
         if ($this->isAjax($request)) {
             return $this->json($response, ['ok' => true]);
         }
-        $this->flash('success', '分类已删除');
+        $this->flash('success', t('admin.category_deleted'));
         return $this->redirect($response, '/admin/categories');
     }
 
-    /** 保存逻辑：校验 + slug 去冲突 + 父级防自引用 + sortOrder */
-    private function saveCategory(array $body, ?int $id = null): array
+    /** 保存逻辑：校验 + slug 去冲突 + 父级防自引用 + sortOrder；公开给扩展层复用（入参只依赖 body 数组）。 */
+    public function saveCategory(array $body, ?int $id = null): array
     {
         $stored = $id !== null ? DB::fetchOne('SELECT * FROM categories WHERE id=? FOR UPDATE', [$id]) : null;
-        if ($id !== null && $stored === null) throw new \RuntimeException('分类不存在');
+        if ($id !== null && $stored === null) throw new \RuntimeException(t('admin.category_not_found'));
         $seo = \Pafish\Services\Content::seoFields($body, $stored ?? []);
         $cover = \Pafish\Services\Content::imageUrl($body['cover_url'] ?? $stored['cover_url'] ?? '');
         $name = trim((string) ($body['name'] ?? ''));
         if ($name === '') {
-            throw new \RuntimeException('分类名称不能为空');
+            throw new \RuntimeException(t('admin.category_name_is_required'));
         }
         if (mb_strlen($name) > 100) {
-            throw new \RuntimeException('分类名称不能超过 100 字');
+            throw new \RuntimeException(t('admin.category_name_cannot_exceed_100_characters'));
         }
         if (DB::fetchOne(
             'SELECT id FROM categories WHERE name = ? AND (? IS NULL OR id <> ?) LIMIT 1',
             [$name, $id, $id]
         ) !== null) {
-            throw new \RuntimeException('分类名称已存在');
+            throw new \RuntimeException(t('admin.category_name_already_exists'));
         }
 
         $slug = Slug::forSave(
@@ -172,11 +172,11 @@ final class CategoriesController extends AdminController
             100
         );
         if (mb_strlen($slug) > 100) {
-            throw new \RuntimeException('分类地址不能超过 100 字');
+            throw new \RuntimeException(t('admin.category_slug_cannot_exceed_100_characters'));
         }
         $description = trim((string) ($body['description'] ?? ''));
         if (mb_strlen($description) > 500) {
-            throw new \RuntimeException('分类描述不能超过 500 字');
+            throw new \RuntimeException(t('admin.category_description_cannot_exceed_500_characters'));
         }
 
         // 父分类：0/空视为根（存 NULL）；防自引用/循环后端校验
@@ -184,14 +184,14 @@ final class CategoriesController extends AdminController
         $parentId = $rawParent > 0 ? $rawParent : null;
         if ($parentId !== null) {
             if ($id !== null && $parentId === $id) {
-                throw new \RuntimeException('父分类不能是自己');
+                throw new \RuntimeException(t('admin.a_category_cannot_be_its_own_parent'));
             }
             $parent = DB::fetchOne('SELECT id FROM categories WHERE id = ?', [$parentId]);
             if (!$parent) {
-                throw new \RuntimeException('父分类不存在');
+                throw new \RuntimeException(t('admin.parent_category_not_found'));
             }
             if ($id !== null && !Categories::canBeParent($id, $parentId)) {
-                throw new \RuntimeException('不能选择自己的子分类作为父分类');
+                throw new \RuntimeException(t('admin.a_category_cannot_be_moved_under_its_own'));
             }
         }
 

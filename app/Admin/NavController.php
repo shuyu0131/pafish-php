@@ -27,7 +27,7 @@ final class NavController extends AdminController
             if ($menu['slug'] === $requestedSlug) { $selectedMenu = $menu; break; }
             if ($selectedMenu === null && (int) $menu['is_primary'] === 1) $selectedMenu = $menu;
         }
-        $selectedMenu ??= $menus[0] ?? ['id' => 1, 'name' => '主导航', 'slug' => 'main', 'is_primary' => 1];
+        $selectedMenu ??= $menus[0] ?? ['id' => 1, 'name' => t('admin.primary_navigation'), 'slug' => 'main', 'is_primary' => 1];
         $rows = DB::fetchAll("SELECT n.id, n.item_type, n.label, n.url, n.is_external, n.visible, n.parent_id,
                     n.category_id, n.page_id, n.post_id, n.tag_id,
                     c.name AS category_name, c.slug AS category_slug,
@@ -63,7 +63,7 @@ final class NavController extends AdminController
                 case 'post':
                     if ($item['post_title'] !== null) {
                         $item['label'] = (string) $item['post_title'];
-                        $item['url'] = \Pafish\Services\Permalinks::path('post', ['slug' => $item['post_slug'], 'published_at' => $item['post_published_at'], 'created_at' => $item['post_created_at']]);
+                        $item['url'] = \Pafish\Services\Permalinks::path('post', ['id' => $item['post_id'], 'slug' => $item['post_slug'], 'published_at' => $item['post_published_at'], 'created_at' => $item['post_created_at']]);
                     }
                     break;
                 case 'tag':
@@ -72,9 +72,9 @@ final class NavController extends AdminController
                         $item['url'] = \Pafish\Services\Permalinks::path('tag', ['slug' => $item['tag_slug']]);
                     }
                     break;
-                case 'home': $item['label'] = '首页'; $item['url'] = '/'; break;
-                case 'archive': $item['label'] = '归档'; $item['url'] = '/archives'; break;
-                case 'search': $item['label'] = '搜索'; $item['url'] = '/search'; break;
+                case 'home': $item['label'] = t('admin.home'); $item['url'] = '/'; break;
+                case 'archive': $item['label'] = t('admin.archives'); $item['url'] = '/archives'; break;
+                case 'search': $item['label'] = t('common.search'); $item['url'] = '/search'; break;
                 case 'group': $item['url'] = ''; break;
             }
             if ($item['type'] !== 'link') $item['is_external'] = 0;
@@ -103,7 +103,7 @@ final class NavController extends AdminController
             'posts' => DB::fetchAll("SELECT id, title, slug FROM posts WHERE " . \Pafish\Services\Posts::publicWhere('posts') . " ORDER BY title, id"),
             'tags' => DB::fetchAll('SELECT id, name FROM tags ORDER BY name, id'),
             'archivesAvailable' => \Pafish\Services\Theme::hasArchivePage(),
-        ], '导航菜单'));
+        ], t('admin.navigation_menus')));
         return $response;
     }
 
@@ -115,12 +115,12 @@ final class NavController extends AdminController
         try {
             $body = $request->getParsedBody() ?? [];
             $menuId = (int) ($body['menu_id'] ?? DB::value('SELECT id FROM nav_menus WHERE is_primary = 1 ORDER BY id LIMIT 1'));
-            if ($menuId < 1 || !DB::fetchOne('SELECT id FROM nav_menus WHERE id = ?', [$menuId])) throw new \RuntimeException('菜单组不存在或已删除');
+            if ($menuId < 1 || !DB::fetchOne('SELECT id FROM nav_menus WHERE id = ?', [$menuId])) throw new \RuntimeException(t('admin.the_menu_group_does_not_exist_or_was'));
             $type = (string) ($body['type'] ?? 'link');
             if (!in_array($type, ['link', 'group', 'home', 'archive', 'search', 'category', 'page', 'post', 'tag'], true)) {
-                throw new \RuntimeException('导航类型无效');
+                throw new \RuntimeException(t('admin.invalid_menu_item_type'));
             }
-            if ($type === 'archive' && !\Pafish\Services\Theme::hasArchivePage()) throw new \RuntimeException('当前主题未提供归档页面');
+            if ($type === 'archive' && !\Pafish\Services\Theme::hasArchivePage()) throw new \RuntimeException(t('admin.the_active_theme_does_not_provide_an_archives'));
             $categoryId = $pageId = $postId = $tagId = null;
             $isExternal = 0;
             if ($type === 'link' || $type === 'group') {
@@ -130,10 +130,10 @@ final class NavController extends AdminController
             } elseif (in_array($type, ['category', 'page', 'post', 'tag'], true)) {
                 $rawTarget = trim((string) ($body['target_id'] ?? ''));
                 if (preg_match('/^(category|page|post|tag):([1-9][0-9]*)$/D', $rawTarget, $targetMatch) === 1) {
-                    if ($targetMatch[1] !== $type) throw new \RuntimeException('目标类型与导航类型不一致');
+                    if ($targetMatch[1] !== $type) throw new \RuntimeException(t('admin.the_target_type_does_not_match_the_menu'));
                     $rawTarget = $targetMatch[2];
                 }
-                if ($rawTarget === '' || !ctype_digit($rawTarget) || (int) $rawTarget < 1) throw new \RuntimeException('请选择目标内容');
+                if ($rawTarget === '' || !ctype_digit($rawTarget) || (int) $rawTarget < 1) throw new \RuntimeException(t('admin.choose_target_content'));
                 $targetId = (int) $rawTarget;
                 [$table, $titleColumn] = match ($type) {
                     'category' => ['categories', 'name'],
@@ -147,7 +147,7 @@ final class NavController extends AdminController
                     default => '',
                 };
                 $target = DB::fetchOne("SELECT * FROM {$table} WHERE id = ?{$where}", [$targetId]);
-                if ($target === null) throw new \RuntimeException('目标内容不存在、未发布或已删除');
+                if ($target === null) throw new \RuntimeException(t('admin.the_target_content_does_not_exist_is_unpublished'));
                 $label = (string) $target[$titleColumn];
                 $url = \Pafish\Services\Permalinks::path($type, $target);
                 $categoryId = $type === 'category' ? $targetId : null;
@@ -156,46 +156,46 @@ final class NavController extends AdminController
                 $tagId = $type === 'tag' ? $targetId : null;
             } else {
                 [$label, $url] = match ($type) {
-                    'home' => ['首页', '/'], 'archive' => ['归档', '/archives'], 'search' => ['搜索', '/search'],
+                    'home' => [t('admin.home'), '/'], 'archive' => [t('admin.archives'), '/archives'], 'search' => [t('common.search'), '/search'],
                 };
             }
             $rawParent = trim((string) ($body['parent_id'] ?? ''));
             if ($rawParent !== '' && !ctype_digit($rawParent)) {
-                throw new \RuntimeException('上级导航项无效');
+                throw new \RuntimeException(t('admin.invalid_parent_menu_item'));
             }
             $parentId = $rawParent !== '' && (int) $rawParent > 0 ? (int) $rawParent : null;
             if (($type === 'link' && ($label === '' || $url === '')) || ($type === 'group' && $label === '')) {
-                throw new \RuntimeException('名称和地址不能为空');
+                throw new \RuntimeException(t('admin.name_and_url_are_required'));
             }
             if (mb_strlen($label) > 100 || mb_strlen($url) > 500) {
-                throw new \RuntimeException('内容超出长度限制');
+                throw new \RuntimeException(t('admin.content_exceeds_the_length_limit'));
             }
             if ($type === 'link' && parse_url($url, PHP_URL_SCHEME) !== null
                 && (!$isExternal || !\nav_external_url_is_safe($url))) {
-                throw new \RuntimeException('外部地址仅支持 HTTP、HTTPS、邮件或电话链接，并需勾选外部链接');
+                throw new \RuntimeException(t('admin.external_urls_must_use_http_https_mailto_or'));
             }
             if ($type === 'link' && parse_url($url, PHP_URL_SCHEME) === null) {
                 if ($isExternal || str_starts_with($url, '//')) {
-                    throw new \RuntimeException('站内地址请填写以 / 开头的路径；外部地址请填写完整链接');
+                    throw new \RuntimeException(t('admin.local_urls_must_start_with_enter_a_complete'));
                 }
                 if (!str_starts_with($url, '/')) $url = '/' . $url;
-                if (!\Pafish\Core\Url::isLocalPath($url)) throw new \RuntimeException('站内地址格式无效');
+                if (!\Pafish\Core\Url::isLocalPath($url)) throw new \RuntimeException(t('admin.invalid_local_url'));
             }
-            if (mb_strlen($url) > 500) throw new \RuntimeException('地址不能超过 500 字');
+            if (mb_strlen($url) > 500) throw new \RuntimeException(t('admin.url_cannot_exceed_500_characters'));
 
             \Pafish\Services\MediaReferences::transaction(function () use (&$id, $menuId, $label, $url, $isExternal, $parentId, $categoryId, $pageId, $postId, $tagId, $type): void {
                 if ($categoryId !== null) {
                     $category = DB::fetchOne('SELECT id FROM categories WHERE id = ? FOR UPDATE', [$categoryId]);
-                    if ($category === null) throw new \RuntimeException('分类不存在或已被删除');
+                    if ($category === null) throw new \RuntimeException(t('admin.the_category_does_not_exist_or_was_deleted'));
                 }
                 if ($pageId !== null && !DB::fetchOne("SELECT id FROM pages WHERE id = ? AND status='PUBLISHED' AND deleted_at IS NULL AND (published_at IS NULL OR published_at <= NOW()) FOR UPDATE", [$pageId])) {
-                    throw new \RuntimeException('所选页面已不再公开');
+                    throw new \RuntimeException(t('admin.the_selected_page_is_no_longer_public'));
                 }
                 if ($postId !== null && !DB::fetchOne('SELECT id FROM posts WHERE id = ? AND ' . \Pafish\Services\Posts::publicWhere() . ' FOR UPDATE', [$postId])) {
-                    throw new \RuntimeException('所选文章已不再公开');
+                    throw new \RuntimeException(t('admin.the_selected_post_is_no_longer_public'));
                 }
                 if ($tagId !== null && !DB::fetchOne('SELECT id FROM tags WHERE id = ? FOR UPDATE', [$tagId])) {
-                    throw new \RuntimeException('标签不存在或已删除');
+                    throw new \RuntimeException(t('admin.the_tag_does_not_exist_or_was_deleted'));
                 }
                 $rows = DB::fetchAll('SELECT id, parent_id, sort_order FROM nav_items WHERE menu_id = ? FOR UPDATE', [$menuId]);
                 $parents = [];
@@ -204,13 +204,13 @@ final class NavController extends AdminController
                     $parents[(int) $row['id']] = $row['parent_id'] === null ? null : (int) $row['parent_id'];
                     $sortOrders[(int) $row['id']] = (int) $row['sort_order'];
                 }
-                if ($id > 0 && !array_key_exists($id, $parents)) throw new \RuntimeException('导航项不存在或已被删除');
+                if ($id > 0 && !array_key_exists($id, $parents)) throw new \RuntimeException(t('admin.the_menu_item_does_not_exist_or_was'));
                 if ($parentId !== null) {
-                    if (!array_key_exists($parentId, $parents)) throw new \RuntimeException('上级导航不存在或已被删除');
+                    if (!array_key_exists($parentId, $parents)) throw new \RuntimeException(t('admin.the_parent_menu_item_does_not_exist_or'));
                     $seen = [];
                     for ($ancestor = $parentId; $ancestor !== null; $ancestor = $parents[$ancestor] ?? null) {
-                        if ($ancestor === $id) throw new \RuntimeException('导航项不能移入自己的子项');
-                        if (isset($seen[$ancestor])) throw new \RuntimeException('导航层级已损坏，请先修复循环引用');
+                        if ($ancestor === $id) throw new \RuntimeException(t('admin.a_menu_item_cannot_be_moved_under_its'));
+                        if (isset($seen[$ancestor])) throw new \RuntimeException(t('admin.the_menu_hierarchy_is_invalid_fix_circular_references'));
                         $seen[$ancestor] = true;
                     }
                 }
@@ -240,7 +240,7 @@ final class NavController extends AdminController
         if ($this->isAjax($request)) {
             return $this->json($response, ['ok' => true]);
         }
-        $this->flash('success', $id > 0 ? '导航项已更新' : '导航项已添加');
+        $this->flash('success', $id > 0 ? t('admin.menu_item_updated') : t('admin.menu_item_added'));
         return $this->redirect($response, '/admin/nav');
     }
 
@@ -285,9 +285,9 @@ final class NavController extends AdminController
         $this->guardAdmin();
         $id = (int) ($args['id'] ?? 0);
         $name = trim((string) (($request->getParsedBody() ?? [])['name'] ?? ''));
-        if ($name === '' || mb_strlen($name) > 100) return $this->json($response, ['error' => '菜单名称需填写且不能超过 100 字'], 400);
+        if ($name === '' || mb_strlen($name) > 100) return $this->json($response, ['error' => t('admin.menu_name_is_required_and_cannot_exceed_100')], 400);
         if ($id > 0) {
-            if (!DB::value('SELECT id FROM nav_menus WHERE id = ?', [$id])) return $this->json($response, ['error' => '菜单不存在'], 404);
+            if (!DB::value('SELECT id FROM nav_menus WHERE id = ?', [$id])) return $this->json($response, ['error' => t('admin.menu_not_found')], 404);
             DB::execute('UPDATE nav_menus SET name = ? WHERE id = ?', [$name, $id]);
             $slug = (string) DB::value('SELECT slug FROM nav_menus WHERE id = ?', [$id]);
         } else {
@@ -304,7 +304,7 @@ final class NavController extends AdminController
     {
         $this->guardAdmin();
         $id = (int) ($args['id'] ?? 0);
-        if (!DB::fetchOne('SELECT id FROM nav_menus WHERE id = ?', [$id])) return $this->json($response, ['error' => '菜单不存在'], 404);
+        if (!DB::fetchOne('SELECT id FROM nav_menus WHERE id = ?', [$id])) return $this->json($response, ['error' => t('admin.menu_not_found')], 404);
         DB::transaction(static function () use ($id): void {
             DB::execute('UPDATE nav_menus SET is_primary = 0');
             DB::execute('UPDATE nav_menus SET is_primary = 1 WHERE id = ?', [$id]);
@@ -319,9 +319,9 @@ final class NavController extends AdminController
         $this->guardAdmin();
         $sourceId = (int) ($args['id'] ?? 0);
         $source = DB::fetchOne('SELECT * FROM nav_menus WHERE id = ?', [$sourceId]);
-        if ($source === null) return $this->json($response, ['error' => '菜单不存在'], 404);
+        if ($source === null) return $this->json($response, ['error' => t('admin.menu_not_found')], 404);
         try {
-            $name = mb_substr((string) $source['name'] . ' 副本', 0, 100);
+            $name = mb_substr((string) $source['name'] . t('admin.copy'), 0, 100);
             $base = \Pafish\Services\Slug::slugify($name);
             $slug = \Pafish\Services\Slug::resolveUniqueWithinLength($base, static fn (string $candidate): bool => DB::fetchOne('SELECT id FROM nav_menus WHERE slug = ?', [$candidate]) !== null, 100);
             $newMenuId = \Pafish\Services\MediaReferences::transaction(static function () use ($sourceId, $name, $slug): int {
@@ -347,12 +347,12 @@ final class NavController extends AdminController
                         unset($pending[$key]);
                         $progress = true;
                     }
-                    if (!$progress) throw new \RuntimeException('菜单层级存在循环，无法复制');
+                    if (!$progress) throw new \RuntimeException(t('admin.the_menu_contains_a_circular_reference_and_cannot'));
                 }
                 return $menuId;
             });
         } catch (\Throwable $e) {
-            return $this->json($response, ['error' => '复制菜单失败'], 400);
+            return $this->json($response, ['error' => t('admin.unable_to_duplicate_menu')], 400);
         }
         Cache::clearPrefix('nav.');
         return $this->json($response, ['ok' => true, 'slug' => $slug, 'id' => $newMenuId]);
@@ -364,9 +364,9 @@ final class NavController extends AdminController
         $this->guardAdmin();
         $id = (int) ($args['id'] ?? 0);
         $menus = \nav_menus();
-        if (count($menus) <= 1) return $this->json($response, ['error' => '至少要保留一个菜单'], 400);
+        if (count($menus) <= 1) return $this->json($response, ['error' => t('admin.at_least_one_menu_must_remain')], 400);
         $menu = DB::fetchOne('SELECT * FROM nav_menus WHERE id = ?', [$id]);
-        if ($menu === null) return $this->json($response, ['error' => '菜单不存在'], 404);
+        if ($menu === null) return $this->json($response, ['error' => t('admin.menu_not_found')], 404);
         $primarySlug = (string) ($menu['is_primary'] ? '' : DB::value('SELECT slug FROM nav_menus WHERE is_primary = 1 ORDER BY id LIMIT 1'));
         \Pafish\Services\MediaReferences::transaction(static function () use ($id, $menu, &$primarySlug): void {
             foreach (DB::fetchAll('SELECT id FROM nav_items WHERE menu_id = ? FOR UPDATE', [$id]) as $item) {

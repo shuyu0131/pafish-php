@@ -17,9 +17,9 @@
     if (modal) return;
     modal = document.createElement("div");
     modal.className = "admin-modal-backdrop"; modal.hidden = true;
-    modal.innerHTML = '<div class="admin-modal" role="dialog" aria-modal="true" aria-label="选择图片">' +
-      '<div class="admin-modal-head"><h2 class="admin-modal-title">选择图片</h2><button type="button" class="admin-icon-btn" data-modal-close aria-label="关闭">×</button></div>' +
-      '<div class="admin-modal-body"><input class="input admin-lib-search" type="search" aria-label="搜索图片" placeholder="搜索图片…">' +
+    modal.innerHTML = ("<div class=\"admin-modal\" role=\"dialog\" aria-modal=\"true\" aria-label=\"" + window.pafishI18n.escape(window.pafishT("js.choose_image")) + "\">") +
+      ("<div class=\"admin-modal-head\"><h2 class=\"admin-modal-title\">" + window.pafishI18n.escape(window.pafishT("js.choose_image")) + "</h2><button type=\"button\" class=\"admin-icon-btn\" data-modal-close aria-label=\"" + window.pafishI18n.escape(window.pafishT("common.close")) + "\">×</button></div>") +
+      ("<div class=\"admin-modal-body\"><input class=\"input admin-lib-search\" type=\"search\" aria-label=\"" + window.pafishI18n.escape(window.pafishT("js.search_images")) + "\" placeholder=\"" + window.pafishI18n.escape(window.pafishT("js.search_images_907e1a")) + "\">") +
       '<div class="admin-lib-grid" aria-live="polite"></div><div class="admin-pager admin-lib-pager"></div></div></div>';
     document.body.appendChild(modal);
     grid = modal.querySelector(".admin-lib-grid"); pager = modal.querySelector(".admin-lib-pager");
@@ -32,9 +32,9 @@
   }
   function load() {
     var request = ++generation;
-    grid.textContent = "加载中…"; pager.replaceChildren();
+    grid.textContent = window.pafishT("common.loading"); pager.replaceChildren();
     fetch(pafishApi("/uploads?page=") + page + "&type=image&q=" + encodeURIComponent(search.value.trim()))
-      .then(function (r) { if (!r.ok) throw Error("媒体库加载失败"); return r.json(); })
+      .then(function (r) { if (!r.ok) throw Error(window.pafishT("js.unable_to_load_the_media_library")); return r.json(); })
       .then(function (data) {
         if (request !== generation || modal.hidden) return;
         grid.replaceChildren();
@@ -45,10 +45,10 @@
           var img = document.createElement("img"); img.src = item.url; img.alt = item.originalName; img.loading = "lazy";
           cell.appendChild(img); grid.appendChild(cell);
         });
-        if (!grid.childElementCount) grid.textContent = "没有找到图片";
+        if (!grid.childElementCount) grid.textContent = window.pafishT("js.no_images_found");
         page = data.page;
-        if (page > 1) pager.appendChild(button("上一页", function () { page--; load(); }));
-        if (page < data.pages) pager.appendChild(button("下一页", function () { page++; load(); }));
+        if (page > 1) pager.appendChild(button(window.pafishT("js.previous"), function () { page--; load(); }));
+        if (page < data.pages) pager.appendChild(button(window.pafishT("js.next"), function () { page++; load(); }));
       }).catch(function (e) { if (request === generation) grid.textContent = e.message; });
   }
   document.querySelectorAll("[data-image-field]").forEach(function (field) {
@@ -63,7 +63,7 @@
     });
     upload.addEventListener("click", function () { file.click(); });
     form.addEventListener("submit", function (e) {
-      if (busy) { e.preventDefault(); e.stopImmediatePropagation(); status.textContent = "图片正在上传，请稍候"; }
+      if (busy) { e.preventDefault(); e.stopImmediatePropagation(); status.textContent = window.pafishT("js.an_image_is_uploading_please_wait"); }
     }, true);
     file.addEventListener("change", function () {
       var selected = file.files && file.files[0];
@@ -73,14 +73,14 @@
       var oldRevision = revision;
       var data = new FormData(); data.append("file", selected);
       data.append("_csrf", form.querySelector('[name="_csrf"]').value);
-      busy = true; upload.disabled = true; status.textContent = "上传中…";
+      busy = true; upload.disabled = true; status.textContent = window.pafishT("js.uploading");
       fetch(pafishApi("/upload"), { method: "POST", body: data, headers: { "X-Requested-With": "XMLHttpRequest" } })
         .then(function (r) { return r.json().then(function (j) {
-          if (!r.ok || !j.ok || !j.url || !j.mime || j.mime.indexOf("image/") !== 0) throw Error(j.error || "请选择图片文件");
+          if (!r.ok || !j.ok || !j.url || !j.mime || j.mime.indexOf("image/") !== 0) throw Error(j.error || window.pafishT("js.choose_an_image_file"));
           if (revision === oldRevision && input.value === oldValue && (!record || record.value === oldId)) {
-            set(input, j.url); status.textContent = "图片已上传";
+            set(input, j.url); status.textContent = window.pafishT("js.image_uploaded");
           } else { status.textContent = ""; }
-        }); }).catch(function (e) { status.textContent = e.message || "上传失败"; })
+        }); }).catch(function (e) { status.textContent = e.message || window.pafishT("js.upload_failed"); })
         .finally(function () { busy = false; upload.disabled = false; file.value = ""; });
     });
   });

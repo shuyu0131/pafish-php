@@ -14,20 +14,20 @@
       return response.json();
     }).then(function (result) {
       if (result && result.ok) return result;
-      throw new Error((result && result.error) || "更新失败");
+      throw new Error((result && result.error) || window.pafishT("js.update_failed"));
     });
   }
 
   buttons.forEach(function (button) {
     button.addEventListener("click", function () {
       var title = button.dataset.title || button.dataset.name;
-      var current = button.dataset.localVersion || "当前版本";
+      var current = button.dataset.localVersion || window.pafishT("js.current_version");
       var version = button.dataset.version || "";
       var changelog = button.dataset.changelog || "";
-      var message = "将“" + title + "”从 v" + current + " 更新到 v" + version + "？";
-      var detail = "更新失败会自动恢复旧版本。" + (changelog ? "\n\n更新内容：\n" + changelog : "");
+      var message = window.pafishT("js.change") + title + window.pafishT("js.from_v_efbeb8") + current + window.pafishT("js.update_to_v") + version + "？";
+      var detail = window.pafishT("js.the_previous_version_is_restored_automatically_if_an") + (changelog ? window.pafishT("js.release_notes") + changelog : "");
       var confirmation = window.pafishConfirm
-        ? window.pafishConfirm(message, { title: "更新应用", accept: "确认更新", danger: false, detail: detail })
+        ? window.pafishConfirm(message, { title: window.pafishT("js.update_app"), accept: window.pafishT("js.confirm_update"), danger: false, detail: detail })
         : Promise.resolve(window.confirm(message + "\n" + detail));
 
       confirmation.then(function (accepted) {
@@ -35,13 +35,13 @@
         var originalText = button.textContent;
         button.disabled = true;
         button.classList.add("is-loading");
-        button.textContent = "正在更新";
+        button.textContent = window.pafishT("js.updating_87c1bc");
         var formData = new FormData();
         formData.append("kind", button.dataset.kind);
         formData.append("name", button.dataset.name);
         formData.append("_csrf", csrf.dataset.storeUpdateCsrf);
         return post(formData).then(function (result) {
-          var notice = "已更新 " + result.title + " 到 v" + result.version;
+          var notice = window.pafishT("js.updated_f54a93") + result.title + window.pafishT("js.to_v") + result.version;
           if (window.pafishToastReload) window.pafishToastReload(notice, "success");
           else window.location.reload();
         }).catch(function (error) {

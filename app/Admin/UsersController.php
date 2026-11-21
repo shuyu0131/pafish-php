@@ -22,18 +22,18 @@ final class UsersController extends AdminController
         $this->guardAdmin();
         $body = $request->getParsedBody() ?? [];
         if (!Session::verifyCsrf((string) ($body['_csrf'] ?? ''))) {
-            return $this->json($response, ['error' => '会话已过期，请刷新页面重试'], 419);
+            return $this->json($response, ['error' => t('admin.your_session_has_expired_refresh_the_page_and')], 419);
         }
         $username = trim((string) ($body['username'] ?? ''));
         $nickname = trim((string) ($body['nickname'] ?? ''));
         $email = trim((string) ($body['email'] ?? ''));
         $password = (string) ($body['password'] ?? '');
         $role = strtoupper((string) ($body['role'] ?? 'USER'));
-        if (!preg_match('/^[a-zA-Z0-9_-]{3,50}$/', $username)) return $this->json($response, ['error' => '用户名需为 3-50 位字母、数字、下划线或连字符'], 400);
-        if (!filter_var($email, FILTER_VALIDATE_EMAIL) || mb_strlen($email) > 255) return $this->json($response, ['error' => '邮箱格式不正确'], 400);
-        if (!Auth::validPassword($password)) return $this->json($response, ['error' => Auth::PASSWORD_RULE], 400);
-        if (!in_array($role, self::ROLES, true)) return $this->json($response, ['error' => '无效角色'], 400);
-        if (DB::fetchOne('SELECT id FROM users WHERE username = ? OR email = ? LIMIT 1', [$username, $email])) return $this->json($response, ['error' => '用户名或邮箱已存在'], 409);
+        if (!preg_match('/^[a-zA-Z0-9_-]{3,50}$/', $username)) return $this->json($response, ['error' => t('admin.username_must_contain_3_50_letters_numbers_underscores')], 400);
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL) || mb_strlen($email) > 255) return $this->json($response, ['error' => t('admin.invalid_email_format')], 400);
+        if (!Auth::validPassword($password)) return $this->json($response, ['error' => t('admin.password_rule')], 400);
+        if (!in_array($role, self::ROLES, true)) return $this->json($response, ['error' => t('admin.invalid_role')], 400);
+        if (DB::fetchOne('SELECT id FROM users WHERE username = ? OR email = ? LIMIT 1', [$username, $email])) return $this->json($response, ['error' => t('admin.username_or_email_already_exists')], 409);
         DB::execute('INSERT INTO users (username, nickname, email, password_hash, role) VALUES (?, ?, ?, ?, ?)', [
             $username, $nickname !== '' ? mb_substr($nickname, 0, 50) : null, $email,
             password_hash($password, PASSWORD_BCRYPT, ['cost' => 10]), $role,
@@ -119,7 +119,7 @@ final class UsersController extends AdminController
             'per' => $per,
             'perOptions' => $allowedPer,
             'filters' => ['q' => $q, 'role' => $role, 'state' => $state, 'sort' => $sort],
-        ], '用户管理'));
+        ], t('admin.users')));
         return $response;
     }
 
@@ -136,11 +136,11 @@ final class UsersController extends AdminController
             [$id]
         );
         if ($user === null) {
-            $this->flash('error', '用户不存在');
+            $this->flash('error', t('admin.user_not_found'));
             return $this->redirect($response, '/admin/users');
         }
         if ($id === 1 && (string) $user['role'] === 'ADMIN' && (int) (Auth::id() ?? 0) !== 1) {
-            $this->flash('error', '创始人账号只能由本人编辑');
+            $this->flash('error', t('admin.only_the_founder_can_edit_this_account'));
             return $this->redirect($response, '/admin/users');
         }
         $pointsEnabled = Points::available();
@@ -152,7 +152,7 @@ final class UsersController extends AdminController
             'me' => Auth::user(),
             'pointsEnabled' => $pointsEnabled,
             'isFounder' => $id === 1 && (string) $user['role'] === 'ADMIN',
-        ], '编辑用户'));
+        ], t('admin.edit_user')));
         return $response;
     }
 
@@ -166,7 +166,7 @@ final class UsersController extends AdminController
         }
         $body = $request->getParsedBody() ?? [];
         if (!Session::verifyCsrf((string) ($body['_csrf'] ?? ''))) {
-            return $this->userUpdateError($request, $response, (int) $user['id'], '会话已过期，请刷新页面重试', 419);
+            return $this->userUpdateError($request, $response, (int) $user['id'], t('admin.your_session_has_expired_refresh_the_page_and'), 419);
         }
         $id = (int) $user['id'];
         $username = mb_substr(trim((string) ($body['username'] ?? $user['username'])), 0, 50);
@@ -181,33 +181,33 @@ final class UsersController extends AdminController
         $passwordConfirm = (string) ($body['password_confirm'] ?? '');
 
         if ($id === 1 && (string) $user['role'] === 'ADMIN' && (int) (Auth::id() ?? 0) !== 1) {
-            return $this->userUpdateError($request, $response, $id, '创始人账号只能由本人编辑', 403);
+            return $this->userUpdateError($request, $response, $id, t('admin.only_the_founder_can_edit_this_account'), 403);
         }
         if ($id === 1) {
             $role = 'ADMIN';
         }
 
         if (!preg_match('/^[\\w\\x{4e00}-\\x{9fa5}-]{2,50}$/u', $username)) {
-            return $this->userUpdateError($request, $response, $id, '用户名需 2-50 位，仅限中文、字母、数字、下划线和连字符');
+            return $this->userUpdateError($request, $response, $id, t('admin.username_must_contain_2_50_chinese_characters_letters'));
         }
         if (!filter_var($email, FILTER_VALIDATE_EMAIL) || mb_strlen($email) > 255) {
-            return $this->userUpdateError($request, $response, $id, '邮箱格式不正确');
+            return $this->userUpdateError($request, $response, $id, t('admin.invalid_email_format'));
         }
         if (!in_array($role, self::ROLES, true)) {
-            return $this->userUpdateError($request, $response, $id, '无效角色');
+            return $this->userUpdateError($request, $response, $id, t('admin.invalid_role'));
         }
         $roleError = $this->adminRoleChangeError($user, $role);
         if ($roleError !== null) {
             return $this->userUpdateError($request, $response, $id, $roleError, 403);
         }
         if ($avatarUrl !== '' && !preg_match('#^(?:https?://|/)#i', $avatarUrl)) {
-            return $this->userUpdateError($request, $response, $id, '头像地址需使用 http(s) 或站内路径');
+            return $this->userUpdateError($request, $response, $id, t('admin.the_avatar_url_must_use_http_s_or'));
         }
         if ($password !== '' && (!Auth::validPassword($password))) {
-            return $this->userUpdateError($request, $response, $id, Auth::PASSWORD_RULE . '，留空表示不修改');
+            return $this->userUpdateError($request, $response, $id, t('admin.password_rule') . t('admin.leave_blank_to_keep_the_current_value'));
         }
         if ($password !== '' && array_key_exists('password_confirm', $body) && !hash_equals($password, $passwordConfirm)) {
-            return $this->userUpdateError($request, $response, $id, '两次输入的密码不一致');
+            return $this->userUpdateError($request, $response, $id, t('admin.the_passwords_do_not_match'));
         }
 
         $duplicate = DB::fetchOne(
@@ -215,7 +215,7 @@ final class UsersController extends AdminController
             [$username, strtolower($email), $id]
         );
         if ($duplicate !== null) {
-            return $this->userUpdateError($request, $response, $id, '用户名或邮箱已被其他用户使用', 409);
+            return $this->userUpdateError($request, $response, $id, t('admin.username_or_email_is_used_by_another_user'), 409);
         }
 
         \Pafish\Services\MediaReferences::transaction(static function () use ($password, $username, $nickname, $email, $avatarUrl, $description, $role, $id): void {
@@ -238,7 +238,7 @@ final class UsersController extends AdminController
         if ($this->isAjax($request)) {
             return $this->json($response, ['ok' => true]);
         }
-        $this->flash('success', '用户资料已更新');
+        $this->flash('success', t('admin.user_profile_updated'));
         return $this->redirect($response, '/admin/users/' . $id . '/edit');
     }
 
@@ -248,15 +248,15 @@ final class UsersController extends AdminController
         $this->guardAdmin();
         $body = $request->getParsedBody() ?? [];
         if (!Session::verifyCsrf((string) ($body['_csrf'] ?? ''))) {
-            return $this->json($response, ['error' => '会话已过期，请刷新页面重试'], 419);
+            return $this->json($response, ['error' => t('admin.your_session_has_expired_refresh_the_page_and')], 419);
         }
         $action = (string) ($body['action'] ?? '');
         if (!in_array($action, ['disable', 'enable', 'set_role'], true)) {
-            return $this->json($response, ['error' => '无效操作'], 400);
+            return $this->json($response, ['error' => t('admin.invalid_action')], 400);
         }
         $role = strtoupper(trim((string) ($body['role'] ?? '')));
         if ($action === 'set_role' && !in_array($role, self::ROLES, true)) {
-            return $this->json($response, ['error' => '无效角色'], 400);
+            return $this->json($response, ['error' => t('admin.invalid_role')], 400);
         }
         $ids = $body['ids'] ?? [];
         if (!is_array($ids)) {
@@ -264,7 +264,7 @@ final class UsersController extends AdminController
         }
         $ids = array_values(array_unique(array_filter(array_map('intval', $ids), static fn (int $id): bool => $id > 0)));
         if ($ids === []) {
-            return $this->json($response, ['error' => '请先选择用户'], 400);
+            return $this->json($response, ['error' => t('admin.select_users_first')], 400);
         }
         $meId = (int) (Auth::id() ?? 0);
         $changed = 0;
@@ -295,18 +295,18 @@ final class UsersController extends AdminController
         $this->guardAdmin();
         $body = $request->getParsedBody() ?? [];
         if (!Session::verifyCsrf((string) ($body['_csrf'] ?? ''))) {
-            return $this->json($response, ['error' => '会话已过期，请刷新页面重试'], 419);
+            return $this->json($response, ['error' => t('admin.your_session_has_expired_refresh_the_page_and')], 419);
         }
         $user = $this->findUser($request, $response, $args);
         if ($user instanceof Response) {
             return $user;
         }
         if ((int) $user['id'] === 1 && (string) $user['role'] === 'ADMIN') {
-            return $this->json($response, ['error' => '创始人账号不能修改角色'], 403);
+            return $this->json($response, ['error' => t('admin.the_founder_s_role_cannot_be_changed')], 403);
         }
         $role = (string) ($body['role'] ?? '');
         if (!in_array($role, self::ROLES, true)) {
-            return $this->json($response, ['error' => '无效角色'], 400);
+            return $this->json($response, ['error' => t('admin.invalid_role')], 400);
         }
         $roleError = $this->adminRoleChangeError($user, $role);
         if ($roleError !== null) {
@@ -323,17 +323,17 @@ final class UsersController extends AdminController
         $me = Auth::user();
         $body = $request->getParsedBody() ?? [];
         if (!Session::verifyCsrf((string) ($body['_csrf'] ?? ''))) {
-            return $this->json($response, ['error' => '会话已过期，请刷新页面重试'], 419);
+            return $this->json($response, ['error' => t('admin.your_session_has_expired_refresh_the_page_and')], 419);
         }
         $user = $this->findUser($request, $response, $args);
         if ($user instanceof Response) {
             return $user;
         }
         if ((int) $user['id'] === (int) $me['id']) {
-            return $this->json($response, ['error' => '不能禁用自己的账号'], 400);
+            return $this->json($response, ['error' => t('admin.you_cannot_disable_your_own_account')], 400);
         }
         if ((int) $user['id'] === 1 && (string) $user['role'] === 'ADMIN') {
-            return $this->json($response, ['error' => '创始人账号不能禁用'], 403);
+            return $this->json($response, ['error' => t('admin.the_founder_s_account_cannot_be_disabled')], 403);
         }
         $new = ((int) $user['disabled']) === 1 ? 0 : 1;
         DB::execute(
@@ -349,18 +349,18 @@ final class UsersController extends AdminController
         $this->guardAdmin();
         $body = $request->getParsedBody() ?? [];
         if (!Session::verifyCsrf((string) ($body['_csrf'] ?? ''))) {
-            return $this->json($response, ['error' => '会话已过期，请刷新页面重试'], 419);
+            return $this->json($response, ['error' => t('admin.your_session_has_expired_refresh_the_page_and')], 419);
         }
         $user = $this->findUser($request, $response, $args);
         if ($user instanceof Response) {
             return $user;
         }
         if ((int) $user['id'] === 1 && (string) $user['role'] === 'ADMIN' && (int) (Auth::id() ?? 0) !== 1) {
-            return $this->json($response, ['error' => '创始人账号只能由本人重置密码'], 403);
+            return $this->json($response, ['error' => t('admin.only_the_founder_can_reset_this_account_s')], 403);
         }
         $new = (string) ($body['password'] ?? '');
         if (!Auth::validPassword($new)) {
-            return $this->json($response, ['error' => Auth::PASSWORD_RULE], 400);
+            return $this->json($response, ['error' => t('admin.password_rule')], 400);
         }
         DB::transaction(static function () use ($new, $user): void {
             DB::execute(
@@ -378,30 +378,30 @@ final class UsersController extends AdminController
         $this->guardAdmin();
         $body = $request->getParsedBody() ?? [];
         if (!Session::verifyCsrf((string) ($body['_csrf'] ?? ''))) {
-            return $this->userUpdateError($request, $response, (int) ($args['id'] ?? 0), '会话已过期，请刷新页面重试', 419);
+            return $this->userUpdateError($request, $response, (int) ($args['id'] ?? 0), t('admin.your_session_has_expired_refresh_the_page_and'), 419);
         }
         $user = DB::fetchOne('SELECT id FROM users WHERE id = ?', [(int) ($args['id'] ?? 0)]);
         if ($user === null) {
-            return $this->userUpdateError($request, $response, (int) ($args['id'] ?? 0), '用户不存在', 404);
+            return $this->userUpdateError($request, $response, (int) ($args['id'] ?? 0), t('admin.user_not_found'), 404);
         }
         $amountText = trim((string) ($body['amount'] ?? ''));
         if (!preg_match('/^-?[1-9][0-9]*$/', $amountText) || abs((int) $amountText) > 100000000) {
-            return $this->userUpdateError($request, $response, (int) $user['id'], '积分调整必须是 1 至 100000000 的整数（可为负数）');
+            return $this->userUpdateError($request, $response, (int) $user['id'], t('admin.the_adjustment_must_be_an_integer_from_1'));
         }
-        $reason = trim((string) ($body['reason'] ?? '管理员调整'));
+        $reason = trim((string) ($body['reason'] ?? t('admin.administrator_adjustment')));
         if ($reason === '') {
-            $reason = '管理员调整';
+            $reason = t('admin.administrator_adjustment');
         }
         try {
             $balance = Points::adjust((int) $user['id'], (int) $amountText, mb_substr($reason, 0, 120));
             if (!$this->isAjax($request)) {
-                $this->flash('success', '积分已调整，当前余额为 ' . $balance);
+                $this->flash('success', t('admin.points_adjusted_current_balance') . $balance);
                 return $this->redirect($response, '/admin/users/' . (int) $user['id'] . '/edit');
             }
             return $this->json($response, ['ok' => true, 'balance' => $balance]);
         } catch (\Throwable $e) {
             \Pafish\Core\Logger::error('[pafish-user-points] ' . $e->getMessage());
-            return $this->userUpdateError($request, $response, (int) $user['id'], '积分调整失败，请稍后重试', 400);
+            return $this->userUpdateError($request, $response, (int) $user['id'], t('admin.unable_to_adjust_points_please_try_again_later'), 400);
         }
     }
 
@@ -411,23 +411,23 @@ final class UsersController extends AdminController
         $this->guardAdmin();
         $body = $request->getParsedBody() ?? [];
         if (!Session::verifyCsrf((string) ($body['_csrf'] ?? ''))) {
-            return $this->userDeleteError($request, $response, '会话已过期，请刷新页面重试', 419);
+            return $this->userDeleteError($request, $response, t('admin.your_session_has_expired_refresh_the_page_and'), 419);
         }
         $user = DB::fetchOne('SELECT * FROM users WHERE id = ?', [(int) ($args['id'] ?? 0)]);
         $meId = (int) (Auth::id() ?? 0);
         if ($user === null) {
-            return $this->userDeleteError($request, $response, '用户不存在', 404);
+            return $this->userDeleteError($request, $response, t('admin.user_not_found'), 404);
         }
         $id = (int) $user['id'];
         if ($id === $meId) {
-            return $this->userDeleteError($request, $response, '不能删除当前登录账号');
+            return $this->userDeleteError($request, $response, t('admin.you_cannot_delete_your_own_account'));
         }
         if ($id === 1 && (string) $user['role'] === 'ADMIN') {
-            return $this->userDeleteError($request, $response, '创始人账号不能删除', 403);
+            return $this->userDeleteError($request, $response, t('admin.the_founder_s_account_cannot_be_deleted'), 403);
         }
         $target = DB::fetchOne('SELECT id FROM users WHERE id = ?', [$meId]);
         if ($target === null) {
-            return $this->userDeleteError($request, $response, '当前管理员账号不存在', 409);
+            return $this->userDeleteError($request, $response, t('admin.the_current_administrator_account_does_not_exist'), 409);
         }
 
         try {
@@ -449,7 +449,7 @@ final class UsersController extends AdminController
             });
         } catch (\Throwable $e) {
             \Pafish\Core\Logger::error('[pafish-user-delete] ' . $e->getMessage());
-            return $this->userDeleteError($request, $response, '删除用户失败，请检查数据库约束后重试', 500);
+            return $this->userDeleteError($request, $response, t('admin.unable_to_delete_this_user_check_database_constraints'), 500);
         }
 
         \do_action('after_user_delete', [
@@ -461,7 +461,7 @@ final class UsersController extends AdminController
         if ($this->isAjax($request)) {
             return $this->json($response, ['ok' => true, 'transfer_to' => $meId]);
         }
-        $this->flash('success', '用户已删除，内容已转移给当前管理员');
+        $this->flash('success', t('admin.user_deleted_content_transferred_to_the_current_administrator'));
         return $this->redirect($response, '/admin/users');
     }
 
@@ -490,11 +490,11 @@ final class UsersController extends AdminController
             return null;
         }
         if ((int) ($user['id'] ?? 0) === (int) (Auth::id() ?? 0)) {
-            return '不能降低当前登录账号的管理员权限';
+            return t('admin.you_cannot_remove_your_own_administrator_privileges');
         }
         $activeAdmins = (int) DB::value("SELECT COUNT(*) FROM users WHERE role = 'ADMIN' AND disabled = 0");
         $targetIsActive = (int) ($user['disabled'] ?? 0) === 0;
-        return $targetIsActive && $activeAdmins <= 1 ? '系统至少需要保留一名启用的管理员' : null;
+        return $targetIsActive && $activeAdmins <= 1 ? t('admin.at_least_one_active_administrator_must_remain') : null;
     }
 
     /** 按 id 查用户；不存在时返回 400 JSON 响应（调用方直接 return） */
@@ -502,7 +502,7 @@ final class UsersController extends AdminController
     {
         $user = DB::fetchOne('SELECT * FROM users WHERE id = ?', [(int) ($args['id'] ?? 0)]);
         if ($user === null) {
-            return $this->json($response, ['error' => '用户不存在'], 400);
+            return $this->json($response, ['error' => t('admin.user_not_found')], 400);
         }
         return $user;
     }

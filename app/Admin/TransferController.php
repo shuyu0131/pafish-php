@@ -14,7 +14,7 @@ final class TransferController extends AdminController
     public function index(Request $request, Response $response): Response
     {
         $this->guardAdmin();
-        $response->getBody()->write($this->render('transfer', [], '内容迁移'));
+        $response->getBody()->write($this->render('transfer', [], t('admin.content_migration')));
         return $response;
     }
 
@@ -35,12 +35,12 @@ final class TransferController extends AdminController
         $upload = $files['file'] ?? null;
         if ($raw === '' && $upload instanceof UploadedFileInterface) {
             if ($upload->getError() !== UPLOAD_ERR_OK) {
-                return $this->json($response, ['error' => 'JSON 文件上传失败'], 400);
+                return $this->json($response, ['error' => t('admin.json_upload_failed')], 400);
             }
             $raw = trim($upload->getStream()->getContents());
         }
         $payload = json_decode($raw, true);
-        if (!is_array($payload)) return $this->json($response, ['error' => 'JSON 内容无效'], 400);
+        if (!is_array($payload)) return $this->json($response, ['error' => t('admin.invalid_json_content')], 400);
         try { return $this->json($response, ['ok' => true, 'counts' => ContentTransfer::import($payload, (string) ($body['mode'] ?? 'skip'))]); }
         catch (\Throwable $e) { return $this->json($response, ['error' => $e->getMessage()], 400); }
     }

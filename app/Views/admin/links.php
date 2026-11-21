@@ -16,43 +16,43 @@ foreach ($items as $l) {
 <div class="admin-stack admin-detail-page admin-links-page">
   <div class="admin-page-head">
     <div>
-      <h1 class="admin-h1">友情链接</h1>
-      <p class="admin-page-sub">展示在首页底部，共 <?= $count ?> 个（含隐藏 <?= $hidden ?> 个）</p>
+      <h1 class="admin-h1"><?= e(t('admin.friend_links')) ?></h1>
+      <p class="admin-page-sub"><?= e(t('admin.shown_at_the_bottom_of_the_homepage_total')) ?> <?= $count ?> <?= e(t('admin.items_including_hidden')) ?> <?= $hidden ?> <?= e(t('admin.items_21c203')) ?></p>
     </div>
-    <button type="button" class="btn btn-primary" data-entity-new="linksModal"><?= admin_icon('plus', 15) ?>添加链接</button>
+    <button type="button" class="btn btn-primary" data-entity-new="linksModal"><?= admin_icon('plus', 15) ?><?= e(t('admin.add_link')) ?></button>
   </div>
 
   <!-- 列表 -->
   <?php if ($count === 0): ?>
     <div class="admin-empty-list card">
       <?= admin_icon('link', 32) ?>
-      <p>还没有友情链接</p>
+      <p><?= e(t('admin.no_friend_links_yet')) ?></p>
     </div>
   <?php else: ?>
     <div class="admin-table-wrap admin-order-table-wrap">
       <table class="admin-table admin-order-table">
-        <thead><tr><th>名称</th><th>地址</th><th>状态</th><th class="admin-col-ops">操作</th></tr></thead>
+        <thead><tr><th><?= e(t('common.name')) ?></th><th><?= e(t('admin.url')) ?></th><th><?= e(t('common.status')) ?></th><th class="admin-col-ops"><?= e(t('common.actions')) ?></th></tr></thead>
         <tbody data-admin-sort="<?= e(url_to('/admin/links/reorder')) ?>" data-sort-csrf="<?= e(csrf_token()) ?>">
       <?php foreach ($items as $i => $l): ?>
         <tr class="admin-list-row" data-id="<?= (int) $l['id'] ?>"
              data-name="<?= e($l['name']) ?>" data-url="<?= e($l['url']) ?>"
              data-description="<?= e($l['description'] ?? '') ?>" data-icon="<?= e($l['icon_url'] ?? '') ?>">
-          <td data-label="名称"><button type="button" class="admin-icon-btn admin-sort-handle" aria-label="拖动排序" title="拖动排序"><svg width="14" height="18" viewBox="0 0 14 18" aria-hidden="true" fill="currentColor"><circle cx="4" cy="4" r="1.2"/><circle cx="10" cy="4" r="1.2"/><circle cx="4" cy="9" r="1.2"/><circle cx="10" cy="9" r="1.2"/><circle cx="4" cy="14" r="1.2"/><circle cx="10" cy="14" r="1.2"/></svg></button><span class="admin-list-name"><?= e($l['name']) ?></span></td>
-          <td data-label="地址"><div class="admin-muted"><?= e($l['url']) ?><?= ($l['description'] ?? '') !== '' ? ' · ' . e($l['description']) : '' ?></div></td>
-          <td data-label="状态">
+          <td data-label="<?= e(t('common.name')) ?>"><button type="button" class="admin-icon-btn admin-sort-handle" aria-label="<?= e(t('admin.drag_to_reorder')) ?>" title="<?= e(t('admin.drag_to_reorder')) ?>"><svg width="14" height="18" viewBox="0 0 14 18" aria-hidden="true" fill="currentColor"><circle cx="4" cy="4" r="1.2"/><circle cx="10" cy="4" r="1.2"/><circle cx="4" cy="9" r="1.2"/><circle cx="10" cy="9" r="1.2"/><circle cx="4" cy="14" r="1.2"/><circle cx="10" cy="14" r="1.2"/></svg></button><span class="admin-list-name"><?= e($l['name']) ?></span></td>
+          <td data-label="<?= e(t('admin.url')) ?>"><div class="admin-muted"><?= e($l['url']) ?><?= ($l['description'] ?? '') !== '' ? ' · ' . e($l['description']) : '' ?></div></td>
+          <td data-label="<?= e(t('common.status')) ?>">
             <?php if ((int) $l['visible'] === 0): ?>
-              <span class="badge badge-danger">已隐藏</span>
+              <span class="badge badge-danger"><?= e(t('admin.hidden')) ?></span>
             <?php endif; ?>
-            <?php if ((int) $l['visible'] === 1): ?><span class="badge">已显示</span><?php endif; ?>
+            <?php if ((int) $l['visible'] === 1): ?><span class="badge"><?= e(t('admin.visible')) ?></span><?php endif; ?>
           </td>
-          <td data-label="操作" class="admin-col-ops"><div class="admin-list-ops">
-            <button type="button" class="admin-icon-btn" data-move="up" title="上移" <?= $i === 0 ? 'disabled' : '' ?>><?= admin_icon('chevron-up', 15) ?></button>
-            <button type="button" class="admin-icon-btn" data-move="down" title="下移" <?= $i === $count - 1 ? 'disabled' : '' ?>><?= admin_icon('chevron-down', 15) ?></button>
-            <button type="button" class="admin-icon-btn" data-toggle title="<?= (int) $l['visible'] === 1 ? '隐藏' : '显示' ?>">
+          <td data-label="<?= e(t('common.actions')) ?>" class="admin-col-ops"><div class="admin-list-ops">
+            <button type="button" class="admin-icon-btn" data-move="up" title="<?= e(t('admin.move_up')) ?>" <?= $i === 0 ? 'disabled' : '' ?>><?= admin_icon('chevron-up', 15) ?></button>
+            <button type="button" class="admin-icon-btn" data-move="down" title="<?= e(t('admin.move_down')) ?>" <?= $i === $count - 1 ? 'disabled' : '' ?>><?= admin_icon('chevron-down', 15) ?></button>
+            <button type="button" class="admin-icon-btn" data-toggle title="<?= (int) $l['visible'] === 1 ? t('admin.hide') : t('admin.show') ?>">
               <?= admin_icon((int) $l['visible'] === 1 ? 'eye' : 'eye-off', 15) ?>
             </button>
-            <button type="button" class="admin-icon-btn" data-entity-edit="linksModal" title="编辑"><?= admin_icon('edit', 15) ?></button>
-            <button type="button" class="admin-icon-btn admin-icon-danger" data-delete title="删除"><?= admin_icon('trash', 15) ?></button>
+            <button type="button" class="admin-icon-btn" data-entity-edit="linksModal" title="<?= e(t('common.edit')) ?>"><?= admin_icon('edit', 15) ?></button>
+            <button type="button" class="admin-icon-btn admin-icon-danger" data-delete title="<?= e(t('common.delete')) ?>"><?= admin_icon('trash', 15) ?></button>
           </div></td>
         </tr>
       <?php endforeach; ?>
@@ -65,19 +65,19 @@ foreach ($items as $l) {
 <?php ob_start(); ?>
 <div class="admin-form-grid">
         <div class="admin-field">
-          <label class="label" for="linksName">站点名称 *</label>
-          <input class="input" type="text" name="name" placeholder="站点名称" maxlength="100" id="linksName" required>
+          <label class="label" for="linksName"><?= e(t('admin.site_name')) ?></label>
+          <input class="input" type="text" name="name" placeholder="<?= e(t('admin.site_name_e72ec8')) ?>" maxlength="100" id="linksName" required>
         </div>
         <div class="admin-field">
-          <label class="label" for="linksUrl">地址 *</label>
+          <label class="label" for="linksUrl"><?= e(t('admin.url_7c05d9')) ?></label>
           <input class="input" type="text" name="url" placeholder="https://example.com" maxlength="500" id="linksUrl" required>
         </div>
         <div class="admin-field">
-          <label class="label" for="linksDescription">简介（可选）</label>
-          <input class="input" type="text" name="description" placeholder="一句话介绍" maxlength="255" id="linksDescription">
+          <label class="label" for="linksDescription"><?= e(t('admin.description_optional')) ?></label>
+          <input class="input" type="text" name="description" placeholder="<?= e(t('admin.short_bio')) ?>" maxlength="255" id="linksDescription">
         </div>
         <div class="admin-field">
-          <label class="label" for="linkIcon">站点图标</label>
+          <label class="label" for="linkIcon"><?= e(t('admin.site_icon')) ?></label>
           <?php $imageId = 'linkIcon'; $imageName = 'icon_url'; $imageValue = ''; require __DIR__ . '/partials/image-field.php'; ?>
         </div>
       </div>
@@ -85,7 +85,7 @@ foreach ($items as $l) {
 $entityFields = (string) ob_get_clean();
 $entityModalId = 'linksModal';
 $entityFormId = 'createForm';
-$entityConfig = ['createTitle'=>'添加链接', 'editTitle'=>'编辑链接', 'savedMessage'=>'链接已保存',
+$entityConfig = ['createTitle'=>t('admin.add_link'), 'editTitle'=>t('admin.edit_link'), 'savedMessage'=>t('admin.link_saved'),
     'savePath'=>'/admin/links/save', 'basePath'=>'/admin/links', 'fields'=>['name'=>'name','url'=>'url','description'=>'description','icon_url'=>'icon']];
 require __DIR__ . '/partials/entity-modal.php';
 ?>
@@ -110,10 +110,10 @@ require __DIR__ . '/partials/entity-modal.php';
       post(base + "/" + row.getAttribute("data-id") + "/toggle")
         .then(function (r) { return r.json(); })
         .then(function (j) {
-          if (j && j.ok) pafishToastReload("链接状态已更新", "success");
-          else pafishNotify((j && j.error) || "操作失败", true);
+          if (j && j.ok) pafishToastReload(window.pafishT("js.link_visibility_updated"), "success");
+          else pafishNotify((j && j.error) || window.pafishT("common.operation_failed"), true);
         })
-        .catch(function () { pafishNotify("网络错误", true); });
+        .catch(function () { pafishNotify(window.pafishT("js.network_error"), true); });
     });
   });
 
@@ -123,8 +123,8 @@ require __DIR__ . '/partials/entity-modal.php';
       var row = btn.closest(".admin-list-row");
       post(base + "/" + row.getAttribute("data-id") + "/move", { dir: btn.getAttribute("data-move") })
         .then(function (r) { return r.json(); })
-        .then(function (j) { if (j && j.ok) pafishToastReload("链接顺序已更新", "success"); else pafishNotify((j && j.error) || "操作失败", true); })
-        .catch(function () { pafishNotify("网络错误", true); });
+        .then(function (j) { if (j && j.ok) pafishToastReload(window.pafishT("js.link_order_updated"), "success"); else pafishNotify((j && j.error) || window.pafishT("common.operation_failed"), true); })
+        .catch(function () { pafishNotify(window.pafishT("js.network_error"), true); });
     });
   });
 
@@ -133,15 +133,15 @@ require __DIR__ . '/partials/entity-modal.php';
     btn.addEventListener("click", function () {
       var row = btn.closest(".admin-list-row");
       var name = row.getAttribute("data-name");
-      (window.pafishConfirm ? window.pafishConfirm("确定删除链接「" + name + "」？", { title: "删除链接" }) : Promise.resolve(window.confirm("确定删除链接「" + name + "」？"))).then(function (ok) {
+      (window.pafishConfirm ? window.pafishConfirm(window.pafishT("js.confirm_delete_link", {name: name}), { title: window.pafishT("js.delete_link_5f8cb7") }) : Promise.resolve(window.confirm(window.pafishT("js.confirm_delete_link", {name: name})))).then(function (ok) {
         if (!ok) return;
         return post(base + "/" + row.getAttribute("data-id") + "/delete")
         .then(function (r) { return r.json(); })
         .then(function (j) {
-          if (j && j.ok) pafishToastReload("链接已删除", "success");
-          else pafishNotify((j && j.error) || "删除失败", true);
+          if (j && j.ok) pafishToastReload(window.pafishT("js.link_deleted"), "success");
+          else pafishNotify((j && j.error) || window.pafishT("js.delete_failed"), true);
         })
-        .catch(function () { pafishNotify("网络错误", true); });
+        .catch(function () { pafishNotify(window.pafishT("js.network_error"), true); });
       });
     });
   });

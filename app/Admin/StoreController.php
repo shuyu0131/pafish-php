@@ -61,7 +61,7 @@ final class StoreController extends AdminController
             'storeUrl' => Store::baseUrl(),
             'storeAccount' => $account,
             'storeAccountStatus' => $accountState['status'],
-        ], '应用商店'));
+        ], t('admin.app_store')));
         return $response;
     }
 
@@ -89,16 +89,16 @@ final class StoreController extends AdminController
         $kind = (string) ($body['kind'] ?? '');
         $name = (string) ($body['name'] ?? '');
         if (!in_array($kind, self::KINDS, true)) {
-            return $this->json($response, ['error' => '无效的类型'], 400);
+            return $this->json($response, ['error' => t('admin.invalid_type')], 400);
         }
         try {
             $catalog = Store::catalog($kind, 'refresh');
             if (!$catalog->isInstallable()) {
-                throw new \RuntimeException('商店目录暂不可用，请稍后重试或检查服务器能否访问官方商店');
+                throw new \RuntimeException(t('admin.the_store_catalogue_is_unavailable_try_again_later'));
             }
             $item = $catalog->find($name);
             if ($item === null) {
-                throw new \RuntimeException('商店中不存在该条目');
+                throw new \RuntimeException(t('admin.this_item_was_not_found_in_the_store'));
             }
             self::assertPurchaseAccess($kind, $item);
             $result = Store::installFromStore($kind, $name, $catalog->base, $item);
@@ -121,16 +121,16 @@ final class StoreController extends AdminController
         $kind = (string) ($body['kind'] ?? '');
         $name = (string) ($body['name'] ?? '');
         if (!in_array($kind, self::KINDS, true)) {
-            return $this->json($response, ['error' => '无效的类型'], 400);
+            return $this->json($response, ['error' => t('admin.invalid_type')], 400);
         }
         try {
             $catalog = Store::catalog($kind, 'refresh');
             if (!$catalog->isInstallable()) {
-                throw new \RuntimeException('商店目录暂不可用，请稍后重试或检查服务器能否访问官方商店');
+                throw new \RuntimeException(t('admin.the_store_catalogue_is_unavailable_try_again_later'));
             }
             $item = $catalog->find($name);
             if ($item === null) {
-                throw new \RuntimeException('商店中不存在该条目');
+                throw new \RuntimeException(t('admin.this_item_was_not_found_in_the_store'));
             }
             self::assertPurchaseAccess($kind, $item);
             $result = Store::updateFromStore($kind, $name, $catalog->base, $item);
@@ -154,7 +154,7 @@ final class StoreController extends AdminController
 
         $state = Store::accountStatus();
         if (($state['status'] ?? '') !== 'bound') {
-            throw new \RuntimeException('该付费应用需要已绑定的官网账号，请先在「站点设置 → 应用商店」中绑定账号');
+            throw new \RuntimeException(t('admin.link_the_official_account_that_purchased_this_app'));
         }
         foreach ((array)($state['data']['purchases'] ?? $state['data']['licenses'] ?? []) as $license) {
             if (($license['type'] ?? '') === $kind
@@ -163,6 +163,6 @@ final class StoreController extends AdminController
                 return;
             }
         }
-        throw new \RuntimeException('当前绑定的官网账号尚未购买此应用');
+        throw new \RuntimeException(t('admin.the_linked_official_account_has_not_purchased_this'));
     }
 }

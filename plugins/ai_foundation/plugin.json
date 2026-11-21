@@ -1,7 +1,7 @@
 {
   "name": "ai_foundation",
   "title": "AI Foundation",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "apiVersion": 2,
   "description": "统一管理 OpenAI 兼容聊天模型，并为其他插件提供文本生成能力。",
   "author": "纸鱼官方",

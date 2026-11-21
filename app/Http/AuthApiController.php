@@ -30,6 +30,21 @@ final class AuthApiController
 {
     // ---------- 登录 / 登出 ----------
 
+    /** 供后台旧标签页检查登录状态；不返回用户资料或 CSRF 明文。 */
+    public function session(Request $request, Response $response): Response
+    {
+        $response = $response->withHeader('Cache-Control', 'no-store');
+        if (!Auth::check()) {
+            return $this->json($response, [
+                'error' => t('js.session_expired_message'), 'code' => 'AUTH_REQUIRED',
+            ], 401);
+        }
+        return $this->json($response, [
+            'ok' => true,
+            'context' => hash('sha256', Auth::id() . ':' . Session::csrfToken()),
+        ]);
+    }
+
     public function login(Request $request, Response $response): Response
     {
         $body = $request->getParsedBody() ?? [];

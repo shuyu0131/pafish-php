@@ -54,6 +54,8 @@ use Pafish\Http\MicroController;
 $app->get('/', [HomeController::class, 'index']);
 
 // 文章详情与互动
+$app->get('/post/id/{id:[1-9][0-9]*}', [PostController::class, 'show']);
+$app->post('/post/id/{id:[1-9][0-9]*}', [PostController::class, 'show']);
 $app->get('/post/{slug}', [PostController::class, 'show']);
 $app->post('/post/{slug}', [PostController::class, 'show']);
 $app->get('/{year:\d{4}}/{month:\d{2}}/{slug}', [PostController::class, 'show']);
@@ -96,6 +98,7 @@ $app->post('/register', [AuthPageController::class, 'submitRegister']);
 $app->post('/forgot-password', [AuthPageController::class, 'submitForgot']);
 $app->post('/reset-password', [AuthPageController::class, 'submitReset']);
 $app->post('/api/auth/login', [AuthApiController::class, 'login']);
+$app->get('/api/auth/session', [AuthApiController::class, 'session']);
 $app->post('/api/auth/logout', [AuthApiController::class, 'logout']);
 $app->post('/api/auth/send-code', [AuthApiController::class, 'sendCode']);
 $app->post('/api/auth/register', [AuthApiController::class, 'register']);

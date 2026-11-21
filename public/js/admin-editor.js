@@ -134,7 +134,7 @@
       type: "post",
       mount: mount,
       field: els.content,
-      placeholder: DATA.uploadUrl ? "开始写作…（支持拖拽/粘贴图片上传）" : "开始写作…",
+      placeholder: DATA.uploadUrl ? window.pafishT("js.start_writing_drag_or_paste_images_to_upload") : window.pafishT("js.start_writing"),
       previewUrl: DATA.previewUrl,
       uploadUrl: DATA.uploadUrl,
       externalMedia: false,
@@ -205,7 +205,7 @@
       b.disabled = pending !== null;
       if (pending === b.getAttribute("data-save")) {
         b.dataset.origText = b.dataset.origText || b.textContent;
-        b.textContent = "保存中…";
+        b.textContent = window.pafishT("common.saving");
       } else if (b.dataset.origText) {
         b.textContent = b.dataset.origText;
       }
@@ -217,13 +217,13 @@
   function updateAutosave() {
     if (!els.autosave) return;
     if (pending === "auto") {
-      els.autosave.textContent = "自动保存中…";
+      els.autosave.textContent = window.pafishT("js.autosaving");
     } else if (autosaveFailed) {
-      els.autosave.textContent = "自动保存失败，请手动保存";
+      els.autosave.textContent = window.pafishT("js.autosave_failed_please_save_manually");
     } else if (lastSavedAt !== null) {
-      els.autosave.textContent = "已自动保存 " + lastSavedAt + (isDirty() ? "（还有未保存更改）" : "");
+      els.autosave.textContent = window.pafishT("js.autosaved") + lastSavedAt + (isDirty() ? window.pafishT("js.unsaved_changes_remain") : "");
     } else {
-      els.autosave.textContent = "每 60 秒自动保存";
+      els.autosave.textContent = window.pafishT("js.autosave_every_60_seconds");
     }
   }
 
@@ -265,16 +265,16 @@
 
   function submit(action) {
     if (pending) return;
-    if (window.__pafishEditor && !window.__pafishEditor.isReady()) { showError("编辑器正在加载或上传，请稍候"); return; }
+    if (window.__pafishEditor && !window.__pafishEditor.isReady()) { showError(window.pafishT("js.the_editor_is_loading_or_uploading_please_wait")); return; }
     clearError();
-    if (!els.title.value.trim()) { showError("请填写标题"); return; }
+    if (!els.title.value.trim()) { showError(window.pafishT("js.enter_a_title")); return; }
     // 纯外链条目（导航站/书签站）没有自己的正文，填了外链就放行；
     // 服务端同样是这个条件（见 PostsController::savePost）。
     if (!DATA.emptyContentAllowed && !editorValue().trim() && !els.externalUrl.value.trim()) {
-      showError("请填写正文内容（纯外链条目请填写外链地址）");
+      showError(window.pafishT("js.enter_content_or_provide_an_external_url_for"));
       return;
     }
-    if (action === "schedule" && !els.scheduledAt.value) { showError("请选择定时发布时间"); return; }
+    if (action === "schedule" && !els.scheduledAt.value) { showError(window.pafishT("js.choose_a_scheduled_publication_time")); return; }
     pending = action;
     updatePendingUI();
     manualRequestToken = manualRequestToken || requestToken();
@@ -286,18 +286,18 @@
     })
       .then(function (r) { return r.json().catch(function () { return {}; }); })
       .then(function (d) {
-        if (!d.ok) throw new Error(d.error || "保存失败");
+        if (!d.ok) throw new Error(d.error || window.pafishT("js.save_failed"));
         manualRequestToken = null;
         var published = d.status === "PUBLISHED";
         var submissionSent = DATA.submissionMode && action === "publish";
         var destination = DATA.submissionMode
           ? (submissionSent ? DATA.listUrl : DATA.editUrl.replace("{id}", d.id))
           : (published ? DATA.listUrl : DATA.editUrl.replace("{id}", d.id));
-        var message = d.message || (published ? "文章已发布" : (action === "draft" ? "草稿已保存" : "文章已保存"));
+        var message = d.message || (published ? window.pafishT("js.post_published") : (action === "draft" ? window.pafishT("js.draft_saved") : window.pafishT("js.post_saved")));
         pafishToastNavigate(destination, message, "success");
       })
       .catch(function (e) {
-        showError(e.message || "保存失败");
+        showError(e.message || window.pafishT("js.save_failed"));
         pending = null;
         updatePendingUI();
       });
@@ -321,7 +321,7 @@
     })
       .then(function (r) { return r.json().catch(function () { return {}; }); })
       .then(function (d) {
-        if (!d.ok) throw new Error(d.error || "自动保存失败");
+        if (!d.ok) throw new Error(d.error || window.pafishT("js.autosave_failed"));
         lastSavedAt = nowTime();
         autosaveFailed = false;
         autoRequestToken = null;
@@ -341,7 +341,7 @@
       .catch(function () {
         if (!autosaveFailed) {
           autosaveFailed = true;
-          if (typeof window.pafishNotify === "function") window.pafishNotify("自动保存失败，请手动保存", true);
+          if (typeof window.pafishNotify === "function") window.pafishNotify(window.pafishT("js.autosave_failed_please_save_manually"), true);
         }
       })
       .then(function () {
@@ -353,35 +353,35 @@
   // ---------- 分类选择 ----------
   function catOptionList() {
     var q = catQuery.trim().toLowerCase();
-    var list = [{ value: "", label: "无分类", depth: -1 }];
+    var list = [{ value: "", label: window.pafishT("js.uncategorized"), depth: -1 }];
     categories.forEach(function (c) {
       if (!q || c.name.toLowerCase().indexOf(q) !== -1) {
         list.push({ value: String(c.id), label: c.name, depth: c.depth });
       }
     });
-    if (DATA.allowNewCategories) list.push({ value: "__new__", label: "＋ 新建分类…", depth: -1 });
+    if (DATA.allowNewCategories) list.push({ value: "__new__", label: window.pafishT("js.new_category_b0de4a"), depth: -1 });
     return list;
   }
   function catCurrentLabel() {
-    if (currentCategory === "__new__") return "＋ 新建分类…";
-    if (currentCategory === "") return "无分类";
+    if (currentCategory === "__new__") return window.pafishT("js.new_category_b0de4a");
+    if (currentCategory === "") return window.pafishT("js.uncategorized");
     var hit = categories.filter(function (c) { return String(c.id) === currentCategory; })[0];
-    return hit ? hit.name : "无分类";
+    return hit ? hit.name : window.pafishT("js.uncategorized");
   }
   function renderCatSelect() {
     var list = catOptionList();
     els.catSelect.dataset.open = catOpen ? "1" : "0";
-    var html = '<button type="button" class="admin-cat-trigger" id="catTrigger" title="选择分类" aria-label="选择分类">' +
+    var html = ("<button type=\"button\" class=\"admin-cat-trigger\" id=\"catTrigger\" title=\"" + window.pafishI18n.escape(window.pafishT("js.choose_category")) + "\" aria-label=\"" + window.pafishI18n.escape(window.pafishT("js.choose_category")) + "\">") +
       '<span class="admin-cat-label">' + esc(catCurrentLabel()) + "</span>" +
       '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" class="admin-cat-chevron"><path d="m6 9 6 6 6-6"/></svg></button>';
     if (catOpen) {
       html += '<div class="admin-cat-panel">';
       if (categories.length >= 6) {
         html += '<div class="admin-cat-search"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>' +
-          '<input class="input" id="catSearch" placeholder="搜索分类…" value="' + esc(catQuery) + '"></div>';
+          ("<input class=\"input\" id=\"catSearch\" placeholder=\"搜索分类…\" value=\"") + esc(catQuery) + '"></div>';
       }
       html += '<div class="admin-cat-list" role="listbox">';
-      if (list.length === 0) html += '<p class="admin-cat-empty">没有匹配的分类</p>';
+      if (list.length === 0) html += ("<p class=\"admin-cat-empty\">" + window.pafishI18n.escape(window.pafishT("js.no_matching_categories")) + "</p>");
       list.forEach(function (opt, i) {
         var sel = opt.value === currentCategory;
         html += '<button type="button" role="option" data-cat-val="' + esc(opt.value) + '"' +
@@ -450,7 +450,7 @@
       if (hit) {
         if (tagIds.indexOf(String(hit.id)) === -1) tagIds.push(String(hit.id));
       } else if (!DATA.allowNewTags) {
-        showError("只能选择站点已有标签");
+        showError(window.pafishT("js.only_existing_site_tags_can_be_selected"));
       } else if (newTagNames.indexOf(name) === -1) {
         newTagNames.push(name);
       }
@@ -464,11 +464,11 @@
       var t = allTags.filter(function (x) { return String(x.id) === id; })[0];
       if (!t) return;
       sel += '<span class="badge badge-accent admin-tag-chip">' + esc(t.name) +
-        '<button type="button" data-tag-remove="' + esc(id) + '" title="移除标签 ' + esc(t.name) + '" aria-label="移除标签 ' + esc(t.name) + '">×</button></span>';
+        '<button type="button" data-tag-remove="' + esc(id) + ("\" title=\"" + window.pafishI18n.escape(window.pafishT("js.remove_tag")) + " ") + esc(t.name) + ("\" aria-label=\"" + window.pafishI18n.escape(window.pafishT("js.remove_tag")) + " ") + esc(t.name) + '">×</button></span>';
     });
     newTagNames.forEach(function (n) {
       sel += '<span class="badge badge-accent admin-tag-chip">' + esc(n) +
-        '<button type="button" data-newtag-remove="' + esc(n) + '" title="移除标签 ' + esc(n) + '" aria-label="移除标签 ' + esc(n) + '">×</button></span>';
+        '<button type="button" data-newtag-remove="' + esc(n) + ("\" title=\"" + window.pafishI18n.escape(window.pafishT("js.remove_tag")) + " ") + esc(n) + ("\" aria-label=\"" + window.pafishI18n.escape(window.pafishT("js.remove_tag")) + " ") + esc(n) + '">×</button></span>';
     });
     els.tagsSelected.innerHTML = sel;
     $$("[data-tag-remove]", els.tagsSelected).forEach(function (b) { b.addEventListener("click", function () { toggleTag(b.getAttribute("data-tag-remove")); }); });
@@ -532,7 +532,7 @@
     })
       .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
       .then(function (res) {
-        if (!res.ok) throw new Error(res.j.error || "上传失败");
+        if (!res.ok) throw new Error(res.j.error || window.pafishT("js.upload_failed"));
         return res.j;
       });
   }
@@ -541,10 +541,10 @@
   function addFieldRow(key, value) {
     var row = document.createElement("div");
     row.className = "admin-cf-row";
-    row.innerHTML = '<input class="input admin-cf-key" data-cf-key list="postCustomFieldKeys" placeholder="字段名，如 subtitle" maxlength="50" value="' + esc(key || "") + '">' +
-      '<textarea class="input" data-cf-value placeholder="字段值" aria-label="字段值" rows="2" maxlength="500">' + esc(value || "") + '</textarea>' +
-      '<button type="button" class="admin-icon-btn admin-icon-danger" data-cf-remove title="删除字段" aria-label="删除字段">×</button>';
-    $("[data-cf-key]", row).setAttribute("aria-label", "字段名");
+    row.innerHTML = ("<input class=\"input admin-cf-key\" data-cf-key list=\"postCustomFieldKeys\" placeholder=\"字段名，如 subtitle\" maxlength=\"50\" value=\"") + esc(key || "") + '">' +
+      ("<textarea class=\"input\" data-cf-value placeholder=\"" + window.pafishI18n.escape(window.pafishT("js.field_value")) + "\" aria-label=\"" + window.pafishI18n.escape(window.pafishT("js.field_value")) + "\" rows=\"2\" maxlength=\"500\">") + esc(value || "") + '</textarea>' +
+      ("<button type=\"button\" class=\"admin-icon-btn admin-icon-danger\" data-cf-remove title=\"" + window.pafishI18n.escape(window.pafishT("js.delete_field")) + "\" aria-label=\"" + window.pafishI18n.escape(window.pafishT("js.delete_field")) + "\">×</button>");
+    $("[data-cf-key]", row).setAttribute("aria-label", window.pafishT("js.field_name"));
     $("[data-cf-remove]", row).addEventListener("click", function () {
       var next = row.nextElementSibling || row.previousElementSibling;
       row.remove();
@@ -589,11 +589,11 @@
     $('[data-lib-q]').value = '';
     var mediaTitle = $('#editorMediaTitle');
     var coverMode = modal.imagesOnly;
-    if (mediaTitle) mediaTitle.textContent = request && request.title || (modal.mode === 'cover' ? '选择封面' : '插入媒体');
+    if (mediaTitle) mediaTitle.textContent = request && request.title || (modal.mode === 'cover' ? window.pafishT("js.choose_cover") : window.pafishT("js.insert_media"));
     var mediaFile = $('#mediaFile');
     mediaFile.dataset.fullAccept = mediaFile.dataset.fullAccept || mediaFile.accept;
     mediaFile.accept = coverMode ? 'image/*,.svg' : mediaFile.dataset.fullAccept;
-    $('[data-mupload-hint]').textContent = coverMode ? '请选择图片文件' : '图片插入为图片，其他文件插入为下载链接';
+    $('[data-mupload-hint]').textContent = coverMode ? window.pafishT("js.choose_an_image_file") : window.pafishT("js.images_are_inserted_as_images_other_files_as");
     modalErrorHidden();
     els.modalEl.hidden = false;
     renderModal();
@@ -624,7 +624,7 @@
     var f = files && files[0];
     if (!f || modal.uploading) return;
     if (modal.imagesOnly && !isImage(f.type)) {
-      var error = $('[data-mupload-error]'); error.textContent = '请选择图片文件'; error.hidden = false; return;
+      var error = $('[data-mupload-error]'); error.textContent = window.pafishT("js.choose_an_image_file"); error.hidden = false; return;
     }
     modal.uploading = true;
     var panel = $('[data-mpanel="upload"]');
@@ -636,13 +636,13 @@
     var help = $('[data-mupload-hint]').textContent;
     modalErrorHidden();
     var hint = $("[data-mupload-hint]");
-    if (hint) hint.textContent = "上传中…";
+    if (hint) hint.textContent = window.pafishT("js.uploading");
     uploadFile(f)
       .then(function (j) {
         pick(j.url, j.mime, j.originalName || f.name);
       })
       .catch(function (e) {
-        els.modalError.textContent = e.message || "上传失败";
+        els.modalError.textContent = e.message || window.pafishT("js.upload_failed");
         els.modalError.hidden = false;
       })
       .then(function () {
@@ -659,22 +659,22 @@
     var request = ++modal.request;
     var grid = $('[data-lib-grid]'), pager = $('[data-lib-pager]');
     grid.setAttribute('aria-busy', 'true');
-    grid.innerHTML = '<p class="admin-lib-empty">正在加载媒体…</p>';
+    grid.innerHTML = ("<p class=\"admin-lib-empty\">" + window.pafishI18n.escape(window.pafishT("js.loading_media")) + "</p>");
     pager.hidden = true;
     var params = new URLSearchParams({ page: String(modal.page), q: modal.q });
     if (modal.imagesOnly) params.set('type', 'image');
     fetch(window.PafishEditors.query(DATA.uploadsUrl, params), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
       .then(function (r) {
-        if (!r.ok) throw new Error('媒体加载失败');
+        if (!r.ok) throw new Error(window.pafishT("js.unable_to_load_media"));
         return r.json();
       })
       .then(function (d) {
-        if (!Array.isArray(d.items)) throw new Error('媒体数据异常');
+        if (!Array.isArray(d.items)) throw new Error(window.pafishT("js.invalid_media_data"));
         if (request === modal.request && modal.open) renderLibrary(d.items, d.total || 0);
       })
       .catch(function () {
         if (request !== modal.request || !modal.open) return;
-        grid.innerHTML = '<div class="admin-lib-empty"><p role="alert">媒体加载失败，请重试</p><button type="button" class="btn btn-outline" data-lib-retry>重新加载</button></div>';
+        grid.innerHTML = ("<div class=\"admin-lib-empty\"><p role=\"alert\">" + window.pafishI18n.escape(window.pafishT("js.unable_to_load_media_please_try_again")) + "</p><button type=\"button\" class=\"btn btn-outline\" data-lib-retry>" + window.pafishI18n.escape(window.pafishT("js.reload")) + "</button></div>");
         $('[data-lib-retry]', grid).addEventListener('click', function () { loadLibrary(false); });
       })
       .then(function () { if (request === modal.request) grid.removeAttribute('aria-busy'); });
@@ -683,7 +683,7 @@
     modal.total = total;
     var grid = els.libGrid;
     if (items.length === 0) {
-      grid.innerHTML = '<p class="admin-lib-empty">' + (modal.q ? "没有匹配的媒体" : "媒体库还是空的，先切换到“本地上传”吧") + "</p>";
+      grid.innerHTML = '<p class="admin-lib-empty">' + window.pafishI18n.escape(modal.q ? window.pafishT("js.no_matching_media") : window.pafishT("js.the_media_library_is_empty_upload_a_file")) + "</p>";
     } else {
       grid.innerHTML = items.map(function (u) {
         var img = isImage(u.mime);
@@ -691,7 +691,7 @@
         var thumb = img
           ? '<img src="' + esc(u.url) + '" alt="' + esc(u.originalName) + '" loading="lazy">'
           : '<span class="admin-lib-ext">' + esc(ext) + "</span>";
-        return '<button type="button" class="admin-lib-item" data-lib-pick="' + esc(u.url) + '" data-lib-mime="' + esc(u.mime) + '" data-lib-name="' + esc(u.originalName) + '" title="插入 ' + esc(u.originalName) + "（" + fmtSize(u.size) + "）\">" +
+        return '<button type="button" class="admin-lib-item" data-lib-pick="' + esc(u.url) + '" data-lib-mime="' + esc(u.mime) + '" data-lib-name="' + esc(u.originalName) + ("\" title=\"" + window.pafishI18n.escape(window.pafishT("js.insert")) + " ") + esc(u.originalName) + "（" + fmtSize(u.size) + "）\">" +
           '<span class="admin-lib-thumb">' + thumb + "</span>" +
           '<span class="admin-lib-name">' + esc(u.originalName) + "</span></button>";
       }).join("");
@@ -707,9 +707,9 @@
       pager.hidden = true;
     } else {
       pager.hidden = false;
-      pager.innerHTML = '<button type="button" class="admin-pager-btn" data-lib-page="' + (modal.page - 1) + '"' + (modal.page <= 1 ? " disabled" : "") + ">上一页</button>" +
-        '<span class="admin-pager-info">第 ' + modal.page + " / " + pages + " 页</span>" +
-        '<button type="button" class="admin-pager-btn" data-lib-page="' + (modal.page + 1) + '"' + (modal.page >= pages ? " disabled" : "") + ">下一页</button>";
+      pager.innerHTML = '<button type="button" class="admin-pager-btn" data-lib-page="' + (modal.page - 1) + '"' + (modal.page <= 1 ? " disabled" : "") + (">" + window.pafishI18n.escape(window.pafishT("js.previous")) + "</button>") +
+        ("<span class=\"admin-pager-info\">" + window.pafishI18n.escape(window.pafishT("js.no")) + " ") + modal.page + " / " + pages + (" " + window.pafishI18n.escape(window.pafishT("js.page")) + "</span>") +
+        '<button type="button" class="admin-pager-btn" data-lib-page="' + (modal.page + 1) + '"' + (modal.page >= pages ? " disabled" : "") + (">" + window.pafishI18n.escape(window.pafishT("js.next")) + "</button>");
       $$("[data-lib-page]", pager).forEach(function (b) {
         b.addEventListener("click", function () {
           var p = parseInt(b.getAttribute("data-lib-page"), 10);

@@ -19,6 +19,8 @@ final class Plugin
         'comment_form', 'login_form', 'register_form', 'post_editor', 'page_editor', 'micro_editor',
         // 插件自己的设置页底部：给插件放置独有的管理区块。
         'plugin_setting',
+        // 后台 </body> 前：插件级全局后台组件（如 AI 助手抽屉），仅插件可用。
+        'admin_footer',
     ];
     private const MAX_ZIP_BYTES = 10 * 1024 * 1024;
     private const MAX_LOGS = 50;
@@ -1139,8 +1141,11 @@ final class Plugin
                     throw new \RuntimeException('无法替换已安装插件，请检查目录权限');
                 }
             }
-            if (!@rename($stagedTarget, $target)) {
-                if ($backup !== null) @rename($backup, $target);
+            // Windows 上刚被 rename 走的路径会短暂持有目录句柄（WinError 5 拒绝访问），
+            // 立刻把新目录 rename 到同名路径会稳定失败；Linux 无此问题。
+            // 重试若干次（共约 2 秒）等待句柄释放，避免更新插件在 Windows 上必然失败。
+            if (!self::renameWithRetry($stagedTarget, $target)) {
+                if ($backup !== null) self::renameWithRetry($backup, $target);
                 self::rmDir($stage);
                 throw new \RuntimeException('插件更新失败（已回滚）');
             }
@@ -1179,6 +1184,25 @@ final class Plugin
     private static function rmDir(string $dir): bool
     {
         return self::rmRecursive($dir);
+    }
+
+    /**
+     * 目录 rename 重试：Windows 上目标路径刚被移走时句柄未释放，rename 会报
+     * WinError 5（拒绝访问）。短间隔重试直到成功或超时。
+     */
+    private static function renameWithRetry(string $from, string $to, int $attempts = 20, int $intervalMicros = 100000): bool
+    {
+        for ($i = 0; $i < $attempts; $i++) {
+            if (@rename($from, $to)) {
+                return true;
+            }
+            if (!is_dir($from)) {
+                // 源已不存在（例如被并发操作移动），没必要继续等
+                return is_dir($to);
+            }
+            usleep($intervalMicros);
+        }
+        return false;
     }
 
     private static function rmRecursive(string $dir): bool

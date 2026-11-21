@@ -6,36 +6,36 @@ $hidden = count(array_filter($items, static fn (array $item): bool => (int) $ite
 <div class="admin-stack admin-detail-page admin-nav-page">
   <div class="admin-page-head">
     <div>
-      <h1 class="admin-h1"><?= e((string) ($selectedMenu['name'] ?? '导航菜单')) ?></h1>
-      <p class="admin-page-sub"><?= !empty($selectedMenu['is_primary']) ? '主题默认菜单' : '独立菜单组' ?> · 共 <?= $count ?> 项，含隐藏 <?= $hidden ?> 项</p>
+      <h1 class="admin-h1"><?= e((string) ($selectedMenu['name'] ?? t('admin.navigation_menus'))) ?></h1>
+      <p class="admin-page-sub"><?= !empty($selectedMenu['is_primary']) ? t('admin.theme_default_menu') : t('admin.separate_menu_group') ?> <?= e(t('admin.total_0e9fac')) ?> <?= $count ?> <?= e(t('admin.items_including_hidden_46c3df')) ?> <?= $hidden ?> <?= e(t('admin.items_64728a')) ?></p>
     </div>
-    <button type="button" class="btn btn-primary" data-entity-new="navModal"><?= admin_icon('plus', 15) ?>添加导航项</button>
+    <button type="button" class="btn btn-primary" data-entity-new="navModal"><?= admin_icon('plus', 15) ?><?= e(t('admin.add_menu_item')) ?></button>
   </div>
 
   <div class="admin-nav-menu-tools card">
     <label class="admin-nav-menu-select">
-      <span class="admin-muted">菜单组</span>
-      <select class="input" id="navMenuSelect" aria-label="选择菜单组">
+      <span class="admin-muted"><?= e(t('admin.menu_group')) ?></span>
+      <select class="input" id="navMenuSelect" aria-label="<?= e(t('admin.choose_menu_group')) ?>">
         <?php foreach (($menus ?? []) as $menu): ?>
-          <option value="<?= e((string) $menu['slug']) ?>" <?= $menu['slug'] === ($selectedMenu['slug'] ?? '') ? 'selected' : '' ?>><?= e((string) $menu['name']) ?><?= (int) $menu['is_primary'] === 1 ? ' · 主菜单' : '' ?></option>
+          <option value="<?= e((string) $menu['slug']) ?>" <?= $menu['slug'] === ($selectedMenu['slug'] ?? '') ? 'selected' : '' ?>><?= e((string) $menu['name']) ?><?= (int) $menu['is_primary'] === 1 ? t('admin.primary_menu') : '' ?></option>
         <?php endforeach; ?>
       </select>
     </label>
     <div class="admin-list-ops">
-      <?php if (empty($selectedMenu['is_primary'])): ?><button type="button" class="btn btn-ghost" id="navMenuPrimary">设为主菜单</button><?php endif; ?>
-      <button type="button" class="btn btn-ghost" id="navMenuEdit">重命名</button>
-      <button type="button" class="btn btn-ghost" id="navMenuClone">复制菜单</button>
-      <button type="button" class="btn btn-ghost" id="navMenuCreate"><?= admin_icon('plus', 14) ?>新建菜单</button>
-      <button type="button" class="btn btn-ghost" id="navMenuDelete" <?= count($menus ?? []) <= 1 ? 'disabled' : '' ?>>删除</button>
+      <?php if (empty($selectedMenu['is_primary'])): ?><button type="button" class="btn btn-ghost" id="navMenuPrimary"><?= e(t('admin.set_as_primary_menu')) ?></button><?php endif; ?>
+      <button type="button" class="btn btn-ghost" id="navMenuEdit"><?= e(t('admin.rename')) ?></button>
+      <button type="button" class="btn btn-ghost" id="navMenuClone"><?= e(t('admin.duplicate_menu')) ?></button>
+      <button type="button" class="btn btn-ghost" id="navMenuCreate"><?= admin_icon('plus', 14) ?><?= e(t('admin.new_menu')) ?></button>
+      <button type="button" class="btn btn-ghost" id="navMenuDelete" <?= count($menus ?? []) <= 1 ? 'disabled' : '' ?>><?= e(t('common.delete')) ?></button>
     </div>
   </div>
 
   <?php if ($count === 0): ?>
-    <div class="admin-empty-list card"><?= admin_icon('menu', 32) ?><p>还没有导航项</p></div>
+    <div class="admin-empty-list card"><?= admin_icon('menu', 32) ?><p><?= e(t('admin.no_menu_items_yet')) ?></p></div>
   <?php else: ?>
     <div class="admin-table-wrap admin-order-table-wrap">
       <table class="admin-table admin-order-table">
-        <thead><tr><th>名称</th><th>地址</th><th>状态</th><th class="admin-col-ops">操作</th></tr></thead>
+        <thead><tr><th><?= e(t('common.name')) ?></th><th><?= e(t('admin.url')) ?></th><th><?= e(t('common.status')) ?></th><th class="admin-col-ops"><?= e(t('common.actions')) ?></th></tr></thead>
         <tbody>
           <?php foreach ($items as $item): ?>
             <tr class="admin-list-row" data-id="<?= (int) $item['id'] ?>"
@@ -45,22 +45,22 @@ $hidden = count(array_filter($items, static fn (array $item): bool => (int) $ite
                 data-target="<?= e((string) ($item['target_id'] ?? '')) ?>"
                 data-label="<?= e($item['label']) ?>" data-url="<?= e($item['url']) ?>"
                 data-external="<?= (int) $item['is_external'] ?>">
-              <td data-label="名称">
+              <td data-label="<?= e(t('common.name')) ?>">
                 <?php if ((int) $item['depth'] > 0): ?><span class="admin-tree-indent" style="width:<?= (int) $item['depth'] * 18 ?>px" aria-hidden="true"></span><span class="admin-tree-branch" aria-hidden="true">└</span><?php endif; ?>
                 <span class="admin-list-name"><?= e($item['label']) ?></span>
-                <?php if (($item['type'] ?? '') !== 'link' && ($item['type'] ?? '') !== 'group'): ?> <span class="badge badge-accent"><?= e(['home'=>'首页','archive'=>'归档','search'=>'搜索','category'=>'分类','page'=>'页面','post'=>'文章','tag'=>'标签'][$item['type']] ?? '内容') ?></span><?php elseif (($item['type'] ?? '') === 'group'): ?> <span class="badge">分组</span><?php endif; ?>
+                <?php if (($item['type'] ?? '') !== 'link' && ($item['type'] ?? '') !== 'group'): ?> <span class="badge badge-accent"><?= e(['home'=>t('admin.home'),'archive'=>t('admin.archives'),'search'=>t('common.search'),'category'=>t('common.category'),'page'=>t('common.page'),'post'=>t('common.post'),'tag'=>t('common.tags')][$item['type']] ?? t('admin.content')) ?></span><?php elseif (($item['type'] ?? '') === 'group'): ?> <span class="badge"><?= e(t('admin.group')) ?></span><?php endif; ?>
               </td>
-              <td data-label="地址"><div class="admin-muted"><?php if ((string) $item['url'] !== ''): ?><a href="<?= e(nav_href($item['url'], (int) $item['is_external'] === 1)) ?>" <?= (int) $item['is_external'] === 1 ? 'target="_blank" rel="noopener noreferrer"' : '' ?>><?= e($item['url']) ?></a><?php else: ?>—<?php endif; ?></div></td>
-              <td data-label="状态">
-                <?= (int) $item['visible'] === 0 ? '<span class="badge badge-danger">已隐藏</span>' : '<span class="badge">已显示</span>' ?>
-                <?php if ((int) $item['is_external'] === 1): ?> <span class="badge badge-accent"><?= admin_icon('external-link', 11) ?> 外部</span><?php endif; ?>
+              <td data-label="<?= e(t('admin.url')) ?>"><div class="admin-muted"><?php if ((string) $item['url'] !== ''): ?><a href="<?= e(nav_href($item['url'], (int) $item['is_external'] === 1)) ?>" <?= (int) $item['is_external'] === 1 ? 'target="_blank" rel="noopener noreferrer"' : '' ?>><?= e($item['url']) ?></a><?php else: ?>—<?php endif; ?></div></td>
+              <td data-label="<?= e(t('common.status')) ?>">
+                <?= (int) $item['visible'] === 0 ? ('<span class="badge badge-danger">' . e(t('admin.hidden')) . '</span>') : ('<span class="badge">' . e(t('admin.visible')) . '</span>') ?>
+                <?php if ((int) $item['is_external'] === 1): ?> <span class="badge badge-accent"><?= admin_icon('external-link', 11) ?> <?= e(t('admin.external')) ?></span><?php endif; ?>
               </td>
-              <td data-label="操作" class="admin-col-ops"><div class="admin-list-ops">
-                <button type="button" class="admin-icon-btn" data-move="up" title="上移" <?= (int) $item['sibling_index'] === 0 ? 'disabled' : '' ?>><?= admin_icon('chevron-up', 15) ?></button>
-                <button type="button" class="admin-icon-btn" data-move="down" title="下移" <?= (int) $item['sibling_index'] >= (int) $item['sibling_count'] - 1 ? 'disabled' : '' ?>><?= admin_icon('chevron-down', 15) ?></button>
-                <button type="button" class="admin-icon-btn" data-toggle title="<?= (int) $item['visible'] === 1 ? '隐藏' : '显示' ?>"><?= admin_icon((int) $item['visible'] === 1 ? 'eye' : 'eye-off', 15) ?></button>
-                <button type="button" class="admin-icon-btn" data-entity-edit="navModal" title="编辑"><?= admin_icon('edit', 15) ?></button>
-                <button type="button" class="admin-icon-btn admin-icon-danger" data-delete title="删除"><?= admin_icon('trash', 15) ?></button>
+              <td data-label="<?= e(t('common.actions')) ?>" class="admin-col-ops"><div class="admin-list-ops">
+                <button type="button" class="admin-icon-btn" data-move="up" title="<?= e(t('admin.move_up')) ?>" <?= (int) $item['sibling_index'] === 0 ? 'disabled' : '' ?>><?= admin_icon('chevron-up', 15) ?></button>
+                <button type="button" class="admin-icon-btn" data-move="down" title="<?= e(t('admin.move_down')) ?>" <?= (int) $item['sibling_index'] >= (int) $item['sibling_count'] - 1 ? 'disabled' : '' ?>><?= admin_icon('chevron-down', 15) ?></button>
+                <button type="button" class="admin-icon-btn" data-toggle title="<?= (int) $item['visible'] === 1 ? t('admin.hide') : t('admin.show') ?>"><?= admin_icon((int) $item['visible'] === 1 ? 'eye' : 'eye-off', 15) ?></button>
+                <button type="button" class="admin-icon-btn" data-entity-edit="navModal" title="<?= e(t('common.edit')) ?>"><?= admin_icon('edit', 15) ?></button>
+                <button type="button" class="admin-icon-btn admin-icon-danger" data-delete title="<?= e(t('common.delete')) ?>"><?= admin_icon('trash', 15) ?></button>
               </div></td>
             </tr>
           <?php endforeach; ?>
@@ -72,11 +72,11 @@ $hidden = count(array_filter($items, static fn (array $item): bool => (int) $ite
 
 <div class="admin-modal-backdrop" id="navMenuModal" hidden>
   <div class="admin-modal admin-entity-modal" role="dialog" aria-modal="true" aria-labelledby="navMenuModalTitle">
-    <div class="admin-modal-head"><h2 class="admin-modal-title" id="navMenuModalTitle">新建菜单</h2><button type="button" class="admin-icon-btn" data-nav-menu-close aria-label="关闭菜单窗口"><?= admin_icon('x', 16) ?></button></div>
+    <div class="admin-modal-head"><h2 class="admin-modal-title" id="navMenuModalTitle"><?= e(t('admin.new_menu')) ?></h2><button type="button" class="admin-icon-btn" data-nav-menu-close aria-label="<?= e(t('admin.close_menu_dialog')) ?>"><?= admin_icon('x', 16) ?></button></div>
     <form id="navMenuForm" method="post" novalidate>
       <?= csrf_field() ?><input type="hidden" name="id" value="">
-      <div class="admin-modal-body"><div class="admin-field"><label class="label" for="navMenuName">菜单名称 *</label><input class="input" id="navMenuName" name="name" type="text" maxlength="100" required></div><div class="admin-editor-error" role="alert" hidden></div></div>
-      <div class="admin-modal-actions"><button type="button" class="btn btn-ghost" data-nav-menu-close>取消</button><button type="submit" class="btn btn-primary">保存</button></div>
+      <div class="admin-modal-body"><div class="admin-field"><label class="label" for="navMenuName"><?= e(t('admin.menu_name')) ?></label><input class="input" id="navMenuName" name="name" type="text" maxlength="100" required></div><div class="admin-editor-error" role="alert" hidden></div></div>
+      <div class="admin-modal-actions"><button type="button" class="btn btn-ghost" data-nav-menu-close><?= e(t('common.cancel')) ?></button><button type="submit" class="btn btn-primary"><?= e(t('common.save')) ?></button></div>
     </form>
   </div>
 </div>
@@ -85,23 +85,23 @@ $hidden = count(array_filter($items, static fn (array $item): bool => (int) $ite
 <div class="admin-form-grid">
   <input type="hidden" name="menu_id" value="<?= (int) ($selectedMenu['id'] ?? 1) ?>">
   <div class="admin-field">
-    <label class="label" for="navType">导航目标 *</label>
+    <label class="label" for="navType"><?= e(t('admin.menu_target')) ?></label>
     <select class="input" name="type" id="navType" required>
-      <option value="link">自定义链接</option>
-      <option value="group">无链接分组</option>
-      <option value="home">首页</option>
-      <?php if (!empty($archivesAvailable)): ?><option value="archive">归档</option><?php endif; ?>
-      <option value="search">搜索</option>
-      <option value="category">分类</option>
-      <option value="page">页面</option>
-      <option value="post">文章</option>
-      <option value="tag">标签</option>
+      <option value="link"><?= e(t('admin.custom_link')) ?></option>
+      <option value="group"><?= e(t('admin.no_link_groups')) ?></option>
+      <option value="home"><?= e(t('admin.home')) ?></option>
+      <?php if (!empty($archivesAvailable)): ?><option value="archive"><?= e(t('admin.archives')) ?></option><?php endif; ?>
+      <option value="search"><?= e(t('common.search')) ?></option>
+      <option value="category"><?= e(t('common.category')) ?></option>
+      <option value="page"><?= e(t('common.page')) ?></option>
+      <option value="post"><?= e(t('common.post')) ?></option>
+      <option value="tag"><?= e(t('common.tags')) ?></option>
     </select>
   </div>
   <div class="admin-field" data-nav-target hidden>
-    <label class="label" for="navTarget">选择目标 *</label>
+    <label class="label" for="navTarget"><?= e(t('admin.choose_target')) ?></label>
     <select class="input" name="target_id" id="navTarget" disabled>
-      <option value="">请选择目标</option>
+      <option value=""><?= e(t('admin.choose_a_target')) ?></option>
       <?php foreach (($categories ?? []) as $category): ?>
         <option value="category:<?= (int) $category['id'] ?>" data-target-type="category"><?= str_repeat('　', (int) $category['depth']) . e($category['name']) ?></option>
       <?php endforeach; ?>
@@ -111,30 +111,30 @@ $hidden = count(array_filter($items, static fn (array $item): bool => (int) $ite
     </select>
   </div>
   <div class="admin-field" data-nav-name>
-    <label class="label" for="navLabel">名称 *</label>
-    <input class="input" type="text" name="label" placeholder="如：首页 / 关于" maxlength="100" id="navLabel" required>
+    <label class="label" for="navLabel"><?= e(t('admin.name')) ?></label>
+    <input class="input" type="text" name="label" placeholder="<?= e(t('admin.for_example_home_about')) ?>" maxlength="100" id="navLabel" required>
   </div>
   <div class="admin-field" data-nav-link>
-    <label class="label" for="navUrl">地址 *</label>
-    <input class="input" type="text" name="url" placeholder="/archives 或 https://…" maxlength="500" id="navUrl" required>
+    <label class="label" for="navUrl"><?= e(t('admin.url_7c05d9')) ?></label>
+    <input class="input" type="text" name="url" placeholder="<?= e(t('admin.archives_or_https')) ?>" maxlength="500" id="navUrl" required>
   </div>
   <div class="admin-field">
-    <label class="label" for="navParent">上级导航</label>
+    <label class="label" for="navParent"><?= e(t('admin.parent_menu_item')) ?></label>
     <select class="input" name="parent_id" id="navParent">
-      <option value="">顶级导航</option>
+      <option value=""><?= e(t('admin.top_level_item')) ?></option>
       <?php foreach ($items as $parent): ?>
         <option value="<?= (int) $parent['id'] ?>"><?= str_repeat('　', (int) ($parent['depth'] ?? 0)) . e($parent['label']) ?></option>
       <?php endforeach; ?>
     </select>
-    <p class="admin-field-hint">设置上级导航后，该项会作为子菜单显示。</p>
+    <p class="admin-field-hint"><?= e(t('admin.choose_a_parent_to_display_this_item_as')) ?></p>
   </div>
 </div>
-<label class="admin-check-row" data-nav-link><input type="checkbox" name="is_external" value="1" class="admin-check"><span>外部链接（新窗口打开）</span></label>
+<label class="admin-check-row" data-nav-link><input type="checkbox" name="is_external" value="1" class="admin-check"><span><?= e(t('admin.external_link_opens_in_new_tab')) ?></span></label>
 <?php
 $entityFields = (string) ob_get_clean();
 $entityModalId = 'navModal';
 $entityFormId = 'createForm';
-$entityConfig = ['createTitle'=>'添加导航项', 'editTitle'=>'编辑导航项', 'savedMessage'=>'导航项已保存',
+$entityConfig = ['createTitle'=>t('admin.add_menu_item'), 'editTitle'=>t('admin.edit_menu_item'), 'savedMessage'=>t('admin.menu_item_saved'),
     'savePath'=>'/admin/nav/save', 'basePath'=>'/admin/nav', 'fields'=>['label'=>'label','url'=>'url','is_external'=>'external','parent_id'=>'parent','type'=>'type','target_id'=>'target','menu_id'=>'menu-id']];
 require __DIR__ . '/partials/entity-modal.php';
 ?>
@@ -157,7 +157,7 @@ require __DIR__ . '/partials/entity-modal.php';
     form.elements.id.value = edit ? String(menuId) : '';
     form.elements.name.value = edit ? <?= json_encode((string) ($selectedMenu['name'] ?? ''), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?> : '';
     form.dataset.editing = edit ? '1' : '0';
-    document.getElementById('navMenuModalTitle').textContent = edit ? '重命名菜单' : '新建菜单';
+    document.getElementById('navMenuModalTitle').textContent = edit ? window.pafishT("js.rename_menu") : window.pafishT("js.new_menu");
     var error = form.querySelector('[role=alert]'); error.hidden = true;
     modal.hidden = false;
     form.elements.name.focus();
@@ -172,17 +172,17 @@ require __DIR__ . '/partials/entity-modal.php';
     var id = form.elements.id.value;
     post(id ? '/menus/' + id + '/save' : '/menus/save', {name: form.elements.name.value}).then(function (result) {
       if (result && result.ok) location.href = base + '?menu=' + encodeURIComponent(result.slug);
-      else { var error = form.querySelector('[role=alert]'); error.textContent = (result && result.error) || '保存失败，请重试'; error.hidden = false; }
-    }).catch(function () { var error = form.querySelector('[role=alert]'); error.textContent = '网络错误，请重试'; error.hidden = false; });
+      else { var error = form.querySelector('[role=alert]'); error.textContent = (result && result.error) || window.pafishT("js.unable_to_save_please_try_again"); error.hidden = false; }
+    }).catch(function () { var error = form.querySelector('[role=alert]'); error.textContent = window.pafishT("common.network_error_retry"); error.hidden = false; });
   });
   var primary = document.getElementById('navMenuPrimary');
-  if (primary) primary.addEventListener('click', function () { post('/menus/' + menuId + '/primary').then(function (result) { if (result && result.ok) location.reload(); else pafishNotify((result && result.error) || '操作失败', true); }); });
+  if (primary) primary.addEventListener('click', function () { post('/menus/' + menuId + '/primary').then(function (result) { if (result && result.ok) location.reload(); else pafishNotify((result && result.error) || window.pafishT("common.operation_failed"), true); }); });
   document.getElementById('navMenuClone').addEventListener('click', function () {
-    post('/menus/' + menuId + '/clone').then(function (result) { if (result && result.ok) location.href = base + '?menu=' + encodeURIComponent(result.slug); else pafishNotify((result && result.error) || '复制失败', true); }).catch(function () { pafishNotify('网络错误', true); });
+    post('/menus/' + menuId + '/clone').then(function (result) { if (result && result.ok) location.href = base + '?menu=' + encodeURIComponent(result.slug); else pafishNotify((result && result.error) || window.pafishT("js.copy_failed"), true); }).catch(function () { pafishNotify(window.pafishT("js.network_error"), true); });
   });
   document.getElementById('navMenuDelete').addEventListener('click', function () {
-    var confirmDelete = window.pafishConfirm ? window.pafishConfirm('删除此菜单及其中所有菜单项？', {title: '删除菜单'}) : Promise.resolve(window.confirm('删除此菜单及其中所有菜单项？'));
-    confirmDelete.then(function (confirmed) { if (!confirmed) return; return post('/menus/' + menuId + '/delete').then(function (result) { if (result && result.ok) location.href = base + (result.primarySlug ? '?menu=' + encodeURIComponent(result.primarySlug) : ''); else pafishNotify((result && result.error) || '删除失败', true); }); }).catch(function () { pafishNotify('网络错误', true); });
+    var confirmDelete = window.pafishConfirm ? window.pafishConfirm(window.pafishT("js.delete_this_menu_and_all_its_items"), {title: window.pafishT("js.delete_menu")}) : Promise.resolve(window.confirm(window.pafishT("js.delete_this_menu_and_all_its_items")));
+    confirmDelete.then(function (confirmed) { if (!confirmed) return; return post('/menus/' + menuId + '/delete').then(function (result) { if (result && result.ok) location.href = base + (result.primarySlug ? '?menu=' + encodeURIComponent(result.primarySlug) : ''); else pafishNotify((result && result.error) || window.pafishT("js.delete_failed"), true); }); }).catch(function () { pafishNotify(window.pafishT("js.network_error"), true); });
   });
 })();
 </script>
@@ -261,16 +261,16 @@ require __DIR__ . '/partials/entity-modal.php';
     button.addEventListener('click', function () {
       var row = button.closest('.admin-list-row');
       post(base + '/' + row.dataset.id + '/toggle').then(function (response) { return response.json(); })
-        .then(function (result) { if (result && result.ok) pafishToastReload('导航项状态已更新', 'success'); else pafishNotify((result && result.error) || '操作失败', true); })
-        .catch(function () { pafishNotify('网络错误', true); });
+        .then(function (result) { if (result && result.ok) pafishToastReload(window.pafishT("js.menu_item_visibility_updated"), 'success'); else pafishNotify((result && result.error) || window.pafishT("common.operation_failed"), true); })
+        .catch(function () { pafishNotify(window.pafishT("js.network_error"), true); });
     });
   });
   document.querySelectorAll('[data-move]').forEach(function (button) {
     button.addEventListener('click', function () {
       var row = button.closest('.admin-list-row');
       post(base + '/' + row.dataset.id + '/move', {dir: button.dataset.move}).then(function (response) { return response.json(); })
-        .then(function (result) { if (result && result.ok) pafishToastReload('导航顺序已更新', 'success'); else pafishNotify((result && result.error) || '操作失败', true); })
-        .catch(function () { pafishNotify('网络错误', true); });
+        .then(function (result) { if (result && result.ok) pafishToastReload(window.pafishT("js.menu_order_updated"), 'success'); else pafishNotify((result && result.error) || window.pafishT("common.operation_failed"), true); })
+        .catch(function () { pafishNotify(window.pafishT("js.network_error"), true); });
     });
   });
   document.querySelectorAll('[data-delete]').forEach(function (button) {
@@ -278,13 +278,13 @@ require __DIR__ . '/partials/entity-modal.php';
       var row = button.closest('.admin-list-row');
       var label = row.dataset.label;
       var confirmDelete = window.pafishConfirm
-        ? window.pafishConfirm('确定删除导航项「' + label + '」？', {title: '删除导航项'})
-        : Promise.resolve(window.confirm('确定删除导航项「' + label + '」？'));
+        ? window.pafishConfirm(window.pafishT("js.confirm_delete_menu_item", {name: label}), {title: window.pafishT("js.delete_menu_item_b10fa2")})
+        : Promise.resolve(window.confirm(window.pafishT("js.confirm_delete_menu_item", {name: label})));
       confirmDelete.then(function (confirmed) {
         if (!confirmed) return;
         post(base + '/' + row.dataset.id + '/delete').then(function (response) { return response.json(); })
-          .then(function (result) { if (result && result.ok) pafishToastReload('导航项已删除', 'success'); else pafishNotify((result && result.error) || '删除失败', true); })
-          .catch(function () { pafishNotify('网络错误', true); });
+          .then(function (result) { if (result && result.ok) pafishToastReload(window.pafishT("js.menu_item_deleted"), 'success'); else pafishNotify((result && result.error) || window.pafishT("js.delete_failed"), true); })
+          .catch(function () { pafishNotify(window.pafishT("js.network_error"), true); });
       });
     });
   });

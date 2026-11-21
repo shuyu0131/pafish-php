@@ -26,8 +26,8 @@ final class AccountController extends AdminController
         $query = $request->getQueryParams();
         $section = is_string($query['section'] ?? null) ? $query['section'] : 'overview';
         $pointsEnabled = Points::available();
-        $sections = ['overview' => '概览', 'posts' => '我的投稿', 'comments' => '我的评论', 'favorites' => '我的收藏', 'likes' => '我的点赞'];
-        if ($pointsEnabled) $sections['points'] = '积分记录';
+        $sections = ['overview' => t('admin.overview'), 'posts' => t('admin.my_submissions'), 'comments' => t('admin.my_comments'), 'favorites' => t('admin.my_bookmarks'), 'likes' => t('admin.my_likes')];
+        if ($pointsEnabled) $sections['points'] = t('admin.points_history');
         if (!isset($sections[$section])) $section = 'overview';
         $public = "p.status = 'PUBLISHED' AND p.deleted_at IS NULL AND (p.published_at IS NULL OR p.published_at <= NOW())";
         $base = Url::to('/admin');
@@ -46,12 +46,12 @@ final class AccountController extends AdminController
         $submissionStatuses = ['PENDING', 'CHANGES_REQUESTED', 'DRAFT', 'PUBLISHED'];
         if ($section === 'posts' && !in_array($submissionStatus, $submissionStatuses, true)) $submissionStatus = '';
         $stats = [
-            ['label' => '我的投稿', 'value' => $postCount, 'icon' => 'file-text', 'url' => $sectionUrl('posts')],
-            ['label' => '我的评论', 'value' => (int) DB::value("SELECT COUNT(*) FROM comments c JOIN posts p ON p.id=c.post_id WHERE c.user_id=? AND c.status <> 'SPAM' AND {$public}", [$userId]), 'icon' => 'message', 'url' => $sectionUrl('comments')],
-            ['label' => '我的收藏', 'value' => (int) DB::value("SELECT COUNT(*) FROM post_reactions r JOIN posts p ON p.id=r.post_id WHERE r.user_id=? AND r.kind='favorite' AND {$public}", [$userId]), 'icon' => 'star', 'url' => $sectionUrl('favorites')],
-            ['label' => '我的点赞', 'value' => (int) DB::value("SELECT COUNT(*) FROM post_reactions r JOIN posts p ON p.id=r.post_id WHERE r.user_id=? AND r.kind='like' AND {$public}", [$userId]), 'icon' => 'heart', 'url' => $sectionUrl('likes')],
+            ['label' => t('admin.my_submissions'), 'value' => $postCount, 'icon' => 'file-text', 'url' => $sectionUrl('posts')],
+            ['label' => t('admin.my_comments'), 'value' => (int) DB::value("SELECT COUNT(*) FROM comments c JOIN posts p ON p.id=c.post_id WHERE c.user_id=? AND c.status <> 'SPAM' AND {$public}", [$userId]), 'icon' => 'message', 'url' => $sectionUrl('comments')],
+            ['label' => t('admin.my_bookmarks'), 'value' => (int) DB::value("SELECT COUNT(*) FROM post_reactions r JOIN posts p ON p.id=r.post_id WHERE r.user_id=? AND r.kind='favorite' AND {$public}", [$userId]), 'icon' => 'star', 'url' => $sectionUrl('favorites')],
+            ['label' => t('admin.my_likes'), 'value' => (int) DB::value("SELECT COUNT(*) FROM post_reactions r JOIN posts p ON p.id=r.post_id WHERE r.user_id=? AND r.kind='like' AND {$public}", [$userId]), 'icon' => 'heart', 'url' => $sectionUrl('likes')],
         ];
-        if ($pointsEnabled) $stats[] = ['label' => '我的积分', 'value' => Points::balance($userId), 'icon' => 'star', 'url' => $sectionUrl('points')];
+        if ($pointsEnabled) $stats[] = ['label' => t('admin.my_points'), 'value' => Points::balance($userId), 'icon' => 'star', 'url' => $sectionUrl('points')];
         $perOptions = [10, 20, 50];
         $per = is_scalar($query['per'] ?? null) ? (int) $query['per'] : 10;
         if (!in_array($per, $perOptions, true)) $per = 10;
@@ -70,8 +70,8 @@ final class AccountController extends AdminController
         $page = min($page, $pages);
         $offset = ($page - 1) * $per;
         $items = match ($section) {
-            'comments' => DB::fetchAll("SELECT c.id,c.content,c.status,c.created_at,p.title,p.slug,p.published_at,p.created_at AS post_created_at FROM comments c JOIN posts p ON p.id=c.post_id WHERE c.user_id=? AND c.status <> 'SPAM' AND {$public} ORDER BY c.created_at DESC,c.id DESC LIMIT {$per} OFFSET {$offset}", [$userId]),
-            'favorites', 'likes' => DB::fetchAll("SELECT p.title,p.slug,p.published_at,p.created_at AS post_created_at,r.created_at FROM post_reactions r JOIN posts p ON p.id=r.post_id WHERE r.user_id=? AND r.kind=? AND {$public} ORDER BY r.created_at DESC,p.id DESC LIMIT {$per} OFFSET {$offset}", [$userId, $section === 'favorites' ? 'favorite' : 'like']),
+            'comments' => DB::fetchAll("SELECT c.id,c.post_id,c.content,c.status,c.created_at,p.title,p.slug,p.published_at,p.created_at AS post_created_at FROM comments c JOIN posts p ON p.id=c.post_id WHERE c.user_id=? AND c.status <> 'SPAM' AND {$public} ORDER BY c.created_at DESC,c.id DESC LIMIT {$per} OFFSET {$offset}", [$userId]),
+            'favorites', 'likes' => DB::fetchAll("SELECT p.id AS post_id,p.title,p.slug,p.published_at,p.created_at AS post_created_at,r.created_at FROM post_reactions r JOIN posts p ON p.id=r.post_id WHERE r.user_id=? AND r.kind=? AND {$public} ORDER BY r.created_at DESC,p.id DESC LIMIT {$per} OFFSET {$offset}", [$userId, $section === 'favorites' ? 'favorite' : 'like']),
             'points' => DB::fetchAll("SELECT amount,reason,created_at FROM point_transactions WHERE user_id=? ORDER BY id DESC LIMIT {$per} OFFSET {$offset}", [$userId]),
             'posts' => DB::fetchAll(
                 'SELECT p.id,p.title,p.slug,p.status,p.review_note,p.reviewed_at,p.created_at,p.updated_at,p.published_at,
@@ -83,7 +83,7 @@ final class AccountController extends AdminController
             ),
             default => [],
         };
-        $response->getBody()->write($this->render('user-dashboard', compact('stats', 'section', 'sections', 'items', 'page', 'pages', 'total', 'per', 'perOptions', 'sectionUrl', 'canSubmit', 'submissionStatus', 'submissionCounts'), '个人中心'));
+        $response->getBody()->write($this->render('user-dashboard', compact('stats', 'section', 'sections', 'items', 'page', 'pages', 'total', 'per', 'perOptions', 'sectionUrl', 'canSubmit', 'submissionStatus', 'submissionCounts'), t('admin.account')));
         return $response;
     }
 
@@ -91,7 +91,7 @@ final class AccountController extends AdminController
     {
         Auth::requireLogin();
         if (!Auth::can('posts.manage') && Settings::get('submissions_enabled', 'false') !== 'true') {
-            $this->flash('info', '站点暂未开放用户投稿');
+            $this->flash('info', t('admin.user_submissions_are_closed'));
             return $this->redirect($response, '/admin?section=posts');
         }
         return $this->renderSubmissionEditor($request, $response, null);
@@ -122,11 +122,11 @@ final class AccountController extends AdminController
         $stored = $id > 0 ? DB::fetchOne('SELECT * FROM posts WHERE id=? AND author_id=? AND deleted_at IS NULL', [$id, $userId]) : null;
         if ($id > 0 && $stored === null) return $this->notFound($response);
         if ($id === 0 && !Auth::can('posts.manage') && Settings::get('submissions_enabled', 'false') !== 'true') {
-            return $errorResponse('站点暂未开放用户投稿');
+            return $errorResponse(t('admin.user_submissions_are_closed'));
         }
         $action = (string) ($body['action'] ?? 'publish');
         if (!in_array($action, ['draft', 'publish'], true)) {
-            return $errorResponse('保存操作无效');
+            return $errorResponse(t('admin.invalid_save_operation'));
         }
         $requestToken = trim((string) ($body['_idempotency'] ?? ''));
         $replayed = Session::replay('account-post-submission', $requestToken);
@@ -135,16 +135,16 @@ final class AccountController extends AdminController
                 'ok' => true,
                 'id' => (int) ($replayed['id'] ?? $id),
                 'status' => (string) ($replayed['status'] ?? ''),
-                'message' => (string) ($replayed['message'] ?? '投稿已保存'),
+                'message' => (string) ($replayed['message'] ?? t('admin.submission_saved')),
             ]);
-            $this->flash('success', (string) ($replayed['message'] ?? '投稿已保存'));
+            $this->flash('success', (string) ($replayed['message'] ?? t('admin.submission_saved')));
             return $this->redirect($response, '/admin?section=posts');
         }
         if ($id > 0 && !Auth::can('posts.manage') && Settings::get('submissions_enabled', 'false') !== 'true' && $action === 'publish') {
-            return $errorResponse('站点暂未开放新投稿或重新提交；可以保存为草稿或稍后再试');
+            return $errorResponse(t('admin.new_submissions_and_resubmissions_are_closed_save_a'));
         }
         if (!RateLimiter::allow('account-post-submission', (string) $userId, 10, 3600)) {
-            return $errorResponse('投稿操作过于频繁，请稍后再试', 429);
+            return $errorResponse(t('admin.too_many_submission_requests_please_try_again_later'), 429);
         }
         $title = is_string($body['title'] ?? null) ? trim($body['title']) : '';
         $slug = (string) ($stored['slug'] ?? '');
@@ -174,17 +174,17 @@ final class AccountController extends AdminController
                 'allow_comments' => is_scalar($body['allow_comments'] ?? null) ? (string) $body['allow_comments'] : (int) ($stored['allow_comments'] ?? 1),
             ], $id > 0 ? $id : null);
         } catch (\PDOException $e) {
-            \Pafish\Core\Logger::exception('用户投稿保存失败', $e);
-            return $errorResponse('保存失败，请稍后重试', 500);
+            \Pafish\Core\Logger::exception(t('admin.unable_to_save_submission'), $e);
+            return $errorResponse(t('admin.unable_to_save_please_try_again_later'), 500);
         } catch (\RuntimeException $e) {
             return $errorResponse($e->getMessage());
         } catch (\InvalidArgumentException $e) {
             return $errorResponse($e->getMessage());
         }
         $message = match ((string) ($result['status'] ?? '')) {
-            'PENDING' => '投稿已提交，审核通过后发布',
-            'PUBLISHED' => $id > 0 ? '文章已更新' : '文章已发布',
-            default => '草稿已保存',
+            'PENDING' => t('admin.submission_sent_for_review_and_will_be_published'),
+            'PUBLISHED' => $id > 0 ? t('admin.post_updated') : t('admin.post_published'),
+            default => t('admin.draft_saved'),
         };
         Session::remember('account-post-submission', $requestToken, ['id' => $result['id'], 'status' => $result['status'], 'message' => $message]);
         if ($isAjax) return $this->json($response, ['ok' => true, 'id' => (int) $result['id'], 'status' => $result['status'], 'message' => $message]);
@@ -201,7 +201,7 @@ final class AccountController extends AdminController
         }
         try {
             (new PostsController())->moderateForCurrentUser($id, 'delete');
-            $this->flash('success', '投稿已撤回');
+            $this->flash('success', t('admin.submission_withdrawn'));
         } catch (\RuntimeException $e) {
             $this->flash('error', $e->getMessage());
         }

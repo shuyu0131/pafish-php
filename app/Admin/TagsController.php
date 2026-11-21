@@ -30,7 +30,7 @@ final class TagsController extends AdminController
         );
         $response->getBody()->write($this->render('tags', [
             'tags' => $tags,
-        ], '标签管理'));
+        ], t('admin.tags')));
         return $response;
     }
 
@@ -56,7 +56,7 @@ final class TagsController extends AdminController
         if ($this->isAjax($request)) {
             return $this->json($response, ['ok' => true, 'id' => $result['id']]);
         }
-        $this->flash('success', $result['created'] ? '标签已创建' : '标签已更新');
+        $this->flash('success', $result['created'] ? t('admin.tag_created') : t('admin.tag_updated'));
         return $this->redirect($response, '/admin/tags');
     }
 
@@ -76,7 +76,7 @@ final class TagsController extends AdminController
         if ($this->isAjax($request)) {
             return $this->json($response, ['ok' => true]);
         }
-        $this->flash('success', '标签已删除');
+        $this->flash('success', t('admin.tag_deleted'));
         return $this->redirect($response, '/admin/tags');
     }
 
@@ -84,23 +84,23 @@ final class TagsController extends AdminController
     private function saveTag(array $body, ?int $id = null): array
     {
         $stored = $id !== null ? DB::fetchOne('SELECT * FROM tags WHERE id=?', [$id]) : null;
-        if ($id !== null && $stored === null) throw new \RuntimeException('标签不存在');
+        if ($id !== null && $stored === null) throw new \RuntimeException(t('admin.tag_not_found'));
         $seo = \Pafish\Services\Content::seoFields($body, $stored ?? []);
         $description = $body['description'] ?? $stored['description'] ?? '';
-        if (!is_string($description) || mb_strlen($description) > 500) throw new \RuntimeException('标签描述不能超过 500 字');
+        if (!is_string($description) || mb_strlen($description) > 500) throw new \RuntimeException(t('admin.tag_description_cannot_exceed_500_characters'));
         $description = trim($description);
         $name = trim((string) ($body['name'] ?? ''));
         if ($name === '') {
-            throw new \RuntimeException('标签名称不能为空');
+            throw new \RuntimeException(t('admin.tag_name_is_required'));
         }
         if (mb_strlen($name) > 100) {
-            throw new \RuntimeException('标签名称不能超过 100 字');
+            throw new \RuntimeException(t('admin.tag_name_cannot_exceed_100_characters'));
         }
         if (DB::fetchOne(
             'SELECT id FROM tags WHERE name = ? AND (? IS NULL OR id <> ?) LIMIT 1',
             [$name, $id, $id]
         ) !== null) {
-            throw new \RuntimeException('标签名称已存在');
+            throw new \RuntimeException(t('admin.tag_name_already_exists'));
         }
 
         $slug = Slug::forSave(
@@ -114,7 +114,7 @@ final class TagsController extends AdminController
             100
         );
         if (mb_strlen($slug) > 100) {
-            throw new \RuntimeException('标签地址不能超过 100 字');
+            throw new \RuntimeException(t('admin.tag_slug_cannot_exceed_100_characters'));
         }
         if ($id !== null) {
             PermalinkRedirects::recordEntityChange('tag', $stored, array_replace($stored, ['slug' => $slug]));

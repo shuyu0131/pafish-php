@@ -59,9 +59,13 @@ final class EntityMetaSchema
                     return "meta.{$subject}.{$key}.default 必须是数字";
                 }
                 if ($type === 'select') {
-                    $options = array_map('strval', $field['options']);
-                    $default = (string) ($field['default'] ?? array_key_first($field['options']));
-                    if (!array_key_exists($default, $options)) return "meta.{$subject}.{$key}.default 必须对应一个选项";
+                    $options = array_map('strval', array_keys((array) $field['options']));
+                    // options 允许 list（['a','b'] 键是 0,1）与 map（['a'=>'A'] 键是值）两种写法，
+                    // 前者的合法取值是元素本身，后者的合法取值是键名。
+                    $raw = (array) $field['options'];
+                    $allowed = array_is_list($raw) ? array_map('strval', $raw) : $options;
+                    $default = (string) ($field['default'] ?? (array_is_list($raw) ? ($raw[0] ?? '') : array_key_first($raw)));
+                    if (!in_array($default, $allowed, true)) return "meta.{$subject}.{$key}.default 必须对应一个选项";
                 }
                 if (isset($field['default']) && array_key_exists('maxLength', $field) && mb_strlen((string) $field['default']) > $field['maxLength']) {
                     return "meta.{$subject}.{$key}.default 超出 maxLength";
@@ -91,8 +95,15 @@ final class EntityMetaSchema
                 if (isset($field['maxLength'])) $normalized['maxLength'] = $field['maxLength'];
                 if (isset($field['desc']) && trim((string) $field['desc']) !== '') $normalized['desc'] = trim((string) $field['desc']);
                 if (($normalized['type'] ?? '') === 'select') {
-                    $normalized['options'] = array_map('strval', $field['options']);
-                    $normalized['default'] = (string) ($field['default'] ?? array_key_first($field['options']));
+                    $raw = (array) $field['options'];
+                    if (array_is_list($raw)) {
+                        $values = array_map('strval', $raw);
+                        $normalized['options'] = array_combine($values, $values);
+                        $normalized['default'] = (string) ($field['default'] ?? ($raw[0] ?? ''));
+                    } else {
+                        $normalized['options'] = array_map('strval', $raw);
+                        $normalized['default'] = (string) ($field['default'] ?? array_key_first($raw));
+                    }
                 }
                 $out[$subject][] = $normalized;
             }
@@ -109,8 +120,10 @@ final class EntityMetaSchema
             if (!in_array($value, ['0', '1'], true)) throw new \RuntimeException('字段「' . $field['label'] . '」值无效');
         } elseif ($type === 'number' && $value !== '' && !is_numeric($value)) {
             throw new \RuntimeException('字段「' . $field['label'] . '」必须是数字');
-        } elseif ($type === 'select' && !array_key_exists($value, (array) ($field['options'] ?? []))) {
-            throw new \RuntimeException('字段「' . $field['label'] . '」选项无效');
+        } elseif ($type === 'select') {
+            $options = (array) ($field['options'] ?? []);
+            $allowed = array_map('strval', array_is_list($options) ? $options : array_keys($options));
+            if (!in_array($value, $allowed, true)) throw new \RuntimeException('字段「' . $field['label'] . '」选项无效');
         }
         if (($field['required'] ?? false) && trim($value) === '') throw new \RuntimeException('字段「' . $field['label'] . '」不能为空');
         $maxLength = (int) ($field['maxLength'] ?? 10000);

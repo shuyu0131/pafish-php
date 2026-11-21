@@ -19,6 +19,23 @@ function e(mixed $value): string
     return htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');
 }
 
+/** Translate plain text; escape at the final HTML/attribute output boundary. */
+function t(string $key, array $parameters = []): string
+{
+    return \Pafish\Core\I18n::translate($key, $parameters);
+}
+
+/** Safe bootstrap shared by the admin layout and isolated extension pages. */
+function i18n_script(): string
+{
+    $data = json_encode([
+        'locale' => \Pafish\Core\I18n::locale(),
+        'messages' => \Pafish\Core\I18n::browserMessages(),
+    ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_INVALID_UTF8_SUBSTITUTE);
+    return '<script>window.pafishI18nData=' . $data . ';</script>'
+        . '<script src="' . e(asset_url('/js/admin-i18n.js')) . '"></script>';
+}
+
 /** 站点设置（全部缓存于单请求内） */
 function settings(?string $key = null, mixed $default = null): mixed
 {
@@ -171,19 +188,19 @@ function admin_pagination(int $page, int $pages, int $total, callable $url, int 
     }
     ob_start();
     ?>
-    <nav class="admin-pagination" aria-label="分页">
-      <span class="admin-pagination-total">共 <?= (int) $total ?> 条</span>
+    <nav class="admin-pagination" aria-label="<?= e(t('admin.pagination')) ?>">
+      <span class="admin-pagination-total"><?= e(t('admin.pagination_total', ['count' => (int) $total])) ?></span>
       <div class="admin-pagination-pages">
-        <?php if ($page > 1): ?><a class="admin-pg-btn admin-pg-prev" href="<?= e((string) $url($page - 1, $per)) ?>" aria-label="上一页">‹</a><?php endif; ?>
+        <?php if ($page > 1): ?><a class="admin-pg-btn admin-pg-prev" href="<?= e((string) $url($page - 1, $per)) ?>" aria-label="<?= e(t('admin.previous')) ?>">‹</a><?php endif; ?>
         <?php foreach ($items as $item): ?>
           <?php if ($item === '…'): ?><span class="admin-pg-ellipsis" aria-hidden="true">…</span>
           <?php elseif ((int) $item === $page): ?><span class="admin-pg-btn active" aria-current="page"><?= (int) $item ?></span>
           <?php else: ?><a class="admin-pg-btn" href="<?= e((string) $url((int) $item, $per)) ?>"><?= (int) $item ?></a><?php endif; ?>
         <?php endforeach; ?>
-        <?php if ($page < $pages): ?><a class="admin-pg-btn admin-pg-next" href="<?= e((string) $url($page + 1, $per)) ?>" aria-label="下一页">›</a><?php endif; ?>
+        <?php if ($page < $pages): ?><a class="admin-pg-btn admin-pg-next" href="<?= e((string) $url($page + 1, $per)) ?>" aria-label="<?= e(t('admin.next')) ?>">›</a><?php endif; ?>
       </div>
       <?php if ($perOptions !== []): ?>
-        <label class="admin-pagination-size">每页
+        <label class="admin-pagination-size"><?= e(t('admin.per_page')) ?>
           <select class="input" onchange="location.href=this.value">
             <?php foreach ($perOptions as $option): ?><option value="<?= e((string) $url(1, (int) $option)) ?>"<?= (int) $option === $per ? ' selected' : '' ?>><?= (int) $option ?></option><?php endforeach; ?>
           </select>
@@ -194,7 +211,7 @@ function admin_pagination(int $page, int $pages, int $total, callable $url, int 
           <?php foreach ($_GET as $key => $value): ?>
             <?php if ($key !== 'page' && is_scalar($value)): ?><input type="hidden" name="<?= e((string) $key) ?>" value="<?= e((string) $value) ?>"><?php endif; ?>
           <?php endforeach; ?>
-          <label>跳至 <input class="input" type="number" name="page" min="1" max="<?= (int) $pages ?>" value="<?= (int) $page ?>"> 页</label>
+          <label><?= e(t('admin.jump_to_page')) ?> <input class="input" type="number" name="page" min="1" max="<?= (int) $pages ?>" value="<?= (int) $page ?>"> <?= e(t('admin.page_suffix')) ?></label>
         </form>
       <?php endif; ?>
     </nav>
@@ -292,7 +309,7 @@ function nav_items(?string $menuSlug = null): array
                     break;
                 case 'post':
                     $item['label'] = (string) $item['post_title'];
-                    $item['url'] = \Pafish\Services\Permalinks::path('post', ['slug' => $item['post_slug'], 'published_at' => $item['post_published_at'], 'created_at' => $item['post_created_at']]);
+                    $item['url'] = \Pafish\Services\Permalinks::path('post', ['id' => $item['post_id'], 'slug' => $item['post_slug'], 'published_at' => $item['post_published_at'], 'created_at' => $item['post_created_at']]);
                     break;
                 case 'tag':
                     if ($item['tag_id'] !== null) {
@@ -576,6 +593,8 @@ function admin_icon(string $name, int $size = 16, bool $fill = false): string
         'trend' => '<polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>',
         'chevron' => '<path d="m6 9 6 6 6-6"/>',
         'chevron-right' => '<path d="m9 6 6 6-6 6"/>',
+        'panel-left-close' => '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16m7-11-3 3 3 3"/>',
+        'panel-left-open' => '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16m4-11 3 3-3 3"/>',
         'trash' => '<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/>',
         'search' => '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
         'x' => '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',

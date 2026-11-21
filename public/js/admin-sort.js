@@ -18,7 +18,7 @@
       status.hidden = false;
       status.textContent = message;
       status.classList.toggle('admin-sort-error', !!error);
-      if (message === '排序已保存') statusTimer = setTimeout(function () { status.hidden = true; }, 2500);
+      if (message === window.pafishT("js.order_saved")) statusTimer = setTimeout(function () { status.hidden = true; }, 2500);
     }
     function boundaries() {
       rows().forEach(function (row) {
@@ -61,7 +61,7 @@
       render(remaining.concat(ordered));
       busy = true;
       body.setAttribute('aria-busy', 'true');
-      announce('正在保存排序…');
+      announce(window.pafishT("js.saving_order"));
       var data = new FormData();
       data.set('_csrf', body.dataset.sortCsrf);
       data.set('ids', JSON.stringify(ids(ordered)));
@@ -72,11 +72,11 @@
           headers: { 'X-Requested-With': 'XMLHttpRequest' }, body: data
         });
         var result = await response.json();
-        if (!response.ok || !result.ok) throw Error(result.error || '排序保存失败，请重试');
-        announce('排序已保存');
+        if (!response.ok || !result.ok) throw Error(result.error || window.pafishT("js.unable_to_save_order_please_try_again"));
+        announce(window.pafishT("js.order_saved"));
       } catch (error) {
         render(previous);
-        announce(error.message || '排序保存失败，请重试', true);
+        announce(error.message || window.pafishT("js.unable_to_save_order_please_try_again"), true);
       } finally {
         busy = false;
         body.removeAttribute('aria-busy');

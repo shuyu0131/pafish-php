@@ -74,12 +74,12 @@
       head.className = 'admin-modal-head';
       var title = document.createElement('h2');
       title.className = 'admin-modal-title';
-      title.textContent = options.title || '请确认操作';
+      title.textContent = options.title || window.pafishT("js.confirm_this_action");
       var close = document.createElement('button');
       close.type = 'button';
       close.className = 'admin-icon-btn';
       close.setAttribute('data-modal-close', '');
-      close.setAttribute('aria-label', '关闭');
+      close.setAttribute('aria-label', window.pafishT("common.close"));
       close.textContent = '×';
       head.appendChild(title);
       head.appendChild(close);
@@ -98,10 +98,10 @@
       var actions = document.createElement('div');
       actions.className = 'admin-modal-actions';
       var cancel = document.createElement('button');
-      cancel.type = 'button'; cancel.className = 'btn btn-ghost'; cancel.textContent = '取消';
+      cancel.type = 'button'; cancel.className = 'btn btn-ghost'; cancel.textContent = window.pafishT("common.cancel");
       var accept = document.createElement('button');
       accept.type = 'button'; accept.className = options.danger === false ? 'btn btn-primary' : 'btn btn-danger';
-      accept.textContent = options.accept || '确认';
+      accept.textContent = options.accept || window.pafishT("common.confirm");
       actions.appendChild(cancel); actions.appendChild(accept);
       dialog.appendChild(head);
       dialog.appendChild(bodyWrap);

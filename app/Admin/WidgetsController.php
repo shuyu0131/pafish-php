@@ -23,7 +23,7 @@ final class WidgetsController extends AdminController
     /** 组件类型 */
     public const TYPES = ['categories', 'tags', 'recent_posts', 'hot_posts', 'recent_comments', 'recent_micro_statuses', 'custom'];
 
-    /** 类型中文标签（下拉 + 列表徽标） */
+    /** 兼容现有扩展调用的默认中文标签。 */
     public const TYPE_LABELS = [
         'categories' => '分类',
         'tags' => '标签',
@@ -34,7 +34,7 @@ final class WidgetsController extends AdminController
         'custom' => '自定义文本',
     ];
 
-    /** 类型默认标题 */
+    /** 兼容现有扩展调用的默认中文标题。 */
     public const DEFAULT_TITLES = [
         'categories' => '分类',
         'tags' => '标签',
@@ -45,6 +45,27 @@ final class WidgetsController extends AdminController
         'custom' => '自定义',
     ];
 
+    private const TYPE_LABEL_KEYS = [
+        'categories' => 'common.category',
+        'tags' => 'common.tags',
+        'recent_posts' => 'admin.recent_posts',
+        'hot_posts' => 'admin.popular_posts',
+        'recent_comments' => 'admin.recent_comments',
+        'recent_micro_statuses' => 'admin.recent_notes',
+        'custom' => 'admin.custom_text',
+    ];
+
+    /** 类型默认标题 */
+    private const DEFAULT_TITLE_KEYS = [
+        'categories' => 'common.category',
+        'tags' => 'common.tags',
+        'recent_posts' => 'admin.recent_posts',
+        'hot_posts' => 'admin.popular_posts',
+        'recent_comments' => 'admin.recent_comments',
+        'recent_micro_statuses' => 'admin.recent_notes',
+        'custom' => 'admin.custom',
+    ];
+
     /** GET /admin/widgets */
     public function index(Request $request, Response $response): Response
     {
@@ -53,10 +74,10 @@ final class WidgetsController extends AdminController
         $response->getBody()->write($this->render('widgets', [
             'items' => $items,
             'types' => self::TYPES,
-            'typeLabels' => self::TYPE_LABELS,
-            'defaultTitles' => self::DEFAULT_TITLES,
+            'typeLabels' => array_map('t', self::TYPE_LABEL_KEYS),
+            'defaultTitles' => array_map('t', self::DEFAULT_TITLE_KEYS),
             'areas' => Theme::widgetAreas(Theme::active()),
-        ], '侧边栏组件'));
+        ], t('admin.sidebar_widgets')));
         return $response;
     }
 
@@ -68,13 +89,13 @@ final class WidgetsController extends AdminController
         try {
             $type = (string) ($request->getParsedBody()['type'] ?? '');
             if (!in_array($type, self::TYPES, true)) {
-                throw new \RuntimeException('无效的组件类型');
+                throw new \RuntimeException(t('admin.invalid_widget_type'));
             }
             $body = $request->getParsedBody() ?? [];
             $area = (string) ($body['area'] ?? 'sidebar');
             $areas = Theme::widgetAreas(Theme::active());
             if (!array_key_exists($area, $areas)) {
-                throw new \RuntimeException('无效的组件区域');
+                throw new \RuntimeException(t('admin.invalid_widget_area'));
             }
             $title = trim((string) ($body['title'] ?? ''));
             $title = $title === '' ? null : mb_substr($title, 0, 100);
@@ -83,7 +104,7 @@ final class WidgetsController extends AdminController
             if ($type === 'custom') {
                 $content = mb_substr((string) ($request->getParsedBody()['content'] ?? ''), 0, 5000);
                 if (trim($content) === '') {
-                    throw new \RuntimeException('自定义组件内容不能为空');
+                    throw new \RuntimeException(t('admin.custom_widget_content_is_required'));
                 }
                 $content = \Pafish\Services\Content::sanitize($content);
             }
@@ -112,7 +133,7 @@ final class WidgetsController extends AdminController
             return $this->json($response, ['ok' => true]);
         }
         Cache::clearPrefix('widgets.');
-        $this->flash('success', $id > 0 ? '组件已更新' : '组件已添加');
+        $this->flash('success', $id > 0 ? t('admin.widget_updated') : t('admin.widget_added'));
         return $this->redirect($response, '/admin/widgets');
     }
 

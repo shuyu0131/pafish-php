@@ -59,7 +59,7 @@ return [
 
         if ($enabled('include_posts')) {
             $posts = DB::fetchAll(
-                "SELECT slug, published_at, created_at, updated_at FROM posts
+                "SELECT id, slug, published_at, created_at, updated_at FROM posts
                  WHERE status = 'PUBLISHED' AND deleted_at IS NULL
                    AND (published_at IS NULL OR published_at <= NOW())
                    AND (password IS NULL OR password = '')

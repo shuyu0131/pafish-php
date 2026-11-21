@@ -24,56 +24,56 @@ abstract class AdminController
 {
     /** 置顶导航项（不分组） */
     protected const TOP_ITEMS = [
-        ['href' => '/admin', 'label' => '工作台', 'icon' => 'dashboard', 'exact' => true],
+        ['href' => '/admin', 'label' => 'admin.dashboard', 'icon' => 'dashboard', 'exact' => true],
     ];
 
     /** 分组导航（require: 缺省=所有登录者 / edit=ADMIN+EDITOR / admin=仅 ADMIN） */
     protected const NAV_GROUPS = [
         [
             'id' => 'content',
-            'label' => '内容',
+            'label' => 'admin.content',
             'items' => [
-                ['href' => '/admin/posts', 'label' => '文章管理', 'icon' => 'file-text', 'capability' => 'posts.manage'],
-                ['href' => '/admin/micro', 'label' => '微语', 'icon' => 'message', 'capability' => 'posts.manage'],
-                ['href' => '/admin/pages', 'label' => '页面管理', 'icon' => 'file-plus', 'capability' => 'pages.manage'],
-                ['href' => '/admin/categories', 'label' => '分类管理', 'icon' => 'folder', 'capability' => 'taxonomy.manage'],
-                ['href' => '/admin/tags', 'label' => '标签管理', 'icon' => 'tags', 'capability' => 'taxonomy.manage'],
-                ['href' => '/admin/uploads', 'label' => '媒体库', 'icon' => 'image', 'capability' => 'media.manage'],
+                ['href' => '/admin/posts', 'label' => 'admin.posts', 'icon' => 'file-text', 'capability' => 'posts.manage'],
+                ['href' => '/admin/micro', 'label' => 'admin.notes', 'icon' => 'message', 'capability' => 'posts.manage'],
+                ['href' => '/admin/pages', 'label' => 'admin.pages', 'icon' => 'file-plus', 'capability' => 'pages.manage'],
+                ['href' => '/admin/categories', 'label' => 'admin.categories', 'icon' => 'folder', 'capability' => 'taxonomy.manage'],
+                ['href' => '/admin/tags', 'label' => 'admin.tags', 'icon' => 'tags', 'capability' => 'taxonomy.manage'],
+                ['href' => '/admin/uploads', 'label' => 'admin.media_library', 'icon' => 'image', 'capability' => 'media.manage'],
             ],
         ],
         [
             'id' => 'interaction',
-            'label' => '互动',
+            'label' => 'admin.interaction',
             'items' => [
-                ['href' => '/admin/comments', 'label' => '评论审核', 'icon' => 'message', 'capability' => 'comments.manage'],
-                ['href' => '/admin/links', 'label' => '友情链接', 'icon' => 'link', 'capability' => 'links.manage'],
+                ['href' => '/admin/comments', 'label' => 'admin.comment_moderation', 'navLabel' => 'admin.nav_comments', 'icon' => 'message', 'capability' => 'comments.manage'],
+                ['href' => '/admin/links', 'label' => 'admin.friend_links', 'navLabel' => 'admin.nav_links', 'icon' => 'link', 'capability' => 'links.manage'],
             ],
         ],
         [
             'id' => 'appearance',
-            'label' => '外观',
+            'label' => 'admin.appearance',
             'items' => [
-                ['href' => '/admin/nav', 'label' => '导航菜单', 'icon' => 'menu', 'capability' => 'appearance.manage'],
-                ['href' => '/admin/widgets', 'label' => '侧边栏组件', 'icon' => 'layout', 'capability' => 'appearance.manage'],
-                ['href' => '/admin/appearance', 'label' => '主题与外观', 'icon' => 'palette', 'capability' => 'appearance.manage'],
+                ['href' => '/admin/nav', 'label' => 'admin.navigation_menus', 'navLabel' => 'admin.nav_menus', 'icon' => 'menu', 'capability' => 'appearance.manage'],
+                ['href' => '/admin/widgets', 'label' => 'admin.sidebar_widgets', 'navLabel' => 'admin.nav_widgets', 'icon' => 'layout', 'capability' => 'appearance.manage'],
+                ['href' => '/admin/appearance', 'label' => 'admin.themes_and_appearance', 'navLabel' => 'admin.nav_themes', 'icon' => 'palette', 'capability' => 'appearance.manage'],
             ],
         ],
         [
             'id' => 'system',
-            'label' => '系统',
+            'label' => 'admin.system',
             'items' => [
-                ['href' => '/admin/settings', 'label' => '站点设置', 'icon' => 'settings', 'capability' => 'settings.manage'],
-                ['href' => '/admin/store', 'label' => '应用商店', 'icon' => 'store', 'capability' => 'store.manage'],
-                ['href' => '/admin/plugins', 'label' => '插件管理', 'icon' => 'puzzle', 'capability' => 'plugins.manage'],
-                ['href' => '/admin/users', 'label' => '用户管理', 'icon' => 'users', 'capability' => 'users.manage'],
-                ['href' => '/admin/backup', 'label' => '数据备份', 'icon' => 'database', 'capability' => 'backup.manage'],
-                ['href' => '/admin/tools/transfer', 'label' => '内容迁移', 'icon' => 'download', 'capability' => 'transfer.manage'],
+                ['href' => '/admin/settings', 'label' => 'admin.site_settings', 'navLabel' => 'admin.nav_settings', 'icon' => 'settings', 'capability' => 'settings.manage'],
+                ['href' => '/admin/store', 'label' => 'admin.app_store', 'icon' => 'store', 'capability' => 'store.manage'],
+                ['href' => '/admin/plugins', 'label' => 'admin.plugins', 'icon' => 'puzzle', 'capability' => 'plugins.manage'],
+                ['href' => '/admin/users', 'label' => 'admin.users', 'icon' => 'users', 'capability' => 'users.manage'],
+                ['href' => '/admin/backup', 'label' => 'admin.backups', 'icon' => 'database', 'capability' => 'backup.manage'],
+                ['href' => '/admin/tools/transfer', 'label' => 'admin.content_migration', 'navLabel' => 'admin.nav_migration', 'icon' => 'download', 'capability' => 'transfer.manage'],
             ],
         ],
     ];
 
     /** 渲染后台页面（内容视图 + 布局，视图位于 app/Views/admin/） */
-    protected function render(string $view, array $data = [], string $title = '后台'): string
+    protected function render(string $view, array $data = [], string $title = 'admin.admin'): string
     {
         $user = Auth::user();
         $role = (string) ($user['role'] ?? '');
@@ -83,7 +83,7 @@ abstract class AdminController
             'siteName' => \site_name(),
             'nav' => $this->navWithBadges($this->navForRole($role), $role),
             'currentPath' => $this->currentPath(),
-            'title' => $title,
+            'title' => t($title),
             'flash' => $this->takeFlash(),
         ];
         $content = self::renderView($view, array_merge($ctx, $data));
@@ -104,7 +104,7 @@ abstract class AdminController
             $expected = json_decode(is_string($body['expected'] ?? null) ? $body['expected'] : '', true, 512, JSON_THROW_ON_ERROR);
             \Pafish\Services\AdminOrdering::reorder($scope, $ids, $expected);
         } catch (\JsonException | \InvalidArgumentException $e) {
-            return $this->json($response, ['error' => '排序数据无效，请刷新后重试'], 400);
+            return $this->json($response, ['error' => t('admin.invalid_sort_data_refresh_the_page_and_try')], 400);
         } catch (\RuntimeException $e) {
             if ($e instanceof \PDOException) {
                 throw $e;
@@ -176,9 +176,9 @@ abstract class AdminController
     protected function roleLabel(string $role): string
     {
         return match ($role) {
-            'ADMIN' => '管理员',
-            'EDITOR' => '编辑',
-            default => '用户',
+            'ADMIN' => t('admin.administrator'),
+            'EDITOR' => t('common.editor'),
+            default => t('common.user'),
         };
     }
 
@@ -194,7 +194,7 @@ abstract class AdminController
         $ok = fn (array $item): bool => empty($item['capability']) || Auth::can((string) $item['capability']);
         $top = array_values(array_filter(static::TOP_ITEMS, $ok));
         if ($role === 'USER') {
-            $top = [['href' => '/admin', 'query' => ['section' => 'overview'], 'label' => '个人中心', 'icon' => 'dashboard', 'exact' => true]];
+            $top = [['href' => '/admin', 'query' => ['section' => 'overview'], 'label' => t('admin.account'), 'icon' => 'dashboard', 'exact' => true]];
         }
         $groups = [];
         $allExtensionItems = Plugin::adminMenu();
@@ -211,16 +211,16 @@ abstract class AdminController
         }
         if ($role === 'USER') {
             $accountItems = [
-                ['href' => '/admin', 'query' => ['section' => 'posts'], 'label' => '我的投稿', 'icon' => 'file-text'],
-                ['href' => '/admin', 'query' => ['section' => 'comments'], 'label' => '我的评论', 'icon' => 'message'],
-                ['href' => '/admin', 'query' => ['section' => 'favorites'], 'label' => '我的收藏', 'icon' => 'star'],
-                ['href' => '/admin', 'query' => ['section' => 'likes'], 'label' => '我的点赞', 'icon' => 'heart'],
+                ['href' => '/admin', 'query' => ['section' => 'posts'], 'label' => t('admin.my_submissions'), 'icon' => 'file-text'],
+                ['href' => '/admin', 'query' => ['section' => 'comments'], 'label' => t('admin.my_comments'), 'icon' => 'message'],
+                ['href' => '/admin', 'query' => ['section' => 'favorites'], 'label' => t('admin.my_bookmarks'), 'icon' => 'star'],
+                ['href' => '/admin', 'query' => ['section' => 'likes'], 'label' => t('admin.my_likes'), 'icon' => 'heart'],
             ];
             if (Points::available()) {
-                $accountItems[] = ['href' => '/admin', 'query' => ['section' => 'points'], 'label' => '积分记录', 'icon' => 'star'];
+                $accountItems[] = ['href' => '/admin', 'query' => ['section' => 'points'], 'label' => t('admin.points_history'), 'icon' => 'star'];
             }
-            $accountItems[] = ['href' => '/admin/profile', 'label' => '个人资料', 'icon' => 'user'];
-            $groups[] = ['id' => 'account', 'label' => '账户', 'items' => $accountItems];
+            $accountItems[] = ['href' => '/admin/profile', 'label' => t('admin.profile'), 'icon' => 'user'];
+            $groups[] = ['id' => 'account', 'label' => t('admin.account_c3d92b'), 'items' => $accountItems];
         }
         return ['top' => $top, 'groups' => $groups];
     }
@@ -273,11 +273,11 @@ abstract class AdminController
     private static function renderView(string $name, array $data = []): string
     {
         if (!preg_match('/^[a-z0-9_-]{1,60}$/', $name)) {
-            throw new \RuntimeException('非法的后台视图名：' . $name);
+            throw new \RuntimeException(t('admin.invalid_admin_view_name') . $name);
         }
         $file = dirname(__DIR__) . '/Views/admin/' . $name . '.php';
         if (!is_file($file)) {
-            throw new \RuntimeException('后台视图不存在：' . $name);
+            throw new \RuntimeException(t('admin.admin_view_not_found') . $name);
         }
         extract($data, EXTR_SKIP);
         ob_start();

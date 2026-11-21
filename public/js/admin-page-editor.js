@@ -52,7 +52,7 @@
     })
       .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
       .then(function (res) {
-        if (!res.ok) throw new Error(res.j.error || "上传失败");
+        if (!res.ok) throw new Error(res.j.error || window.pafishT("js.upload_failed"));
         return res.j;
       });
   }
@@ -76,7 +76,7 @@
       type: "page",
       mount: mount,
       field: content,
-      placeholder: "在此输入页面内容（支持 Markdown）…",
+      placeholder: window.pafishT("js.write_page_content_here_markdown_supported"),
       previewUrl: DATA.previewUrl,
       uploadUrl: DATA.uploadUrl,
       csrf: CSRF,
@@ -97,11 +97,11 @@
     $('[data-lib-q]').value = '';
     var mediaTitle = $('#editorMediaTitle');
     var coverMode = modal.imagesOnly;
-    if (mediaTitle) mediaTitle.textContent = request && request.title || '插入媒体';
+    if (mediaTitle) mediaTitle.textContent = request && request.title || window.pafishT("js.insert_media");
     var mediaFile = $('#mediaFile');
     mediaFile.dataset.fullAccept = mediaFile.dataset.fullAccept || mediaFile.accept;
     mediaFile.accept = coverMode ? 'image/*,.svg' : mediaFile.dataset.fullAccept;
-    $('[data-mupload-hint]').textContent = coverMode ? '请选择图片文件' : '图片插入为图片，其他文件插入为下载链接';
+    $('[data-mupload-hint]').textContent = coverMode ? window.pafishT("js.choose_an_image_file") : window.pafishT("js.images_are_inserted_as_images_other_files_as");
     var me = $("[data-mupload-error]");
     if (me) { me.hidden = true; me.textContent = ""; }
     $("#mediaModal").hidden = false;
@@ -129,7 +129,7 @@
     var f = files && files[0];
     if (!f || modal.uploading) return;
     if (modal.imagesOnly && !isImage(f.type)) {
-      var error = $('[data-mupload-error]'); error.textContent = '请选择图片文件'; error.hidden = false; return;
+      var error = $('[data-mupload-error]'); error.textContent = window.pafishT("js.choose_an_image_file"); error.hidden = false; return;
     }
     modal.uploading = true;
     var panel = $('[data-mpanel="upload"]');
@@ -140,12 +140,12 @@
     $('[data-mupload-error]').hidden = true;
     var help = $('[data-mupload-hint]').textContent;
     var hint = $("[data-mupload-hint]");
-    if (hint) hint.textContent = "上传中…";
+    if (hint) hint.textContent = window.pafishT("js.uploading");
     uploadFile(f)
       .then(function (j) { pick(j.url, j.mime, j.originalName || f.name); })
       .catch(function (e) {
         var me = $("[data-mupload-error]");
-        me.textContent = e.message || "上传失败";
+        me.textContent = e.message || window.pafishT("js.upload_failed");
         me.hidden = false;
       })
       .then(function () {
@@ -163,22 +163,22 @@
     var request = ++modal.request;
     var grid = $('[data-lib-grid]'), pager = $('[data-lib-pager]');
     grid.setAttribute('aria-busy', 'true');
-    grid.innerHTML = '<p class="admin-lib-empty">正在加载媒体…</p>';
+    grid.innerHTML = ("<p class=\"admin-lib-empty\">" + window.pafishI18n.escape(window.pafishT("js.loading_media")) + "</p>");
     pager.hidden = true;
     var params = new URLSearchParams({ page: String(modal.page), q: modal.q });
     if (modal.imagesOnly) params.set('type', 'image');
     fetch(window.PafishEditors.query(DATA.uploadsUrl, params), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
       .then(function (r) {
-        if (!r.ok) throw new Error('媒体加载失败');
+        if (!r.ok) throw new Error(window.pafishT("js.unable_to_load_media"));
         return r.json();
       })
       .then(function (d) {
-        if (!Array.isArray(d.items)) throw new Error('媒体数据异常');
+        if (!Array.isArray(d.items)) throw new Error(window.pafishT("js.invalid_media_data"));
         if (request === modal.request && modal.open) renderLibrary(d.items, d.total || 0);
       })
       .catch(function () {
         if (request !== modal.request || !modal.open) return;
-        grid.innerHTML = '<div class="admin-lib-empty"><p role="alert">媒体加载失败，请重试</p><button type="button" class="btn btn-outline" data-lib-retry>重新加载</button></div>';
+        grid.innerHTML = ("<div class=\"admin-lib-empty\"><p role=\"alert\">" + window.pafishI18n.escape(window.pafishT("js.unable_to_load_media_please_try_again")) + "</p><button type=\"button\" class=\"btn btn-outline\" data-lib-retry>" + window.pafishI18n.escape(window.pafishT("js.reload")) + "</button></div>");
         $('[data-lib-retry]', grid).addEventListener('click', function () { loadLibrary(false); });
       })
       .then(function () { if (request === modal.request) grid.removeAttribute('aria-busy'); });
@@ -192,7 +192,7 @@
     modal.total = total;
     var grid = $("[data-lib-grid]");
     if (items.length === 0) {
-      grid.innerHTML = '<p class="admin-lib-empty">' + (modal.q ? "没有匹配的媒体" : "媒体库还是空的，先切换到“本地上传”吧") + "</p>";
+      grid.innerHTML = '<p class="admin-lib-empty">' + window.pafishI18n.escape(modal.q ? window.pafishT("js.no_matching_media") : window.pafishT("js.the_media_library_is_empty_upload_a_file")) + "</p>";
     } else {
       grid.innerHTML = items.map(function (u) {
         var img = isImage(u.mime);
@@ -200,7 +200,7 @@
         var thumb = img
           ? '<img src="' + esc(u.url) + '" alt="' + esc(u.originalName) + '" loading="lazy">'
           : '<span class="admin-lib-ext">' + esc(ext) + "</span>";
-        return '<button type="button" class="admin-lib-item" data-lib-pick="' + esc(u.url) + '" data-lib-mime="' + esc(u.mime) + '" data-lib-name="' + esc(u.originalName) + '" title="插入 ' + esc(u.originalName) + "（" + fmtSize(u.size) + "）\">" +
+        return '<button type="button" class="admin-lib-item" data-lib-pick="' + esc(u.url) + '" data-lib-mime="' + esc(u.mime) + '" data-lib-name="' + esc(u.originalName) + ("\" title=\"" + window.pafishI18n.escape(window.pafishT("js.insert")) + " ") + esc(u.originalName) + "（" + fmtSize(u.size) + "）\">" +
           '<span class="admin-lib-thumb">' + thumb + "</span>" +
           '<span class="admin-lib-name">' + esc(u.originalName) + "</span></button>";
       }).join("");
@@ -216,9 +216,9 @@
       pager.hidden = true;
     } else {
       pager.hidden = false;
-      pager.innerHTML = '<button type="button" class="admin-pager-btn" data-lib-page="' + (modal.page - 1) + '"' + (modal.page <= 1 ? " disabled" : "") + ">上一页</button>" +
-        '<span class="admin-pager-info">第 ' + modal.page + " / " + pages + " 页</span>" +
-        '<button type="button" class="admin-pager-btn" data-lib-page="' + (modal.page + 1) + '"' + (modal.page >= pages ? " disabled" : "") + ">下一页</button>";
+      pager.innerHTML = '<button type="button" class="admin-pager-btn" data-lib-page="' + (modal.page - 1) + '"' + (modal.page <= 1 ? " disabled" : "") + (">" + window.pafishI18n.escape(window.pafishT("js.previous")) + "</button>") +
+        ("<span class=\"admin-pager-info\">" + window.pafishI18n.escape(window.pafishT("js.no")) + " ") + modal.page + " / " + pages + (" " + window.pafishI18n.escape(window.pafishT("js.page")) + "</span>") +
+        '<button type="button" class="admin-pager-btn" data-lib-page="' + (modal.page + 1) + '"' + (modal.page >= pages ? " disabled" : "") + (">" + window.pafishI18n.escape(window.pafishT("js.next")) + "</button>");
       $$("[data-lib-page]", pager).forEach(function (b) {
         b.addEventListener("click", function () {
           var p = parseInt(b.getAttribute("data-lib-page"), 10);
@@ -236,9 +236,9 @@
   // ---------- 保存 ----------
   function submit(action) {
     if (pending) return;
-    if (window.__pafishEditor && !window.__pafishEditor.isReady()) { showError("编辑器正在加载或上传，请稍候"); return; }
+    if (window.__pafishEditor && !window.__pafishEditor.isReady()) { showError(window.pafishT("js.the_editor_is_loading_or_uploading_please_wait")); return; }
     clearError();
-    if (!title.value.trim()) { showError("请填写页面标题"); return; }
+    if (!title.value.trim()) { showError(window.pafishT("js.enter_a_page_title")); return; }
     pending = action;
     var btns = $$("[data-save]");
     btns.forEach(function (b) { b.disabled = true; });
@@ -252,15 +252,15 @@
         pending = null;
         btns.forEach(function (b) { b.disabled = false; });
         if (res.ok && res.j && res.j.ok) {
-          pafishToastNavigate(DATA.listUrl, "页面已保存", "success");
+          pafishToastNavigate(DATA.listUrl, window.pafishT("js.page_saved"), "success");
         } else {
-          showError((res.j && res.j.error) || "保存失败，请重试");
+          showError((res.j && res.j.error) || window.pafishT("js.unable_to_save_please_try_again"));
         }
       })
       .catch(function () {
         pending = null;
         btns.forEach(function (b) { b.disabled = false; });
-        showError("网络错误，保存失败");
+        showError(window.pafishT("js.network_error_unable_to_save"));
       });
   }
 

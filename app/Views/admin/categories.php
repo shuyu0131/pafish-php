@@ -10,10 +10,10 @@ $canEdit = in_array($role ?? '', ['ADMIN', 'EDITOR'], true);
 <div class="admin-stack admin-list-page admin-detail-page admin-categories-page">
   <div class="admin-page-head">
     <div>
-      <h1 class="admin-h1">分类管理</h1>
-      <p class="admin-page-sub">共 <?= count($tree) ?> 个分类</p>
+      <h1 class="admin-h1"><?= e(t('admin.categories')) ?></h1>
+      <p class="admin-page-sub"><?= e(t('admin.total')) ?> <?= count($tree) ?> <?= e(t('admin.categories_1bbff1')) ?></p>
     </div>
-    <?php if ($canEdit): ?><button type="button" class="btn btn-primary" id="btnNewCategory"><?= admin_icon('plus', 15) ?>新建分类</button><?php endif; ?>
+    <?php if ($canEdit): ?><button type="button" class="btn btn-primary" id="btnNewCategory"><?= admin_icon('plus', 15) ?><?= e(t('admin.new_category')) ?></button><?php endif; ?>
   </div>
 
   <div class="admin-category-list">
@@ -23,9 +23,9 @@ $canEdit = in_array($role ?? '', ['ADMIN', 'EDITOR'], true);
         <table class="admin-table admin-categories-table">
           <thead>
             <tr>
-              <th>名称</th>
-              <th class="admin-col-sm">文章</th>
-              <th class="admin-col-ops">操作</th>
+              <th><?= e(t('common.name')) ?></th>
+              <th class="admin-col-sm"><?= e(t('common.post')) ?></th>
+              <th class="admin-col-ops"><?= e(t('common.actions')) ?></th>
             </tr>
           </thead>
           <tbody data-admin-sort="<?= e(url_to('/admin/categories/reorder')) ?>" data-sort-csrf="<?= e(csrf_token()) ?>">
@@ -33,7 +33,7 @@ $canEdit = in_array($role ?? '', ['ADMIN', 'EDITOR'], true);
               <tr><td colspan="3">
                 <div class="admin-empty-list">
                   <?= admin_icon('folder', 32) ?>
-                  <p>还没有分类</p>
+                  <p><?= e(t('admin.no_categories_yet')) ?></p>
                 </div>
               </td></tr>
             <?php else: ?>
@@ -50,7 +50,7 @@ $canEdit = in_array($role ?? '', ['ADMIN', 'EDITOR'], true);
                     data-parent="<?= $c['parent_id'] ? (int) $c['parent_id'] : '' ?>">
                   <td>
                     <div class="admin-cat-name">
-                      <button type="button" class="admin-icon-btn admin-sort-handle" aria-label="拖动排序" title="拖动排序"><svg width="14" height="18" viewBox="0 0 14 18" aria-hidden="true" fill="currentColor"><circle cx="4" cy="4" r="1.2"/><circle cx="10" cy="4" r="1.2"/><circle cx="4" cy="9" r="1.2"/><circle cx="10" cy="9" r="1.2"/><circle cx="4" cy="14" r="1.2"/><circle cx="10" cy="14" r="1.2"/></svg></button>
+                      <button type="button" class="admin-icon-btn admin-sort-handle" aria-label="<?= e(t('admin.drag_to_reorder')) ?>" title="<?= e(t('admin.drag_to_reorder')) ?>"><svg width="14" height="18" viewBox="0 0 14 18" aria-hidden="true" fill="currentColor"><circle cx="4" cy="4" r="1.2"/><circle cx="10" cy="4" r="1.2"/><circle cx="4" cy="9" r="1.2"/><circle cx="10" cy="9" r="1.2"/><circle cx="4" cy="14" r="1.2"/><circle cx="10" cy="14" r="1.2"/></svg></button>
                       <?php if ($depth > 0): ?>
                         <span class="admin-tree-indent" style="width:<?= $depth * 18 ?>px"></span>
                         <span class="admin-tree-branch">└</span>
@@ -67,11 +67,11 @@ $canEdit = in_array($role ?? '', ['ADMIN', 'EDITOR'], true);
                   </td>
                   <td class="admin-col-ops">
                     <div class="admin-row-ops">
-                      <button type="button" class="admin-icon-btn" data-move-cat="<?= (int) $c['id'] ?>" data-dir="up" title="上移"><?= admin_icon('chevron-up', 15) ?></button>
-                      <button type="button" class="admin-icon-btn" data-move-cat="<?= (int) $c['id'] ?>" data-dir="down" title="下移"><?= admin_icon('chevron-down', 15) ?></button>
-                      <button type="button" class="admin-icon-btn" data-edit-cat="<?= (int) $c['id'] ?>" title="编辑"><?= admin_icon('edit', 15) ?></button>
+                      <button type="button" class="admin-icon-btn" data-move-cat="<?= (int) $c['id'] ?>" data-dir="up" title="<?= e(t('admin.move_up')) ?>"><?= admin_icon('chevron-up', 15) ?></button>
+                      <button type="button" class="admin-icon-btn" data-move-cat="<?= (int) $c['id'] ?>" data-dir="down" title="<?= e(t('admin.move_down')) ?>"><?= admin_icon('chevron-down', 15) ?></button>
+                      <button type="button" class="admin-icon-btn" data-edit-cat="<?= (int) $c['id'] ?>" title="<?= e(t('common.edit')) ?>"><?= admin_icon('edit', 15) ?></button>
                       <button type="button" class="admin-icon-btn admin-icon-danger" data-delete-cat="<?= (int) $c['id'] ?>"
-                              data-name="<?= e($c['name']) ?>" title="删除"><?= admin_icon('trash', 15) ?></button>
+                              data-name="<?= e($c['name']) ?>" title="<?= e(t('common.delete')) ?>"><?= admin_icon('trash', 15) ?></button>
                     </div>
                   </td>
                 </tr>
@@ -88,8 +88,8 @@ $canEdit = in_array($role ?? '', ['ADMIN', 'EDITOR'], true);
 <div class="admin-modal-backdrop" id="categoryModal" hidden>
   <div class="admin-modal admin-entity-modal" role="dialog" aria-modal="true" aria-labelledby="catFormTitle">
     <div class="admin-modal-head">
-      <h2 class="admin-modal-title" id="catFormTitle">新建分类</h2>
-      <button type="button" class="admin-icon-btn" data-modal-close aria-label="关闭分类窗口"><?= admin_icon('x', 16) ?></button>
+      <h2 class="admin-modal-title" id="catFormTitle"><?= e(t('admin.new_category')) ?></h2>
+      <button type="button" class="admin-icon-btn" data-modal-close aria-label="<?= e(t('admin.close_category_dialog')) ?>"><?= admin_icon('x', 16) ?></button>
     </div>
       <form id="catForm" method="post" action="<?= e(url_to('/admin/categories/save')) ?>" novalidate>
         <?= csrf_field() ?>
@@ -97,25 +97,25 @@ $canEdit = in_array($role ?? '', ['ADMIN', 'EDITOR'], true);
         <input type="hidden" name="slug_auto" id="fCatSlugAuto" value="1">
         <div class="admin-modal-body">
         <div class="admin-field">
-          <label class="label" for="fCatName">名称 <span aria-hidden="true">*</span></label>
-          <input class="input" type="text" id="fCatName" name="name" placeholder="分类名称" maxlength="100" required>
+          <label class="label" for="fCatName"><?= e(t('common.name')) ?> <span aria-hidden="true">*</span></label>
+          <input class="input" type="text" id="fCatName" name="name" placeholder="<?= e(t('admin.category_name')) ?>" maxlength="100" required>
         </div>
         <div class="admin-field">
-          <label class="label" for="fCatSlug">地址</label>
-          <input class="input" type="text" id="fCatSlug" name="slug" placeholder="留空自动生成英文或拼音，可自定义" maxlength="100">
+          <label class="label" for="fCatSlug"><?= e(t('admin.url')) ?></label>
+          <input class="input" type="text" id="fCatSlug" name="slug" placeholder="<?= e(t('admin.leave_blank_to_generate_an_english_or_pinyin')) ?>" maxlength="100">
         </div>
         <div class="admin-field">
-          <label class="label" for="fCatDesc">描述</label>
+          <label class="label" for="fCatDesc"><?= e(t('admin.description')) ?></label>
           <textarea class="input" id="fCatDesc" name="description" rows="2" maxlength="500"></textarea>
         </div>
         <div class="admin-field">
-          <label class="label" for="categoryCover">分类封面</label>
+          <label class="label" for="categoryCover"><?= e(t('admin.category_cover')) ?></label>
           <?php $imageId = 'categoryCover'; $imageName = 'cover_url'; $imageValue = ''; require __DIR__ . '/partials/image-field.php'; ?>
         </div>
         <div class="admin-field">
-          <label class="label" for="fCatParent">父分类</label>
+          <label class="label" for="fCatParent"><?= e(t('admin.parent_category')) ?></label>
           <select class="input" id="fCatParent" name="parent_id">
-            <option value="">（无，作为顶级分类）</option>
+            <option value=""><?= e(t('admin.none_top_level_category')) ?></option>
             <?php foreach ($flatForSelect as $oc): ?>
               <option value="<?= (int) $oc['id'] ?>"><?= str_repeat('　', (int) $oc['depth']) . e($oc['name']) ?></option>
             <?php endforeach; ?>
@@ -125,8 +125,8 @@ $canEdit = in_array($role ?? '', ['ADMIN', 'EDITOR'], true);
         <div class="admin-editor-error" role="alert" hidden></div>
         </div>
         <div class="admin-modal-actions admin-cat-form-actions">
-          <button type="button" class="btn btn-ghost" id="catFormCancel" data-modal-close>取消</button>
-          <button type="submit" class="btn btn-primary">创建分类</button>
+          <button type="button" class="btn btn-ghost" id="catFormCancel" data-modal-close><?= e(t('common.cancel')) ?></button>
+          <button type="submit" class="btn btn-primary"><?= e(t('admin.create_category')) ?></button>
         </div>
       </form>
   </div>
@@ -162,10 +162,10 @@ window.PAFISH_CAT_DATA = <?= json_encode($catJs) ?>;
     fId.value = "";
     fSlugAuto.value = "1";
     form.action = D.saveUrl;
-    titleEl.textContent = "新建分类";
+    titleEl.textContent = window.pafishT("js.new_category");
     errorBox.hidden = true;
     form.querySelectorAll('details').forEach(function (details) { details.open = false; });
-    form.querySelector(".btn-primary").textContent = "创建分类";
+    form.querySelector(".btn-primary").textContent = window.pafishT("js.create_category");
     Array.prototype.forEach.call(fParent.options, function (opt) { opt.disabled = false; });
     fParent.dispatchEvent(new Event("change", { bubbles: true }));
   }
@@ -211,8 +211,8 @@ window.PAFISH_CAT_DATA = <?= json_encode($catJs) ?>;
       fParent.value = parentVal;
       fParent.dispatchEvent(new Event("change", { bubbles: true }));
       form.action = D.saveUrl.replace(/\/save$/, "/" + fId.value + "/save");
-      titleEl.textContent = "编辑分类";
-      document.querySelector(".admin-cat-form-actions .btn-primary").textContent = "保存修改";
+      titleEl.textContent = window.pafishT("js.edit_category");
+      document.querySelector(".admin-cat-form-actions .btn-primary").textContent = window.pafishT("js.save_changes");
       categoryModal.hidden = false;
     });
   });
@@ -232,7 +232,7 @@ window.PAFISH_CAT_DATA = <?= json_encode($catJs) ?>;
     e.preventDefault();
     if (saving) return;
     errorBox.hidden = true;
-    if (!fName.value.trim()) { showError("请填写分类名称"); fName.focus(); return; }
+    if (!fName.value.trim()) { showError(window.pafishT("js.enter_a_category_name")); fName.focus(); return; }
     var fd = new FormData(form);
     fd.set("_csrf", D.csrf);
     saving = true;
@@ -244,10 +244,10 @@ window.PAFISH_CAT_DATA = <?= json_encode($catJs) ?>;
       .then(function (r) { return r.json(); })
       .then(function (j) {
         if (j && j.ok) {
-          pafishToastReload(fId.value ? "分类已更新" : "分类已创建", "success");
-        } else { showError((j && j.error) || "保存失败"); }
+          pafishToastReload(fId.value ? window.pafishT("js.category_updated") : window.pafishT("js.category_created"), "success");
+        } else { showError((j && j.error) || window.pafishT("js.save_failed")); }
       })
-      .catch(function () { showError("网络错误，请重试"); })
+      .catch(function () { showError(window.pafishT("common.network_error_retry")); })
       .finally(function () {
         saving = false;
         categoryModal.removeAttribute("data-modal-static");
@@ -263,8 +263,8 @@ window.PAFISH_CAT_DATA = <?= json_encode($catJs) ?>;
       var moveUrl = D.moveUrl.replace("/0/move", "/" + btn.getAttribute("data-move-cat") + "/move");
       post(moveUrl, { dir: btn.getAttribute("data-dir") })
         .then(function (r) { return r.json(); })
-        .then(function (j) { if (j && j.ok) pafishToastReload("分类顺序已更新", "success"); else pafishNotify((j && j.error) || "操作失败", true); })
-        .catch(function () { pafishNotify("网络错误", true); });
+        .then(function (j) { if (j && j.ok) pafishToastReload(window.pafishT("js.category_order_updated"), "success"); else pafishNotify((j && j.error) || window.pafishT("common.operation_failed"), true); })
+        .catch(function () { pafishNotify(window.pafishT("js.network_error"), true); });
     });
   });
 
@@ -272,15 +272,15 @@ window.PAFISH_CAT_DATA = <?= json_encode($catJs) ?>;
   document.querySelectorAll("[data-delete-cat]").forEach(function (btn) {
     btn.addEventListener("click", function () {
       var name = btn.getAttribute("data-name") || "";
-      (window.pafishConfirm ? window.pafishConfirm("确定删除分类「" + name + "」？其子分类将变为顶级分类，文章将变为未分类。", { title: "删除分类" }) : Promise.resolve(window.confirm("确定删除分类「" + name + "」？"))).then(function (ok) {
+      (window.pafishConfirm ? window.pafishConfirm(window.pafishT("js.confirm_delete_category", {name: name}), { title: window.pafishT("js.delete_category_6add29") }) : Promise.resolve(window.confirm(window.pafishT("js.confirm_delete_category", {name: name})))).then(function (ok) {
         if (!ok) return;
         return post(D.deleteUrl + "/" + btn.getAttribute("data-delete-cat") + "/delete")
         .then(function (r) { return r.json(); })
         .then(function (j) {
-          if (j && j.ok) pafishToastReload("分类已删除", "success");
-          else pafishNotify((j && j.error) || "删除失败", true);
+          if (j && j.ok) pafishToastReload(window.pafishT("js.category_deleted"), "success");
+          else pafishNotify((j && j.error) || window.pafishT("js.delete_failed"), true);
         })
-        .catch(function () { pafishNotify("网络错误", true); });
+        .catch(function () { pafishNotify(window.pafishT("js.network_error"), true); });
       });
     });
   });

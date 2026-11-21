@@ -65,11 +65,11 @@ $editorData = [
 <div class="admin-editor admin-editor-workspace">
   <?php if ($submissionMode && $isEdit): ?>
   <div class="admin-submission-status-note"><span class="badge<?= $post['status'] === 'PUBLISHED' ? ' badge-success' : ($post['status'] === 'CHANGES_REQUESTED' ? ' badge-warning' : '') ?>"><?= e($submissionStatusLabel ?? $post['status']) ?></span>
-    <?php if ($post['status'] === 'PENDING'): ?><span>内容已送审，审核完成前不会公开。</span>
-    <?php elseif ($post['status'] === 'PUBLISHED' && !empty($submissionReviewRequired)): ?><span>重新提交后文章会暂时从公开页面隐藏，审核通过后重新显示。</span><?php endif; ?>
+    <?php if ($post['status'] === 'PENDING'): ?><span><?= e(t('admin.submitted_for_review_this_content_stays_private_until')) ?></span>
+    <?php elseif ($post['status'] === 'PUBLISHED' && !empty($submissionReviewRequired)): ?><span><?= e(t('admin.resubmitting_temporarily_hides_the_post_from_public_pages')) ?></span><?php endif; ?>
   </div>
   <?php if ($post['status'] === 'CHANGES_REQUESTED' && trim((string) ($post['review_note'] ?? '')) !== ''): ?>
-    <section class="admin-submission-feedback" aria-labelledby="submission-feedback-title"><h2 id="submission-feedback-title">审核意见</h2><p><?= e($post['review_note']) ?></p><span class="admin-muted">根据意见修改后再次提交。</span></section>
+    <section class="admin-submission-feedback" aria-labelledby="submission-feedback-title"><h2 id="submission-feedback-title"><?= e(t('admin.review_feedback')) ?></h2><p><?= e($post['review_note']) ?></p><span class="admin-muted"><?= e(t('admin.address_the_feedback_and_resubmit')) ?></span></section>
   <?php endif; ?>
   <?php endif; ?>
 
@@ -82,15 +82,15 @@ $editorData = [
 
     <header class="admin-editor-header">
       <div class="admin-editor-heading">
-        <h1 class="admin-h1"><?= $submissionMode ? ($isEdit ? '编辑投稿' : '撰写投稿') : ($isEdit ? '编辑文章' : '新建文章') ?></h1>
-        <?php if ($isEdit && !$submissionMode): ?><p class="admin-autosave" data-autosave role="status">每 60 秒自动保存</p><?php endif; ?>
+        <h1 class="admin-h1"><?= $submissionMode ? ($isEdit ? t('admin.edit_submission') : t('admin.write_a_submission')) : ($isEdit ? t('admin.edit_post') : t('admin.new_post')) ?></h1>
+        <?php if ($isEdit && !$submissionMode): ?><p class="admin-autosave" data-autosave role="status"><?= e(t('admin.autosave_every_60_seconds')) ?></p><?php endif; ?>
       </div>
       <div class="admin-editor-header-actions">
-        <button type="submit" class="btn btn-outline" data-save="draft">存为草稿</button>
+        <button type="submit" class="btn btn-outline" data-save="draft"><?= e(t('admin.save_draft')) ?></button>
         <?php if (!$submissionMode || !empty($submissionCanSubmit)): ?>
-          <button type="submit" class="btn btn-primary admin-publish-primary" data-save="publish"><?= $submissionMode ? (!empty($submissionReviewRequired) ? '提交审核' : ($isEdit && $post['status'] === 'PUBLISHED' ? '保存并发布' : '发布文章')) : ($isEdit && $post['status'] === 'PUBLISHED' ? '保存修改' : '立即发布') ?></button>
+          <button type="submit" class="btn btn-primary admin-publish-primary" data-save="publish"><?= $submissionMode ? (!empty($submissionReviewRequired) ? t('admin.submit_for_review') : ($isEdit && $post['status'] === 'PUBLISHED' ? t('admin.save_and_publish') : t('admin.publish_post'))) : ($isEdit && $post['status'] === 'PUBLISHED' ? t('admin.save_changes') : t('admin.publish_now')) ?></button>
         <?php else: ?>
-          <span class="admin-muted">投稿已关闭，可先保存为草稿</span>
+          <span class="admin-muted"><?= e(t('admin.submissions_are_closed_you_can_save_a_draft')) ?></span>
         <?php endif; ?>
       </div>
     </header>
@@ -99,8 +99,8 @@ $editorData = [
       <div class="admin-editor-main">
         <div class="admin-editor-writing">
         <div class="admin-editor-title-wrap">
-          <input class="admin-editor-title" type="text" id="fTitle" name="title" aria-label="文章标题"
-                 value="<?= e($post['title']) ?>" placeholder="文章标题" maxlength="255">
+          <input class="admin-editor-title" type="text" id="fTitle" name="title" aria-label="<?= e(t('admin.post_title')) ?>"
+                 value="<?= e($post['title']) ?>" placeholder="<?= e(t('admin.post_title')) ?>" maxlength="255">
         </div>
 
         <?php $editorType = 'post'; require __DIR__ . '/partials/editor-controls.php'; ?>
@@ -113,19 +113,19 @@ $editorData = [
         </div>
         <div class="admin-editor-extra">
           <div class="admin-field admin-editor-excerpt-field">
-            <label class="label" for="fExcerpt">摘要</label>
+            <label class="label" for="fExcerpt"><?= e(t('admin.excerpt')) ?></label>
             <textarea class="input admin-excerpt" id="fExcerpt" name="excerpt"
-                      placeholder="展示在列表页（留空自动截取）" maxlength="500"><?= e($post['excerpt']) ?></textarea>
+                      placeholder="<?= e(t('admin.shown_on_listing_pages_leave_blank_to_generate')) ?>" maxlength="500"><?= e($post['excerpt']) ?></textarea>
           </div>
 
         </div>
         </div>
 
         <details class="card admin-advanced admin-editor-fields" id="customFieldsDetails"<?= $submissionMode || !$legacyCustomFieldsVisible ? ' hidden' : '' ?>>
-          <summary><?= admin_icon('chevron-right', 14) ?><span id="customFieldsTitle"><?= $hasExtensionMeta ? '旧版自定义字段' : '自定义字段' ?></span></summary>
+          <summary><?= admin_icon('chevron-right', 14) ?><span id="customFieldsTitle"><?= $hasExtensionMeta ? t('admin.legacy_custom_fields') : t('admin.custom_fields') ?></span></summary>
           <section class="admin-advanced-body admin-custom-fields-field" aria-labelledby="customFieldsTitle">
             <div class="admin-editor-extra-head">
-              <button type="button" class="btn btn-ghost admin-add-field" id="btnAddField"><?= admin_icon('plus', 14) ?>添加字段</button>
+              <button type="button" class="btn btn-ghost admin-add-field" id="btnAddField"><?= admin_icon('plus', 14) ?><?= e(t('admin.add_field')) ?></button>
             </div>
             <div class="admin-custom-fields" id="customFields"></div>
             <datalist id="postCustomFieldKeys"></datalist>
@@ -133,7 +133,7 @@ $editorData = [
         </details>
         <?php if ($extensionMetaFields !== []): ?>
         <details class="card admin-advanced admin-editor-fields" id="extensionMetaDetails">
-          <summary><?= admin_icon('chevron-right', 14) ?><span>主题自定义字段</span></summary>
+          <summary><?= admin_icon('chevron-right', 14) ?><span><?= e(t('admin.theme_custom_fields')) ?></span></summary>
           <section class="admin-advanced-body admin-extension-meta-fields">
             <?php foreach ($extensionMetaFields as $index => $field): ?>
               <?php $fieldId = 'extension-meta-' . $index; $value = (string) ($field['value'] ?? ''); ?>
@@ -144,8 +144,8 @@ $editorData = [
                 <?php elseif (in_array($field['type'], ['select', 'checkbox'], true)): ?>
                   <select class="input" id="<?= e($fieldId) ?>" data-extension-meta data-meta-scope="<?= e($field['scope']) ?>" data-meta-key="<?= e($field['key']) ?>">
                     <?php if ($field['type'] === 'checkbox'): ?>
-                      <option value="0" <?= $value === '0' ? 'selected' : '' ?>>关闭</option>
-                      <option value="1" <?= $value === '1' ? 'selected' : '' ?>>开启</option>
+                      <option value="0" <?= $value === '0' ? 'selected' : '' ?>><?= e(t('common.close')) ?></option>
+                      <option value="1" <?= $value === '1' ? 'selected' : '' ?>><?= e(t('admin.enable')) ?></option>
                     <?php else: ?>
                       <?php foreach ((array) $field['options'] as $option => $label): ?><option value="<?= e((string) $option) ?>" <?= $value === (string) $option ? 'selected' : '' ?>><?= e((string) $label) ?></option><?php endforeach; ?>
                     <?php endif; ?>
@@ -166,36 +166,36 @@ $editorData = [
         <!-- 设置 -->
         <div class="card admin-form-card admin-settings-card">
           <div class="admin-editor-card-heading">
-            <strong>发布设置</strong>
+            <strong><?= e(t('admin.publishing_settings')) ?></strong>
           </div>
           <div class="admin-field">
-            <label class="label" for="catTrigger">分类</label>
+            <label class="label" for="catTrigger"><?= e(t('common.category')) ?></label>
             <div class="admin-cat-select" id="catSelect"></div>
             <div class="admin-field-hint" data-new-cat-wrap hidden>
-              <input class="input" id="fNewCategory" name="new_category" placeholder="输入新分类名称（保存文章时创建）" maxlength="100">
+              <input class="input" id="fNewCategory" name="new_category" placeholder="<?= e(t('admin.enter_a_new_category_name_created_when_saving')) ?>" maxlength="100">
             </div>
           </div>
 
           <div class="admin-field">
-            <label class="label" for="fTagInput">标签</label>
+            <label class="label" for="fTagInput"><?= e(t('common.tags')) ?></label>
             <div class="admin-tags-selected" id="tagsSelected"></div>
-            <input class="input" id="fTagInput" placeholder="<?= $submissionMode ? '输入已有标签名，回车添加' : '输入标签名，回车/逗号添加' ?>" maxlength="100">
+            <input class="input" id="fTagInput" placeholder="<?= $submissionMode ? t('admin.enter_an_existing_tag_name_and_press_enter') : t('admin.enter_a_tag_name_press_enter_or_comma') ?>" maxlength="100">
             <div class="admin-tags-all" id="tagsAll"></div>
           </div>
 
           <?php if (count($templateOptions) > 1 || $templateUnavailable): ?>
           <div class="admin-field">
-            <label class="label" for="fTemplate">文章模板</label>
+            <label class="label" for="fTemplate"><?= e(t('admin.post_template')) ?></label>
             <select class="input" id="fTemplate" name="template">
               <?php if ($templateUnavailable): ?>
-              <option value="<?= e($template) ?>" selected><?= e($template) ?>（暂不可用）</option>
+              <option value="<?= e($template) ?>" selected><?= e($template) ?><?= e(t('admin.unavailable')) ?></option>
               <?php endif; ?>
               <?php foreach ($templateOptions as $key => $label): ?>
               <option value="<?= e($key) ?>" <?= $template === $key ? 'selected' : '' ?>><?= e($label) ?></option>
               <?php endforeach; ?>
             </select>
             <?php if ($templateUnavailable): ?>
-            <span class="admin-field-hint">原模板暂不可用，前台按分类或默认布局显示；恢复主题后可继续使用。</span>
+            <span class="admin-field-hint"><?= e(t('admin.the_original_template_is_unavailable_the_category_or')) ?></span>
             <?php endif; ?>
           </div>
           <?php else: ?>
@@ -205,29 +205,29 @@ $editorData = [
           <?php if ($submissionMode): ?>
           <label class="admin-check">
             <input type="checkbox" id="fAllowComments" name="allow_comments" value="1" <?= ($post['allow_comments'] ?? 1) ? 'checked' : '' ?>>
-            <span>允许评论</span>
+            <span><?= e(t('admin.allow_comments')) ?></span>
           </label>
           <?php endif; ?>
 
         </div>
 
         <div class="card admin-form-card admin-editor-cover-card">
-          <h2 class="admin-card-title">封面图</h2>
-          <button type="button" class="admin-cover-picker" id="btnCoverPicker"<?= $editorMediaEnabled ? '' : ' disabled' ?> data-auto-cover="<?= e($autoCoverUrl ?? '') ?>" aria-label="选择或更换封面">
-            <span class="admin-cover-empty" data-cover-empty><?= admin_icon('image', 24) ?><span>选择封面</span></span>
+          <h2 class="admin-card-title"><?= e(t('admin.cover_image')) ?></h2>
+          <button type="button" class="admin-cover-picker" id="btnCoverPicker"<?= $editorMediaEnabled ? '' : ' disabled' ?> data-auto-cover="<?= e($autoCoverUrl ?? '') ?>" aria-label="<?= e(t('admin.choose_or_replace_cover')) ?>">
+            <span class="admin-cover-empty" data-cover-empty><?= admin_icon('image', 24) ?><span><?= e(t('admin.choose_cover')) ?></span></span>
             <span class="admin-cover-preview" data-cover-preview hidden><img alt="封面预览"></span>
           </button>
           <div class="admin-cover-actions">
             <details class="admin-cover-address">
-              <summary>使用图片地址</summary>
-              <label for="fCoverUrl">封面图片地址</label>
-              <input class="input" id="fCoverUrl" name="cover_url" value="<?= e($post['cover_url'] ?? '') ?>" placeholder="/uploads/… 或 https://…" maxlength="500" autocomplete="off" spellcheck="false">
+              <summary><?= e(t('admin.use_image_url')) ?></summary>
+              <label for="fCoverUrl"><?= e(t('admin.cover_image_url')) ?></label>
+              <input class="input" id="fCoverUrl" name="cover_url" value="<?= e($post['cover_url'] ?? '') ?>" placeholder="<?= e(t('admin.uploads_or_https')) ?>" maxlength="500" autocomplete="off" spellcheck="false">
             </details>
-            <button type="button" class="btn btn-ghost btn-sm" id="btnCoverClear" hidden>移除</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="btnCoverClear" hidden><?= e(t('admin.remove')) ?></button>
           </div>
           <label class="admin-check">
             <input type="checkbox" id="fAutoCover" name="auto_cover" value="1"<?= !empty($coverAuto) ? ' checked' : '' ?>>
-            <span>自动使用正文首图</span>
+            <span><?= e(t('admin.use_the_first_content_image_automatically')) ?></span>
           </label>
         </div>
 
@@ -236,49 +236,49 @@ $editorData = [
           <details class="admin-advanced">
             <summary>
               <?= admin_icon('chevron', 13) ?>
-              高级选项
+              <?= e(t('admin.advanced_options')) ?>
             </summary>
             <div class="admin-advanced-body">
               <div class="admin-field">
-                <label class="label" for="fSlug">别名（Slug）</label>
-                <input class="input" id="fSlug" name="slug" value="<?= e($post['slug']) ?>" placeholder="留空自动生成英文或拼音，可自定义" maxlength="255">
-                <span class="admin-field-hint">新建时默认生成小写英文或拼音地址；需要时可直接自定义。</span>
+                <label class="label" for="fSlug"><?= e(t('admin.slug')) ?></label>
+                <input class="input" id="fSlug" name="slug" value="<?= e($post['slug']) ?>" placeholder="<?= e(t('admin.leave_blank_to_generate_an_english_or_pinyin')) ?>" maxlength="255">
+                <span class="admin-field-hint"><?= e(t('admin.new_slugs_default_to_lowercase_english_or_pinyin')) ?></span>
               </div>
               <div class="admin-field">
-                <label class="label" for="fScheduledAt">定时发布时间</label>
+                <label class="label" for="fScheduledAt"><?= e(t('admin.scheduled_publication')) ?></label>
                 <input class="input" type="datetime-local" id="fScheduledAt" name="scheduled_at" value="<?= e($editorData['scheduledAt']) ?>">
                 <?php if ($isScheduled): ?>
-                  <div class="admin-field-hint">当前为定时发布状态，保存时将更新时间</div>
+                  <div class="admin-field-hint"><?= e(t('admin.this_post_is_scheduled_saving_will_update_the')) ?></div>
                 <?php endif; ?>
               </div>
               <label class="admin-check">
                 <input type="checkbox" id="fPinned" name="is_pinned" value="1" <?= $post['is_pinned'] ? 'checked' : '' ?>>
-                <span>置顶文章（列表页优先展示）</span>
+                <span><?= e(t('admin.pin_post_show_first_on_listing_pages')) ?></span>
               </label>
               <div class="admin-field">
-                <label class="label" for="fPassword">访问密码（可选）</label>
+                <label class="label" for="fPassword"><?= e(t('admin.access_password_optional')) ?></label>
                 <input class="input" type="password" id="fPassword" name="password" autocomplete="new-password"
-                       placeholder="<?= $hasPassword ? '已设置密码，留空保持不变' : '设置后访客需输入密码才能阅读' ?>" maxlength="100">
+                       placeholder="<?= $hasPassword ? t('admin.password_configured_leave_blank_to_keep_it') : t('admin.visitors_must_enter_a_password_to_read_this') ?>" maxlength="100">
                 <?php if ($hasPassword): ?>
                   <label class="admin-check">
                     <input type="checkbox" id="fRemovePassword" name="remove_password" value="1">
-                    <span>移除现有密码</span>
+                    <span><?= e(t('admin.remove_existing_password')) ?></span>
                   </label>
                 <?php endif; ?>
               </div>
               <div class="admin-field">
-                <label class="label" for="fExternalUrl">外链跳转地址（可选）</label>
-                <input class="input" id="fExternalUrl" name="external_url" value="<?= e($post['external_url'] ?? '') ?>" placeholder="https://… 填写后列表标题/封面点击直接跳转外链" maxlength="500">
+                <label class="label" for="fExternalUrl"><?= e(t('admin.external_url_optional')) ?></label>
+                <input class="input" id="fExternalUrl" name="external_url" value="<?= e($post['external_url'] ?? '') ?>" placeholder="<?= e(t('admin.https_link_the_title_and_cover_directly_to')) ?>" maxlength="500">
               </div>
               <label class="admin-check">
                 <input type="checkbox" id="fCatPinned" name="category_pinned" value="1" <?= $post['category_pinned'] ? 'checked' : '' ?>>
-                <span>分类内置顶（在所属分类页置顶展示）</span>
+                <span><?= e(t('admin.pin_within_category')) ?></span>
               </label>
               <?php if (!$submissionMode): ?>
                 <input type="hidden" name="allow_comments" value="0">
                 <label class="admin-check">
                   <input type="checkbox" id="fAllowComments" name="allow_comments" value="1" <?= ($post['allow_comments'] ?? 1) ? 'checked' : '' ?>>
-                  <span>允许评论</span>
+                  <span><?= e(t('admin.allow_comments')) ?></span>
                 </label>
               <?php endif; ?>
               <?php if (!$submissionMode): ?>

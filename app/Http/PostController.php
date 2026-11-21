@@ -30,8 +30,8 @@ final class PostController
     {
         $slug = rawurldecode((string) ($args['slug'] ?? ''));
         $pathInfo = Permalinks::postFromPath(Permalinks::requestPath($request));
-        if ($pathInfo !== null) $slug = (string) $pathInfo['slug'];
-        $post = $this->findPublishedPost($slug);
+        $identity = $pathInfo['id'] ?? ($pathInfo['slug'] ?? $slug);
+        $post = $this->findPublishedPost($identity);
         if ($post === null) {
             return $this->notFound($response);
         }
@@ -279,16 +279,17 @@ final class PostController
         return $response;
     }
 
-    private function findPublishedPost(string $slug): ?array
+    private function findPublishedPost(string|int $identity): ?array
     {
+        $column = is_int($identity) ? 'id' : 'slug';
         $post = DB::fetchOne(
             "SELECT p.*, COALESCE(NULLIF(u.nickname, ''), u.username) AS author_name, u.avatar_url AS author_avatar, u.email AS author_email,
                     c.id AS category_id, c.name AS category_name, c.slug AS category_slug
              FROM posts p
              LEFT JOIN users u ON u.id = p.author_id
              LEFT JOIN categories c ON c.id = p.category_id
-             WHERE p.slug = ? AND p.deleted_at IS NULL",
-            [$slug]
+             WHERE p.{$column} = ? AND p.deleted_at IS NULL",
+            [$identity]
         );
         if (!\Pafish\Services\Posts::isPublic($post)) return null;
         // 标签
@@ -305,11 +306,11 @@ final class PostController
     {
         $where = \Pafish\Services\Posts::publicWhere('p');
         $prev = DB::fetchOne(
-            "SELECT p.title, p.slug, p.published_at, p.created_at FROM posts p WHERE {$where} AND (p.published_at < ? OR (p.published_at IS NULL AND p.id < ?)) ORDER BY p.published_at DESC LIMIT 1",
+            "SELECT p.id, p.title, p.slug, p.published_at, p.created_at FROM posts p WHERE {$where} AND (p.published_at < ? OR (p.published_at IS NULL AND p.id < ?)) ORDER BY p.published_at DESC LIMIT 1",
             [$post['published_at'], (int) $post['id']]
         );
         $next = DB::fetchOne(
-            "SELECT p.title, p.slug, p.published_at, p.created_at FROM posts p WHERE {$where} AND (p.published_at > ? OR (p.published_at IS NULL AND p.id > ?)) ORDER BY p.published_at ASC LIMIT 1",
+            "SELECT p.id, p.title, p.slug, p.published_at, p.created_at FROM posts p WHERE {$where} AND (p.published_at > ? OR (p.published_at IS NULL AND p.id > ?)) ORDER BY p.published_at ASC LIMIT 1",
             [$post['published_at'], (int) $post['id']]
         );
         return [$prev, $next];

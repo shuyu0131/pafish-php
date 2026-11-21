@@ -17,7 +17,7 @@
   }
   function dirty() { return JSON.stringify(snapshot()) !== JSON.stringify(baseline); }
   function updateStatus() {
-    status.textContent = dirty() ? '未保存' : '';
+    status.textContent = dirty() ? window.pafishT("js.unsaved") : '';
   }
   function activate(key, updateUrl) {
     if (!tabs.some(function (tab) { return tab.dataset.settingsGroup === key; })) key = 'basic';
@@ -44,15 +44,15 @@
   });
 
   function showError(error) {
-    errBox.textContent = error.message || '操作失败，请重试';
+    errBox.textContent = error.message || window.pafishT("common.operation_failed_retry");
     errBox.hidden = false;
   }
   function clearError() { errBox.hidden = true; errBox.textContent = ''; }
   async function post(url, data) {
     var response = await fetch(url, {method: 'POST', body: data, headers: {'X-Requested-With': 'XMLHttpRequest'}});
     var result;
-    try { result = await response.json(); } catch (_) { throw new Error('服务器响应异常，请重试'); }
-    if (!response.ok || !result.ok) throw new Error(result.error || '操作失败，请重试');
+    try { result = await response.json(); } catch (_) { throw new Error(window.pafishT("js.unexpected_server_response_please_try_again")); }
+    if (!response.ok || !result.ok) throw new Error(result.error || window.pafishT("common.operation_failed_retry"));
     return result;
   }
 
@@ -79,24 +79,28 @@
     data.set('comment_spam_keywords', JSON.stringify(Array.from(new Set(keywords))));
     saving = true;
     saveBtn.disabled = true;
-    saveBtn.textContent = '保存中…';
+    saveBtn.textContent = window.pafishT("common.saving");
     try {
-      await post(form.action, data);
+      var result = await post(form.action, data);
       // Only clear secrets that have not been edited during the request.
       ['smtp_pass', 'store_account_token'].forEach(function (name) {
         var saved = submitted.find(function (pair) { return pair[0] === name; });
         if (saved && form.elements[name].value === saved[1]) {
           form.elements[name].value = '';
-          if (saved[1] !== '') form.elements[name].placeholder = '已设置，留空保留原值';
+          if (saved[1] !== '') form.elements[name].placeholder = window.pafishT("js.configured_leave_blank_to_keep_the_current_value");
         }
         if (saved) saved[1] = '';
       });
       baseline = submitted;
       updateStatus();
-      if (!dirty()) status.textContent = '已保存';
-      if (window.pafishToast) window.pafishToast('设置已保存', 'success');
+      if (!dirty()) status.textContent = window.pafishT("js.saved_cdfab9");
+      if (window.pafishToast) window.pafishToast(window.pafishT("js.settings_saved"), 'success');
+      if (result.locale && result.locale !== window.pafishI18n.locale) {
+        if (!dirty()) location.reload();
+        else status.textContent = window.pafishT('js.language_saved_reload');
+      }
     } catch (error) { showError(error); }
-    finally { saving = false; saveBtn.disabled = false; saveBtn.textContent = '保存设置'; }
+    finally { saving = false; saveBtn.disabled = false; saveBtn.textContent = window.pafishT("js.save_settings"); }
   });
 
   var testBtn = document.getElementById('testSmtpBtn');
@@ -105,22 +109,22 @@
     testMsg.hidden = true;
     testMsg.classList.remove('is-error');
     testBtn.disabled = true;
-    testBtn.textContent = '发送中…';
+    testBtn.textContent = window.pafishT("js.sending");
     var data = new FormData();
     ['host', 'port', 'user', 'pass', 'from'].forEach(function (key) { data.append(key, form.elements['smtp_' + key].value); });
     data.append('_csrf', csrf);
     try {
       var result = await post(base + '/test-smtp', data);
-      testMsg.textContent = '测试邮件已发送至 ' + result.to + '，请查收（含垃圾箱）';
-    } catch (error) { testMsg.textContent = error.message || '网络错误，请重试'; testMsg.classList.add('is-error'); }
-    finally { testMsg.hidden = false; testBtn.disabled = false; testBtn.textContent = '发送测试邮件'; }
+      testMsg.textContent = window.pafishT("js.test_email_sent_to") + result.to + window.pafishT("js.check_your_inbox_and_spam_folder");
+    } catch (error) { testMsg.textContent = error.message || window.pafishT("common.network_error_retry"); testMsg.classList.add('is-error'); }
+    finally { testMsg.hidden = false; testBtn.disabled = false; testBtn.textContent = window.pafishT("js.send_test_email"); }
   });
 
   var regenBtn = document.getElementById('regenerateKeyBtn');
   regenBtn.addEventListener('click', async function () {
     var confirm = window.pafishConfirm
-      ? window.pafishConfirm('重新生成后旧 API Key 将立即失效，确定继续？', {title: '重新生成 API Key'})
-      : Promise.resolve(window.confirm('重新生成后旧 API Key 将立即失效，确定继续？'));
+      ? window.pafishConfirm(window.pafishT("js.the_old_api_key_will_become_invalid_immediately"), {title: window.pafishT("js.regenerate_api_key")})
+      : Promise.resolve(window.confirm(window.pafishT("js.the_old_api_key_will_become_invalid_immediately")));
     if (!await confirm) return;
     clearError();
     regenBtn.disabled = true;
@@ -131,7 +135,7 @@
       form.elements.api_key.value = result.key;
       baseline.forEach(function (pair) { if (pair[0] === 'api_key') pair[1] = result.key; });
       updateStatus();
-      if (window.pafishToast) window.pafishToast('API Key 已重新生成', 'success');
+      if (window.pafishToast) window.pafishToast(window.pafishT("js.api_key_regenerated"), 'success');
     } catch (error) { showError(error); }
     finally { regenBtn.disabled = false; }
   });

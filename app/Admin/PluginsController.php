@@ -57,7 +57,7 @@ final class PluginsController extends AdminController
         $response->getBody()->write($this->render('plugins', [
             'plugins' => $plugins,
             'catalogNotice' => $catalogNotice,
-        ], '插件管理'));
+        ], t('admin.plugins')));
         return $response;
     }
 
@@ -66,7 +66,7 @@ final class PluginsController extends AdminController
         $this->guardAdmin();
         $name = (string) ($args['name'] ?? '');
         if (preg_match('/^[a-z0-9_-]{1,50}$/', $name) !== 1 || !is_dir(Plugin::root() . '/' . $name)) {
-            $this->flash('error', '插件不存在');
+            $this->flash('error', t('admin.plugin_not_found'));
             return $this->redirect($response, '/admin/plugins');
         }
         $desc = Plugin::describe($name);
@@ -86,7 +86,7 @@ final class PluginsController extends AdminController
             'headExtra' => $headExtra,
             'supportsNotificationTest' => Plugin::supportsNotificationTest($name),
             'supportsStorageTest' => Plugin::supportsStorageTest($name),
-        ], '插件设置'));
+        ], t('admin.plugin_settings')));
         return $response;
     }
 
@@ -177,15 +177,15 @@ final class PluginsController extends AdminController
                 $result = Plugin::installFromUrl($url);
             } elseif ($upload instanceof UploadedFileInterface) {
                 if ($upload->getError() !== UPLOAD_ERR_OK) {
-                    return $this->json($response, ['error' => '上传失败'], 400);
+                    return $this->json($response, ['error' => t('admin.upload_failed_a6f805')], 400);
                 }
                 $filename = strtolower((string) $upload->getClientFilename());
                 if (!str_ends_with($filename, '.zip')) {
-                    return $this->json($response, ['error' => '请上传 .zip 文件'], 400);
+                    return $this->json($response, ['error' => t('admin.upload_a_zip_file')], 400);
                 }
                 $result = Plugin::installFromBuffer((string) $upload->getStream()->getContents(), (string) $upload->getClientFilename());
             } else {
-                return $this->json($response, ['error' => '请选择 zip 文件'], 400);
+                return $this->json($response, ['error' => t('admin.choose_a_zip_file')], 400);
             }
             return $this->json($response, [
                 'ok' => true,

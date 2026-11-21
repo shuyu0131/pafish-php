@@ -11,7 +11,7 @@
     warning: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>',
     info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>'
   };
-  var TITLES = { success: "成功", error: "错误", warning: "警告", info: "提示" };
+  var TITLES = { success: window.pafishT("common.success"), error: window.pafishT("common.error"), warning: window.pafishT("common.warning"), info: window.pafishT("common.info") };
 
   function normalizeType(type) {
     return ICONS[type] ? type : "info";
@@ -76,7 +76,7 @@
     toast.setAttribute("data-toast", "");
     toast.setAttribute("role", payload.type === "error" ? "alert" : "status");
     toast.setAttribute("aria-live", "polite");
-    toast.innerHTML = '<span class="admin-toast-icon">' + ICONS[payload.type] + '</span><span class="admin-toast-content"><strong class="admin-toast-title"></strong><span class="admin-toast-msg"></span></span><button type="button" class="admin-toast-close" aria-label="关闭提示" title="关闭">&times;</button>';
+    toast.innerHTML = '<span class="admin-toast-icon">' + ICONS[payload.type] + ("</span><span class=\"admin-toast-content\"><strong class=\"admin-toast-title\"></strong><span class=\"admin-toast-msg\"></span></span><button type=\"button\" class=\"admin-toast-close\" aria-label=\"" + window.pafishI18n.escape(window.pafishT("js.dismiss_notification")) + "\" title=\"" + window.pafishI18n.escape(window.pafishT("common.close")) + "\">&times;</button>");
     toast.querySelector(".admin-toast-title").textContent = payload.title;
     toast.querySelector(".admin-toast-msg").textContent = payload.content;
     return toast;

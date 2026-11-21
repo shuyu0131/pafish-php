@@ -19,24 +19,24 @@ $fmtSize = static function (int $bytes): string {
 <div class="admin-stack">
   <div class="admin-page-head">
     <div>
-      <h1 class="admin-h1">数据备份</h1>
-      <p class="admin-page-sub">备份本站核心及已登记或声明的扩展数据表，文件保存在服务器 backups 目录</p>
+      <h1 class="admin-h1"><?= e(t('admin.backups')) ?></h1>
+      <p class="admin-page-sub"><?= e(t('admin.back_up_core_tables_and_registered_or_declared')) ?></p>
     </div>
     <div class="admin-head-actions">
-      <a class="btn btn-outline" href="<?= e(url_to('/admin/extensions/data')) ?>">扩展数据表</a>
+      <a class="btn btn-outline" href="<?= e(url_to('/admin/extensions/data')) ?>"><?= e(t('admin.extension_tables')) ?></a>
     </div>
   </div>
 
   <div class="card admin-backup-toolbar">
-    <button type="button" id="createBackupBtn" class="btn btn-primary">立即备份</button>
+    <button type="button" id="createBackupBtn" class="btn btn-primary"><?= e(t('admin.back_up_now')) ?></button>
     <input type="file" id="uploadSqlInput" accept=".sql" hidden>
-    <button type="button" id="uploadSqlBtn" class="btn btn-outline">上传 SQL 文件</button>
-    <p class="admin-backup-count">共 <?= count($backups) ?> 份备份，按时间倒序</p>
+    <button type="button" id="uploadSqlBtn" class="btn btn-outline"><?= e(t('admin.upload_sql_file')) ?></button>
+    <p class="admin-backup-count"><?= e(t('admin.total')) ?> <?= count($backups) ?> <?= e(t('admin.backups_newest_first')) ?></p>
   </div>
   <p class="admin-backup-msg" id="backupMsg" hidden></p>
 
   <?php if ($backups === []): ?>
-    <div class="card admin-empty admin-backup-empty">还没有备份</div>
+    <div class="card admin-empty admin-backup-empty"><?= e(t('admin.no_backups_yet')) ?></div>
   <?php else: ?>
     <div class="card admin-backup-list">
       <?php foreach ($backups as $b): ?>
@@ -49,17 +49,17 @@ $fmtSize = static function (int $bytes): string {
             <p class="admin-muted"><?= date('Y-m-d H:i:s', (int) $b['mtime']) ?> · <?= $fmtSize((int) $b['size']) ?></p>
           </div>
           <div class="admin-backup-ops">
-            <a class="btn btn-ghost btn-sm" href="<?= e(url_to('/admin/backup/download?file=' . rawurlencode($b['file']))) ?>" title="下载">下载</a>
-            <button type="button" class="btn btn-outline btn-sm admin-backup-restore">恢复</button>
-            <button type="button" class="btn btn-ghost btn-sm admin-backup-delete" title="删除备份"
-                    <?= $isUpload ? 'disabled' : '' ?>>删除</button>
+            <a class="btn btn-ghost btn-sm" href="<?= e(url_to('/admin/backup/download?file=' . rawurlencode($b['file']))) ?>" title="<?= e(t('admin.download')) ?>"><?= e(t('admin.download')) ?></a>
+            <button type="button" class="btn btn-outline btn-sm admin-backup-restore"><?= e(t('admin.restore')) ?></button>
+            <button type="button" class="btn btn-ghost btn-sm admin-backup-delete" title="<?= e(t('admin.delete_backup')) ?>"
+                    <?= $isUpload ? 'disabled' : '' ?>><?= e(t('common.delete')) ?></button>
           </div>
           <div class="admin-backup-restore-box" hidden>
-            <p class="admin-backup-restore-tip">恢复会执行 SQL 文件并覆盖其中的数据表。系统会先自动创建一份安全备份。请输入备份文件名以确认：</p>
+            <p class="admin-backup-restore-tip"><?= e(t('admin.restoring_executes_the_sql_file_and_overwrites_its')) ?></p>
             <div class="admin-backup-restore-form">
               <input type="text" class="input admin-backup-confirm" placeholder="<?= e($b['file']) ?>" autocomplete="off">
-              <button type="button" class="btn btn-danger btn-sm admin-backup-restore-ok" disabled>确认恢复</button>
-              <button type="button" class="btn btn-ghost btn-sm admin-backup-restore-cancel">取消</button>
+              <button type="button" class="btn btn-danger btn-sm admin-backup-restore-ok" disabled><?= e(t('admin.confirm_restore')) ?></button>
+              <button type="button" class="btn btn-ghost btn-sm admin-backup-restore-cancel"><?= e(t('common.cancel')) ?></button>
             </div>
           </div>
         </div>
@@ -68,14 +68,14 @@ $fmtSize = static function (int $bytes): string {
   <?php endif; ?>
 
   <div class="card admin-form-card">
-    <h2 class="admin-card-title">使用说明</h2>
+    <h2 class="admin-card-title"><?= e(t('admin.instructions')) ?></h2>
     <ul class="admin-backup-help">
-      <li>点击「立即备份」生成当前数据库快照，建议定期手动备份（部署后可用计划任务自动化）</li>
-      <li>恢复前系统会自动先创建一份安全备份，防止误操作无法回退</li>
-      <li>恢复会覆盖 SQL 文件中的数据表，结构语句不能整体回滚；失败时请保留安全备份</li>
-      <li>上传的 .sql 文件会保存为 upload-* 并在列表展示，恢复完成后请手动清理</li>
-      <li>未声明且未登记的插件私有表、上传文件和程序配置不在此备份范围；共库的其他应用表不会导出</li>
-      <li>备份可能包含账号、扩展密钥等敏感数据，请妥善保管；备份期间不要安装扩展或执行表结构变更</li>
+      <li><?= e(t('admin.click_back_up_now_to_take_a_database')) ?></li>
+      <li><?= e(t('admin.a_safety_backup_is_created_automatically_before_restoring')) ?></li>
+      <li><?= e(t('admin.restoring_overwrites_tables_in_the_sql_file_schema')) ?></li>
+      <li><?= e(t('admin.uploaded_sql_files_are_saved_as_upload_and')) ?></li>
+      <li><?= e(t('admin.undeclared_and_unregistered_private_plugin_tables_uploaded_files')) ?></li>
+      <li><?= e(t('admin.backups_may_contain_accounts_and_extension_secrets_store')) ?></li>
     </ul>
   </div>
 </div>
@@ -119,7 +119,7 @@ $fmtSize = static function (int $bytes): string {
       .then(function (r) { return r.json(); })
       .then(function (j) {
         if (j && j.ok) onOk(j);
-        else throw new Error((j && j.error) || "操作失败");
+        else throw new Error((j && j.error) || window.pafishT("common.operation_failed"));
       });
   }
   function run(url, fd, okText) {
@@ -135,16 +135,16 @@ $fmtSize = static function (int $bytes): string {
   var createBtn = document.getElementById("createBackupBtn");
   createBtn.addEventListener("click", function () {
     createBtn.disabled = true;
-    createBtn.textContent = "备份中…";
+    createBtn.textContent = window.pafishT("js.backing_up");
     var fd = new FormData();
     fd.append("_csrf", CSRF);
     post("/admin/backup/create", fd, function (j) {
-      persistMsg("备份完成：" + j.file, false);
+      persistMsg(window.pafishT("js.backup_complete") + j.file, false);
       location.reload();
     }).catch(function (err) {
       showMsg(err.message, true);
       createBtn.disabled = false;
-      createBtn.textContent = "立即备份";
+      createBtn.textContent = window.pafishT("js.back_up_now");
     });
   });
 
@@ -155,17 +155,17 @@ $fmtSize = static function (int $bytes): string {
   fileInput.addEventListener("change", function () {
     if (!fileInput.files || !fileInput.files[0]) { return; }
     uploadBtn.disabled = true;
-    uploadBtn.textContent = "上传中…";
+    uploadBtn.textContent = window.pafishT("js.uploading");
     var fd = new FormData();
     fd.append("file", fileInput.files[0]);
     fd.append("_csrf", CSRF);
     post("/admin/backup/upload", fd, function (j) {
-      persistMsg("已上传，可在下方列表中选择恢复：" + j.file, false);
+      persistMsg(window.pafishT("js.uploaded_select_it_from_the_list_below_to") + j.file, false);
       location.reload();
     }).catch(function (err) {
-      showMsg(err.message || "上传失败", true);
+      showMsg(err.message || window.pafishT("js.upload_failed"), true);
       uploadBtn.disabled = false;
-      uploadBtn.textContent = "上传 SQL 文件";
+      uploadBtn.textContent = window.pafishT("js.upload_sql_file");
     });
   });
 
@@ -201,18 +201,18 @@ $fmtSize = static function (int $bytes): string {
       var box = btn.closest(".admin-backup-restore-box");
       var row = box.closest(".admin-backup-row");
       btn.disabled = true;
-      btn.textContent = "恢复中…";
+      btn.textContent = window.pafishT("js.restoring");
       var fd = new FormData();
       fd.append("file", row.dataset.file);
       fd.append("confirm", box.querySelector(".admin-backup-confirm").value);
       fd.append("_csrf", CSRF);
       post("/admin/backup/restore", fd, function (j) {
-        persistMsg("已从 " + j.restored + " 恢复（安全备份：" + j.safety + "）", false);
+        persistMsg(window.pafishT("js.from") + j.restored + window.pafishT("js.restored_safety_backup") + j.safety + "）", false);
         location.reload();
       }).catch(function (err) {
         showMsg(err.message, true);
         btn.disabled = false;
-        btn.textContent = "确认恢复";
+        btn.textContent = window.pafishT("js.confirm_restore");
       });
     });
   });
@@ -224,7 +224,7 @@ $fmtSize = static function (int $bytes): string {
       var fd = new FormData();
       fd.append("file", row.dataset.file);
       fd.append("_csrf", CSRF);
-      run("/admin/backup/delete", fd, "已删除 " + row.dataset.file);
+      run("/admin/backup/delete", fd, window.pafishT("js.deleted") + row.dataset.file);
     });
   });
 })();

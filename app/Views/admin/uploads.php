@@ -23,13 +23,13 @@ $kindOf = function (array $u): string {
 };
 $kindIcon = ['image' => 'image', 'video' => 'file-video', 'audio' => 'file-audio', 'archive' => 'file-archive', 'doc' => 'file-text'];
 $formatSize = function (int $size): string {
-    if ($size <= 0) return '外部';
+    if ($size <= 0) return t('admin.external');
     if ($size < 1024) return $size . ' B';
     if ($size < 1048576) return round($size / 1024, 1) . ' KB';
     return round($size / 1048576, 2) . ' MB';
 };
 $filters = [
-    '' => '全部', 'image' => '图片', 'doc' => '文档', 'archive' => '压缩包', 'audio' => '音频', 'video' => '视频',
+    '' => t('common.all'), 'image' => t('common.image'), 'doc' => t('admin.document'), 'archive' => t('admin.archive'), 'audio' => t('admin.audio'), 'video' => t('admin.video'),
 ];
 $view = (($_GET['view'] ?? 'grid') === 'list') ? 'list' : 'grid';
 // 分页/筛选链接：t 传空=不筛选，传筛选值时保留当前搜索词
@@ -50,24 +50,24 @@ $accept = 'image/*,.svg,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip
 <div class="admin-stack admin-detail-page">
   <div class="admin-page-head">
     <div>
-      <h1 class="admin-h1">媒体库</h1>
-      <p class="admin-page-sub">共 <?= (int) $total ?> 个媒体</p>
+      <h1 class="admin-h1"><?= e(t('admin.media_library')) ?></h1>
+      <p class="admin-page-sub"><?= e(t('admin.total')) ?> <?= (int) $total ?> <?= e(t('admin.media_files')) ?></p>
     </div>
     <div class="admin-head-actions">
 <?php if ($canRebuildReferences ?? false): ?>
-      <button type="button" class="btn btn-outline" id="btnRebuildReferences">重建媒体引用</button>
+      <button type="button" class="btn btn-outline" id="btnRebuildReferences"><?= e(t('admin.rebuild_media_references')) ?></button>
 <?php endif; ?>
-<button type="button" class="btn btn-outline" id="btnAddExternal" title="添加外部资源" aria-label="添加外部资源"><?= admin_icon('link', 15) ?><span>添加外部资源</span></button>
-<button type="button" class="btn btn-primary" id="btnUploadMedia"><?= admin_icon('upload', 15) ?><span id="btnUploadLabel">上传媒体</span></button></div>
+<button type="button" class="btn btn-outline" id="btnAddExternal" title="<?= e(t('admin.add_external_resource')) ?>" aria-label="<?= e(t('admin.add_external_resource')) ?>"><?= admin_icon('link', 15) ?><span><?= e(t('admin.add_external_resource')) ?></span></button>
+<button type="button" class="btn btn-primary" id="btnUploadMedia"><?= admin_icon('upload', 15) ?><span id="btnUploadLabel"><?= e(t('admin.upload_media')) ?></span></button></div>
   </div>
 
   <?php if (!($referencesReady ?? true)): ?>
-    <p role="status">媒体引用尚未重建，暂不能删除媒体。请管理员点击“重建媒体引用”。</p>
+    <p role="status"><?= e(t('admin.media_references_must_be_rebuilt_before_files_can')) ?></p>
   <?php endif; ?>
   <div class="admin-media-toolbar">
     <div class="admin-media-query">
-      <input type="search" class="input admin-media-search" id="mediaQ" placeholder="搜索文件名…" value="<?= e($q) ?>" autocomplete="off">
-      <input type="date" class="input admin-media-date" id="mediaDate" value="<?= e($date) ?>" title="按日期筛选">
+      <input type="search" class="input admin-media-search" id="mediaQ" placeholder="<?= e(t('admin.search_filenames')) ?>" value="<?= e($q) ?>" autocomplete="off">
+      <input type="date" class="input admin-media-date" id="mediaDate" value="<?= e($date) ?>" title="<?= e(t('admin.filter_by_date')) ?>">
     </div>
     <div class="admin-media-filters">
       <?php foreach ($filters as $val => $label): ?>
@@ -82,21 +82,21 @@ $accept = 'image/*,.svg,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip
       $viewBase = url_to('/admin/uploads') . ($viewParams === [] ? '' : '?' . http_build_query($viewParams));
       $viewSep = $viewParams === [] ? '?' : '&';
     ?>
-    <div class="admin-media-view-toggle" role="group" aria-label="媒体视图">
-      <a class="admin-icon-btn<?= $view === 'grid' ? ' active' : '' ?>" href="<?= e($viewBase . $viewSep . 'view=grid') ?>" title="网格视图" aria-label="网格视图"><?= admin_icon('dashboard', 15) ?></a>
-      <a class="admin-icon-btn<?= $view === 'list' ? ' active' : '' ?>" href="<?= e($viewBase . $viewSep . 'view=list') ?>" title="列表视图" aria-label="列表视图"><?= admin_icon('list', 15) ?></a>
+    <div class="admin-media-view-toggle" role="group" aria-label="<?= e(t('admin.media_view')) ?>">
+      <a class="admin-icon-btn<?= $view === 'grid' ? ' active' : '' ?>" href="<?= e($viewBase . $viewSep . 'view=grid') ?>" title="<?= e(t('admin.grid_view')) ?>" aria-label="<?= e(t('admin.grid_view')) ?>"><?= admin_icon('dashboard', 15) ?></a>
+      <a class="admin-icon-btn<?= $view === 'list' ? ' active' : '' ?>" href="<?= e($viewBase . $viewSep . 'view=list') ?>" title="<?= e(t('admin.list_view')) ?>" aria-label="<?= e(t('admin.list_view')) ?>"><?= admin_icon('list', 15) ?></a>
     </div>
     <input type="file" id="mediaFiles" multiple hidden accept="<?= e($accept) ?>">
   </div>
   <div class="admin-upload-progress" id="mediaUploadProgress" hidden aria-live="polite">
-    <div class="admin-upload-progress-head"><span id="mediaUploadProgressLabel">准备上传</span><strong id="mediaUploadProgressValue">0%</strong></div>
+    <div class="admin-upload-progress-head"><span id="mediaUploadProgressLabel"><?= e(t('admin.preparing_upload')) ?></span><strong id="mediaUploadProgressValue">0%</strong></div>
     <div class="admin-upload-progress-track"><span id="mediaUploadProgressBar"></span></div>
   </div>
 
   <?php if ($items === []): ?>
     <div class="admin-empty-list">
       <?= admin_icon('image', 32) ?>
-      <p><?= ($q !== '' || $type !== '') ? '没有符合筛选条件的媒体' : '还没有媒体' ?></p>
+      <p><?= ($q !== '' || $type !== '') ? t('admin.no_media_matches_the_current_filters') : t('admin.no_media_yet') ?></p>
     </div>
   <?php else: ?>
     <?php if ($view === 'grid'): ?>
@@ -113,20 +113,20 @@ $accept = 'image/*,.svg,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip
               <span class="admin-media-ext"><?= e(strtoupper($ext !== '' ? $ext : 'LINK')) ?></span>
             <?php endif; ?>
             <?php if ($isExternal): ?>
-              <span class="admin-media-external"><?= admin_icon('globe', 11) ?>外链</span>
+              <span class="admin-media-external"><?= admin_icon('globe', 11) ?><?= e(t('admin.external_link')) ?></span>
             <?php endif; ?>
           </div>
           <div class="admin-media-info">
             <p class="admin-media-name" title="<?= e($u['original_name']) ?>"><?= e($u['original_name']) ?></p>
             <p class="admin-media-meta">
               <?php if ($u['width'] !== null && $u['height'] !== null): ?><?= (int) $u['width'] ?>×<?= (int) $u['height'] ?> · <?php endif; ?>
-              <?= $formatSize((int) $u['size']) ?> · <?= e(format_date($u['created_at'], 'yyyy-MM-dd HH:mm')) ?> · 引用 <?= (int) ($u['usage_count'] ?? 0) ?> 次
+              <?= $formatSize((int) $u['size']) ?> · <?= e(format_date($u['created_at'], 'yyyy-MM-dd HH:mm')) ?> <?= e(t('admin.references')) ?> <?= (int) ($u['usage_count'] ?? 0) ?> <?= e(t('admin.times')) ?>
             </p>
             <div class="admin-media-ops">
-              <button type="button" class="admin-icon-btn" data-copy-url="<?= e(absolute_url($u['url'])) ?>" title="复制完整 URL（含域名）"><?= admin_icon('copy', 14) ?></button>
-              <a class="admin-icon-btn" href="<?= e($u['url']) ?>" target="_blank" rel="noopener" title="新窗口打开"><?= admin_icon('external-link', 14) ?></a>
+              <button type="button" class="admin-icon-btn" data-copy-url="<?= e(absolute_url($u['url'])) ?>" title="<?= e(t('admin.copy_full_url_including_domain')) ?>"><?= admin_icon('copy', 14) ?></button>
+              <a class="admin-icon-btn" href="<?= e($u['url']) ?>" target="_blank" rel="noopener" title="<?= e(t('admin.open_in_a_new_tab')) ?>"><?= admin_icon('external-link', 14) ?></a>
               <button type="button" class="admin-icon-btn admin-icon-danger" data-delete-media="<?= (int) $u['id'] ?>"
-                      data-name="<?= e($u['original_name']) ?>" title="删除"><?= admin_icon('trash', 14) ?></button>
+                      data-name="<?= e($u['original_name']) ?>" title="<?= e(t('common.delete')) ?>"><?= admin_icon('trash', 14) ?></button>
             </div>
           </div>
         </div>
@@ -135,23 +135,23 @@ $accept = 'image/*,.svg,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip
     <?php else: ?>
     <div class="admin-table-wrap admin-media-table-wrap">
       <table class="admin-table admin-media-table">
-        <thead><tr><th>文件</th><th class="admin-table-secondary">类型</th><th class="admin-table-secondary">大小</th><th class="admin-table-secondary">上传时间</th><th class="admin-table-secondary">引用</th><th class="admin-col-ops">操作</th></tr></thead>
+        <thead><tr><th><?= e(t('admin.file')) ?></th><th class="admin-table-secondary"><?= e(t('admin.type')) ?></th><th class="admin-table-secondary"><?= e(t('admin.size')) ?></th><th class="admin-table-secondary"><?= e(t('admin.uploaded')) ?></th><th class="admin-table-secondary"><?= e(t('admin.references_23c0e1')) ?></th><th class="admin-col-ops"><?= e(t('common.actions')) ?></th></tr></thead>
         <tbody>
           <?php foreach ($items as $u): ?>
             <?php $kind = $kindOf($u); $isExternal = !str_contains((string) $u['url'], '/uploads/'); $ext = strtolower(pathinfo((string) parse_url((string) $u['url'], PHP_URL_PATH), PATHINFO_EXTENSION)); ?>
             <tr class="admin-media-row" data-media-id="<?= (int) $u['id'] ?>">
-              <td data-label="文件">
-                <div class="admin-media-list-name"><span class="admin-media-list-icon"><?= admin_icon($kindIcon[$kind], 18) ?></span><span title="<?= e($u['original_name']) ?>"><?= e($u['original_name']) ?></span><?php if ($isExternal): ?><span class="badge">外链</span><?php endif; ?></div>
+              <td data-label="<?= e(t('admin.file')) ?>">
+                <div class="admin-media-list-name"><span class="admin-media-list-icon"><?= admin_icon($kindIcon[$kind], 18) ?></span><span title="<?= e($u['original_name']) ?>"><?= e($u['original_name']) ?></span><?php if ($isExternal): ?><span class="badge"><?= e(t('admin.external_link')) ?></span><?php endif; ?></div>
                 <div class="admin-table-mobile-meta">
-                  <span><?= e(strtoupper($ext !== '' ? $ext : $kind)) ?></span><span><?= e($formatSize((int) $u['size'])) ?></span><span>引用 <?= (int) ($u['usage_count'] ?? 0) ?></span>
-                  <time title="上传时间" datetime="<?= e((string) $u['created_at']) ?>"><?= e(format_date($u['created_at'], 'yyyy-MM-dd HH:mm')) ?></time>
+                  <span><?= e(strtoupper($ext !== '' ? $ext : $kind)) ?></span><span><?= e($formatSize((int) $u['size'])) ?></span><span><?= e(t('admin.references_23c0e1')) ?> <?= (int) ($u['usage_count'] ?? 0) ?></span>
+                  <time title="<?= e(t('admin.uploaded')) ?>" datetime="<?= e((string) $u['created_at']) ?>"><?= e(format_date($u['created_at'], 'yyyy-MM-dd HH:mm')) ?></time>
                 </div>
               </td>
-              <td data-label="类型" class="admin-table-secondary"><?= e(strtoupper($ext !== '' ? $ext : $kind)) ?></td>
-              <td data-label="大小" class="admin-table-secondary"><?= e($formatSize((int) $u['size'])) ?></td>
-              <td data-label="上传时间" class="admin-media-list-date admin-table-secondary"><?= e(format_date($u['created_at'], 'yyyy-MM-dd HH:mm')) ?></td>
-              <td data-label="引用" class="admin-table-secondary"><?= (int) ($u['usage_count'] ?? 0) ?></td>
-              <td data-label="操作" class="admin-col-ops"><div class="admin-media-ops"><button type="button" class="admin-icon-btn" data-copy-url="<?= e(absolute_url($u['url'])) ?>" title="复制完整 URL"><?= admin_icon('copy', 14) ?></button><a class="admin-icon-btn" href="<?= e($u['url']) ?>" target="_blank" rel="noopener" title="新窗口打开"><?= admin_icon('external-link', 14) ?></a><button type="button" class="admin-icon-btn admin-icon-danger" data-delete-media="<?= (int) $u['id'] ?>" data-name="<?= e($u['original_name']) ?>" title="删除"><?= admin_icon('trash', 14) ?></button></div></td>
+              <td data-label="<?= e(t('admin.type')) ?>" class="admin-table-secondary"><?= e(strtoupper($ext !== '' ? $ext : $kind)) ?></td>
+              <td data-label="<?= e(t('admin.size')) ?>" class="admin-table-secondary"><?= e($formatSize((int) $u['size'])) ?></td>
+              <td data-label="<?= e(t('admin.uploaded')) ?>" class="admin-media-list-date admin-table-secondary"><?= e(format_date($u['created_at'], 'yyyy-MM-dd HH:mm')) ?></td>
+              <td data-label="<?= e(t('admin.references_23c0e1')) ?>" class="admin-table-secondary"><?= (int) ($u['usage_count'] ?? 0) ?></td>
+              <td data-label="<?= e(t('common.actions')) ?>" class="admin-col-ops"><div class="admin-media-ops"><button type="button" class="admin-icon-btn" data-copy-url="<?= e(absolute_url($u['url'])) ?>" title="<?= e(t('admin.copy_full_url')) ?>"><?= admin_icon('copy', 14) ?></button><a class="admin-icon-btn" href="<?= e($u['url']) ?>" target="_blank" rel="noopener" title="<?= e(t('admin.open_in_a_new_tab')) ?>"><?= admin_icon('external-link', 14) ?></a><button type="button" class="admin-icon-btn admin-icon-danger" data-delete-media="<?= (int) $u['id'] ?>" data-name="<?= e($u['original_name']) ?>" title="<?= e(t('common.delete')) ?>"><?= admin_icon('trash', 14) ?></button></div></td>
             </tr>
           <?php endforeach; ?>
         </tbody>
@@ -166,26 +166,26 @@ $accept = 'image/*,.svg,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip
 </div>
 
 <div class="admin-modal-backdrop" id="extModal" hidden>
-  <div class="admin-modal" role="dialog" aria-modal="true" aria-label="添加外部资源">
+  <div class="admin-modal" role="dialog" aria-modal="true" aria-label="<?= e(t('admin.add_external_resource')) ?>">
     <div class="admin-modal-head">
-      <h3 class="admin-modal-title">添加外部资源</h3>
-      <button type="button" class="admin-icon-btn" data-close-ext data-modal-close aria-label="关闭"><?= admin_icon('x', 16) ?></button>
+      <h3 class="admin-modal-title"><?= e(t('admin.add_external_resource')) ?></h3>
+      <button type="button" class="admin-icon-btn" data-close-ext data-modal-close aria-label="<?= e(t('common.close')) ?>"><?= admin_icon('x', 16) ?></button>
     </div>
     <div class="admin-modal-body">
-      <p class="admin-field-hint">仅保存链接不下载文件；图片可在编辑器直接插入，其他链接插入为下载链接</p>
+      <p class="admin-field-hint"><?= e(t('admin.save_the_link_without_downloading_images_can_be')) ?></p>
       <label class="admin-field">
-        <span class="label">资源地址 *</span>
+        <span class="label"><?= e(t('admin.resource_url')) ?></span>
         <input type="url" class="input" id="extUrl" placeholder="https://example.com/image.png" autocomplete="off">
       </label>
       <label class="admin-field">
-        <span class="label">显示名称（可选）</span>
-        <input type="text" class="input" id="extName" placeholder="默认取地址文件名" autocomplete="off">
+        <span class="label"><?= e(t('admin.display_name_optional')) ?></span>
+        <input type="text" class="input" id="extName" placeholder="<?= e(t('admin.defaults_to_the_filename_in_the_url')) ?>" autocomplete="off">
       </label>
       <p class="admin-modal-error" id="extError" hidden></p>
     </div>
     <div class="admin-modal-actions">
-      <button type="button" class="btn btn-outline" data-close-ext data-modal-close>取消</button>
-      <button type="button" class="btn btn-primary" id="extSave">添加</button>
+      <button type="button" class="btn btn-outline" data-close-ext data-modal-close><?= e(t('common.cancel')) ?></button>
+      <button type="button" class="btn btn-primary" id="extSave"><?= e(t('common.add')) ?></button>
     </div>
   </div>
 </div>
@@ -195,15 +195,15 @@ $accept = 'image/*,.svg,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip
   var rebuildBtn = document.getElementById("btnRebuildReferences");
   if (rebuildBtn) rebuildBtn.addEventListener("click", function () {
     rebuildBtn.disabled = true;
-    rebuildBtn.textContent = "正在重建…";
+    rebuildBtn.textContent = window.pafishT("js.rebuilding");
     post(<?= json_encode(url_to('/admin/uploads/rebuild-references')) ?>)
       .then(function (r) { return r.json(); })
       .then(function (j) {
-        if (!j || !j.ok) throw new Error((j && j.error) || "引用重建失败");
-        pafishToastReload("媒体引用已重建", "success");
+        if (!j || !j.ok) throw new Error((j && j.error) || window.pafishT("js.unable_to_rebuild_references"));
+        pafishToastReload(window.pafishT("js.media_references_rebuilt"), "success");
       })
-      .catch(function (error) { pafishNotify(error.message || "引用重建失败", true); })
-      .finally(function () { rebuildBtn.disabled = false; rebuildBtn.textContent = "重建媒体引用"; });
+      .catch(function (error) { pafishNotify(error.message || window.pafishT("js.unable_to_rebuild_references"), true); })
+      .finally(function () { rebuildBtn.disabled = false; rebuildBtn.textContent = window.pafishT("js.rebuild_media_references"); });
   });
   var token = <?= json_encode($pageCsrf) ?>;
   function post(url, body) {
@@ -256,12 +256,12 @@ $accept = 'image/*,.svg,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip
       if (i >= files.length) {
         if (progressBar) progressBar.style.width = "100%";
         if (progressValue) progressValue.textContent = "100%";
-        if (failed) pafishToastReload("上传完成，失败 " + failed + " 个文件", "error");
-        else pafishToastReload("文件上传成功", "success");
+        if (failed) pafishToastReload(window.pafishT("js.upload_complete_failed") + failed + window.pafishT("js.files"), "error");
+        else pafishToastReload(window.pafishT("js.file_uploaded"), "success");
         return;
       }
       var f = files[i++];
-      uploadLabel.textContent = "上传中：" + f.name.slice(0, 12) + "…";
+      uploadLabel.textContent = window.pafishT("js.uploading_a69211") + f.name.slice(0, 12) + "…";
       var chunkSize = 1024 * 1024;
       var uploadId = Array.from(crypto.getRandomValues(new Uint8Array(16))).map(function (n) { return n.toString(16).padStart(2, "0"); }).join("");
       var totalChunks = Math.max(1, Math.ceil(f.size / chunkSize));
@@ -277,7 +277,7 @@ $accept = 'image/*,.svg,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip
           var current = Math.min(f.size, sent + event.loaded);
           var overall = ((fileIndex + current / f.size) / files.length) * 100;
           var percent = Math.round(overall);
-          uploadLabel.textContent = "上传中 " + percent + "%：" + f.name.slice(0, 12);
+          uploadLabel.textContent = window.pafishT("js.uploading_8f7843") + percent + "%：" + f.name.slice(0, 12);
           if (progressLabel) progressLabel.textContent = f.name;
           if (progressValue) progressValue.textContent = percent + "%";
           if (progressBar) progressBar.style.width = percent + "%";
@@ -285,6 +285,13 @@ $accept = 'image/*,.svg,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip
         xhr.onload = function () {
           var j = null;
           try { j = JSON.parse(xhr.responseText); } catch (e) {}
+          if (window.pafishSessionError && window.pafishSessionError(xhr.status, j)) {
+            // Stop the queue; preserve the selected files and the current page.
+            uploadBtn.disabled = false;
+            uploadLabel.textContent = window.pafishT("js.upload_failed");
+            if (progress) progress.hidden = true;
+            return;
+          }
           if (xhr.status < 200 || xhr.status >= 300 || !j || !j.ok) { failed++; next(); return; }
           sent += Math.min(chunkSize, f.size - start);
           if (index + 1 < totalChunks) sendChunk(index + 1);
@@ -312,8 +319,8 @@ $accept = 'image/*,.svg,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip
       function done() {
         var old = btn.innerHTML;
         btn.innerHTML = <?= json_encode(admin_icon('check', 14)) ?>;
-        btn.title = "已复制";
-        setTimeout(function () { btn.innerHTML = old; btn.title = "复制 URL"; }, 1500);
+        btn.title = window.pafishT("js.copied");
+        setTimeout(function () { btn.innerHTML = old; btn.title = window.pafishT("js.copy_url"); }, 1500);
       }
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(url).then(done).catch(function () { done(); });
@@ -334,22 +341,22 @@ $accept = 'image/*,.svg,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip
     btn.addEventListener("click", function () {
       var id = btn.getAttribute("data-delete-media");
       var name = btn.getAttribute("data-name") || "";
-      (window.pafishConfirm ? window.pafishConfirm("确定删除「" + name + "」？\n\n已在文章中引用的文件将无法显示（不可恢复）。", { title: "删除媒体" }) : Promise.resolve(window.confirm("确定删除「" + name + "」？"))).then(function (ok) {
+      (window.pafishConfirm ? window.pafishConfirm(window.pafishT("js.confirm_delete_media", {name: name}), { title: window.pafishT("js.delete_media") }) : Promise.resolve(window.confirm(window.pafishT("js.confirm_delete_media", {name: name})))).then(function (ok) {
         if (!ok) return;
         return post(<?= json_encode(url_to('/admin/uploads')) ?> + "/" + id + "/delete")
         .then(function (r) { return r.json(); })
         .then(function (j) {
-          if (j && j.ok) pafishToastReload("媒体已删除", "success");
+          if (j && j.ok) pafishToastReload(window.pafishT("js.media_deleted"), "success");
           else if (j && j.usageCount) {
-            (window.pafishConfirm ? window.pafishConfirm("该媒体仍被引用 " + j.usageCount + " 次，确认强制删除？", { title: "强制删除媒体" }) : Promise.resolve(window.confirm("确认强制删除？"))).then(function (force) {
+            (window.pafishConfirm ? window.pafishConfirm(window.pafishT("js.confirm_force_delete_media", {n: j.usageCount}), { title: window.pafishT("js.force_delete_media") }) : Promise.resolve(window.confirm(window.pafishT("js.confirm_force_delete")))).then(function (force) {
               if (force) post(<?= json_encode(url_to('/admin/uploads')) ?> + "/" + id + "/delete", { force: "1" })
                 .then(function (r) { return r.json(); })
-                .then(function (forced) { if (forced && forced.ok) pafishToastReload("媒体已强制删除", "success"); else pafishNotify((forced && forced.error) || "强制删除失败", true); })
-                .catch(function () { pafishNotify("网络错误", true); });
+                .then(function (forced) { if (forced && forced.ok) pafishToastReload(window.pafishT("js.media_permanently_deleted"), "success"); else pafishNotify((forced && forced.error) || window.pafishT("js.force_delete_failed"), true); })
+                .catch(function () { pafishNotify(window.pafishT("js.network_error"), true); });
             });
-          } else pafishNotify((j && j.error) || "删除失败", true);
+          } else pafishNotify((j && j.error) || window.pafishT("js.delete_failed"), true);
         })
-        .catch(function () { pafishNotify("网络错误", true); });
+        .catch(function () { pafishNotify(window.pafishT("js.network_error"), true); });
       });
     });
   });
@@ -366,14 +373,14 @@ $accept = 'image/*,.svg,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip
   extModal.addEventListener("click", function (e) { if (e.target === extModal) closeExt(); });
   document.getElementById("extSave").addEventListener("click", function () {
     var url = extUrl.value.trim();
-    if (!/^https?:\/\//i.test(url)) { extError.textContent = "仅支持 http/https 开头的完整地址"; extError.hidden = false; return; }
+    if (!/^https?:\/\//i.test(url)) { extError.textContent = window.pafishT("js.enter_a_complete_url_beginning_with_http_or"); extError.hidden = false; return; }
     post(<?= json_encode(url_to('/admin/uploads/external')) ?>, { url: url, name: extName.value.trim() })
       .then(function (r) { return r.json(); })
       .then(function (j) {
-        if (j && j.ok) pafishToastReload("外部媒体已添加", "success");
-        else { extError.textContent = (j && j.error) || "添加失败"; extError.hidden = false; }
+        if (j && j.ok) pafishToastReload(window.pafishT("js.external_media_added"), "success");
+        else { extError.textContent = (j && j.error) || window.pafishT("js.unable_to_add"); extError.hidden = false; }
       })
-      .catch(function () { extError.textContent = "网络错误"; extError.hidden = false; });
+      .catch(function () { extError.textContent = window.pafishT("js.network_error"); extError.hidden = false; });
   });
 })();
 </script>

@@ -43,7 +43,7 @@
     var undoButton = null;
     var redoButton = null;
     mount.innerHTML = '<div class="admin-markdown-editor">' +
-      '<div class="admin-markdown-toolbar" role="toolbar" aria-label="Markdown 工具栏">' +
+      ("<div class=\"admin-markdown-toolbar\" role=\"toolbar\" aria-label=\"" + window.pafishI18n.escape(window.pafishT("js.markdown_toolbar")) + "\">") +
         '<div class="admin-markdown-toolbar-row">' +
         '<div class="admin-markdown-group admin-markdown-history-group"></div>' +
         '<span class="admin-markdown-divider" aria-hidden="true"></span>' +
@@ -70,9 +70,9 @@
     var count = root.querySelector(".admin-markdown-count");
     source.value = field.value || "";
     if (field.maxLength > 0) source.maxLength = field.maxLength;
-    source.placeholder = options.placeholder || "开始写作…支持 Markdown";
-    source.setAttribute("aria-label", htmlSource ? "HTML 正文源码" : (options.label || "Markdown 正文"));
-    if (htmlSource) { root.classList.add("is-html-source"); source.placeholder = "在此编辑 HTML 正文源码"; }
+    source.placeholder = options.placeholder || window.pafishT("js.start_writing_markdown_supported");
+    source.setAttribute("aria-label", htmlSource ? window.pafishT("js.html_source") : (options.label || window.pafishT("js.markdown_content")));
+    if (htmlSource) { root.classList.add("is-html-source"); source.placeholder = window.pafishT("js.edit_html_source_here"); }
 
     function snapshot() { return { value: source.value, start: source.selectionStart, end: source.selectionEnd }; }
     function sameSnapshot(a, b) { return !!a && !!b && a.value === b.value && a.start === b.start && a.end === b.end; }
@@ -146,7 +146,7 @@
       var a = source.selectionStart;
       var b = source.selectionEnd;
       var selected = source.value.slice(a, b);
-      if (!selected) selected = placeholder || "文字";
+      if (!selected) selected = placeholder || window.pafishT("js.text_f4d3da");
       insert(prefix + selected + suffix, prefix.length, prefix.length + selected.length);
     }
     function insertLink() {
@@ -178,23 +178,23 @@
       var rangeEnd = source.selectionEnd;
       var dialog = document.createElement('dialog');
       dialog.className = 'admin-editor-element-dialog';
-      dialog.setAttribute('aria-label', type === 'audio' ? '插入音乐' : '插入视频');
+      dialog.setAttribute('aria-label', type === 'audio' ? window.pafishT("js.insert_audio") : window.pafishT("js.insert_video"));
       var form = document.createElement('form');
       form.method = 'dialog';
       var heading = document.createElement('div'); heading.className = 'admin-editor-element-heading';
-      var title = document.createElement('h3'); title.textContent = type === 'audio' ? '插入音乐' : '插入视频';
-      var close = document.createElement('button'); close.type = 'button'; close.className = 'admin-markdown-tool'; close.setAttribute('aria-label', '关闭'); close.innerHTML = icon('close');
+      var title = document.createElement('h3'); title.textContent = type === 'audio' ? window.pafishT("js.insert_audio") : window.pafishT("js.insert_video");
+      var close = document.createElement('button'); close.type = 'button'; close.className = 'admin-markdown-tool'; close.setAttribute('aria-label', window.pafishT("common.close")); close.innerHTML = icon('close');
       heading.append(title, close); form.appendChild(heading);
       var fieldLabel = document.createElement('label'); fieldLabel.className = 'admin-editor-element-field';
-      var caption = document.createElement('span'); caption.textContent = '媒体地址';
+      var caption = document.createElement('span'); caption.textContent = window.pafishT("js.media_url");
       var input = document.createElement('input'); input.className = 'input'; input.type = 'url'; input.required = true; input.autocomplete = 'off'; input.spellcheck = false;
-      input.placeholder = 'https://example.com/' + (type === 'audio' ? 'music.mp3' : 'video.mp4') + ' 或 /uploads/…';
+      input.placeholder = 'https://example.com/' + (type === 'audio' ? 'music.mp3' : 'video.mp4') + window.pafishT("js.or_uploads");
       fieldLabel.append(caption, input); form.appendChild(fieldLabel);
-      var hint = document.createElement('p'); hint.className = 'admin-field-hint'; hint.textContent = type === 'audio' ? '支持 MP3、OGG、WAV 等浏览器可播放的音频地址。' : '支持 MP4、WebM 等浏览器可播放的视频地址。'; form.appendChild(hint);
+      var hint = document.createElement('p'); hint.className = 'admin-field-hint'; hint.textContent = type === 'audio' ? window.pafishT("js.supports_browser_playable_audio_urls_including_mp3_ogg") : window.pafishT("js.supports_browser_playable_video_urls_including_mp4_and"); form.appendChild(hint);
       var error = document.createElement('p'); error.className = 'admin-editor-element-error'; error.setAttribute('role', 'alert'); error.hidden = true; form.appendChild(error);
       var actions = document.createElement('div'); actions.className = 'admin-editor-element-actions';
-      var cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'btn btn-ghost'; cancel.textContent = '取消';
-      var save = document.createElement('button'); save.type = 'submit'; save.className = 'btn btn-primary'; save.textContent = '插入';
+      var cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'btn btn-ghost'; cancel.textContent = window.pafishT("common.cancel");
+      var save = document.createElement('button'); save.type = 'submit'; save.className = 'btn btn-primary'; save.textContent = window.pafishT("js.insert");
       actions.append(cancel, save); form.appendChild(actions); dialog.appendChild(form); root.appendChild(dialog); elementDialog = dialog;
       function dismiss(restore) { closeElementDialog(restore); }
       close.addEventListener('click', function () { dismiss(true); });
@@ -203,8 +203,8 @@
       form.addEventListener('submit', function (event) {
         event.preventDefault(); event.stopPropagation();
         var url = mediaUrl(input.value);
-        if (!url) { error.textContent = '请输入 HTTP/HTTPS 地址或以 / 开头的站内媒体路径'; error.hidden = false; input.focus(); return; }
-        if (source.value !== originalValue) { error.textContent = '正文已变化，请重新选择插入位置'; error.hidden = false; return; }
+        if (!url) { error.textContent = window.pafishT("js.enter_an_http_https_url_or_a_local"); error.hidden = false; input.focus(); return; }
+        if (source.value !== originalValue) { error.textContent = window.pafishT("js.the_content_changed_select_an_insertion_point_again"); error.hidden = false; return; }
         var value = mediaHtml(type, url);
         source.setSelectionRange(rangeStart, rangeEnd);
         insert(value);
@@ -355,7 +355,7 @@
       selectedNode = null; elementBar.hidden = true;
     }
     function applyElement(token, value, originalValue) {
-      if (destroyed || source.value !== originalValue) { message.textContent = '正文已变化，请重新选择后再编辑'; return false; }
+      if (destroyed || source.value !== originalValue) { message.textContent = window.pafishT("js.the_content_changed_select_it_again_before_editing"); return false; }
       source.setSelectionRange(token.start, token.end);
       insert(value);
       return true;
@@ -383,12 +383,12 @@
       closeElementDialog(false);
       var originalValue = source.value;
       var dialog = document.createElement('dialog'); dialog.className = 'admin-editor-element-dialog';
-      dialog.setAttribute('aria-label', token.type === 'image' ? '编辑图片' : token.fresh ? '插入链接' : '编辑链接');
+      dialog.setAttribute('aria-label', token.type === 'image' ? window.pafishT("js.edit_image") : token.fresh ? window.pafishT("js.insert_link") : window.pafishT("js.edit_link"));
       var form = document.createElement('form'); form.method = 'dialog';
       var head = document.createElement('div'); head.className = 'admin-editor-element-heading';
       var title = document.createElement('h3'); title.textContent = dialog.getAttribute('aria-label');
       var close = document.createElement('button'); close.type = 'button'; close.className = 'admin-markdown-tool';
-      close.setAttribute('aria-label', '关闭'); close.innerHTML = icon('close'); close.addEventListener('click', function () { closeElementDialog(true); });
+      close.setAttribute('aria-label', window.pafishT("common.close")); close.innerHTML = icon('close'); close.addEventListener('click', function () { closeElementDialog(true); });
       head.append(title, close); form.appendChild(head);
       function input(label, value, name, required) {
         var fieldLabel = document.createElement('label'); fieldLabel.className = 'admin-editor-element-field';
@@ -397,23 +397,23 @@
         control.name = name; control.value = value; control.required = !!required;
         fieldLabel.append(caption, control); form.appendChild(fieldLabel); return control;
       }
-      var urlInput = input(token.type === 'image' ? '图片地址' : '链接地址', token.url, 'url', true);
+      var urlInput = input(token.type === 'image' ? window.pafishT("js.image_url") : window.pafishT("js.link_url"), token.url, 'url', true);
       urlInput.placeholder = 'https://'; urlInput.autocomplete = 'off'; urlInput.spellcheck = false;
-      var labelInput = input(token.type === 'image' ? '替代文字' : '显示文字', token.label, 'label');
-      var titleInput = input('标题（可选）', token.title, 'title');
+      var labelInput = input(token.type === 'image' ? window.pafishT("js.alternative_text") : window.pafishT("js.display_text"), token.label, 'label');
+      var titleInput = input(window.pafishT("js.title_optional"), token.title, 'title');
       var error = document.createElement('p'); error.className = 'admin-editor-element-error'; error.setAttribute('role', 'alert'); error.hidden = true; form.appendChild(error);
       var actions = document.createElement('div'); actions.className = 'admin-editor-element-actions';
       if (token.type === 'link' && !token.fresh) {
-        var remove = document.createElement('button'); remove.type = 'button'; remove.className = 'btn btn-ghost'; remove.textContent = '移除链接';
+        var remove = document.createElement('button'); remove.type = 'button'; remove.className = 'btn btn-ghost'; remove.textContent = window.pafishT("js.remove_link");
         remove.addEventListener('click', function () { if (applyElement(token, unlinkElement(token), originalValue)) closeElementDialog(true); else { error.textContent = message.textContent; error.hidden = false; } }); actions.appendChild(remove);
       }
-      var cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'btn btn-ghost'; cancel.textContent = '取消'; cancel.addEventListener('click', function () { closeElementDialog(true); });
-      var save = document.createElement('button'); save.type = 'submit'; save.className = 'btn btn-primary'; save.textContent = token.fresh ? '插入' : '保存';
+      var cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'btn btn-ghost'; cancel.textContent = window.pafishT("common.cancel"); cancel.addEventListener('click', function () { closeElementDialog(true); });
+      var save = document.createElement('button'); save.type = 'submit'; save.className = 'btn btn-primary'; save.textContent = token.fresh ? window.pafishT("js.insert") : window.pafishT("common.save");
       actions.append(cancel, save); form.appendChild(actions); dialog.appendChild(form); root.appendChild(dialog); elementDialog = dialog;
       form.addEventListener('submit', function (event) {
         event.preventDefault(); event.stopPropagation();
         var url = safeElementUrl(urlInput.value, token.type === 'image');
-        if (!url) { error.textContent = token.type === 'image' ? '请输入 http、https 图片地址或站内路径' : '请输入 http、https、mailto、tel 地址或站内路径'; error.hidden = false; urlInput.focus(); return; }
+        if (!url) { error.textContent = token.type === 'image' ? window.pafishT("js.enter_an_http_https_image_url_or_a") : window.pafishT("js.enter_an_http_https_mailto_or_tel_url"); error.hidden = false; urlInput.focus(); return; }
         if (applyElement(token, serializeElement(token, url, labelInput.value || (token.type === 'link' ? url : ''), titleInput.value), originalValue)) closeElementDialog(true);
         else { error.textContent = message.textContent; error.hidden = false; }
       });
@@ -429,8 +429,8 @@
       var originalValue = source.value;
       if (typeof options.onMedia !== 'function') return;
       clearElementSelection();
-      options.onMedia({imagesOnly: true, title: '替换图片', onSelect: function (url, mime) {
-        if (String(mime).indexOf('image/') !== 0 || !safeElementUrl(url, true)) { message.textContent = '请选择图片文件'; return false; }
+      options.onMedia({imagesOnly: true, title: window.pafishT("js.replace_image"), onSelect: function (url, mime) {
+        if (String(mime).indexOf('image/') !== 0 || !safeElementUrl(url, true)) { message.textContent = window.pafishT("js.choose_an_image_file"); return false; }
         applyElement(token, serializeElement(token, url, token.label, token.title), originalValue);
         return true;
       }, onCancel: function () { if (!destroyed && mode !== 'preview') source.focus(); }});
@@ -447,13 +447,13 @@
     function selectElement(token, node, anchor) {
       clearElementSelection(); selectedNode = node || null; sourceAnchor = anchor;
       if (node) node.classList.add('is-editor-selected');
-      elementBar.replaceChildren(); elementBar.setAttribute('aria-label', token.type === 'image' ? '图片操作' : '链接操作');
-      var label = document.createElement('span'); label.textContent = token.type === 'image' ? '图片' : '链接'; elementBar.appendChild(label);
+      elementBar.replaceChildren(); elementBar.setAttribute('aria-label', token.type === 'image' ? window.pafishT("js.image_actions") : window.pafishT("js.link_actions"));
+      var label = document.createElement('span'); label.textContent = token.type === 'image' ? window.pafishT("common.image") : window.pafishT("js.link"); elementBar.appendChild(label);
       function action(text, fn, danger) { var button = document.createElement('button'); button.type = 'button'; button.className = 'admin-editor-element-action' + (danger ? ' is-danger' : ''); button.textContent = text; button.addEventListener('mousedown', function (e) { e.preventDefault(); }); button.addEventListener('click', fn); elementBar.appendChild(button); }
-      action('编辑', function () { editElement(token); });
-      if (token.type === 'image' && options.uploadUrl) action('替换', function () { replaceImage(token); });
+      action(window.pafishT("common.edit"), function () { editElement(token); });
+      if (token.type === 'image' && options.uploadUrl) action(window.pafishT("js.replace"), function () { replaceImage(token); });
       var originalValue = source.value;
-      action(token.type === 'image' ? '删除' : '移除链接', function () { applyElement(token, token.type === 'image' ? '' : unlinkElement(token), originalValue); }, token.type === 'image');
+      action(token.type === 'image' ? window.pafishT("common.delete") : window.pafishT("js.remove_link"), function () { applyElement(token, token.type === 'image' ? '' : unlinkElement(token), originalValue); }, token.type === 'image');
       elementBar.hidden = false; placeElementBar();
     }
     function selectSourceElement(event) {
@@ -475,11 +475,11 @@
         if (!candidates.length || candidates.length !== peers.length) return;
         var token = candidates[peers.indexOf(node)];
         node.tabIndex = 0;
-        if (type === 'image') { node.setAttribute('role', 'button'); node.setAttribute('aria-label', '编辑图片：' + (node.alt || '图片')); }
+        if (type === 'image') { node.setAttribute('role', 'button'); node.setAttribute('aria-label', window.pafishT("js.edit_image_cb21bf") + (node.alt || window.pafishT("common.image"))); }
         function select(event) {
           if (event.target.closest('img,a') !== node) return;
           event.preventDefault(); event.stopPropagation();
-          if (previewValue !== source.value) { message.textContent = '预览正在更新，请稍后重新选择'; return; }
+          if (previewValue !== source.value) { message.textContent = window.pafishT("js.the_preview_is_updating_select_again_shortly"); return; }
           selectElement(token, node);
           if (type === 'link') editElement(token);
         }
@@ -503,7 +503,7 @@
     source.addEventListener('keyup', function (event) { if (/^(?:Arrow|Home|End)/.test(event.key)) selectSourceElement(); });
     source.addEventListener('select', function () { if (document.activeElement === source) selectSourceElement(); });
     previewPane.addEventListener('click', function (event) {
-      if (event.target.closest('a[href]')) { event.preventDefault(); message.textContent = '请在源码中选择此链接后编辑'; }
+      if (event.target.closest('a[href]')) { event.preventDefault(); message.textContent = window.pafishT("js.select_this_link_in_the_source_before_editing"); }
       else if (!event.target.closest('img')) clearElementSelection();
     });
     function addButton(container, name, label, shortcut, action, extraClass) {
@@ -539,7 +539,7 @@
         if (kind === "ol" && /^\s*\d+\.\s/.test(line)) return line.replace(/^(\s*)\d+\.\s+/, "$1");
         if (kind === "quote" && /^\s*>\s?/.test(line)) return line.replace(/^(\s*)>\s?/, "$1");
         orderedIndex += 1;
-        return kind === "ol" ? String(orderedIndex) + ". " + (line || "列表项") : prefix + (line || "列表项");
+        return kind === "ol" ? String(orderedIndex) + ". " + (line || window.pafishT("js.list_item")) : prefix + (line || window.pafishT("js.list_item"));
       }).join("\n");
       source.setSelectionRange(range.start, range.end);
       insert(output, 0, output.length);
@@ -637,11 +637,11 @@
       body.append("content", source.value);
       body.append("content_format", htmlSource ? "html" : "markdown");
       body.append("_csrf", options.csrf || "");
-      message.textContent = "正在生成预览…";
+      message.textContent = window.pafishT("js.generating_preview");
       return fetch(options.previewUrl, { method: "POST", body: body, signal: previewController.signal, headers: { "X-Requested-With": "XMLHttpRequest" } })
         .then(function (response) {
           return response.json().then(function (data) {
-            if (!response.ok) throw new Error(data.error || "预览失败");
+            if (!response.ok) throw new Error(data.error || window.pafishT("js.preview_failed"));
             if (destroyed || request !== previewRequest) return;
             previewPane.innerHTML = data.html || "";
             clearElementSelection();
@@ -650,7 +650,7 @@
             message.textContent = "";
           });
         })
-        .catch(function (error) { if (!destroyed && request === previewRequest && error.name !== "AbortError") message.textContent = error.message || "预览失败"; });
+        .catch(function (error) { if (!destroyed && request === previewRequest && error.name !== "AbortError") message.textContent = error.message || window.pafishT("js.preview_failed"); });
     }
     function setMode(next) {
       clearElementSelection();
@@ -676,25 +676,25 @@
       if (!file || !options.uploadUrl || busy) return;
       busy = true;
       if (options.setBusy) options.setBusy(true);
-      message.textContent = "正在上传…";
+      message.textContent = window.pafishT("js.uploading_c5624e");
       var body = new FormData();
       body.append("file", file);
       body.append("_csrf", options.csrf || "");
       fetch(options.uploadUrl, { method: "POST", body: body, headers: { "X-Requested-With": "XMLHttpRequest" } })
         .then(function (response) {
           return response.json().then(function (data) {
-            if (!response.ok) throw new Error(data.error || "上传失败");
+            if (!response.ok) throw new Error(data.error || window.pafishT("js.upload_failed"));
             if (typeof options.onMediaUploaded === 'function') options.onMediaUploaded(data.url, data.mime || file.type, data.originalName || file.name);
             else if (!destroyed) {
-              var name = String(data.originalName || file.name || "媒体").replace(/\.[^.]+$/, "").replace(/[\\[\]]/g, '\\$&');
+              var name = String(data.originalName || file.name || window.pafishT("js.media")).replace(/\.[^.]+$/, "").replace(/[\\[\]]/g, '\\$&');
               var image = String(data.mime || file.type).indexOf("image/") === 0;
               insert("\n" + (image ? "![" : "[") + name + "](" + String(data.url).replace(/[\s()<>]/g, encodeURIComponent) + ")\n");
             }
-            message.textContent = "上传完成";
+            message.textContent = window.pafishT("js.upload_complete");
             window.setTimeout(function () { message.textContent = ""; }, 1800);
           });
         })
-        .catch(function (error) { message.textContent = error.message || "上传失败"; })
+        .catch(function (error) { message.textContent = error.message || window.pafishT("js.upload_failed"); })
         .then(function () { busy = false; if (options.setBusy) options.setBusy(false); });
     }
 
@@ -704,11 +704,11 @@
     heading.dataset.adminSelectHover = 'true';
     heading.dataset.adminSelectPreserveFocus = 'true';
     heading.dataset.adminSelectStyle = 'paragraph';
-    heading.setAttribute("aria-label", "段落格式");
-    ["正文", "标题 1", "标题 2", "标题 3", "标题 4", "标题 5", "标题 6"].forEach(function (label, level) {
+    heading.setAttribute("aria-label", window.pafishT("js.paragraph_format_214c7e"));
+    [window.pafishT("js.content_a0d95b"), window.pafishT("js.heading_1"), window.pafishT("js.heading_2"), window.pafishT("js.heading_3"), window.pafishT("js.heading_4"), window.pafishT("js.heading_5"), window.pafishT("js.heading_6")].forEach(function (label, level) {
       var option = document.createElement("option"); option.value = String(level); option.textContent = label; heading.appendChild(option);
     });
-    var mixed = document.createElement('option'); mixed.value = 'mixed'; mixed.textContent = '混合格式'; mixed.disabled = true; mixed.hidden = true; heading.appendChild(mixed);
+    var mixed = document.createElement('option'); mixed.value = 'mixed'; mixed.textContent = window.pafishT("js.mixed_format"); mixed.disabled = true; mixed.hidden = true; heading.appendChild(mixed);
     heading.addEventListener("change", function () { if (heading.value !== 'mixed') setHeading(Number(heading.value)); });
     root.querySelector(".admin-markdown-heading-group").appendChild(heading);
     root.dispatchEvent(new Event('pafish:controls-init', {bubbles: true}));
@@ -717,18 +717,18 @@
     source.addEventListener('keyup', syncHeading);
     source.addEventListener('focus', syncHeading);
 
-    addGroupButton(".admin-markdown-inline-group", "bold", "粗体", function () { wrap("**", "**"); }, "Ctrl+B");
-    addGroupButton(".admin-markdown-inline-group", "italic", "斜体", function () { wrap("*", "*"); }, "Ctrl+I");
-    addGroupButton(".admin-markdown-inline-group", "strike", "删除线", function () { wrap("~~", "~~"); });
-    undoButton = addGroupButton(".admin-markdown-history-group", "undo", "撤销", undo, "Ctrl+Z");
-    redoButton = addGroupButton(".admin-markdown-history-group", "redo", "重做", redo, "Ctrl+Shift+Z");
-    addGroupButton(".admin-markdown-inline-group", "link", "插入链接", insertLink, "Ctrl+K", "admin-markdown-link");
-    addGroupButton(".admin-markdown-block-group", "quote", "引用", function () { prefixLines("> ", "quote"); });
-    addGroupButton(".admin-markdown-block-group", "ul", "无序列表", function () { prefixLines("- ", "ul"); });
-    addGroupButton(".admin-markdown-block-group", "ol", "有序列表", function () { prefixLines("1. ", "ol"); });
-    addGroupButton(".admin-markdown-block-group", "code", "代码块", function () { wrap("```\n", "\n```", "代码"); });
-    addGroupButton(".admin-markdown-block-group", "hr", "插入分隔线", function () { insert("\n---\n"); });
-    if (!options.externalMedia) addGroupButton(".admin-markdown-insert-group", "media", "插入媒体", function () {
+    addGroupButton(".admin-markdown-inline-group", "bold", window.pafishT("js.bold"), function () { wrap("**", "**"); }, "Ctrl+B");
+    addGroupButton(".admin-markdown-inline-group", "italic", window.pafishT("js.italic"), function () { wrap("*", "*"); }, "Ctrl+I");
+    addGroupButton(".admin-markdown-inline-group", "strike", window.pafishT("js.strikethrough"), function () { wrap("~~", "~~"); });
+    undoButton = addGroupButton(".admin-markdown-history-group", "undo", window.pafishT("js.revoke_9fcefd"), undo, "Ctrl+Z");
+    redoButton = addGroupButton(".admin-markdown-history-group", "redo", window.pafishT("js.redo"), redo, "Ctrl+Shift+Z");
+    addGroupButton(".admin-markdown-inline-group", "link", window.pafishT("js.insert_link"), insertLink, "Ctrl+K", "admin-markdown-link");
+    addGroupButton(".admin-markdown-block-group", "quote", window.pafishT("js.references"), function () { prefixLines("> ", "quote"); });
+    addGroupButton(".admin-markdown-block-group", "ul", window.pafishT("js.bulleted_list"), function () { prefixLines("- ", "ul"); });
+    addGroupButton(".admin-markdown-block-group", "ol", window.pafishT("js.numbered_list"), function () { prefixLines("1. ", "ol"); });
+    addGroupButton(".admin-markdown-block-group", "code", window.pafishT("js.code_block"), function () { wrap("```\n", "\n```", window.pafishT("js.code")); });
+    addGroupButton(".admin-markdown-block-group", "hr", window.pafishT("js.insert_horizontal_rule"), function () { insert("\n---\n"); });
+    if (!options.externalMedia) addGroupButton(".admin-markdown-insert-group", "media", window.pafishT("js.insert_media"), function () {
       if (typeof options.onMedia === "function") return options.onMedia();
       var picker = document.createElement("input");
       picker.type = "file";
@@ -736,10 +736,10 @@
       picker.addEventListener("change", function () { upload(picker.files && picker.files[0]); });
       picker.click();
     }, null, "admin-markdown-media");
-    addGroupButton(".admin-markdown-insert-group", "audio", "插入音乐", function () { insertMediaEmbed('audio'); }, null, "admin-markdown-audio");
-    addGroupButton(".admin-markdown-insert-group", "video", "插入视频", function () { insertMediaEmbed('video'); }, null, "admin-markdown-video");
+    addGroupButton(".admin-markdown-insert-group", "audio", window.pafishT("js.insert_audio"), function () { insertMediaEmbed('audio'); }, null, "admin-markdown-audio");
+    addGroupButton(".admin-markdown-insert-group", "video", window.pafishT("js.insert_video"), function () { insertMediaEmbed('video'); }, null, "admin-markdown-video");
     [
-      ["edit", "编辑"], ["split", "分栏预览"], ["preview", "预览"]
+      ["edit", window.pafishT("common.edit")], ["split", window.pafishT("js.split_preview")], ["preview", window.pafishT("js.preview")]
     ].forEach(function (entry) {
       var button = addButton(root.querySelector(".admin-markdown-view-group"), entry[0] === "split" ? "columns" : entry[0] === "edit" ? "edit" : "eye", entry[1], null, function () { setMode(entry[0]); }, "admin-markdown-view-button");
       button.setAttribute("data-editor-mode", entry[0]);
@@ -750,7 +750,7 @@
       if (undoButton) undoButton.disabled = historyIndex <= 0;
       if (redoButton) redoButton.disabled = historyIndex >= history.length - 1;
     }
-    function updateCount() { count.textContent = (htmlSource ? "HTML · " : "") + source.value.length.toLocaleString("zh-CN") + " 字"; }
+    function updateCount() { count.textContent = (htmlSource ? "HTML · " : "") + source.value.length.toLocaleString("zh-CN") + window.pafishT("js.characters"); }
     source.addEventListener("input", function () {
       clearElementSelection();
       saveHistory("typing"); sync(); updateCount();

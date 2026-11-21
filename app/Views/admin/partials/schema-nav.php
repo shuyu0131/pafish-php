@@ -51,7 +51,7 @@ foreach ($tabs as $tab) {
       <button type="button" class="admin-sf-navtrigger" data-sf-navtrigger
               aria-expanded="false" aria-controls="admin-sf-nav">
         <span aria-hidden="true">☰</span>
-        <span>设置分组</span>
+        <span><?= e(t('admin.settings_groups')) ?></span>
       </button>
     <?php endif; ?>
     <?php foreach ($panes as $i => $pane): ?>
@@ -65,7 +65,7 @@ foreach ($tabs as $tab) {
         // 只有一个分组、且组名是自动兜底的「常规」时不画——顶上多一条「常规」只是噪声。
         $groupLabel = $labelOf[$pane['name']] ?? '';
         $showGroupTitle = $groupLabel !== ''
-            && !(count($panes) === 1 && $groupLabel === '常规');
+            && !(count($panes) === 1 && $groupLabel === t('admin.general'));
         ?>
         <?php if ($showGroupTitle): ?>
           <h2 class="admin-sf-group-title"><?= e($groupLabel) ?></h2>
@@ -79,13 +79,13 @@ foreach ($tabs as $tab) {
   </div>
 
   <?php if ($useNav): ?>
-    <nav class="admin-sf-side" id="admin-sf-nav" aria-label="设置分组">
+    <nav class="admin-sf-side" id="admin-sf-nav" aria-label="<?= e(t('admin.settings_groups')) ?>">
       <?php /* 抽屉标题栏（窄屏显示）：给一个明确的关闭入口，
               否则只能靠点遮罩，触屏上容易误操作。 */ ?>
       <div class="admin-sf-side-head">
-        <span>设置分组</span>
+        <span><?= e(t('admin.settings_groups')) ?></span>
         <button type="button" class="admin-sf-navclose" data-sf-navclose
-                aria-label="关闭分组导航">×</button>
+                aria-label="<?= e(t('admin.close_group_navigation')) ?>">×</button>
       </div>
       <?php foreach ($tabs as $tab): ?>
         <?php if ($tab['children'] === []): ?>

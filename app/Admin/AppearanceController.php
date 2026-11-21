@@ -67,7 +67,7 @@ final class AppearanceController extends AdminController
         $response->getBody()->write($this->render('appearance', [
             'themes' => $themes,
             'catalogNotice' => $catalogNotice,
-        ], '主题与外观'));
+        ], t('admin.themes_and_appearance')));
         return $response;
     }
 
@@ -101,7 +101,7 @@ final class AppearanceController extends AdminController
             'values' => $desc['manifest'] !== null ? Theme::valuesFor($name) : [],
             'settings' => $settings,
             'headExtra' => $headExtra,
-        ], '主题设置'));
+        ], t('admin.theme_settings')));
         return $response;
     }
 
@@ -112,10 +112,10 @@ final class AppearanceController extends AdminController
         $name = trim((string) ($body['name'] ?? ''));
         $desc = Theme::describe($name);
         if ($desc['error'] !== null) {
-            return $this->json($response, ['error' => $desc['error'] ?? '主题不存在'], 400);
+            return $this->json($response, ['error' => $desc['error'] ?? t('admin.theme_not_found')], 400);
         }
         if ($name !== Theme::active()) {
-            return $this->json($response, ['error' => '请先启用该主题再配置'], 400);
+            return $this->json($response, ['error' => t('admin.activate_this_theme_before_configuring_it')], 400);
         }
         // 只保存提交的键，checkbox 由前端全量序列化为 '1'/'0'
         // 先收集并完成全部校验，再统一写库（校验失败不产生部分写入）
@@ -149,7 +149,7 @@ final class AppearanceController extends AdminController
         }
         if ($errors !== []) {
             return $this->json($response, [
-                'error' => '有 ' . count($errors) . ' 项设置未通过校验，已全部放弃保存',
+                'error' => t('admin.there_are') . count($errors) . t('admin.settings_failed_validation_no_changes_were_saved'),
                 'fields' => $errors,
             ], 400);
         }
@@ -195,11 +195,11 @@ final class AppearanceController extends AdminController
                 $result = Theme::installFromUrl($url);
             } elseif ($upload instanceof UploadedFileInterface) {
                 if ($upload->getError() !== UPLOAD_ERR_OK) {
-                    return $this->json($response, ['error' => '上传失败'], 400);
+                    return $this->json($response, ['error' => t('admin.upload_failed_a6f805')], 400);
                 }
                 $result = Theme::installFromBuffer((string) $upload->getStream()->getContents());
             } else {
-                return $this->json($response, ['error' => '请选择 zip 文件'], 400);
+                return $this->json($response, ['error' => t('admin.choose_a_zip_file')], 400);
             }
             return $this->json($response, [
                 'ok' => true,
@@ -219,20 +219,20 @@ final class AppearanceController extends AdminController
         $body = $request->getParsedBody() ?? [];
         $name = trim((string) ($body['name'] ?? ''));
         if ($name !== Theme::active()) {
-            return $this->json($response, ['error' => '请先启用该主题再导入设置'], 400);
+            return $this->json($response, ['error' => t('admin.activate_this_theme_before_importing_settings')], 400);
         }
         $files = $request->getUploadedFiles();
         $upload = $files['file'] ?? null;
         if (!$upload instanceof UploadedFileInterface || $upload->getError() !== UPLOAD_ERR_OK) {
-            return $this->json($response, ['error' => '请选择 JSON 备份文件'], 400);
+            return $this->json($response, ['error' => t('admin.choose_a_json_backup_file')], 400);
         }
         $filename = strtolower((string) $upload->getClientFilename());
         if (!str_ends_with($filename, '.json')) {
-            return $this->json($response, ['error' => '请上传 .json 文件'], 400);
+            return $this->json($response, ['error' => t('admin.upload_a_json_file')], 400);
         }
         $json = json_decode((string) $upload->getStream()->getContents(), true);
         if (!is_array($json)) {
-            return $this->json($response, ['error' => '备份文件不是合法 JSON'], 400);
+            return $this->json($response, ['error' => t('admin.the_backup_file_is_not_valid_json')], 400);
         }
         try {
             $result = Theme::importValues($name, $json);
@@ -247,7 +247,7 @@ final class AppearanceController extends AdminController
         $this->guardAdmin();
         $name = trim((string) (($request->getParsedBody() ?? [])['name'] ?? ''));
         if ($name !== Theme::active()) {
-            return $this->json($response, ['error' => '请先启用该主题再恢复默认设置'], 400);
+            return $this->json($response, ['error' => t('admin.activate_this_theme_before_resetting_its_settings')], 400);
         }
         try {
             $cleared = Theme::resetToDefaults($name);
@@ -262,7 +262,7 @@ final class AppearanceController extends AdminController
         $this->guardAdmin();
         $name = (string) ($_GET['name'] ?? '');
         if ($name !== Theme::active()) {
-            return $this->json($response, ['error' => '请先启用该主题再导出设置'], 400);
+            return $this->json($response, ['error' => t('admin.activate_this_theme_before_exporting_settings')], 400);
         }
         try {
             $data = Theme::exportValues($name);

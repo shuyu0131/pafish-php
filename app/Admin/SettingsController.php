@@ -22,7 +22,7 @@ final class SettingsController extends AdminController
 {
     /** 保存白名单（商店地址使用内置官方源） */
     private const ALLOWED_KEYS = [
-        'site_name', 'site_subtitle', 'site_description', 'site_icp',
+        'site_name', 'site_subtitle', 'site_description', 'site_icp', 'site_locale',
         'seo_title_order', 'seo_title_separator',
         'comments_enabled', 'comments_need_review', 'comments_captcha_enabled', 'comments_honeypot_enabled',
         'submissions_enabled', 'submissions_need_review',
@@ -45,7 +45,7 @@ final class SettingsController extends AdminController
         $all = Settings::core();
         $response->getBody()->write($this->render('settings', [
             'all' => $all,
-        ], '站点设置'));
+        ], t('admin.site_settings')));
         return $response;
     }
 
@@ -54,15 +54,22 @@ final class SettingsController extends AdminController
     {
         $this->guardAdmin();
         $body = $request->getParsedBody() ?? [];
+        if (array_key_exists('site_locale', $body)
+            && (!is_string($body['site_locale']) || !\Pafish\Core\I18n::supports($body['site_locale']))) {
+            $message = t('admin.unsupported_language');
+            if ($this->isAjax($request)) return $this->json($response, ['error' => $message], 400);
+            $this->flash('error', $message);
+            return $this->redirect($response, '/admin/settings#settings-basic');
+        }
         // 主机或账号变化时不能把旧密码沿用到新服务。
         if ((string) Settings::get('smtp_pass', '') !== ''
             && trim((string) ($body['smtp_pass'] ?? '')) === ''
             && ((array_key_exists('smtp_host', $body) && (string) $body['smtp_host'] !== (string) Settings::get('smtp_host', ''))
                 || (array_key_exists('smtp_user', $body) && (string) $body['smtp_user'] !== (string) Settings::get('smtp_user', '')))) {
             if ($this->isAjax($request)) {
-                return $this->json($response, ['error' => '更换 SMTP 主机或账号时，请重新输入密码 / 授权码'], 400);
+                return $this->json($response, ['error' => t('admin.re_enter_the_password_or_app_password_when')], 400);
             }
-            $this->flash('error', '更换 SMTP 主机或账号时，请重新输入密码 / 授权码');
+            $this->flash('error', t('admin.re_enter_the_password_or_app_password_when'));
             return $this->redirect($response, '/admin/settings#settings-mail');
         }
         $pairs = [];
@@ -83,7 +90,7 @@ final class SettingsController extends AdminController
             if (array_key_exists($key, $body)) {
                 $value = (string) $body[$key];
                 if (isset($permalinkTypes[$key]) && !\Pafish\Services\Permalinks::validate($permalinkTypes[$key], $value)) {
-                    $message = '固定链接模板无效，请从支持的选项中选择';
+                    $message = t('admin.invalid_permalink_template_select_a_supported_option');
                     if ($this->isAjax($request)) return $this->json($response, ['error' => $message], 400);
                     $this->flash('error', $message);
                     return $this->redirect($response, '/admin/settings#settings-basic');
@@ -131,11 +138,12 @@ final class SettingsController extends AdminController
         if ($changedPermalinkTypes !== []) {
             \Pafish\Core\Cache::clearPrefix('nav.');
         }
+        \Pafish\Core\I18n::setLocale((string) Settings::get('site_locale', 'zh-CN'));
 
         if ($this->isAjax($request)) {
-            return $this->json($response, ['ok' => true]);
+            return $this->json($response, ['ok' => true, 'locale' => \Pafish\Core\I18n::locale()]);
         }
-        $this->flash('success', '设置已保存');
+        $this->flash('success', t('admin.settings_saved'));
         return $this->redirect($response, '/admin/settings');
     }
 
@@ -146,26 +154,26 @@ final class SettingsController extends AdminController
             ? $decoded
             : preg_split($key === 'comment_spam_keywords' ? '/[,，\r\n]+/' : '/[,，\s]+/', $raw);
         if (!is_array($items)) $items = [];
-        if (count($items) > 500) throw new \InvalidArgumentException('单个评论规则列表最多包含 500 项');
+        if (count($items) > 500) throw new \InvalidArgumentException(t('admin.a_comment_rule_list_can_contain_at_most'));
 
         $normalized = [];
         foreach ($items as $item) {
-            if (!is_string($item) && !is_numeric($item)) throw new \InvalidArgumentException('评论规则列表格式无效');
+            if (!is_string($item) && !is_numeric($item)) throw new \InvalidArgumentException(t('admin.invalid_comment_rule_list'));
             $item = trim((string) $item);
             if ($item === '') continue;
             if ($key === 'blocked_ips') {
-                if (filter_var($item, FILTER_VALIDATE_IP) === false) throw new \InvalidArgumentException('IP 黑名单中包含无效地址');
+                if (filter_var($item, FILTER_VALIDATE_IP) === false) throw new \InvalidArgumentException(t('admin.the_ip_blocklist_contains_an_invalid_address'));
                 $item = strtolower($item);
             } elseif ($key === 'blocked_emails') {
                 $item = strtolower($item);
                 if (str_starts_with($item, '@')) {
                     $domain = substr($item, 1);
-                    if (filter_var('check@' . $domain, FILTER_VALIDATE_EMAIL) === false) throw new \InvalidArgumentException('邮箱黑名单只接受完整邮箱或 @example.com 形式的域名');
+                    if (filter_var('check@' . $domain, FILTER_VALIDATE_EMAIL) === false) throw new \InvalidArgumentException(t('admin.enter_a_complete_email_address_or_a_domain'));
                 } elseif (filter_var($item, FILTER_VALIDATE_EMAIL) === false) {
-                    throw new \InvalidArgumentException('邮箱黑名单中包含无效地址');
+                    throw new \InvalidArgumentException(t('admin.the_email_blocklist_contains_an_invalid_address'));
                 }
             } else {
-                if (mb_strlen($item, 'UTF-8') > 120) throw new \InvalidArgumentException('单条关键词最多 120 个字符');
+                if (mb_strlen($item, 'UTF-8') > 120) throw new \InvalidArgumentException(t('admin.a_keyword_cannot_exceed_120_characters'));
             }
             $normalized[] = $item;
         }
@@ -191,7 +199,7 @@ final class SettingsController extends AdminController
             $cfg['pass'] = (string) Settings::get('smtp_pass', '');
         }
         if ($cfg['host'] === '' || $cfg['user'] === '' || $cfg['pass'] === '') {
-            return $this->json($response, ['error' => '请先填写 SMTP 主机、账号和密码'], 400);
+            return $this->json($response, ['error' => t('admin.enter_the_smtp_host_account_and_password_first')], 400);
         }
 
         // 收件人：当前登录账号邮箱，否则站长通知邮箱
@@ -201,12 +209,12 @@ final class SettingsController extends AdminController
             $to = (string) Settings::get('notify_email', '');
         }
         if ($to === '') {
-            return $this->json($response, ['error' => '当前账号未设置邮箱，且站长通知邮箱为空，无法发送'], 400);
+            return $this->json($response, ['error' => t('admin.unable_to_send_neither_your_account_nor_the')], 400);
         }
 
         $siteName = (string) (Settings::get('site_name', '') ?: '纸鱼博客');
         try {
-            Mail::sendWith($cfg, $to, 'SMTP 配置测试', "你好：\n\n这是一封来自「{$siteName}」的测试邮件，说明 SMTP 配置已生效。\n\n如果你收到这封邮件，无需回复。");
+            Mail::sendWith($cfg, $to, t('admin.smtp_configuration_test'), t('admin.smtp_test_body', ['site' => $siteName]));
         } catch (\Throwable $e) {
             return $this->json($response, ['error' => $e->getMessage()], 400);
         }

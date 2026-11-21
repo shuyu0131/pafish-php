@@ -11,130 +11,130 @@ $avatar = \Pafish\Http\Comments::avatarUrl($me['avatar_url'] ?? null, (string) (
 <div class="admin-stack">
   <div class="admin-page-head">
     <div>
-      <h1 class="admin-h1">个人资料</h1>
-      <p class="admin-page-sub">资料、密码与设备授权</p>
+      <h1 class="admin-h1"><?= e(t('admin.profile')) ?></h1>
+      <p class="admin-page-sub"><?= e(t('admin.profile_password_and_device_access')) ?></p>
     </div>
   </div>
 
   <!-- 资料表单 -->
   <div class="card admin-form-card">
-    <h2 class="admin-card-title">资料</h2>
+    <h2 class="admin-card-title"><?= e(t('admin.profile_adfadb')) ?></h2>
     <form id="profileForm" class="admin-form-grid" method="post" action="<?= e(url_to('/admin/profile/save')) ?>" novalidate>
       <?= csrf_field() ?>
       <div class="admin-field">
-        <span class="label">头像</span>
+        <span class="label"><?= e(t('admin.avatar')) ?></span>
         <div class="admin-avatar-edit">
           <img class="admin-avatar-preview" id="avatarPreview" src="<?= e($avatar) ?>" alt="" width="64" height="64">
           <div class="admin-avatar-edit-actions">
             <input type="file" id="avatarFile" accept="image/png,image/jpeg,image/gif,image/webp" hidden>
-            <button type="button" id="avatarUploadBtn" class="btn btn-outline btn-sm">上传头像</button>
+            <button type="button" id="avatarUploadBtn" class="btn btn-outline btn-sm"><?= e(t('admin.upload_avatar')) ?></button>
           </div>
         </div>
         <input class="input" type="text" id="avatarUrl" name="avatar_url" autocomplete="off" value="<?= e((string) ($me['avatar_url'] ?? '')) ?>"
-               placeholder="或粘贴图片地址（/uploads/… 或 https://…）" maxlength="500">
-        <p class="admin-field-hint">留空使用默认头像。</p>
+               placeholder="<?= e(t('admin.or_paste_an_image_url_uploads_or_https')) ?>" maxlength="500">
+        <p class="admin-field-hint"><?= e(t('admin.leave_blank_to_use_the_default_avatar')) ?></p>
       </div>
       <div class="admin-field">
-        <span class="label">显示昵称</span>
-        <input class="input" type="text" name="nickname" value="<?= e((string) ($me['nickname'] ?? '')) ?>" maxlength="50" placeholder="留空则显示用户名">
-        <p class="admin-field-hint">显示在后台和评论中，留空用用户名</p>
+        <span class="label"><?= e(t('admin.display_name')) ?></span>
+        <input class="input" type="text" name="nickname" value="<?= e((string) ($me['nickname'] ?? '')) ?>" maxlength="50" placeholder="<?= e(t('admin.leave_blank_to_display_the_username')) ?>">
+        <p class="admin-field-hint"><?= e(t('admin.shown_in_the_admin_interface_and_comments_leave')) ?></p>
       </div>
       <div class="admin-field">
-        <span class="label">用户名（登录名）</span>
+        <span class="label"><?= e(t('admin.username_sign_in_name')) ?></span>
         <input class="input" type="text" name="username" value="<?= e((string) ($me['username'] ?? '')) ?>" maxlength="50" required>
-        <p class="admin-field-hint">2-50 位，仅限中文、字母、数字、下划线和连字符</p>
+        <p class="admin-field-hint"><?= e(t('admin.2_50_characters_chinese_characters_letters_numbers_underscores')) ?></p>
       </div>
       <div class="admin-field">
-        <span class="label">邮箱</span>
+        <span class="label"><?= e(t('admin.email')) ?></span>
         <input class="input" type="email" name="email" value="<?= e((string) ($me['email'] ?? '')) ?>" maxlength="255" required>
-        <p class="admin-field-hint">用于找回密码与接收评论通知</p>
+        <p class="admin-field-hint"><?= e(t('admin.used_for_password_recovery_and_comment_notifications')) ?></p>
       </div>
       <div class="admin-field">
-        <span class="label">当前密码</span>
+        <span class="label"><?= e(t('admin.current_password')) ?></span>
         <input class="input" type="password" name="current_password" autocomplete="current-password">
-        <p class="admin-field-hint">修改用户名或邮箱时必填</p>
+        <p class="admin-field-hint"><?= e(t('admin.required_when_changing_your_username_or_email')) ?></p>
       </div>
       <div class="admin-form-actions">
         <p class="admin-editor-error" id="profileError" hidden></p>
-        <button type="submit" id="profileSaveBtn" class="btn btn-primary">保存资料</button>
+        <button type="submit" id="profileSaveBtn" class="btn btn-primary"><?= e(t('admin.save_profile')) ?></button>
       </div>
     </form>
   </div>
 
   <!-- 修改密码 -->
   <div class="card admin-form-card">
-    <h2 class="admin-card-title">修改密码</h2>
+    <h2 class="admin-card-title"><?= e(t('admin.change_password')) ?></h2>
     <form id="passwordForm" class="admin-form-grid" method="post" action="<?= e(url_to('/admin/profile/password')) ?>" novalidate>
       <?= csrf_field() ?>
       <div class="admin-field">
-        <span class="label">当前密码</span>
+        <span class="label"><?= e(t('admin.current_password')) ?></span>
         <input class="input" type="password" name="current_password" placeholder="••••••••" autocomplete="current-password" minlength="6" required>
       </div>
       <div class="admin-field">
-        <span class="label">新密码</span>
+        <span class="label"><?= e(t('admin.new_password')) ?></span>
         <input class="input" type="password" name="new_password" placeholder="••••••••" autocomplete="new-password" minlength="6" required>
       </div>
       <div class="admin-field">
-        <span class="label">确认新密码</span>
+        <span class="label"><?= e(t('admin.confirm_new_password')) ?></span>
         <input class="input" type="password" name="confirm_password" placeholder="••••••••" autocomplete="new-password" minlength="6" required>
       </div>
       <div class="admin-form-actions">
         <p class="admin-editor-error" id="passwordError" hidden></p>
-        <button type="submit" id="passwordSaveBtn" class="btn btn-primary">修改密码</button>
+        <button type="submit" id="passwordSaveBtn" class="btn btn-primary"><?= e(t('admin.change_password')) ?></button>
       </div>
     </form>
   </div>
 
   <div class="card admin-form-card">
-    <h2 class="admin-card-title">手机应用设备</h2>
+    <h2 class="admin-card-title"><?= e(t('admin.mobile_devices')) ?></h2>
     <form id="appTokenForm" class="admin-form-grid admin-app-token-form" method="post" action="<?= e(url_to('/admin/profile/app-token/create')) ?>">
       <?= csrf_field() ?>
       <div class="admin-field">
-        <label class="label" for="appTokenDevice">设备名称</label>
-        <input class="input" id="appTokenDevice" name="device_name" type="text" placeholder="例如：我的手机" maxlength="100" required>
+        <label class="label" for="appTokenDevice"><?= e(t('admin.device_name')) ?></label>
+        <input class="input" id="appTokenDevice" name="device_name" type="text" placeholder="<?= e(t('admin.for_example_my_phone')) ?>" maxlength="100" required>
       </div>
       <div class="admin-field">
-        <label class="label" for="appTokenPassword">当前密码</label>
+        <label class="label" for="appTokenPassword"><?= e(t('admin.current_password')) ?></label>
         <input class="input" id="appTokenPassword" name="current_password" type="password" autocomplete="current-password" required>
       </div>
       <div class="admin-form-actions">
         <p class="admin-editor-error" id="appTokenError" role="alert" hidden></p>
-        <button type="submit" class="btn btn-primary">创建令牌</button>
+        <button type="submit" class="btn btn-primary"><?= e(t('admin.create_token')) ?></button>
       </div>
     </form>
     <div id="appTokenResult" class="admin-app-token-result" hidden>
       <div class="admin-field">
-        <label class="label" for="appTokenValue">访问令牌</label>
+        <label class="label" for="appTokenValue"><?= e(t('admin.access_token')) ?></label>
         <input class="input" id="appTokenValue" type="text" readonly autocomplete="off" spellcheck="false" aria-describedby="appTokenHint appTokenExpiry">
-        <p class="admin-field-hint" id="appTokenHint">完整令牌仅显示这一次，请复制到手机应用。有效期 90 天，可随时撤销。</p>
+        <p class="admin-field-hint" id="appTokenHint"><?= e(t('admin.the_full_token_is_shown_only_once_copy')) ?></p>
         <p class="admin-field-hint" id="appTokenExpiry"></p>
         <p class="admin-field-hint" id="appTokenCopyStatus" role="status" aria-live="polite"></p>
       </div>
       <div class="admin-form-actions">
-        <button type="button" id="appTokenCopy" class="btn btn-primary">复制令牌</button>
-        <button type="button" id="appTokenDone" class="btn btn-outline">完成</button>
+        <button type="button" id="appTokenCopy" class="btn btn-primary"><?= e(t('admin.copy_token')) ?></button>
+        <button type="button" id="appTokenDone" class="btn btn-outline"><?= e(t('admin.done')) ?></button>
       </div>
     </div>
     <div id="appTokenDevices" class="admin-app-token-devices">
     <?php if ($appTokens === []): ?>
-      <p class="admin-muted">尚无手机应用设备授权</p>
+      <p class="admin-muted"><?= e(t('admin.no_mobile_devices_authorized_yet')) ?></p>
     <?php else: ?>
-      <div class="admin-table-wrap" role="region" aria-label="手机应用设备授权">
+      <div class="admin-table-wrap" role="region" aria-label="<?= e(t('admin.mobile_app_access')) ?>">
         <table class="admin-table">
-          <thead><tr><th>设备</th><th>最近使用</th><th>到期时间</th><th>状态</th><th class="admin-col-ops">操作</th></tr></thead>
+          <thead><tr><th><?= e(t('admin.device')) ?></th><th><?= e(t('admin.last_used')) ?></th><th><?= e(t('admin.expires')) ?></th><th><?= e(t('common.status')) ?></th><th class="admin-col-ops"><?= e(t('common.actions')) ?></th></tr></thead>
           <tbody>
             <?php foreach ($appTokens as $token): ?>
               <?php $expired = strtotime((string) $token['expires_at']) <= time(); $revoked = !empty($token['revoked_at']); ?>
               <tr>
                 <td><?= e((string) $token['device_name']) ?><span class="admin-muted"> · <?= e(date('Y-m-d', strtotime((string) $token['created_at']))) ?></span></td>
-                <td><?= $token['last_used_at'] ? e(date('Y-m-d H:i', strtotime((string) $token['last_used_at']))) : '尚未使用' ?></td>
+                <td><?= $token['last_used_at'] ? e(date('Y-m-d H:i', strtotime((string) $token['last_used_at']))) : t('admin.never_used') ?></td>
                 <td><?= e(date('Y-m-d H:i', strtotime((string) $token['expires_at']))) ?></td>
-                <td><?= $revoked ? '已撤销' : ($expired ? '已过期' : '有效') ?></td>
+                <td><?= $revoked ? t('admin.revoked') : ($expired ? t('admin.expired') : t('admin.valid')) ?></td>
                 <td>
                   <?php if (!$revoked && !$expired): ?>
-                    <button type="button" class="btn btn-ghost btn-sm" data-app-token-revoke="<?= (int) $token['id'] ?>" data-device-name="<?= e((string) $token['device_name']) ?>">撤销</button>
+                    <button type="button" class="btn btn-ghost btn-sm" data-app-token-revoke="<?= (int) $token['id'] ?>" data-device-name="<?= e((string) $token['device_name']) ?>"><?= e(t('admin.revoke')) ?></button>
                   <?php elseif ($revoked): ?>
-                    <button type="button" class="btn btn-ghost btn-sm" data-app-token-delete="<?= (int) $token['id'] ?>" data-device-name="<?= e((string) $token['device_name']) ?>">删除</button>
+                    <button type="button" class="btn btn-ghost btn-sm" data-app-token-delete="<?= (int) $token['id'] ?>" data-device-name="<?= e((string) $token['device_name']) ?>"><?= e(t('common.delete')) ?></button>
                   <?php else: ?>
                     <span class="admin-muted">—</span>
                   <?php endif; ?>
@@ -163,7 +163,7 @@ $avatar = \Pafish\Http\Comments::avatarUrl($me['avatar_url'] ?? null, (string) (
     })
       .then(function (r) {
         return r.json().then(function (j) {
-          if (!r.ok || !j || !j.ok) throw new Error((j && j.error) || "操作失败");
+          if (!r.ok || !j || !j.ok) throw new Error((j && j.error) || window.pafishT("common.operation_failed"));
           return j;
         });
       })
@@ -178,21 +178,21 @@ $avatar = \Pafish\Http\Comments::avatarUrl($me['avatar_url'] ?? null, (string) (
       e.preventDefault();
       errBox.hidden = true;
       var submit = form.querySelector("button[type=submit]");
-      if (submit) { submit.disabled = true; submit.dataset.label = submit.textContent; submit.textContent = pendingLabel || "保存中…"; }
+      if (submit) { submit.disabled = true; submit.dataset.label = submit.textContent; submit.textContent = pendingLabel || window.pafishT("common.saving"); }
       post(form.action, new FormData(form), onOk)
         .catch(function (err) {
           errBox.textContent = err.message;
           errBox.hidden = false;
         })
         .finally(function () {
-          if (submit) { submit.disabled = false; submit.textContent = submit.dataset.label || "保存"; }
+          if (submit) { submit.disabled = false; submit.textContent = submit.dataset.label || window.pafishT("common.save"); }
         });
     });
   }
 
   // 资料保存：统一使用后台 toast
   bind("profileForm", "profileError", function () {
-    if (typeof window.pafishToast === "function") window.pafishToast("个人资料已保存", "success");
+    if (typeof window.pafishToast === "function") window.pafishToast(window.pafishT("js.profile_saved"), "success");
   });
 
   var tokenForm = document.getElementById("appTokenForm");
@@ -202,23 +202,23 @@ $avatar = \Pafish\Http\Comments::avatarUrl($me['avatar_url'] ?? null, (string) (
   bind("appTokenForm", "appTokenError", function (j) {
     tokenForm.reset();
     tokenValue.value = j.accessToken;
-    document.getElementById("appTokenExpiry").textContent = "到期时间：" + j.expiresAt;
+    document.getElementById("appTokenExpiry").textContent = window.pafishT("js.expires") + j.expiresAt;
     tokenCopyStatus.textContent = "";
     tokenForm.hidden = true;
     document.getElementById("appTokenDevices").hidden = true;
     tokenResult.hidden = false;
     tokenValue.focus();
     tokenValue.select();
-  }, "创建中…");
+  }, window.pafishT("js.creating"));
   document.getElementById("appTokenCopy").addEventListener("click", function () {
     function selectForCopy() {
       tokenValue.focus();
       tokenValue.select();
-      tokenCopyStatus.textContent = "请长按或使用系统复制操作复制已选令牌";
+      tokenCopyStatus.textContent = window.pafishT("js.long_press_or_use_your_system_s_copy");
     }
     if (!navigator.clipboard || !navigator.clipboard.writeText) { selectForCopy(); return; }
     navigator.clipboard.writeText(tokenValue.value).then(function () {
-      tokenCopyStatus.textContent = "令牌已复制";
+      tokenCopyStatus.textContent = window.pafishT("js.token_copied");
     }).catch(selectForCopy);
   });
   document.getElementById("appTokenDone").addEventListener("click", function () {
@@ -245,14 +245,14 @@ $avatar = \Pafish\Http\Comments::avatarUrl($me['avatar_url'] ?? null, (string) (
     var newPw = pwForm.elements.new_password.value;
     var confirmPw = pwForm.elements.confirm_password.value;
     if (newPw !== confirmPw) {
-      errBox.textContent = "两次输入的新密码不一致";
+      errBox.textContent = window.pafishT("js.the_new_passwords_do_not_match");
       errBox.hidden = false;
       return;
     }
     var fd = new FormData(pwForm);
     fd.delete("confirm_password");
     post(pwForm.action, fd, function () {
-      if (typeof window.pafishToast === "function") window.pafishToast("密码已修改，下次登录请使用新密码", "success");
+      if (typeof window.pafishToast === "function") window.pafishToast(window.pafishT("js.password_changed_use_the_new_password_next_time"), "success");
       ["current_password", "new_password", "confirm_password"].forEach(function (k) {
         pwForm.elements[k].value = "";
       });
@@ -276,17 +276,17 @@ $avatar = \Pafish\Http\Comments::avatarUrl($me['avatar_url'] ?? null, (string) (
     fd.append("file", fileInput.files[0]);
     fd.append("_csrf", CSRF);
     uploadButton.disabled = true;
-    uploadButton.textContent = "上传中…";
+    uploadButton.textContent = window.pafishT("js.uploading");
     post(<?= json_encode(url_to('/admin/profile/avatar')) ?>, fd, function (j) {
       urlInput.value = j.url;
       preview.src = j.url;
       fileInput.value = "";
     }).catch(function (err) {
-      pafishNotify(err.message || "上传失败", true);
+      pafishNotify(err.message || window.pafishT("js.upload_failed"), true);
       fileInput.value = "";
     }).finally(function () {
       uploadButton.disabled = false;
-      uploadButton.textContent = "上传头像";
+      uploadButton.textContent = window.pafishT("js.upload_avatar");
     });
   });
   urlInput.addEventListener("input", function () {
@@ -296,13 +296,13 @@ $avatar = \Pafish\Http\Comments::avatarUrl($me['avatar_url'] ?? null, (string) (
 
   document.querySelectorAll("[data-app-token-revoke], [data-app-token-delete]").forEach(function (button) {
     button.addEventListener("click", function () {
-      var label = button.dataset.deviceName || "该设备";
+      var label = button.dataset.deviceName || window.pafishT("js.this_device");
       var deleting = button.hasAttribute("data-app-token-delete");
       var action = deleting ? "delete" : "revoke";
       var tokenId = deleting ? button.dataset.appTokenDelete : button.dataset.appTokenRevoke;
-      var prompt = deleting ? "删除“" + label + "”的已撤销令牌记录？" : "撤销“" + label + "”的手机应用授权？";
+      var prompt = deleting ? window.pafishT("js.delete") + label + window.pafishT("js.revoked_token_record") : window.pafishT("js.revoke") + label + window.pafishT("js.mobile_app_access");
       var confirmAction = window.pafishConfirm
-        ? window.pafishConfirm(prompt, { title: deleting ? "删除令牌" : "撤销设备", accept: deleting ? "删除" : "撤销" })
+        ? window.pafishConfirm(prompt, { title: deleting ? window.pafishT("js.delete_token") : window.pafishT("js.revoke_device"), accept: deleting ? window.pafishT("common.delete") : window.pafishT("js.revoke_9fcefd") })
         : Promise.resolve(window.confirm(prompt));
       confirmAction.then(function (ok) {
         if (!ok) return;
@@ -310,9 +310,9 @@ $avatar = \Pafish\Http\Comments::avatarUrl($me['avatar_url'] ?? null, (string) (
         var fd = new FormData();
         fd.append("_csrf", CSRF);
         post(<?= json_encode(url_to('/admin/profile/app-token/')) ?> + encodeURIComponent(tokenId) + "/" + action, fd, function () {
-          if (typeof window.pafishToastReload === "function") window.pafishToastReload(deleting ? "令牌记录已删除" : "设备授权已撤销", "success");
+          if (typeof window.pafishToastReload === "function") window.pafishToastReload(deleting ? window.pafishT("js.token_record_deleted") : window.pafishT("js.device_authorization_revoked"), "success");
           else location.reload();
-        }).catch(function (err) { pafishNotify(err.message || (deleting ? "删除失败" : "撤销失败"), true); })
+        }).catch(function (err) { pafishNotify(err.message || (deleting ? window.pafishT("js.delete_failed") : window.pafishT("js.unable_to_revoke")), true); })
           .finally(function () { button.disabled = false; });
       });
     });

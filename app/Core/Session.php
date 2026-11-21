@@ -19,6 +19,8 @@ final class Session
         }
         ini_set('session.use_strict_mode', '1');
         ini_set('session.use_only_cookies', '1');
+        // Cookie 与服务端回收期限必须一致，不能仍按 PHP 默认的短会话清理。
+        ini_set('session.gc_maxlifetime', (string) self::LIFETIME);
         session_name('pafish_session');
         session_set_cookie_params([
             'lifetime' => self::LIFETIME,
@@ -28,6 +30,20 @@ final class Session
             'samesite' => 'Lax',
         ]);
         session_start();
+        // 状态检查等读取请求不能让登录无限续期；兼容已有会话的首次升级。
+        if (isset($_SESSION['_expires_at']) && (int) $_SESSION['_expires_at'] <= time()) {
+            $_SESSION = [];
+            session_regenerate_id(true);
+        }
+        if (!isset($_SESSION['_expires_at'])) {
+            self::renewExpiry();
+        }
+    }
+
+    /** 登录成功并更换会话 ID 后，重新计算固定有效期。 */
+    public static function renewExpiry(): void
+    {
+        $_SESSION['_expires_at'] = time() + self::LIFETIME;
     }
 
     public static function get(string $key, mixed $default = null): mixed

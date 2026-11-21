@@ -209,7 +209,7 @@ final class ContentTransfer
         else {
             DB::execute('INSERT INTO posts (title, slug, excerpt, content, cover_url, status, published_at, is_pinned, category_pinned, password, external_url, custom_fields, author_id, category_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [$values[0],$slug,$values[1],$values[2],$values[3],$values[4],$values[5],$values[6],$values[7],$values[8],$values[9],$values[10],$values[11],$values[12]]);
             $postId = DB::lastInsertId(); $counts['posts']++;
-            $newPost = DB::fetchOne('SELECT slug,published_at,created_at FROM posts WHERE id=?', [$postId]);
+            $newPost = DB::fetchOne('SELECT id,slug,published_at,created_at FROM posts WHERE id=?', [$postId]);
             if ($newPost !== null) PermalinkRedirects::forgetPaths(Permalinks::paths('post', $newPost));
         }
         DB::execute('UPDATE posts SET content_format = ?, template = ? WHERE id = ?', [$contentFormat, $template, $postId]);

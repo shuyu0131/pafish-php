@@ -7,6 +7,7 @@ namespace Pafish\Http;
 use Pafish\Core\Auth;
 use Pafish\Core\Session;
 use Pafish\Core\Url;
+use Pafish\Services\AppTokens;
 use Pafish\Services\ExtensionRequest;
 use Pafish\Services\ExtensionRoutes;
 use Pafish\Services\ExtensionKernel;
@@ -106,7 +107,13 @@ final class ExtensionController
                     return $this->error($response, $route, '请求已过期，请刷新页面重试', 419);
                 }
             }
-            if ($user === null && !ExtensionRoutes::allowAnonymousPost($matched['kind'], $matched['name'], $path)) {
+            // 匿名限流只针对未鉴权流量：持有有效 Bearer 令牌（app_tokens）的调用方
+            // 是已鉴权身份，不占用匿名桶，令牌维度由使用方插件自行 RateLimiter 兜底。
+            if (
+                $user === null
+                && !ExtensionRoutes::allowAnonymousPost($matched['kind'], $matched['name'], $path)
+                && AppTokens::authenticate($request) === null
+            ) {
                 return $this->error($response, $route, '请求过于频繁，请稍后再试', 429);
             }
         }
@@ -174,6 +181,25 @@ final class ExtensionController
             $response->getBody()->write(json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
             return $response->withStatus($this->safeStatus($status))->withHeader('Content-Type', 'application/json; charset=utf-8');
         }
+        if ($type === 'stream') {
+            // 流式处理器返回回调或 PSR-7 流；回调在 Slim 发完响应头后的读取循环里执行，
+            // 自己 echo + flush，不做整段缓冲。
+            if ($result instanceof \Psr\Http\Message\StreamInterface) {
+                $body = $result;
+            } elseif (is_callable($result)) {
+                $body = new StreamedBody($result);
+            } elseif (is_array($result) && is_callable($result['stream'] ?? null)) {
+                $body = new StreamedBody($result['stream']);
+            } else {
+                throw new \RuntimeException('流式路由处理器必须返回可调用对象或 PSR-7 流');
+            }
+            return $response->withStatus(200)
+                ->withHeader('Content-Type', 'text/event-stream; charset=utf-8')
+                ->withHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
+                ->withHeader('X-Accel-Buffering', 'no')
+                ->withHeader('X-Content-Type-Options', 'nosniff')
+                ->withBody($body);
+        }
         $target = is_string($result) ? $result : (is_array($result) ? ($result['redirect'] ?? null) : null);
         if (!is_string($target) || !Url::isLocalPath($target)) {
             throw new \RuntimeException('重定向路由处理器必须返回站内相对路径');
@@ -183,7 +209,7 @@ final class ExtensionController
 
     private function error(Response $response, array $route, string $message, int $status, ?string $requestId = null): Response
     {
-        if (($route['response'] ?? '') === 'json') {
+        if (in_array($route['response'] ?? '', ['json', 'stream'], true)) {
             $payload = ['ok' => false, 'error' => $message];
             if ($requestId !== null) {
                 $payload['requestId'] = $requestId;

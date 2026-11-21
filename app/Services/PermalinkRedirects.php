@@ -186,10 +186,11 @@ final class PermalinkRedirects
     private static function contentExistsAtPath(string $path, ?string $ignoreType = null, int $ignoreId = 0): bool
     {
         $post = Permalinks::postFromPath($path);
+        $postColumn = isset($post['id']) ? 'id' : 'slug';
         if ($post !== null && DB::value(
-            'SELECT id FROM posts WHERE slug = ? AND deleted_at IS NULL'
+            'SELECT id FROM posts WHERE ' . $postColumn . ' = ? AND deleted_at IS NULL'
                 . ($ignoreType === 'post' && $ignoreId > 0 ? ' AND id <> ?' : '') . ' LIMIT 1',
-            $ignoreType === 'post' && $ignoreId > 0 ? [$post['slug'], $ignoreId] : [$post['slug']]
+            $ignoreType === 'post' && $ignoreId > 0 ? [$post[$postColumn], $ignoreId] : [$post[$postColumn]]
         ) !== null) {
             return true;
         }
@@ -226,10 +227,11 @@ final class PermalinkRedirects
         if ($type === 'post') {
             $parsed = Permalinks::postFromPath($path);
             if ($parsed === null) return null;
+            $column = isset($parsed['id']) ? 'id' : 'slug';
             return DB::fetchOne(
                 'SELECT id, slug, status, published_at, created_at, deleted_at FROM posts
-                 WHERE slug = ? AND deleted_at IS NULL LIMIT 1',
-                [$parsed['slug']]
+                 WHERE ' . $column . ' = ? AND deleted_at IS NULL LIMIT 1',
+                [$parsed[$column]]
             );
         }
 
@@ -319,9 +321,10 @@ final class PermalinkRedirects
     {
         $post = Permalinks::postFromPath($path);
         if ($post !== null) {
+            $column = isset($post['id']) ? 'id' : 'slug';
             $row = DB::fetchOne(
-                'SELECT status, published_at, deleted_at FROM posts WHERE slug = ? LIMIT 1',
-                [$post['slug']]
+                'SELECT status, published_at, deleted_at FROM posts WHERE ' . $column . ' = ? LIMIT 1',
+                [$post[$column]]
             );
             if ($row === null) return null;
             return ($row['status'] ?? null) === 'PUBLISHED'

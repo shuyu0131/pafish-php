@@ -45,6 +45,7 @@ final class Notify
         try {
             $type = ($ctx['targetType'] ?? 'post') === 'page' ? 'page' : 'post';
             $postUrl = \absolute_url(\Pafish\Services\Permalinks::path($type, [
+                'id' => $ctx['targetId'] ?? 0,
                 'slug' => (string) $ctx['postSlug'],
                 'published_at' => $ctx['publishedAt'] ?? null,
                 'created_at' => $ctx['createdAt'] ?? null,
@@ -77,6 +78,7 @@ final class Notify
         try {
             $type = (($input['targetType'] ?? 'post') === 'page') ? 'page' : 'post';
             $threadUrl = \absolute_url(\Pafish\Services\Permalinks::path($type, [
+                'id' => $input['targetId'] ?? 0,
                 'slug' => (string) $input['postSlug'],
                 'published_at' => $input['publishedAt'] ?? null,
                 'created_at' => $input['createdAt'] ?? null,

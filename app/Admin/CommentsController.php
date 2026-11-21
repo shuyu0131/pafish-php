@@ -76,6 +76,7 @@ final class CommentsController extends AdminController
         foreach ($items as &$item) {
             $type = (string) $item['target_type'];
             $item['target_path'] = \Pafish\Services\Permalinks::path($type, [
+                'id' => $type === 'post' ? $item['post_id'] : $item['page_id'],
                 'slug' => $item['post_slug'],
                 'published_at' => $item['post_published_at'] ?? null,
                 'created_at' => $item['post_created_at'] ?? null,
@@ -101,7 +102,7 @@ final class CommentsController extends AdminController
             'postId' => $postId,
             'postTitle' => $postTitle,
             'search' => $search,
-        ], '评论审核'));
+        ], t('admin.comment_moderation')));
         return $response;
     }
 
@@ -126,19 +127,19 @@ final class CommentsController extends AdminController
         $rawIds = $body['ids'] ?? [];
         $operation = (string) ($body['op'] ?? '');
         if (!is_array($rawIds) || $rawIds === [] || count($rawIds) > 100) {
-            return $this->json($response, ['error' => '请选择 1 至 100 条评论'], 400);
+            return $this->json($response, ['error' => t('admin.select_between_1_and_100_comments')], 400);
         }
         if (!in_array($operation, ['approve', 'spam', 'delete'], true)) {
-            return $this->json($response, ['error' => '无效的批量操作'], 400);
+            return $this->json($response, ['error' => t('admin.invalid_batch_operation')], 400);
         }
         $ids = [];
         foreach ($rawIds as $rawId) {
             if (!is_int($rawId) && !is_string($rawId)) {
-                return $this->json($response, ['error' => '评论编号无效'], 400);
+                return $this->json($response, ['error' => t('admin.invalid_comment_id')], 400);
             }
             $id = filter_var($rawId, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
             if ($id === false) {
-                return $this->json($response, ['error' => '评论编号无效'], 400);
+                return $this->json($response, ['error' => t('admin.invalid_comment_id')], 400);
             }
             $ids[] = (int) $id;
         }
@@ -188,7 +189,7 @@ final class CommentsController extends AdminController
     {
         $this->guardCapability('comments.manage');
         $ip = trim((string) ($request->getParsedBody()['ip'] ?? ''));
-        if ($ip === '') return $this->json($response, ['error'=>'参数错误'], 400);
+        if ($ip === '') return $this->json($response, ['error'=>t('admin.invalid_parameters')], 400);
         $scope = $this->editorScope();
         $ids = DB::fetchAll('SELECT c.id FROM comments c LEFT JOIN posts scope_post ON scope_post.id=c.post_id WHERE c.ip=?' . $scope['sql'], array_merge([$ip], $scope['params']));
         try {
@@ -205,7 +206,7 @@ final class CommentsController extends AdminController
         $this->guardAdmin();
         $ip = trim((string) ($request->getParsedBody()['ip'] ?? ''));
         if (filter_var($ip, FILTER_VALIDATE_IP) === false) {
-            return $this->json($response, ['error' => 'IP 地址无效'], 400);
+            return $this->json($response, ['error' => t('admin.invalid_ip_address')], 400);
         }
         $list = json_decode((string) Settings::get('blocked_ips', '[]'), true);
         if (!is_array($list)) {
@@ -224,7 +225,7 @@ final class CommentsController extends AdminController
         $this->guardAdmin();
         $email = strtolower(trim((string) ($request->getParsedBody()['email'] ?? '')));
         if (filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
-            return $this->json($response, ['error' => '邮箱地址无效'], 400);
+            return $this->json($response, ['error' => t('admin.invalid_email_address')], 400);
         }
         $list = json_decode((string) Settings::get('blocked_emails', '[]'), true);
         if (!is_array($list)) $list = [];

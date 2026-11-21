@@ -4,7 +4,7 @@ $editorConfigured = \Pafish\Services\Editor::configured($editorType);
 ?>
 <div class="admin-editor-controls">
   <?php if ($editorMediaEnabled ?? true): ?>
-  <button type="button" class="btn btn-ghost" data-editor-media title="插入媒体" aria-label="插入媒体"><?= admin_icon('image', 15) ?><span>插入媒体</span></button>
+  <button type="button" class="btn btn-ghost" data-editor-media title="<?= e(t('admin.insert_media')) ?>" aria-label="<?= e(t('admin.insert_media')) ?>"><?= admin_icon('image', 15) ?><span><?= e(t('admin.insert_media')) ?></span></button>
   <?php endif; ?>
 </div>
 <p class="admin-editor-adapter-status" data-editor-status role="status" hidden></p>

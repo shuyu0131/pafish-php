@@ -226,7 +226,9 @@ return static function (ExtensionContext $ctx): void {
     });
 
     $ctx->provider('registerAiFunction', static function (string $name, string $description, array $parametersSchema, string $providerName, bool $sideEffect = false) use ($ctx): void {
-        $pluginName = $ctx->pluginName();
+        // 归属调用方插件：provider 闭包捕获的是 ai_foundation 自己的 $ctx，
+        // 必须走与 completeWithTools 相同的 backtrace 提取，否则注册表归属永远是自己。
+        $pluginName = ai_foundation_extract_caller_plugin() ?: $ctx->name;
         AiFoundation\FunctionRegistry::register($name, $description, $parametersSchema, $pluginName, $providerName, true, $sideEffect);
     });
 

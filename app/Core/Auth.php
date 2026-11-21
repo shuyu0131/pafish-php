@@ -129,6 +129,7 @@ final class Auth
         $user = DB::fetchOne('SELECT password_hash FROM users WHERE id = ? AND disabled = 0', [$userId]);
         if ($user === null) throw new \RuntimeException('账号不可用');
         session_regenerate_id(true);
+        Session::renewExpiry();
         Session::set(self::SESSION_KEY, $userId);
         Session::set('auth_password_hash', (string) $user['password_hash']);
         Session::remove('last_active_touch');

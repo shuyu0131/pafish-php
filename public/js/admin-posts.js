@@ -93,7 +93,7 @@
       var op = opSelect ? opSelect.value : submitter.value;
       if (op === "move") {
         var moveSel = moveSelect;
-        if (!moveSel.value) { pafishNotify("请先选择要移动到的分类", true); return; }
+        if (!moveSel.value) { pafishNotify(window.pafishT("js.select_a_destination_category_first"), true); return; }
       }
       var selectedOption = opSelect ? opSelect.options[opSelect.selectedIndex] : submitter;
       var confirmText = (selectedOption && selectedOption.dataset.batchConfirm) || submitter.dataset.batchConfirm || "";
@@ -101,7 +101,7 @@
       var confirmed = !confirmText
         ? Promise.resolve(true)
         : (window.pafishConfirm
-          ? window.pafishConfirm(ask, { title: "批量操作确认" })
+          ? window.pafishConfirm(ask, { title: window.pafishT("js.confirm_batch_action") })
           : Promise.resolve(window.confirm(ask)));
       confirmed.then(function (ok) {
         if (!ok) return;
@@ -113,13 +113,13 @@
         fetch(batchBar.action, { method: "POST", body: fd, headers: { "X-Requested-With": "XMLHttpRequest" } })
           .then(function (r) { return r.json().catch(function () { return {}; }); })
           .then(function (d) {
-            if (d && d.ok) { pafishToastReload("批量操作已完成", "success"); return; }
+            if (d && d.ok) { pafishToastReload(window.pafishT("js.batch_operation_complete"), "success"); return; }
             submitter.disabled = false;
-            pafishNotify((d && d.error) || "操作失败", true);
+            pafishNotify((d && d.error) || window.pafishT("common.operation_failed"), true);
           })
           .catch(function () {
             submitter.disabled = false;
-            pafishNotify("网络错误，请重试", true);
+            pafishNotify(window.pafishT("common.network_error_retry"), true);
           });
       });
     });
@@ -133,25 +133,25 @@
       var confirmed = !confirmText
         ? Promise.resolve(true)
         : (window.pafishConfirm
-          ? window.pafishConfirm(confirmText, { title: "确认操作", danger: true })
+          ? window.pafishConfirm(confirmText, { title: window.pafishT("js.confirm_action"), danger: true })
           : Promise.resolve(window.confirm(confirmText)));
       confirmed.then(function (ok) {
         if (!ok) return;
         if (btn) {
           btn.disabled = true;
           btn.dataset.originalHtml = btn.dataset.originalHtml || btn.innerHTML;
-          btn.textContent = "提交中…";
+          btn.textContent = window.pafishT("js.submitting");
         }
         fetch(f.action, { method: "POST", body: new FormData(f), headers: { "X-Requested-With": "XMLHttpRequest" } })
           .then(function (r) { return r.json().catch(function () { return {}; }); })
           .then(function (d) {
-            if (d && d.ok) { pafishToastReload("操作已完成", "success"); return; }
+            if (d && d.ok) { pafishToastReload(window.pafishT("js.operation_complete"), "success"); return; }
             restoreButton();
-            pafishNotify((d && d.error) || "操作失败", true);
+            pafishNotify((d && d.error) || window.pafishT("common.operation_failed"), true);
           })
           .catch(function () {
             restoreButton();
-            pafishNotify("网络错误，请重试", true);
+            pafishNotify(window.pafishT("common.network_error_retry"), true);
           });
       });
     });

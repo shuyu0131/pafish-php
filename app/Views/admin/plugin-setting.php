@@ -25,7 +25,7 @@ ob_start();
 ?>
 <h1 class="admin-h1"><?= e($title) ?></h1>
 <?php if ($pluginActive && is_string($manifest['frontendUrl'] ?? null) && trim((string) $manifest['frontendUrl']) !== ''): ?>
-  <p class="admin-page-sub">前台地址：<a href="<?= e(url_to((string) $manifest['frontendUrl'])) ?>" target="_blank" rel="noopener noreferrer"><?= e(url_to((string) $manifest['frontendUrl'])) ?></a></p>
+  <p class="admin-page-sub"><?= e(t('admin.public_url')) ?><a href="<?= e(url_to((string) $manifest['frontendUrl'])) ?>" target="_blank" rel="noopener noreferrer"><?= e(url_to((string) $manifest['frontendUrl'])) ?></a></p>
 <?php endif; ?>
 <?php
 $headMain = ob_get_clean();
@@ -43,9 +43,9 @@ $canConfigure = $pluginActive && $manifest !== null && $error === null && $field
 $hasIconFields = $canConfigure && \Pafish\Services\ExtensionKernel::hasSettingType($fields, 'icon');
 ?>
 <div class="admin-stack admin-plugin-settings-page">
-  <nav aria-label="面包屑">
+  <nav aria-label="<?= e(t('admin.breadcrumb')) ?>">
     <ol class="admin-crumb">
-      <li><a href="<?= e(url_to('/admin/plugins')) ?>">插件</a></li>
+      <li><a href="<?= e(url_to('/admin/plugins')) ?>"><?= e(t('admin.plugin_76fcd7')) ?></a></li>
       <?php /* 末项用 manifest 的显示名，与下方 h1 一致；manifest 缺失时退回目录名。 */ ?>
       <li aria-current="page"><?= e($title) ?></li>
     </ol>
@@ -53,7 +53,7 @@ $hasIconFields = $canConfigure && \Pafish\Services\ExtensionKernel::hasSettingTy
   <p class="admin-backup-msg" id="pluginSettingMsg" hidden></p>
 
   <?php if ($error !== null): ?>
-    <div class="card admin-empty">插件“<?= e($pluginName) ?>”不可用：<?= e($error) ?></div>
+    <div class="card admin-empty"><?= e(t('admin.plugin_80d9e2')) ?><?= e($pluginName) ?><?= e(t('admin.is_unavailable')) ?><?= e($error) ?></div>
   <?php endif; ?>
 
   <?php if ($canConfigure): ?>
@@ -71,12 +71,12 @@ $hasIconFields = $canConfigure && \Pafish\Services\ExtensionKernel::hasSettingTy
         <div class="admin-sf-footer">
           <div class="admin-sf-actions">
             <?php if ($supportsNotificationTest): ?>
-              <button type="button" class="btn btn-success" id="pluginTestNotificationBtn">发送测试通知</button>
+              <button type="button" class="btn btn-success" id="pluginTestNotificationBtn"><?= e(t('admin.send_test_notification')) ?></button>
             <?php endif; ?>
             <?php if ($supportsStorageTest): ?>
-              <button type="button" class="btn btn-success" id="pluginTestStorageBtn">测试存储连接</button>
+              <button type="button" class="btn btn-success" id="pluginTestStorageBtn"><?= e(t('admin.test_storage_connection')) ?></button>
             <?php endif; ?>
-            <button type="submit" class="btn btn-primary" id="pluginSaveBtn">保存</button>
+            <button type="submit" class="btn btn-primary" id="pluginSaveBtn"><?= e(t('common.save')) ?></button>
           </div>
         </div>
       </form>
@@ -87,9 +87,9 @@ $hasIconFields = $canConfigure && \Pafish\Services\ExtensionKernel::hasSettingTy
     <?php endif; ?>
     <?php if ($error === null && $manifest !== null): ?>
       <?php if (!$pluginActive): ?>
-        <div class="card admin-empty">该插件当前未启用，请先 <a href="<?= e(url_to('/admin/plugins')) ?>">返回插件列表启用</a> 后再配置。</div>
+        <div class="card admin-empty"><?= e(t('admin.this_plugin_is_inactive_first')) ?> <a href="<?= e(url_to('/admin/plugins')) ?>"><?= e(t('admin.activate_it_from_the_plugin_list')) ?></a> <?= e(t('admin.before_configuring_it')) ?></div>
       <?php elseif ($fields === [] && !$hasCustomSettingsPage): ?>
-        <div class="card admin-empty">该插件没有可配置的设置项。</div>
+        <div class="card admin-empty"><?= e(t('admin.this_plugin_has_no_configurable_settings')) ?></div>
       <?php endif; ?>
     <?php endif; ?>
   <?php endif; ?>
@@ -102,13 +102,13 @@ $hasIconFields = $canConfigure && \Pafish\Services\ExtensionKernel::hasSettingTy
 
 <!-- 媒体库选择弹窗（与主题设置页共用交互） -->
 <div class="admin-modal-backdrop" id="pluginMediaModal" hidden>
-  <div class="admin-modal" role="dialog" aria-modal="true" aria-label="从媒体库选择">
+  <div class="admin-modal" role="dialog" aria-modal="true" aria-label="<?= e(t('admin.choose_from_media_library')) ?>">
     <div class="admin-modal-head">
-      <div class="admin-modal-tabs"><span class="admin-modal-tab active">媒体库</span></div>
-      <button type="button" class="admin-icon-btn" data-plugin-close-modal data-modal-close aria-label="关闭"><?= admin_icon('x', 16) ?></button>
+      <div class="admin-modal-tabs"><span class="admin-modal-tab active"><?= e(t('admin.media_library')) ?></span></div>
+      <button type="button" class="admin-icon-btn" data-plugin-close-modal data-modal-close aria-label="<?= e(t('common.close')) ?>"><?= admin_icon('x', 16) ?></button>
     </div>
     <div class="admin-modal-body">
-      <input class="input admin-lib-search" type="search" placeholder="搜索媒体…" data-plugin-lib-q>
+      <input class="input admin-lib-search" type="search" placeholder="<?= e(t('admin.search_media')) ?>" data-plugin-lib-q>
       <div class="admin-lib-grid" data-plugin-lib-grid aria-live="polite"></div>
       <div class="admin-pager admin-lib-pager" data-plugin-lib-pager hidden></div>
     </div>
@@ -159,7 +159,7 @@ $hasIconFields = $canConfigure && \Pafish\Services\ExtensionKernel::hasSettingTy
       .then(function (r) { return r.json(); })
       .then(function (j) {
         if (j && j.ok) return j;
-        var err = new Error((j && j.error) || "操作失败");
+        var err = new Error((j && j.error) || window.pafishT("common.operation_failed"));
         err.fields = (j && j.fields) || null;
         throw err;
       });
@@ -179,7 +179,7 @@ $hasIconFields = $canConfigure && \Pafish\Services\ExtensionKernel::hasSettingTy
       for (var i = 0; i < hexInputs.length; i++) {
         var hv = hexInputs[i].value.trim();
         if (hv !== "" && !/^#[0-9a-fA-F]{6}$/.test(hv)) {
-          warn("颜色值 " + hv + " 不合法（需 #rrggbb）", true);
+          warn(window.pafishT("js.color_value") + hv + window.pafishT("js.is_invalid_expected_rrggbb"), true);
           return false;
         }
       }
@@ -191,7 +191,7 @@ $hasIconFields = $canConfigure && \Pafish\Services\ExtensionKernel::hasSettingTy
   if (testNotificationBtn) {
     testNotificationBtn.addEventListener("click", function () {
       testNotificationBtn.disabled = true;
-      testNotificationBtn.textContent = "发送中…";
+      testNotificationBtn.textContent = window.pafishT("js.sending");
       var fd = new FormData();
       fd.append("name", NAME);
       fd.append("_csrf", CSRF);
@@ -199,20 +199,20 @@ $hasIconFields = $canConfigure && \Pafish\Services\ExtensionKernel::hasSettingTy
         var result = payload.result || {};
         var total = Number(result.total || 0);
         var succeeded = Number(result.success || 0);
-        if (total === 0) throw new Error("未配置可用的通知通道");
+        if (total === 0) throw new Error(window.pafishT("js.no_notification_channel_configured"));
         var failed = Array.isArray(result.results) ? result.results.filter(function (item) { return !item.ok; }) : [];
         if (failed.length) {
           var first = failed[0] || {};
-          var detail = first.error || first.response || (first.status ? "HTTP " + first.status : "请求失败");
-          showMsg("测试完成：" + succeeded + "/" + total + " 个通道成功。" + (first.channel || "通知通道") + "：" + detail, true);
+          var detail = first.error || first.response || (first.status ? "HTTP " + first.status : window.pafishT("js.request_failed"));
+          showMsg(window.pafishT("js.test_complete") + succeeded + "/" + total + window.pafishT("js.channels_succeeded") + (first.channel || window.pafishT("js.notification_channels")) + "：" + detail, true);
           return;
         }
-        showMsg("测试完成：" + succeeded + "/" + total + " 个通道成功", false);
+        showMsg(window.pafishT("js.test_complete") + succeeded + "/" + total + window.pafishT("js.channels_succeeded_889f5d"), false);
       }).catch(function (err) {
         showMsg(err.message, true);
       }).finally(function () {
         testNotificationBtn.disabled = false;
-        testNotificationBtn.textContent = "发送测试通知";
+        testNotificationBtn.textContent = window.pafishT("js.send_test_notification");
       });
     });
   }
@@ -221,14 +221,14 @@ $hasIconFields = $canConfigure && \Pafish\Services\ExtensionKernel::hasSettingTy
   if (testStorageBtn) {
     testStorageBtn.addEventListener("click", function () {
       testStorageBtn.disabled = true;
-      testStorageBtn.textContent = "测试中…";
+      testStorageBtn.textContent = window.pafishT("js.testing");
       var fd = new FormData(); fd.append("name", NAME); fd.append("_csrf", CSRF);
       post("/admin/plugins/test-storage", fd).then(function (payload) {
         var r = payload.result || {};
-        if (!r.ok) throw new Error(r.error || "存储连接测试失败");
-        showMsg(r.message || "存储连接测试成功", false);
+        if (!r.ok) throw new Error(r.error || window.pafishT("js.storage_connection_test_failed"));
+        showMsg(r.message || window.pafishT("js.storage_connection_test_passed"), false);
       }).catch(function (err) { showMsg(err.message, true); }).finally(function () {
-        testStorageBtn.disabled = false; testStorageBtn.textContent = "测试存储连接";
+        testStorageBtn.disabled = false; testStorageBtn.textContent = window.pafishT("js.test_storage_connection");
       });
     });
   }
@@ -243,13 +243,13 @@ $hasIconFields = $canConfigure && \Pafish\Services\ExtensionKernel::hasSettingTy
   var libTotalPages = 1;
 
   function loadLib() {
-    libGrid.innerHTML = '<p class="admin-muted admin-modal-hint">加载中…</p>';
+    libGrid.innerHTML = ("<p class=\"admin-muted admin-modal-hint\">" + window.pafishI18n.escape(window.pafishT("common.loading")) + "</p>");
     fetch(pafishApi("/uploads?page=") + libPage + "&q=" + encodeURIComponent(libQ.value.trim()))
       .then(function (r) { return r.json(); })
       .then(function (j) {
         libGrid.innerHTML = "";
         if (!j.items || j.items.length === 0) {
-          libGrid.innerHTML = '<p class="admin-muted admin-modal-hint">没有找到媒体文件</p>';
+          libGrid.innerHTML = ("<p class=\"admin-muted admin-modal-hint\">" + window.pafishI18n.escape(window.pafishT("js.no_media_files_found")) + "</p>");
           libPager.hidden = true;
           return;
         }
@@ -300,7 +300,7 @@ $hasIconFields = $canConfigure && \Pafish\Services\ExtensionKernel::hasSettingTy
         }
       })
       .catch(function () {
-        libGrid.innerHTML = '<p class="admin-muted admin-modal-hint">媒体库加载失败</p>';
+        libGrid.innerHTML = ("<p class=\"admin-muted admin-modal-hint\">" + window.pafishI18n.escape(window.pafishT("js.unable_to_load_the_media_library")) + "</p>");
       });
   }
 

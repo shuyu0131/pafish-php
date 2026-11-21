@@ -22,7 +22,7 @@ final class BackupController extends AdminController
         $this->guardAdmin();
         $response->getBody()->write($this->render('backup', [
             'backups' => Backup::list(),
-        ], '数据备份'));
+        ], t('admin.backups')));
         return $response;
     }
 
@@ -45,10 +45,10 @@ final class BackupController extends AdminController
         $files = $request->getUploadedFiles();
         $file = $files['file'] ?? null;
         if (!$file instanceof \Psr\Http\Message\UploadedFileInterface) {
-            return $this->json($response, ['error' => '请选择文件'], 400);
+            return $this->json($response, ['error' => t('admin.choose_a_file')], 400);
         }
         if ($file->getError() !== UPLOAD_ERR_OK) {
-            return $this->json($response, ['error' => '上传失败'], 400);
+            return $this->json($response, ['error' => t('admin.upload_failed_a6f805')], 400);
         }
         try {
             $tmp = (string) $file->getStream()->getMetadata('uri');
@@ -67,7 +67,7 @@ final class BackupController extends AdminController
         $file = trim((string) ($body['file'] ?? ''));
         $confirm = trim((string) ($body['confirm'] ?? ''));
         if ($confirm !== '' && $confirm !== basename($file)) {
-            return $this->json($response, ['error' => '确认名称与备份文件名不一致，已取消恢复'], 400);
+            return $this->json($response, ['error' => t('admin.the_confirmation_does_not_match_the_backup_filename')], 400);
         }
         try {
             $safety = Backup::restore($file);
@@ -103,7 +103,7 @@ final class BackupController extends AdminController
         }
         $stream = fopen($path, 'rb');
         if ($stream === false) {
-            $response->getBody()->write('备份文件不存在');
+            $response->getBody()->write(t('admin.backup_file_not_found'));
             return $response->withStatus(404);
         }
         return $response

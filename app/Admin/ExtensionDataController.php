@@ -27,7 +27,7 @@ final class ExtensionDataController extends AdminController
         $response->getBody()->write($this->render('extension-data', [
             'tables' => $tables, 'existing' => $existing, 'missing' => count($all) - $existing,
             'kind' => $kind, 'state' => $state,
-        ], '扩展数据表'));
+        ], t('admin.extension_tables')));
         return $response;
     }
 }

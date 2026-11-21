@@ -30,23 +30,23 @@ final class DashboardController extends AdminController
 
         // 管理员概览；评论统计排除已删除文章。
         $stats = [
-            ['label' => '文章', 'value' => (int) DB::value('SELECT COUNT(*) FROM posts WHERE deleted_at IS NULL'),
+            ['label' => t('common.post'), 'value' => (int) DB::value('SELECT COUNT(*) FROM posts WHERE deleted_at IS NULL'),
                 'icon' => 'file-text', 'url' => '/admin/posts'],
-            ['label' => '待审投稿', 'value' => (int) DB::value("SELECT COUNT(*) FROM posts WHERE status='PENDING' AND deleted_at IS NULL"),
+            ['label' => t('admin.pending_submissions'), 'value' => (int) DB::value("SELECT COUNT(*) FROM posts WHERE status='PENDING' AND deleted_at IS NULL"),
                 'icon' => 'file-text', 'url' => '/admin/posts?status=PENDING'],
-            ['label' => '用户', 'value' => (int) DB::value('SELECT COUNT(*) FROM users'),
+            ['label' => t('common.user'), 'value' => (int) DB::value('SELECT COUNT(*) FROM users'),
                 'icon' => 'users', 'url' => '/admin/users'],
-            ['label' => '评论', 'value' => (int) DB::value('SELECT COUNT(*) FROM comments c JOIN posts p ON p.id = c.post_id WHERE p.deleted_at IS NULL'),
+            ['label' => t('common.comments'), 'value' => (int) DB::value('SELECT COUNT(*) FROM comments c JOIN posts p ON p.id = c.post_id WHERE p.deleted_at IS NULL'),
                 'icon' => 'message', 'url' => '/admin/comments?status=ALL'],
-            ['label' => '累计浏览', 'value' => (int) DB::value('SELECT COALESCE(SUM(view_count), 0) FROM posts WHERE deleted_at IS NULL'),
+            ['label' => t('admin.total_views'), 'value' => (int) DB::value('SELECT COALESCE(SUM(view_count), 0) FROM posts WHERE deleted_at IS NULL'),
                 'icon' => 'eye', 'url' => null],
         ];
         $software = [
             'PHP' => PHP_VERSION,
-            '数据库' => (string) DB::value('SELECT VERSION()'),
-            'Web 服务' => (string) ($request->getServerParams()['SERVER_SOFTWARE'] ?? '未知'),
-            '操作系统' => PHP_OS_FAMILY,
-            '时区' => date_default_timezone_get(),
+            t('admin.database') => (string) DB::value('SELECT VERSION()'),
+            t('admin.web_server') => (string) ($request->getServerParams()['SERVER_SOFTWARE'] ?? t('admin.unknown')),
+            t('admin.operating_system') => PHP_OS_FAMILY,
+            t('admin.time_zone') => date_default_timezone_get(),
         ];
 
         $html = $this->render('dashboard', [
@@ -56,7 +56,7 @@ final class DashboardController extends AdminController
             'current' => Version::current(),
             'canUpgrade' => (string) ($user['role'] ?? '') === 'ADMIN',
             'upgradeInfo' => Upgrade::cached(),
-        ], '工作台');
+        ], t('admin.dashboard'));
 
         $response->getBody()->write($html);
         return $response;
@@ -67,15 +67,15 @@ final class DashboardController extends AdminController
     {
         $userId = (int) ($user['id'] ?? 0);
         $stats = [
-            ['label' => '我的文章', 'value' => (int) DB::value('SELECT COUNT(*) FROM posts WHERE author_id = ? AND deleted_at IS NULL', [$userId]), 'icon' => 'file-text', 'url' => '/admin/posts'],
-            ['label' => '草稿', 'value' => (int) DB::value("SELECT COUNT(*) FROM posts WHERE author_id = ? AND status = 'DRAFT' AND deleted_at IS NULL", [$userId]), 'icon' => 'pen', 'url' => '/admin/posts'],
-            ['label' => '待审评论', 'value' => (int) DB::value("SELECT COUNT(*) FROM comments c JOIN posts p ON p.id=c.post_id WHERE p.author_id=? AND p.deleted_at IS NULL AND c.status='PENDING'", [$userId]), 'icon' => 'message', 'url' => '/admin/comments'],
-            ['label' => '文章浏览', 'value' => (int) DB::value('SELECT COALESCE(SUM(view_count), 0) FROM posts WHERE author_id = ? AND deleted_at IS NULL', [$userId]), 'icon' => 'eye', 'url' => null],
+            ['label' => t('admin.my_posts'), 'value' => (int) DB::value('SELECT COUNT(*) FROM posts WHERE author_id = ? AND deleted_at IS NULL', [$userId]), 'icon' => 'file-text', 'url' => '/admin/posts'],
+            ['label' => t('admin.draft'), 'value' => (int) DB::value("SELECT COUNT(*) FROM posts WHERE author_id = ? AND status = 'DRAFT' AND deleted_at IS NULL", [$userId]), 'icon' => 'pen', 'url' => '/admin/posts'],
+            ['label' => t('admin.pending_comments'), 'value' => (int) DB::value("SELECT COUNT(*) FROM comments c JOIN posts p ON p.id=c.post_id WHERE p.author_id=? AND p.deleted_at IS NULL AND c.status='PENDING'", [$userId]), 'icon' => 'message', 'url' => '/admin/comments'],
+            ['label' => t('admin.post_views'), 'value' => (int) DB::value('SELECT COALESCE(SUM(view_count), 0) FROM posts WHERE author_id = ? AND deleted_at IS NULL', [$userId]), 'icon' => 'eye', 'url' => null],
         ];
         $response->getBody()->write($this->render('editor-dashboard', [
             'username' => (string) ($user['nickname'] ?: $user['username']),
             'stats' => $stats,
-        ], '工作台'));
+        ], t('admin.dashboard')));
         return $response;
     }
 }

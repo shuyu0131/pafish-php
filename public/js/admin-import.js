@@ -45,15 +45,15 @@
     var added = 0;
     Array.prototype.forEach.call(list, function (f) {
       if (files.length >= MAX_FILES) {
-        showError("一次最多导入 50 个文件");
+        showError(window.pafishT("js.import_up_to_50_files_at_a_time"));
         return;
       }
       if (!/\.md$/i.test(f.name)) {
-        showError("仅支持 .md 文件：" + f.name);
+        showError(window.pafishT("js.only_md_files_are_supported") + f.name);
         return;
       }
       if (f.size > MAX_SIZE) {
-        showError("文件超过 1MB 限制：" + f.name);
+        showError(window.pafishT("js.file_exceeds_the_1_mb_limit") + f.name);
         return;
       }
       // 同名去重（追加后替换）
@@ -75,7 +75,7 @@
         li.innerHTML =
           '<span class="admin-import-file-name">' + esc(f.name) + '</span>' +
           '<span class="admin-import-file-size">' + fmtSize(f.size) + '</span>' +
-          '<button type="button" class="admin-icon-btn" title="移除" data-remove="' + i + '">' +
+          ("<button type=\"button\" class=\"admin-icon-btn\" title=\"移除\" data-remove=\"") + i + '">' +
           '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>';
         fileList.appendChild(li);
       });
@@ -84,7 +84,7 @@
     }
     clearBtn.disabled = files.length === 0;
     runBtn.disabled = files.length === 0;
-    runBtn.textContent = "开始导入（" + files.length + " 篇）";
+    runBtn.textContent = window.pafishT("js.start_import") + files.length + window.pafishT("js.posts_c6554d");
   }
 
   fileList.addEventListener("click", function (e) {
@@ -132,14 +132,14 @@
     fd.append("_csrf", CSRF);
 
     runBtn.disabled = true;
-    runBtn.textContent = "导入中…";
+    runBtn.textContent = window.pafishT("js.importing");
     hideError();
     resultBox.hidden = true;
 
     fetch(form.action, { method: "POST", body: fd, headers: { "X-Requested-With": "XMLHttpRequest" } })
       .then(function (res) {
         return res.json().then(function (data) {
-          if (!res.ok) throw new Error(data.error || "导入失败");
+          if (!res.ok) throw new Error(data.error || window.pafishT("js.import_failed"));
           return data;
         });
       })
@@ -149,9 +149,9 @@
         renderList();
       })
       .catch(function (err) {
-        showError(err.message || "导入失败");
+        showError(err.message || window.pafishT("js.import_failed"));
         runBtn.disabled = false;
-        runBtn.textContent = "开始导入（" + files.length + " 篇）";
+        runBtn.textContent = window.pafishT("js.start_import") + files.length + window.pafishT("js.posts_c6554d");
       });
   });
 
@@ -159,12 +159,12 @@
     var okCount = data.created || 0;
     var failCount = data.failed || 0;
     var html = '<p class="admin-import-result-head">' +
-      (failCount === 0 ? '全部成功' : '导入完成：成功 ' + okCount + ' 篇，失败 ' + failCount + ' 篇') +
+      (failCount === 0 ? window.pafishT("js.all_succeeded") : window.pafishT("js.import_complete_succeeded") + okCount + window.pafishT("js.posts_failed") + failCount + window.pafishT("js.posts_99bbc7")) +
       '</p>';
     if (failCount > 0) {
       html += '<ul class="admin-import-result-fails">';
       (data.results || []).forEach(function (r) {
-        if (!r.ok) html += '<li>' + esc(r.name) + '：' + esc(r.error || '导入失败') + '</li>';
+        if (!r.ok) html += '<li>' + esc(r.name) + '：' + esc(r.error || window.pafishT("js.import_failed")) + '</li>';
       });
       html += '</ul>';
     }

@@ -26,9 +26,9 @@ final class PagesController extends AdminController
     /** 页面模板选项：default + 激活主题 + 激活插件 */
     public static function templateOptions(): array
     {
-        $options = ['default' => '系统默认模板'];
+        $options = ['default' => t('admin.system_default_template')];
         foreach (Theme::pageTemplates(Theme::active()) as $tpl) {
-            $options[$tpl['name']] = '主题 · ' . $tpl['title'];
+            $options[$tpl['name']] = t('admin.theme') . $tpl['title'];
         }
         foreach (Plugin::activeNames() as $name) {
             $desc = Plugin::describe($name);
@@ -36,7 +36,7 @@ final class PagesController extends AdminController
                 continue;
             }
             foreach (($desc['manifest']['pageTemplates'] ?? []) as $tpl) {
-                $options[$tpl['name']] ??= '插件 · ' . $tpl['title'];
+                $options[$tpl['name']] ??= t('admin.plugin') . $tpl['title'];
             }
         }
         return $options;
@@ -86,7 +86,7 @@ final class PagesController extends AdminController
             'filters' => ['q' => $q, 'status' => $status],
             'homePageId' => (string) Settings::get('home_page_id', ''),
             'templateOptions' => self::templateOptions(),
-        ], '页面管理'));
+        ], t('admin.pages')));
         return $response;
     }
 
@@ -99,7 +99,7 @@ final class PagesController extends AdminController
             'page' => null,
             'templateOptions' => self::templateOptions(),
             'headExtra' => editor_head_extra(),
-        ], '新建页面'));
+        ], t('admin.new_page')));
         return $response;
     }
 
@@ -109,7 +109,7 @@ final class PagesController extends AdminController
         $this->guardAdmin();
         $page = DB::fetchOne('SELECT * FROM pages WHERE id = ?', [(int) ($args['id'] ?? 0)]);
         if (!$page) {
-            $this->flash('error', '页面不存在');
+            $this->flash('error', t('admin.page_not_found'));
             return $this->redirect($response, '/admin/pages');
         }
         $response->getBody()->write($this->render('page-editor', [
@@ -117,7 +117,7 @@ final class PagesController extends AdminController
             'page' => $page,
             'templateOptions' => self::templateOptions(),
             'headExtra' => editor_head_extra(),
-        ], '编辑页面'));
+        ], t('admin.edit_page')));
         return $response;
     }
 
@@ -143,7 +143,7 @@ final class PagesController extends AdminController
         if ($this->isAjax($request)) {
             return $this->json($response, ['ok' => true, 'id' => $result['id']]);
         }
-        $this->flash('success', $result['created'] ? '页面已保存' : '页面已更新');
+        $this->flash('success', $result['created'] ? t('admin.page_saved') : t('admin.page_updated'));
         return $this->redirect($response, "/admin/pages/{$result['id']}/edit");
     }
 
@@ -170,7 +170,7 @@ final class PagesController extends AdminController
         if ($this->isAjax($request)) {
             return $this->json($response, ['ok' => true]);
         }
-        $this->flash('success', '页面已删除');
+        $this->flash('success', t('admin.page_deleted'));
         return $this->redirect($response, '/admin/pages');
     }
 
@@ -185,7 +185,7 @@ final class PagesController extends AdminController
         if ($set) {
             $page = DB::fetchOne('SELECT id FROM pages WHERE id = ?', [$id]);
             if (!$page) {
-                return $this->json($response, ['error' => '页面不存在'], 404);
+                return $this->json($response, ['error' => t('admin.page_not_found')], 404);
             }
             Settings::set('home_page_id', (string) $id);
         } else {
@@ -206,14 +206,14 @@ final class PagesController extends AdminController
     private function persistPage(array $body, ?int $id = null): array
     {
         $stored = $id !== null ? DB::fetchOne('SELECT * FROM pages WHERE id=? FOR UPDATE', [$id]) : null;
-        if ($id !== null && $stored === null) throw new \RuntimeException('页面不存在');
+        if ($id !== null && $stored === null) throw new \RuntimeException(t('admin.page_not_found'));
         $seo = \Pafish\Services\Content::seoFields($body, $stored ?? []);
         $title = trim((string) ($body['title'] ?? ''));
         if ($title === '') {
-            throw new \RuntimeException('标题不能为空');
+            throw new \RuntimeException(t('admin.title_is_required'));
         }
         if (mb_strlen($title) > 100) {
-            throw new \RuntimeException('标题不能超过 100 字');
+            throw new \RuntimeException(t('admin.title_cannot_exceed_100_characters'));
         }
 
         $slug = Slug::forSave(
@@ -228,7 +228,7 @@ final class PagesController extends AdminController
             100
         );
         if (mb_strlen($slug) > 100) {
-            throw new \RuntimeException('页面地址不能超过 100 字');
+            throw new \RuntimeException(t('admin.page_slug_cannot_exceed_100_characters'));
         }
         $status = ($body['status'] ?? '') === 'PUBLISHED' ? 'PUBLISHED' : 'DRAFT';
 
@@ -238,17 +238,17 @@ final class PagesController extends AdminController
             $template = 'default';
         }
         if (!preg_match('/^[a-z0-9-]{1,40}$/', $template)) {
-            throw new \RuntimeException('模板名称只能包含小写字母、数字和连字符');
+            throw new \RuntimeException(t('admin.template_names_can_contain_only_lowercase_letters_numbers'));
         }
         if ($template !== ($stored['template'] ?? null) && !array_key_exists($template, self::templateOptions())) {
-            throw new \RuntimeException('所选页面模板不可用，请重新选择');
+            throw new \RuntimeException(t('admin.the_selected_page_template_is_unavailable_choose_another'));
         }
 
         $contentFormat = \Pafish\Services\Content::format($body['content_format'] ?? ($id !== null ? (DB::value('SELECT content_format FROM pages WHERE id = ?', [$id]) ?: 'markdown') : 'markdown'));
         $allowComments = $body['allow_comments'] ?? $stored['allow_comments'] ?? 1;
-        if (!in_array($allowComments, [true, false, 1, 0, '1', '0'], true)) throw new \RuntimeException('评论开关无效');
+        if (!in_array($allowComments, [true, false, 1, 0, '1', '0'], true)) throw new \RuntimeException(t('admin.invalid_comments_setting'));
         $content = (string) ($body['content'] ?? '');
-        if (mb_strlen($content) > 16000000) throw new \RuntimeException('内容过长');
+        if (mb_strlen($content) > 16000000) throw new \RuntimeException(t('admin.content_is_too_long'));
         if ($contentFormat === 'html') $content = \Pafish\Services\Content::sanitize($content);
 
         if ($id !== null) {

@@ -19,22 +19,22 @@ foreach ($items as $item) {
     $existingTypes[(string) ($item['type'] ?? '')] = true;
 }
 $typeHints = [
-    'categories' => '按分类浏览文章',
-    'tags' => '展示站点标签',
-    'recent_posts' => '显示最新发布文章',
-    'hot_posts' => '显示热门文章排行',
-    'recent_comments' => '显示最新评论',
-    'recent_micro_statuses' => '显示最新公开微语',
-    'custom' => '添加一段自定义内容',
+    'categories' => t('admin.browse_posts_by_category'),
+    'tags' => t('admin.show_site_tags'),
+    'recent_posts' => t('admin.show_recently_published_posts'),
+    'hot_posts' => t('admin.show_popular_posts'),
+    'recent_comments' => t('admin.show_recent_comments'),
+    'recent_micro_statuses' => t('admin.show_recent_public_notes'),
+    'custom' => t('admin.add_custom_content'),
 ];
 ?>
 <div class="admin-stack admin-detail-page admin-widgets-page">
   <div class="admin-page-head">
     <div>
-      <h1 class="admin-h1">组件管理</h1>
-      <p class="admin-page-sub">共 <?= $count ?> 个（含隐藏 <?= $hidden ?> 个）· 区域和顺序由当前主题决定</p>
+      <h1 class="admin-h1"><?= e(t('admin.widgets')) ?></h1>
+      <p class="admin-page-sub"><?= e(t('admin.total')) ?> <?= $count ?> <?= e(t('admin.items_including_hidden')) ?> <?= $hidden ?> <?= e(t('admin.items_areas_and_order_are_determined_by_the')) ?></p>
     </div>
-    <button type="button" class="btn btn-primary" data-entity-new="widgetsModal"><?= admin_icon('plus', 15) ?>添加组件</button>
+    <button type="button" class="btn btn-primary" data-entity-new="widgetsModal"><?= admin_icon('plus', 15) ?><?= e(t('admin.add_widget')) ?></button>
   </div>
 
   <div class="admin-widget-layout">
@@ -42,7 +42,7 @@ $typeHints = [
       <div class="admin-widget-available">
         <div class="admin-widget-panel-head">
           <div>
-            <h2 class="admin-card-title">可用组件</h2>
+            <h2 class="admin-card-title"><?= e(t('admin.available_widgets')) ?></h2>
           </div>
         </div>
         <div class="admin-widget-available-list">
@@ -53,7 +53,7 @@ $typeHints = [
                 <span><?= e($typeHints[$t] ?? '') ?></span>
               </div>
               <button type="button" class="btn btn-outline btn-sm admin-widget-add" data-widget-add="<?= e($t) ?>"<?= isset($existingTypes[$t]) && $t !== 'custom' ? ' disabled' : '' ?>>
-                <?= isset($existingTypes[$t]) && $t !== 'custom' ? '已添加' : '添加' ?>
+                <?= isset($existingTypes[$t]) && $t !== 'custom' ? t('admin.added') : t('common.add') ?>
               </button>
             </div>
           <?php endforeach; ?>
@@ -65,20 +65,20 @@ $typeHints = [
     <section class="admin-widget-active">
       <div class="admin-widget-panel-head">
         <div>
-          <h2 class="admin-card-title">已添加组件</h2>
-          <p class="admin-widget-panel-meta">拖动或使用箭头调整显示顺序</p>
+          <h2 class="admin-card-title"><?= e(t('admin.widget_added_21ed85')) ?></h2>
+          <p class="admin-widget-panel-meta"><?= e(t('admin.drag_or_use_arrows_to_change_the_display')) ?></p>
         </div>
       </div>
       <?php if ($count === 0): ?>
         <div class="admin-empty-list card">
       <?= admin_icon('layout', 32) ?>
-      <p>还没有组件</p>
+      <p><?= e(t('admin.no_widgets_yet')) ?></p>
         </div>
       <?php else: ?>
         <div class="admin-list admin-widget-list">
       <div class="admin-list-head" aria-hidden="true">
-        <span>组件</span>
-        <span>操作</span>
+        <span><?= e(t('admin.widget')) ?></span>
+        <span><?= e(t('common.actions')) ?></span>
       </div>
       <?php foreach ($items as $i => $w): ?>
         <?php
@@ -94,7 +94,7 @@ $typeHints = [
         $wTitle = trim((string) ($w['title'] ?? ''));
         $typeLabel = $typeLabels[$w['type']] ?? $w['type'];
         $showTitle = $w['type'] === 'custom'
-            ? ($wTitle !== '' ? $wTitle : '自定义内容')
+            ? ($wTitle !== '' ? $wTitle : t('admin.custom_content'))
             : $typeLabel;
         ?>
         <div class="admin-list-row" data-id="<?= (int) $w['id'] ?>"
@@ -103,27 +103,27 @@ $typeHints = [
           <div class="admin-list-main">
             <span class="admin-list-name"><?= e($showTitle) ?></span>
             <?php if ($w['type'] === 'custom'): ?>
-              <span class="badge badge-accent">自定义</span>
+              <span class="badge badge-accent"><?= e(t('admin.custom')) ?></span>
             <?php endif; ?>
-            <span class="admin-widget-area"><?= e(($areas ?? ['sidebar' => '侧边栏'])[$w['area'] ?? 'sidebar'] ?? (string) ($w['area'] ?? 'sidebar')) ?></span>
+            <span class="admin-widget-area"><?= e(($areas ?? ['sidebar' => t('admin.sidebar')])[$w['area'] ?? 'sidebar'] ?? (string) ($w['area'] ?? 'sidebar')) ?></span>
             <?php if ((int) $w['visible'] === 0): ?>
-              <span class="badge badge-danger">已隐藏</span>
+              <span class="badge badge-danger"><?= e(t('admin.hidden')) ?></span>
             <?php endif; ?>
             <?php if ($w['type'] === 'custom' && $wTitle === ''): ?>
-              <span class="admin-muted">（自定义文本）</span>
+              <span class="admin-muted"><?= e(t('admin.custom_text_c99a69')) ?></span>
             <?php endif; ?>
             <?php if ($w['type'] === 'custom' && trim((string) $w['content']) !== ''): ?>
               <div class="admin-muted"><?= e(mb_strimwidth(str_replace("\n", ' ', trim((string) $w['content'])), 0, 60, '…')) ?></div>
             <?php endif; ?>
           </div>
           <div class="admin-list-ops">
-            <button type="button" class="admin-icon-btn" data-move="up" title="上移" aria-label="上移 <?= e($showTitle) ?>" <?= $areaPosition === 0 ? 'disabled' : '' ?>><?= admin_icon('chevron-up', 15) ?></button>
-            <button type="button" class="admin-icon-btn" data-move="down" title="下移" aria-label="下移 <?= e($showTitle) ?>" <?= $areaPosition === count($areaRows) - 1 ? 'disabled' : '' ?>><?= admin_icon('chevron-down', 15) ?></button>
-            <button type="button" class="admin-icon-btn" data-toggle title="<?= (int) $w['visible'] === 1 ? '隐藏' : '显示' ?>" aria-label="<?= (int) $w['visible'] === 1 ? '隐藏' : '显示' ?> <?= e($showTitle) ?>">
+            <button type="button" class="admin-icon-btn" data-move="up" title="<?= e(t('admin.move_up')) ?>" aria-label="<?= e(t('admin.move_up')) ?> <?= e($showTitle) ?>" <?= $areaPosition === 0 ? 'disabled' : '' ?>><?= admin_icon('chevron-up', 15) ?></button>
+            <button type="button" class="admin-icon-btn" data-move="down" title="<?= e(t('admin.move_down')) ?>" aria-label="<?= e(t('admin.move_down')) ?> <?= e($showTitle) ?>" <?= $areaPosition === count($areaRows) - 1 ? 'disabled' : '' ?>><?= admin_icon('chevron-down', 15) ?></button>
+            <button type="button" class="admin-icon-btn" data-toggle title="<?= (int) $w['visible'] === 1 ? t('admin.hide') : t('admin.show') ?>" aria-label="<?= (int) $w['visible'] === 1 ? t('admin.hide') : t('admin.show') ?> <?= e($showTitle) ?>">
               <?= admin_icon((int) $w['visible'] === 1 ? 'eye' : 'eye-off', 15) ?>
             </button>
-            <button type="button" class="admin-icon-btn" data-entity-edit="widgetsModal" title="编辑" aria-label="编辑 <?= e($showTitle) ?>"><?= admin_icon('edit', 15) ?></button>
-            <button type="button" class="admin-icon-btn admin-icon-danger" data-delete title="删除" aria-label="删除 <?= e($showTitle) ?>"><?= admin_icon('trash', 15) ?></button>
+            <button type="button" class="admin-icon-btn" data-entity-edit="widgetsModal" title="<?= e(t('common.edit')) ?>" aria-label="<?= e(t('common.edit')) ?> <?= e($showTitle) ?>"><?= admin_icon('edit', 15) ?></button>
+            <button type="button" class="admin-icon-btn admin-icon-danger" data-delete title="<?= e(t('common.delete')) ?>" aria-label="<?= e(t('common.delete')) ?> <?= e($showTitle) ?>"><?= admin_icon('trash', 15) ?></button>
           </div>
         </div>
       <?php endforeach; ?>
@@ -136,7 +136,7 @@ $typeHints = [
 <?php ob_start(); ?>
 <div class="admin-form-grid">
         <div class="admin-field">
-          <label class="label" for="newType">类型 *</label>
+          <label class="label" for="newType"><?= e(t('admin.type_94f53c')) ?></label>
           <select class="input" name="type" id="newType" required>
             <?php foreach ($types as $t): ?>
               <option value="<?= e($t) ?>" data-default="<?= e($defaultTitles[$t]) ?>"><?= e($typeLabels[$t]) ?></option>
@@ -144,28 +144,28 @@ $typeHints = [
           </select>
         </div>
         <div class="admin-field">
-          <label class="label" for="newArea">显示区域 *</label>
+          <label class="label" for="newArea"><?= e(t('admin.display_area')) ?></label>
           <select class="input" name="area" id="newArea" required>
-            <?php foreach (($areas ?? ['sidebar' => '侧边栏']) as $areaKey => $areaLabel): ?>
+            <?php foreach (($areas ?? ['sidebar' => t('admin.sidebar')]) as $areaKey => $areaLabel): ?>
               <option value="<?= e($areaKey) ?>"><?= e($areaLabel) ?></option>
             <?php endforeach; ?>
           </select>
         </div>
         <div class="admin-field">
-          <label class="label" for="newTitle">标题（留空用默认）</label>
-          <input class="input" type="text" name="title" id="newTitle" placeholder="分类" maxlength="100">
+          <label class="label" for="newTitle"><?= e(t('admin.title_leave_blank_for_default')) ?></label>
+          <input class="input" type="text" name="title" id="newTitle" placeholder="<?= e(t('common.category')) ?>" maxlength="100">
         </div>
       </div>
       <div class="admin-field" id="newContentField">
-        <label class="label" for="widgetsContent">内容 *</label>
+        <label class="label" for="widgetsContent"><?= e(t('admin.content_d1be7a')) ?></label>
           <textarea class="input" name="content" rows="4" maxlength="5000"
-                  placeholder="每行一段，支持 [文字](https://链接) 格式" id="widgetsContent" required></textarea>
+                  placeholder="<?= e(t('admin.one_paragraph_per_line_supports_text_https_url')) ?>" id="widgetsContent" required></textarea>
       </div>
 <?php
 $entityFields = (string) ob_get_clean();
 $entityModalId = 'widgetsModal';
 $entityFormId = 'createForm';
-$entityConfig = ['createTitle'=>'添加组件', 'editTitle'=>'编辑组件', 'savedMessage'=>'组件已保存',
+$entityConfig = ['createTitle'=>t('admin.add_widget'), 'editTitle'=>t('admin.edit_widget'), 'savedMessage'=>t('admin.widget_saved'),
     'savePath'=>'/admin/widgets/save', 'basePath'=>'/admin/widgets', 'fields'=>['type'=>'type','area'=>'area','title'=>'title','content'=>'content']];
 require __DIR__ . '/partials/entity-modal.php';
 ?>
@@ -198,7 +198,7 @@ require __DIR__ . '/partials/entity-modal.php';
     if (contentField) contentField.style.display = custom ? "" : "none";
     if (contentField) contentField.querySelector("textarea").required = custom;
     var label = contentField ? contentField.querySelector(".label") : null;
-    if (label) label.textContent = "内容" + (custom ? " *" : "");
+    if (label) label.textContent = window.pafishT("js.content") + (custom ? " *" : "");
   }
   function wireForm(form, isEdit) {
     if (form.dataset.widgetWired === "true") return;
@@ -233,10 +233,10 @@ require __DIR__ . '/partials/entity-modal.php';
       post(base + "/" + row.getAttribute("data-id") + "/toggle")
         .then(function (r) { return r.json(); })
         .then(function (j) {
-          if (j && j.ok) pafishToastReload("组件状态已更新", "success");
-          else pafishNotify((j && j.error) || "操作失败", true);
+          if (j && j.ok) pafishToastReload(window.pafishT("js.widget_visibility_updated"), "success");
+          else pafishNotify((j && j.error) || window.pafishT("common.operation_failed"), true);
         })
-        .catch(function () { pafishNotify("网络错误", true); });
+        .catch(function () { pafishNotify(window.pafishT("js.network_error"), true); });
     });
   });
 
@@ -245,8 +245,8 @@ require __DIR__ . '/partials/entity-modal.php';
       var row = btn.closest(".admin-list-row");
       post(base + "/" + row.getAttribute("data-id") + "/move", { dir: btn.getAttribute("data-move") })
         .then(function (r) { return r.json(); })
-        .then(function (j) { if (j && j.ok) pafishToastReload("组件顺序已更新", "success"); else pafishNotify((j && j.error) || "操作失败", true); })
-        .catch(function () { pafishNotify("网络错误", true); });
+        .then(function (j) { if (j && j.ok) pafishToastReload(window.pafishT("js.widget_order_updated"), "success"); else pafishNotify((j && j.error) || window.pafishT("common.operation_failed"), true); })
+        .catch(function () { pafishNotify(window.pafishT("js.network_error"), true); });
     });
   });
 
@@ -254,15 +254,15 @@ require __DIR__ . '/partials/entity-modal.php';
     btn.addEventListener("click", function () {
       var row = btn.closest(".admin-list-row");
       var name = row.querySelector(".admin-list-name").textContent.trim();
-      (window.pafishConfirm ? window.pafishConfirm("确定删除组件「" + name + "」？", { title: "删除组件" }) : Promise.resolve(window.confirm("确定删除组件「" + name + "」？"))).then(function (ok) {
+      (window.pafishConfirm ? window.pafishConfirm(window.pafishT("js.confirm_delete_widget", {name: name}), { title: window.pafishT("js.delete_widget_42527a") }) : Promise.resolve(window.confirm(window.pafishT("js.confirm_delete_widget", {name: name})))).then(function (ok) {
         if (!ok) return;
         return post(base + "/" + row.getAttribute("data-id") + "/delete")
         .then(function (r) { return r.json(); })
         .then(function (j) {
-          if (j && j.ok) pafishToastReload("组件已删除", "success");
-          else pafishNotify((j && j.error) || "删除失败", true);
+          if (j && j.ok) pafishToastReload(window.pafishT("js.widget_deleted"), "success");
+          else pafishNotify((j && j.error) || window.pafishT("js.delete_failed"), true);
         })
-        .catch(function () { pafishNotify("网络错误", true); });
+        .catch(function () { pafishNotify(window.pafishT("js.network_error"), true); });
       });
     });
   });

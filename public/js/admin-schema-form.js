@@ -47,7 +47,7 @@
 
     var CSRF = opts.csrf || "";
     var msgEl = opts.msgId ? document.getElementById(opts.msgId) : null;
-    var M = Object.assign({ saving: "保存中…", saved: "✓ 已保存", save: "保存" }, opts.messages || {});
+    var M = Object.assign({ saving: window.pafishT("common.saving"), saved: window.pafishT("js.saved"), save: window.pafishT("common.save") }, opts.messages || {});
 
     function showMsg(text, isError) {
       if (typeof opts.onMessage === "function") { opts.onMessage(text, isError); return; }
@@ -63,7 +63,7 @@
         .then(function (r) { return r.json(); })
         .then(function (j) {
           if (j && j.ok) { return j; }
-          var err = new Error((j && j.error) || "操作失败");
+          var err = new Error((j && j.error) || window.pafishT("common.operation_failed"));
           err.fields = (j && j.fields) || null;
           throw err;
         });
@@ -148,8 +148,8 @@
       if (expandBtn) {
         expandBtn.setAttribute("aria-pressed", expanded ? "true" : "false");
         // 图标按钮的状态通过 title、aria-label 和 CSS 高亮表达。
-        expandBtn.title = expanded ? "收起全部" : "展开全部";
-        expandBtn.setAttribute("aria-label", expanded ? "收起全部" : "展开全部");
+        expandBtn.title = expanded ? window.pafishT("js.collapse_all") : window.pafishT("js.expand_all");
+        expandBtn.setAttribute("aria-label", expanded ? window.pafishT("js.collapse_all") : window.pafishT("js.expand_all"));
       }
     }
 
@@ -220,7 +220,7 @@
             host.appendChild(badge);
           }
           badge.textContent = String(n);
-          badge.title = n + " 项需要修正";
+          badge.title = n + window.pafishT("js.items_need_attention");
         } else if (badge) {
           badge.remove();
         }
@@ -296,7 +296,7 @@
       // 页内锚点、新窗口、下载、纯 JS 链接不拦
       if (href.charAt(0) === "#" || a.target === "_blank" || a.hasAttribute("download")) { return; }
       if (/^(javascript:|mailto:|tel:)/i.test(href)) { return; }
-      if (!window.confirm("有设置修改尚未保存，离开将丢失这些修改。确定要离开吗？")) {
+      if (!window.confirm(window.pafishT("js.you_have_unsaved_settings_leave_this_page_and"))) {
         e.preventDefault();
         e.stopPropagation();
       }
@@ -456,7 +456,7 @@
           if (show) { visible++; }
         });
         if (empty) { empty.hidden = visible !== 0; }
-        if (count) { count.textContent = query === "" ? options.length + " 项" : "匹配 " + visible + " 项"; }
+        if (count) { count.textContent = query === "" ? options.length + window.pafishT("js.items_12de8e") : window.pafishT("js.matches") + visible + window.pafishT("js.items_12de8e"); }
       }
       searchInput.addEventListener("input", applyCheckboxSearch);
       searchInput.addEventListener("keydown", function (event) {
@@ -516,14 +516,14 @@
         if (!file) { return; }
         var label = btn.textContent;
         btn.disabled = true;
-        btn.textContent = "上传中…";
+        btn.textContent = window.pafishT("js.uploading");
         var fd = new FormData();
         fd.append("file", file);
         fd.append("_csrf", CSRF);
         fetch(window.pafishApi ? window.pafishApi("/upload") : "/api/upload", {
           method: "POST", body: fd, headers: { "X-Requested-With": "XMLHttpRequest" }
         }).then(function (r) { return r.json(); }).then(function (j) {
-          if (!j || !j.ok || !j.url) { throw new Error((j && j.error) || "上传失败"); }
+          if (!j || !j.ok || !j.url) { throw new Error((j && j.error) || window.pafishT("js.upload_failed")); }
           var target = form.querySelector('[data-sf-key="' + key + '"][data-sf-type="image"]');
           if (target) {
             target.value = j.url;
@@ -531,9 +531,9 @@
             target.dispatchEvent(new Event("change", { bubbles: true }));
           }
           refreshShowIf();
-          showMsg("图片上传成功，请保存设置", false);
+          showMsg(window.pafishT("js.image_uploaded_save_settings_to_apply"), false);
         }).catch(function (err) {
-          showMsg(err.message || "上传失败", true);
+          showMsg(err.message || window.pafishT("js.upload_failed"), true);
         }).finally(function () {
           btn.disabled = false;
           btn.textContent = label;
@@ -596,12 +596,12 @@
       }
       function writeRows(rows) {
         hid.value = JSON.stringify(rows);
-        if (countEl) { countEl.textContent = rows.length + " / " + maxItems + " 行"; }
+        if (countEl) { countEl.textContent = rows.length + " / " + maxItems + window.pafishT("js.rows"); }
         if (addBtn) { addBtn.disabled = rows.length >= maxItems; }
       }
       function rowTitle(row, i) {
         var t = titleKey ? String(row[titleKey] || "").trim() : "";
-        return t !== "" ? t : "第 " + (i + 1) + " 行";
+        return t !== "" ? t : window.pafishT("js.no_f49534") + (i + 1) + window.pafishT("js.rows");
       }
 
       function renderRow(row, index, rowCount) {
@@ -611,16 +611,16 @@
 
         var head = document.createElement("div");
         head.className = "admin-sf-rep-head";
-        head.innerHTML = '<span class="admin-sf-rep-drag" title="按住拖动排序">' + dragIcon + '</span>'
+        head.innerHTML = ("<span class=\"admin-sf-rep-drag\" title=\"" + window.pafishI18n.escape(window.pafishT("js.drag_to_reorder")) + "\">") + dragIcon + '</span>'
           + '<span class="admin-sf-rep-title">' + esc(rowTitle(row, index)) + '</span>'
-          + '<button type="button" class="admin-sf-rep-up" aria-label="上移第 ' + (index + 1) + ' 行"'
+          + '<button type="button" class="admin-sf-rep-up" aria-label="' + esc(window.pafishT('js.move_repeater_row_up', {n: index + 1})) + '"'
           + (index === 0 ? ' disabled' : '') + '>↑</button>'
-          + '<button type="button" class="admin-sf-rep-down" aria-label="下移第 ' + (index + 1) + ' 行"'
+          + '<button type="button" class="admin-sf-rep-down" aria-label="' + esc(window.pafishT('js.move_repeater_row_down', {n: index + 1})) + '"'
           + (index >= rowCount - 1 ? ' disabled' : '') + '>↓</button>'
-          + '<button type="button" class="admin-sf-rep-copy" aria-label="复制第 ' + (index + 1) + ' 行"'
-          + (rowCount >= maxItems ? ' disabled title="已达到最多 ' + maxItems + ' 行"' : '') + '>复制</button>'
-          + '<button type="button" class="admin-sf-rep-del" aria-label="删除第 ' + (index + 1) + ' 行"'
-          + (rowCount <= minItems ? ' disabled title="至少保留 ' + minItems + ' 行"' : '') + '>删除</button>';
+          + '<button type="button" class="admin-sf-rep-copy" aria-label="' + esc(window.pafishT('js.duplicate_repeater_row', {n: index + 1})) + '"'
+          + (rowCount >= maxItems ? ' disabled title="' + esc(window.pafishT('js.maximum_repeater_rows', {n: maxItems})) + '"' : '') + (">" + window.pafishI18n.escape(window.pafishT("js.duplicate")) + "</button>")
+          + '<button type="button" class="admin-sf-rep-del" aria-label="' + esc(window.pafishT('js.delete_repeater_row', {n: index + 1})) + '"'
+          + (rowCount <= minItems ? ' disabled title="' + esc(window.pafishT('js.minimum_repeater_rows', {n: minItems})) + '"' : '') + (">" + window.pafishI18n.escape(window.pafishT("common.delete")) + "</button>");
         item.appendChild(head);
 
         var body = document.createElement("div");
@@ -653,8 +653,8 @@
               var search = document.createElement("input");
               search.type = "search";
               search.className = "input admin-sf-checks-search";
-              search.placeholder = "搜索选项…";
-              search.setAttribute("aria-label", "搜索" + (sf.label || sf.key) + "选项");
+              search.placeholder = window.pafishT("js.search_options");
+              search.setAttribute("aria-label", window.pafishT("common.search") + (sf.label || sf.key) + window.pafishT("js.options"));
               search.autocomplete = "off";
               search.dataset.sfRepSearch = "";
               search.dataset.sfNoDirty = "";
@@ -668,7 +668,7 @@
               var empty = document.createElement("span");
               empty.className = "admin-sf-checks-empty";
               empty.hidden = true;
-              empty.textContent = "没有匹配的选项";
+              empty.textContent = window.pafishT("js.no_matching_options");
               checks.appendChild(empty);
             }
 
@@ -708,7 +708,7 @@
                   option.hidden = !show;
                   if (show) { visible++; }
                 });
-                countEl.textContent = query === "" ? labels.length + " 项" : "匹配 " + visible + " 项";
+                countEl.textContent = query === "" ? labels.length + window.pafishT("js.items_12de8e") : window.pafishT("js.matches") + visible + window.pafishT("js.items_12de8e");
                 emptyEl.hidden = visible !== 0;
               }
               searchInput.addEventListener("input", filterRepeaterChoices);
@@ -807,18 +807,18 @@
             inp.dataset.iconInput = "";
             inp.dataset.iconLibrary = sf.library || "remixicon";
             inp.dataset.iconCustom = JSON.stringify(Array.isArray(sf.custom_icons) ? sf.custom_icons : []);
-            inp.setAttribute("aria-label", sf.label || sf.key || "图标 class");
+            inp.setAttribute("aria-label", sf.label || sf.key || window.pafishT("js.icon_class"));
             inp.placeholder = "ri-home-line / fa fa-home";
             var pick = document.createElement("button");
             pick.type = "button";
             pick.className = "btn btn-outline btn-sm";
             pick.dataset.iconPicker = "";
-            pick.textContent = "选择";
+            pick.textContent = window.pafishT("common.select");
             var clear = document.createElement("button");
             clear.type = "button";
             clear.className = "btn btn-ghost btn-sm admin-sf-icon-clear";
             clear.dataset.iconClear = "";
-            clear.textContent = "清除";
+            clear.textContent = window.pafishT("common.clear");
             iconWrap.appendChild(preview);
             iconWrap.appendChild(inp);
             iconWrap.appendChild(pick);
@@ -1300,7 +1300,7 @@
         // 追加在分组之后：无结果时所有分组都已收起，它自然顶在内容区开头。
         panes.appendChild(noResultEl);
       }
-      noResultEl.textContent = "没有找到与“" + query + "”匹配的设置项，换个关键词试试。";
+      noResultEl.textContent = window.pafishT("js.no_settings_match") + query + window.pafishT("js.try_another_keyword");
       noResultEl.hidden = false;
     }
 
@@ -1471,7 +1471,7 @@
           if (first.focus) { first.focus(); }
           if (first.reportValidity) { first.reportValidity(); }
         }
-        showMsg("有必填项未填写或格式不正确，已定位到第一个有问题的字段", true);
+        showMsg(window.pafishT("js.a_required_field_is_missing_or_invalid_the"), true);
       });
     });
 
@@ -1499,7 +1499,7 @@
         setSaving(false);
         if (err.fields) {
           markFieldErrors(err.fields);
-          showMsg(err.message + "（已定位到 " + Object.keys(err.fields).length + " 个字段）", true);
+          showMsg(err.message + window.pafishT("js.located") + Object.keys(err.fields).length + window.pafishT("js.fields"), true);
         } else {
           showMsg(err.message, true);
         }

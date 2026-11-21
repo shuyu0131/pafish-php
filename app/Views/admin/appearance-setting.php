@@ -27,7 +27,7 @@ $buildGroups = require __DIR__ . '/partials/schema-groups.php';
 ob_start();
 ?>
 <h1 class="admin-h1"><?= e($title) ?>
-  <?php if ($active): ?><span class="badge badge-primary">当前主题</span><?php endif; ?>
+  <?php if ($active): ?><span class="badge badge-primary"><?= e(t('admin.current_theme')) ?></span><?php endif; ?>
 </h1>
 <?php
 $headMain = ob_get_clean();
@@ -50,14 +50,14 @@ $hasSettings = $fields !== [];
 // 它不会被提交，也不会在库里凭空造出一个 __backup 键。
 $fields[] = [
     'key' => '__backup',
-    'label' => '设置备份',
+    'label' => t('admin.settings_backup'),
     'type' => 'backup',
-    'group' => '备份与恢复',
+    'group' => t('admin.backup_and_restore'),
     // 分组图标取自组内首个声明 nav_icon 的字段（见 schema-groups.php）
     'nav_icon' => 'download',
     'desc' => $hasSettings
-        ? '导出当前主题设置（JSON）留底，或导入备份覆盖——仅接受本主题声明的设置项，其他键自动忽略。“恢复默认”会清空本主题已保存的设置，回到 theme.json 声明的默认值。'
-        : '该主题暂无可配置项。“恢复默认”可清除本主题此前保存过的设置。',
+        ? t('admin.export_the_current_theme_settings_as_json_or')
+        : t('admin.this_theme_has_no_configurable_settings_reset_to'),
 ];
 $built = $buildGroups($fields);
 // 只要主题可用且已启用，表单就存在——即便一个设置项都没声明，也还有备份/恢复这一组
@@ -65,35 +65,35 @@ $canConfigure = $manifest !== null && $active;
 $hasIconFields = $canConfigure && \Pafish\Services\ExtensionKernel::hasSettingType($fields, 'icon');
 ?>
 <div class="admin-stack admin-theme-settings">
-  <nav aria-label="面包屑">
+  <nav aria-label="<?= e(t('admin.breadcrumb')) ?>">
     <ol class="admin-crumb">
-      <li><a href="<?= e(url_to('/admin/appearance')) ?>">主题</a></li>
+      <li><a href="<?= e(url_to('/admin/appearance')) ?>"><?= e(t('admin.theme_e848dd')) ?></a></li>
       <li aria-current="page"><?= e($title) ?></li>
     </ol>
   </nav>
   <p class="admin-backup-msg" id="themeSettingMsg" hidden></p>
 
   <?php if ($error !== null): ?>
-    <div class="card admin-empty">主题“<?= e($themeName) ?>”不可用：<?= e($error) ?></div>
+    <div class="card admin-empty"><?= e(t('admin.theme_ce2c86')) ?><?= e($themeName) ?><?= e(t('admin.is_unavailable')) ?><?= e($error) ?></div>
   <?php elseif (!$active): ?>
-    <div class="card admin-empty">该主题当前未启用，可先 <a href="<?= e(url_to('/admin/appearance')) ?>">回到主题列表启用</a> 后再配置。</div>
+    <div class="card admin-empty"><?= e(t('admin.this_theme_is_inactive_first')) ?> <a href="<?= e(url_to('/admin/appearance')) ?>"><?= e(t('admin.activate_it_from_the_theme_list')) ?></a> <?= e(t('admin.before_configuring_it')) ?></div>
   <?php endif; ?>
 
   <?php if ($canConfigure): ?>
     <?php /* 分组表单：工具条 + 设置项 + 末尾保存。 */ ?>
     <form class="card admin-form-card admin-schema-form" id="themeSettingForm">
       <div class="admin-page-head">
-        <div class="admin-theme-settings-title"><?= $headMain ?><span class="admin-sf-dirty" data-sf-dirty role="status" hidden>未保存</span></div>
+        <div class="admin-theme-settings-title"><?= $headMain ?><span class="admin-sf-dirty" data-sf-dirty role="status" hidden><?= e(t('admin.unsaved')) ?></span></div>
         <div class="admin-head-actions">
           <button type="button" class="admin-sf-expandall" data-sf-expandall
-                  aria-pressed="false" title="展开全部" aria-label="展开全部">
+                  aria-pressed="false" title="<?= e(t('admin.expand_all')) ?>" aria-label="<?= e(t('admin.expand_all')) ?>">
             <span class="admin-sf-expandall-ico" aria-hidden="true"><?= admin_icon('layout', 13) ?></span>
           </button>
           <div class="admin-sf-search">
-            <input type="search" id="sfSearch" placeholder="搜索设置项…" autocomplete="off" data-sf-no-dirty
-                   aria-label="搜索设置项">
+            <input type="search" id="sfSearch" placeholder="<?= e(t('admin.search_settings')) ?>" autocomplete="off" data-sf-no-dirty
+                   aria-label="<?= e(t('admin.search_settings_e3dbd1')) ?>">
           </div>
-          <button type="submit" class="btn btn-primary">保存</button>
+          <button type="submit" class="btn btn-primary"><?= e(t('common.save')) ?></button>
         </div>
       </div>
 
@@ -105,7 +105,7 @@ $hasIconFields = $canConfigure && \Pafish\Services\ExtensionKernel::hasSettingTy
       <div class="admin-sf-footer">
         <div class="admin-sf-actions">
           <span class="admin-sf-footer-brand"><?= e($title) ?></span>
-          <button type="submit" class="btn btn-primary" id="themeSaveBtn">保存</button>
+          <button type="submit" class="btn btn-primary" id="themeSaveBtn"><?= e(t('common.save')) ?></button>
         </div>
       </div>
     </form>
@@ -117,13 +117,13 @@ $hasIconFields = $canConfigure && \Pafish\Services\ExtensionKernel::hasSettingTy
 </div>
 
 <div class="admin-modal-backdrop" id="themeMediaModal" hidden>
-  <div class="admin-modal" role="dialog" aria-modal="true" aria-label="从媒体库选择">
+  <div class="admin-modal" role="dialog" aria-modal="true" aria-label="<?= e(t('admin.choose_from_media_library')) ?>">
     <div class="admin-modal-head">
-      <div class="admin-modal-tabs"><span class="admin-modal-tab active">媒体库</span></div>
-      <button type="button" class="admin-icon-btn" data-theme-close-modal data-modal-close aria-label="关闭"><?= admin_icon('x', 16) ?></button>
+      <div class="admin-modal-tabs"><span class="admin-modal-tab active"><?= e(t('admin.media_library')) ?></span></div>
+      <button type="button" class="admin-icon-btn" data-theme-close-modal data-modal-close aria-label="<?= e(t('common.close')) ?>"><?= admin_icon('x', 16) ?></button>
     </div>
     <div class="admin-modal-body">
-      <input class="input admin-lib-search" type="search" placeholder="搜索媒体…" data-theme-lib-q>
+      <input class="input admin-lib-search" type="search" placeholder="<?= e(t('admin.search_media')) ?>" data-theme-lib-q>
       <div class="admin-lib-grid" data-theme-lib-grid aria-live="polite"></div>
       <div class="admin-pager admin-lib-pager" data-theme-lib-pager hidden></div>
     </div>
@@ -172,7 +172,7 @@ $hasIconFields = $canConfigure && \Pafish\Services\ExtensionKernel::hasSettingTy
       .then(function (r) { return r.json(); })
       .then(function (j) {
         if (j && j.ok) return j;
-        var err = new Error((j && j.error) || "操作失败");
+        var err = new Error((j && j.error) || window.pafishT("common.operation_failed"));
         // 把字段级错误带出去，便于精确定位到具体输入框
         err.fields = (j && j.fields) || null;
         throw err;
@@ -200,7 +200,7 @@ $hasIconFields = $canConfigure && \Pafish\Services\ExtensionKernel::hasSettingTy
       for (var i = 0; i < hexInputs.length; i++) {
         var hv = hexInputs[i].value.trim();
         if (hv !== "" && !/^#[0-9a-fA-F]{6}$/.test(hv)) {
-          warn("颜色值 " + hv + " 不合法（需 #rrggbb）", true);
+          warn(window.pafishT("js.color_value") + hv + window.pafishT("js.is_invalid_expected_rrggbb"), true);
           return false;
         }
       }
@@ -232,22 +232,22 @@ $hasIconFields = $canConfigure && \Pafish\Services\ExtensionKernel::hasSettingTy
     backupBtn("import").addEventListener("click", function () { importInput.click(); });
     importInput.addEventListener("change", function () {
       if (!importInput.files || !importInput.files[0]) { return; }
-      (window.pafishConfirm ? window.pafishConfirm("导入将覆盖当前主题的全部设置，确定继续吗？\n（建议先导出留底）", { title: "覆盖主题设置" }) : Promise.resolve(window.confirm("确认导入？"))).then(function (ok) {
+      (window.pafishConfirm ? window.pafishConfirm(window.pafishT("js.importing_replaces_all_settings_for_the_current_theme"), { title: window.pafishT("js.replace_theme_settings") }) : Promise.resolve(window.confirm(window.pafishT("js.confirm_import")))).then(function (ok) {
         if (!ok) { importInput.value = ""; return; }
         var btn = backupBtn("import");
         btn.disabled = true;
-        btn.textContent = "导入中…";
+        btn.textContent = window.pafishT("js.importing");
         var fd = new FormData();
         fd.append("name", NAME);
         fd.append("file", importInput.files[0]);
         fd.append("_csrf", CSRF);
         post("/admin/appearance/import", fd).then(function (j) {
-          persistMsg("已导入 " + j.imported + "/" + j.total + " 项设置。", false);
+          persistMsg(window.pafishT("js.imported") + j.imported + "/" + j.total + window.pafishT("js.settings"), false);
           location.reload();
         }).catch(function (err) {
           backupSay(err.message, true);
           btn.disabled = false;
-          btn.textContent = "导入设置";
+          btn.textContent = window.pafishT("js.import_settings");
           importInput.value = "";
         });
       });
@@ -256,21 +256,21 @@ $hasIconFields = $canConfigure && \Pafish\Services\ExtensionKernel::hasSettingTy
     // 恢复默认：清空已保存的设置（回落到 theme.json 的默认值）。
 
     backupBtn("reset").addEventListener("click", function () {
-      (window.pafishConfirm ? window.pafishConfirm("将清空本主题已保存的全部设置并恢复默认值，确定继续吗？", { title: "恢复默认设置" }) : Promise.resolve(window.confirm("确认恢复默认？"))).then(function (ok) {
+      (window.pafishConfirm ? window.pafishConfirm(window.pafishT("js.clear_all_saved_settings_for_this_theme_and"), { title: window.pafishT("js.reset_settings") }) : Promise.resolve(window.confirm(window.pafishT("js.reset_to_defaults")))).then(function (ok) {
         if (!ok) { return; }
         var btn = backupBtn("reset");
         btn.disabled = true;
-        btn.textContent = "恢复中…";
+        btn.textContent = window.pafishT("js.restoring");
         var fd = new FormData();
         fd.append("name", NAME);
         fd.append("_csrf", CSRF);
         post("/admin/appearance/reset", fd).then(function (j) {
-          persistMsg("已恢复默认设置（清除 " + j.cleared + " 项）。", false);
+          persistMsg(window.pafishT("js.default_settings_restored_cleared") + j.cleared + window.pafishT("js.items"), false);
           location.reload();
         }).catch(function (err) {
           backupSay(err.message, true);
           btn.disabled = false;
-          btn.textContent = "恢复默认";
+          btn.textContent = window.pafishT("js.reset_to_defaults_a19193");
         });
       });
     });
@@ -286,13 +286,13 @@ $hasIconFields = $canConfigure && \Pafish\Services\ExtensionKernel::hasSettingTy
   var libTotalPages = 1;
 
   function loadLib() {
-    libGrid.innerHTML = '<p class="admin-muted admin-modal-hint">加载中…</p>';
+    libGrid.innerHTML = ("<p class=\"admin-muted admin-modal-hint\">" + window.pafishI18n.escape(window.pafishT("common.loading")) + "</p>");
     fetch(pafishApi("/uploads?page=") + libPage + "&q=" + encodeURIComponent(libQ.value.trim()))
       .then(function (r) { return r.json(); })
       .then(function (j) {
         libGrid.innerHTML = "";
         if (!j.items || j.items.length === 0) {
-          libGrid.innerHTML = '<p class="admin-muted admin-modal-hint">没有找到媒体文件</p>';
+          libGrid.innerHTML = ("<p class=\"admin-muted admin-modal-hint\">" + window.pafishI18n.escape(window.pafishT("js.no_media_files_found")) + "</p>");
           libPager.hidden = true;
           return;
         }
@@ -343,7 +343,7 @@ $hasIconFields = $canConfigure && \Pafish\Services\ExtensionKernel::hasSettingTy
         }
       })
       .catch(function () {
-        libGrid.innerHTML = '<p class="admin-muted admin-modal-hint">媒体库加载失败</p>';
+        libGrid.innerHTML = ("<p class=\"admin-muted admin-modal-hint\">" + window.pafishI18n.escape(window.pafishT("js.unable_to_load_the_media_library")) + "</p>");
       });
   }
 

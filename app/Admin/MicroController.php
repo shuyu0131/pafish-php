@@ -35,7 +35,7 @@ final class MicroController extends AdminController
             'filters' => ['status' => $status, 'q' => $q],
             'micro' => null,
             'isEdit' => false,
-        ], '微语'));
+        ], t('admin.notes')));
         return $response;
     }
 
@@ -50,7 +50,7 @@ final class MicroController extends AdminController
         $this->guardCanManage();
         $micro = $this->managedMicro((int) ($args['id'] ?? 0));
         if ($micro === null) {
-            $this->flash('error', '微语不存在');
+            $this->flash('error', t('admin.note_not_found'));
             return $this->redirect($response, '/admin/micro');
         }
         return $this->editorResponse($response, $micro);
@@ -64,7 +64,7 @@ final class MicroController extends AdminController
         $body = $request->getParsedBody() ?? [];
         $id = isset($args['id']) ? (int) $args['id'] : 0;
         if ($id > 0 && $this->managedMicro($id) === null) {
-            return $this->json($response, ['error' => '微语不存在'], 404);
+            return $this->json($response, ['error' => t('admin.note_not_found')], 404);
         }
         $requestToken = trim((string) ($body['_idempotency'] ?? ''));
         try {
@@ -91,7 +91,7 @@ final class MicroController extends AdminController
             ]);
         }
         $published = (string) ($micro['status'] ?? '') === MicroStatuses::PUBLISHED;
-        $this->flash('success', $published ? '微语已发布' : '微语已保存');
+        $this->flash('success', $published ? t('admin.note_published') : t('admin.note_saved'));
         return $this->redirect(
             $response,
             $published ? '/admin/micro' : '/admin/micro/' . (int) $micro['id'] . '/edit'
@@ -103,13 +103,13 @@ final class MicroController extends AdminController
         $this->guardCanManage();
         $id = (int) ($args['id'] ?? 0);
         if ($this->managedMicro($id) === null) {
-            return $this->json($response, ['error' => '微语不存在'], 404);
+            return $this->json($response, ['error' => t('admin.note_not_found')], 404);
         }
         $ok = MicroStatuses::delete($id);
         if ($this->isAjax($request)) {
             return $this->json($response, ['ok' => $ok], $ok ? 200 : 404);
         }
-        $this->flash($ok ? 'success' : 'error', $ok ? '微语已删除' : '微语不存在');
+        $this->flash($ok ? 'success' : 'error', $ok ? t('admin.note_deleted') : t('admin.note_not_found'));
         return $this->redirect($response, '/admin/micro');
     }
 
@@ -129,7 +129,7 @@ final class MicroController extends AdminController
             'filters' => [],
             // 编辑器页面沿用后台通用资源注入点
             'headExtra' => editor_head_extra(),
-        ], $micro === null ? '新建微语' : '编辑微语'));
+        ], $micro === null ? t('admin.new_note') : t('admin.edit_note')));
         return $response;
     }
 }

@@ -182,9 +182,10 @@ final class ModelGateway
                 
                 $choice = $body['choices'][0] ?? [];
                 $finishReason = (string) ($choice['finish_reason'] ?? '');
+                $hasToolCalls = isset($choice['message']['tool_calls']) && is_array($choice['message']['tool_calls']) && $choice['message']['tool_calls'] !== [];
                 
-                // 如果 AI 决定调用工具
-                if ($finishReason === 'tool_calls' && isset($choice['message']['tool_calls'])) {
+                // 如果 AI 决定调用工具（部分中转站把 finish_reason 报成 stop，也要按 tool_calls 处理）
+                if ($hasToolCalls && ($finishReason === 'tool_calls' || $finishReason === 'stop' || $finishReason === '')) {
                     $messages[] = $choice['message']; // 保存 assistant 消息（含 tool_calls）
                     
                     foreach ($choice['message']['tool_calls'] as $toolCall) {
@@ -496,7 +497,9 @@ final class ModelGateway
 
     private static function extractContent(array $body): string
     {
-        $content = $body['choices'][0]['message']['content'] ?? null;
+        $choice = $body['choices'][0] ?? [];
+        $message = is_array($choice['message'] ?? null) ? $choice['message'] : [];
+        $content = $message['content'] ?? null;
         
         if (is_array($content)) {
             $content = implode("\n", array_map(
@@ -506,6 +509,12 @@ final class ModelGateway
         }
         
         if (!is_string($content) || trim($content) === '') {
+            // 模型只回了工具调用（部分中转站把 tool_calls 的 finish_reason 报成 stop）时，
+            // 空文本是合法状态，交给调用方按 tool_calls 继续处理，不能当成服务故障。
+            $hasToolCalls = !empty($message['tool_calls']) || ($choice['finish_reason'] ?? '') === 'tool_calls';
+            if ($hasToolCalls) {
+                return '';
+            }
             throw new ServiceException('模型服务没有返回文本内容。');
         }
         

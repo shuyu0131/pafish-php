@@ -39,8 +39,8 @@
   };
 
   var openControl = null;
-  var monthNames = ["一月", "二月", "三月", "四月", "五月", "六月", "七月", "八月", "九月", "十月", "十一月", "十二月"];
-  var weekNames = ["一", "二", "三", "四", "五", "六", "日"];
+  var monthNames = [window.pafishT("js.january"), window.pafishT("js.february"), window.pafishT("js.march"), window.pafishT("js.april"), window.pafishT("js.may"), window.pafishT("js.june"), window.pafishT("js.july"), window.pafishT("js.august"), window.pafishT("js.september"), window.pafishT("js.october"), window.pafishT("js.november"), window.pafishT("js.december")];
+  var weekNames = [window.pafishT("js.mon"), window.pafishT("js.tue"), window.pafishT("js.wed"), window.pafishT("js.thu"), window.pafishT("js.fri"), window.pafishT("js.sat"), window.pafishT("js.sun")];
 
   function pad(value) { return String(value).padStart(2, "0"); }
   function dateText(date) { return date.getFullYear() + "-" + pad(date.getMonth() + 1) + "-" + pad(date.getDate()); }
@@ -163,7 +163,7 @@
     var searchable = !paragraphStyle && select.dataset.adminSelectSearch !== 'false' && (select.dataset.adminSelectSearch === 'true' || select.options.length >= 10);
     var controlLabel = select.getAttribute('aria-label') || (select.labels && select.labels[0] ? select.labels[0].textContent.trim() : '');
     if (!controlLabel && select.options.length) controlLabel = select.options[0].textContent.replace(/^(全部|选择|请选择)\s*/, '').replace(/[.…]+$/, '').trim();
-    if (!controlLabel) controlLabel = '选择';
+    if (!controlLabel) controlLabel = window.pafishT("common.select");
     select.dataset.adminControl = "select";
     var control = document.createElement("span");
     control.className = "admin-control admin-select-control";
@@ -182,7 +182,7 @@
     menu.className = "admin-control-menu";
     menu.setAttribute("role", searchable ? "dialog" : "listbox");
     menu.id = 'admin-select-menu-' + Math.random().toString(36).slice(2, 10);
-    menu.setAttribute('aria-label', searchable ? trigger.getAttribute('aria-label') + '选项' : trigger.getAttribute('aria-label'));
+    menu.setAttribute('aria-label', searchable ? trigger.getAttribute('aria-label') + window.pafishT("js.options") : trigger.getAttribute('aria-label'));
     trigger.setAttribute('aria-controls', menu.id);
     if (searchable) trigger.setAttribute('aria-haspopup', 'dialog');
     if (paragraphStyle) menu.classList.add('admin-paragraph-menu');
@@ -195,8 +195,8 @@
       searchInput = document.createElement('input');
       searchInput.type = 'search';
       searchInput.className = 'input admin-control-search-input';
-      searchInput.placeholder = '搜索' + trigger.getAttribute('aria-label') + '…';
-      searchInput.setAttribute('aria-label', '搜索' + trigger.getAttribute('aria-label'));
+      searchInput.placeholder = window.pafishT("common.search") + trigger.getAttribute('aria-label') + '…';
+      searchInput.setAttribute('aria-label', window.pafishT("common.search") + trigger.getAttribute('aria-label'));
       searchInput.setAttribute('role', 'searchbox');
       searchInput.setAttribute('autocomplete', 'off');
       searchInput.setAttribute('autocapitalize', 'off');
@@ -212,7 +212,7 @@
       emptyMessage.className = 'admin-control-empty';
       emptyMessage.setAttribute('role', 'status');
       emptyMessage.setAttribute('aria-live', 'polite');
-      emptyMessage.textContent = '没有匹配的选项';
+      emptyMessage.textContent = window.pafishT("js.no_matching_options");
       emptyMessage.hidden = true;
       menu.appendChild(emptyMessage);
       control._adminResetSearch = function () {
@@ -230,9 +230,9 @@
       var option = select.options[select.selectedIndex];
       if (paragraphStyle) {
         if (!trigger.firstChild) trigger.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h12M9 5v14M5 19h8m4-8 3 3 3-3"/></svg>';
-        trigger.title = '段落格式：' + (option ? option.textContent : '正文');
+        trigger.title = window.pafishT("js.paragraph_format") + (option ? option.textContent : window.pafishT("js.content_a0d95b"));
         trigger.setAttribute('aria-label', trigger.title);
-      } else trigger.textContent = option ? option.textContent : "请选择";
+      } else trigger.textContent = option ? option.textContent : window.pafishT("js.choose");
       syncState(select, trigger);
       Array.prototype.forEach.call(optionList.children, function (item, index) {
         var selected = select.selectedIndex === index;
@@ -427,12 +427,12 @@
     Array.prototype.forEach.call(input.classList, function (name) { if (name !== "input") trigger.classList.add(name); });
     trigger.setAttribute("aria-haspopup", "dialog");
     trigger.setAttribute("aria-expanded", "false");
-    trigger.setAttribute("aria-label", input.getAttribute('aria-label') || input.title || (input.labels && input.labels[0] ? input.labels[0].textContent.trim() : "选择日期"));
+    trigger.setAttribute("aria-label", input.getAttribute('aria-label') || input.title || (input.labels && input.labels[0] ? input.labels[0].textContent.trim() : window.pafishT("js.select_date")));
     control.appendChild(trigger);
     var panel = document.createElement("div");
     panel.className = "admin-date-panel";
     panel.setAttribute("role", "dialog");
-    panel.setAttribute("aria-label", "日期选择");
+    panel.setAttribute("aria-label", window.pafishT("js.date_picker"));
     panel.id = "admin-date-panel-" + Math.random().toString(36).slice(2, 10);
     trigger.setAttribute("aria-controls", panel.id);
     panel.addEventListener("click", function (event) { event.stopPropagation(); });
@@ -448,7 +448,7 @@
     function sync() {
       var value = input.value;
       var date = parseDate(value);
-      trigger.textContent = date ? dateText(date) + (input.type === "datetime-local" ? " " + (value.slice(11, 16) || "00:00") : "") : "请选择日期";
+      trigger.textContent = date ? dateText(date) + (input.type === "datetime-local" ? " " + (value.slice(11, 16) || "00:00") : "") : window.pafishT("js.choose_a_date");
       syncState(input, trigger);
     }
     function setValue(date, time) {
@@ -461,21 +461,21 @@
       panel.innerHTML = "";
       var head = document.createElement("div");
       head.className = "admin-date-head";
-      var prev = document.createElement("button"); prev.type = "button"; prev.className = "admin-date-nav"; prev.textContent = "‹"; prev.setAttribute("aria-label", "上个月");
-      var next = document.createElement("button"); next.type = "button"; next.className = "admin-date-nav"; next.textContent = "›"; next.setAttribute("aria-label", "下个月");
+      var prev = document.createElement("button"); prev.type = "button"; prev.className = "admin-date-nav"; prev.textContent = "‹"; prev.dataset.dateControl = "previous"; prev.setAttribute("aria-label", window.pafishT("js.previous_month"));
+      var next = document.createElement("button"); next.type = "button"; next.className = "admin-date-nav"; next.textContent = "›"; next.dataset.dateControl = "next"; next.setAttribute("aria-label", window.pafishT("js.next_month"));
       var viewSelect = document.createElement("span"); viewSelect.className = "admin-date-view";
-      var year = document.createElement("select"); year.className = "admin-date-select"; year.setAttribute("aria-label", "选择年份");
+      var year = document.createElement("select"); year.className = "admin-date-select"; year.dataset.dateControl = "year"; year.setAttribute("aria-label", window.pafishT("js.select_year"));
       var currentYear = new Date().getFullYear();
       for (var yearValue = Math.min(currentYear - 10, view.getFullYear()); yearValue <= Math.max(currentYear + 10, view.getFullYear()); yearValue++) {
-        var yearOption = document.createElement("option"); yearOption.value = yearValue; yearOption.textContent = yearValue + "年"; yearOption.selected = yearValue === view.getFullYear(); year.appendChild(yearOption);
+        var yearOption = document.createElement("option"); yearOption.value = yearValue; yearOption.textContent = yearValue + window.pafishT("js.year"); yearOption.selected = yearValue === view.getFullYear(); year.appendChild(yearOption);
       }
-      var month = document.createElement("select"); month.className = "admin-date-select"; month.setAttribute("aria-label", "选择月份");
+      var month = document.createElement("select"); month.className = "admin-date-select"; month.dataset.dateControl = "month"; month.setAttribute("aria-label", window.pafishT("js.select_month"));
       monthNames.forEach(function (name, monthIndex) { var monthOption = document.createElement("option"); monthOption.value = monthIndex; monthOption.textContent = name; monthOption.selected = monthIndex === view.getMonth(); month.appendChild(monthOption); });
-      year.addEventListener("change", function () { view.setFullYear(Number(year.value)); render(); panel.querySelector('[aria-label="选择年份"]').focus({ preventScroll: true }); });
-      month.addEventListener("change", function () { view.setMonth(Number(month.value)); render(); panel.querySelector('[aria-label="选择月份"]').focus({ preventScroll: true }); });
+      year.addEventListener("change", function () { view.setFullYear(Number(year.value)); render(); panel.querySelector('[data-date-control="year"]').focus({ preventScroll: true }); });
+      month.addEventListener("change", function () { view.setMonth(Number(month.value)); render(); panel.querySelector('[data-date-control="month"]').focus({ preventScroll: true }); });
       viewSelect.appendChild(year); viewSelect.appendChild(month);
-      prev.addEventListener("click", function () { view.setMonth(view.getMonth() - 1); render(); panel.querySelector('[aria-label="上个月"]').focus({ preventScroll: true }); });
-      next.addEventListener("click", function () { view.setMonth(view.getMonth() + 1); render(); panel.querySelector('[aria-label="下个月"]').focus({ preventScroll: true }); });
+      prev.addEventListener("click", function () { view.setMonth(view.getMonth() - 1); render(); panel.querySelector('[data-date-control="previous"]').focus({ preventScroll: true }); });
+      next.addEventListener("click", function () { view.setMonth(view.getMonth() + 1); render(); panel.querySelector('[data-date-control="next"]').focus({ preventScroll: true }); });
       head.appendChild(prev); head.appendChild(viewSelect); head.appendChild(next); panel.appendChild(head);
       var grid = document.createElement("div"); grid.className = "admin-date-grid";
       weekNames.forEach(function (name) { var label = document.createElement("span"); label.className = "admin-date-week"; label.textContent = name; grid.appendChild(label); });
@@ -489,7 +489,7 @@
         var selected = input.value.slice(0, 10) === dateText(date);
         var today = dateText(new Date()) === dateText(date);
         var button = document.createElement("button"); button.type = "button"; button.className = "admin-date-day"; button.textContent = day;
-        button.setAttribute("aria-label", date.getFullYear() + "年" + (date.getMonth() + 1) + "月" + day + "日");
+        button.setAttribute("aria-label", date.getFullYear() + window.pafishT("js.year") + (date.getMonth() + 1) + window.pafishT("js.month") + day + window.pafishT("js.sun"));
         button.setAttribute("aria-pressed", selected ? "true" : "false");
         if (today) button.setAttribute("aria-current", "date");
         if (selected) button.classList.add("is-selected");
@@ -503,16 +503,16 @@
       }
       panel.appendChild(grid);
       if (input.type === "datetime-local") {
-        var timeRow = document.createElement("label"); timeRow.className = "admin-date-time"; timeRow.appendChild(document.createTextNode("时间"));
+        var timeRow = document.createElement("label"); timeRow.className = "admin-date-time"; timeRow.appendChild(document.createTextNode(window.pafishT("js.time")));
         var time = document.createElement("input"); time.type = "time"; time.className = "input"; time.value = input.value.slice(11, 16) || "00:00";
         time.addEventListener("change", function () { setValue(parseDate(input.value) || view, time.value); panel.querySelector('input[type="time"]').focus({ preventScroll: true }); });
         timeRow.appendChild(time); panel.appendChild(timeRow);
       }
       var actions = document.createElement('div'); actions.className = 'admin-date-actions';
-      var clear = document.createElement('button'); clear.type = 'button'; clear.className = 'btn btn-ghost'; clear.textContent = '清空';
+      var clear = document.createElement('button'); clear.type = 'button'; clear.className = 'btn btn-ghost'; clear.textContent = window.pafishT("js.clear_all");
       clear.disabled = input.required;
       clear.addEventListener('click', function () { input.value = ''; emit(input); sync(); close(control); trigger.focus({ preventScroll: true }); });
-      var done = document.createElement('button'); done.type = 'button'; done.className = 'btn btn-ghost'; done.textContent = '完成';
+      var done = document.createElement('button'); done.type = 'button'; done.className = 'btn btn-ghost'; done.textContent = window.pafishT("js.done_33246f");
       done.addEventListener('click', function () { close(control); trigger.focus({ preventScroll: true }); });
       actions.appendChild(clear); actions.appendChild(done); panel.appendChild(actions);
     }

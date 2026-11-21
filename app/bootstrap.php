@@ -224,6 +224,7 @@ Url::init($_SERVER['SCRIPT_NAME'] ?? '/index.php');
 // 4. 会话与全局辅助函数
 Session::start();
 require __DIR__ . '/Core/helpers.php';
+\Pafish\Core\I18n::setLocale((string) \Pafish\Services\Settings::get('site_locale', 'zh-CN'));
 \Pafish\Services\Theme::boot();
 
 // 5. Slim 应用（PHP-DI 容器，控制器自动装配）

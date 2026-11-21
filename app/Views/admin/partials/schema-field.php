@@ -74,7 +74,7 @@ $renderField = function (array $field, array $values, ?string &$lastSection, boo
     echo '<div class="' . $wrapClass . '" data-sf-field-type="' . e($type) . '"' . $showIfAttr . '>';
 
     $requiredMark = ($rules['required'] ?? false) === true
-        ? '<span class="admin-sf-required" title="必填">*</span>'
+        ? ('<span class="admin-sf-required" title="' . e(t('admin.required')) . '">*</span>')
         : '';
 
     // 一组控件（单选组、可重复行、四向间距、字体组合、按钮组、复合视觉型）
@@ -101,7 +101,7 @@ $renderField = function (array $field, array $values, ?string &$lastSection, boo
     }
     $tip = $helpText !== ''
         ? '<span class="admin-sf-hint" data-sf-tip="' . $helpText . '"'
-            . ' tabindex="0" role="note" aria-label="说明：' . $helpText . '"'
+            . ' tabindex="0" role="note" aria-label="' . e(t('admin.field_help', ['text' => $help !== '' ? $help : $desc])) . '"'
             . ' title="' . $helpText . '">?</span>'
         : '';
 
@@ -148,7 +148,7 @@ $renderField = function (array $field, array $values, ?string &$lastSection, boo
                 . '" data-sf-type="password" value="' . e($displayValue) . '"'
                 . ($placeholder !== '' ? ' placeholder="' . e($placeholder) . '"' : '')
                 . $native . ' autocomplete="new-password">'
-                . ($value !== '' ? '<p class="admin-field-hint">已配置，留空则保持不变</p>' : '');
+                . ($value !== '' ? ('<p class="admin-field-hint">' . e(t('admin.configured_leave_blank_to_keep_the_current_value')) . '</p>') : '');
             break;
 
         case 'checkbox':
@@ -166,9 +166,9 @@ $renderField = function (array $field, array $values, ?string &$lastSection, boo
             if ($searchable) {
                 echo '<div class="admin-sf-checks-tools">'
                     . '<input type="search" class="input admin-sf-checks-search" data-sf-checkbox-search data-sf-no-dirty'
-                    . ' aria-label="搜索' . e($label) . '选项" placeholder="搜索选项…" autocomplete="off">'
+                    . ' aria-label="' . e(t('admin.search_field_options', ['label' => $label])) . '" placeholder="' . e(t('admin.search_options')) . '" autocomplete="off">'
                     . '<span class="admin-sf-checks-count" data-sf-checkbox-count aria-live="polite"></span></div>'
-                    . '<span class="admin-sf-checks-empty" data-sf-checkbox-empty hidden>没有匹配的选项</span>';
+                    . ('<span class="admin-sf-checks-empty" data-sf-checkbox-empty hidden>' . e(t('admin.no_matching_options')) . '</span>');
             }
             echo '<div class="admin-sf-checks-list">';
             foreach ($options as $optValue => $optLabel) {
@@ -279,18 +279,18 @@ $renderField = function (array $field, array $values, ?string &$lastSection, boo
             break;
 
         case 'image':
-            $ph = $placeholder !== '' ? $placeholder : '/uploads/xxx 或外部图片 URL';
+            $ph = $placeholder !== '' ? $placeholder : t('admin.uploads_xxx_or_external_image_url');
             $hasImagePreview = trim($value) !== '';
             echo '<div class="admin-sf-image">'
                 . '<div class="admin-sf-image-preview-wrap"' . ($hasImagePreview ? '' : ' hidden') . '><img class="admin-sf-image-preview" data-sf-image-preview alt=""'
                 . ($hasImagePreview ? ' src="' . e($value) . '"' : ' hidden') . ' loading="lazy"></div>'
                 . '<input type="text" class="input admin-sf-image-value" id="sf-' . e($key) . '" data-sf-key="' . e($key) . '" data-sf-type="image"'
                 . ' value="' . e($value) . '" placeholder="' . e($ph) . '" autocomplete="off">'
-                . '<button type="button" class="btn btn-outline btn-sm admin-sf-lib" data-target="' . e($key) . '">从媒体库选择</button>'
-                . '<button type="button" class="btn btn-outline btn-sm admin-sf-upload" data-target="' . e($key) . '">上传图片</button>'
+                . '<button type="button" class="btn btn-outline btn-sm admin-sf-lib" data-target="' . e($key) . ('">' . e(t('admin.choose_from_media_library')) . '</button>')
+                . '<button type="button" class="btn btn-outline btn-sm admin-sf-upload" data-target="' . e($key) . ('">' . e(t('admin.upload_image')) . '</button>')
                 . '<input type="file" id="sf-upload-' . e($key) . '" class="admin-sf-upload-input" data-target="' . e($key) . '" accept="image/*,.svg" hidden>'
-                . '<button type="button" class="btn btn-ghost btn-sm admin-sf-image-clear" data-target="' . e($key) . '">清除</button>'
-                . '<p class="admin-field-hint">' . ($value === '' ? '无图片' : '已设置') . '</p></div>';
+                . '<button type="button" class="btn btn-ghost btn-sm admin-sf-image-clear" data-target="' . e($key) . ('">' . e(t('common.clear')) . '</button>')
+                . '<p class="admin-field-hint">' . ($value === '' ? t('admin.no_image') : t('admin.configured')) . '</p></div>';
             break;
 
         case 'icon':
@@ -304,8 +304,8 @@ $renderField = function (array $field, array $values, ?string &$lastSection, boo
                 . ' data-sf-key="' . e($key) . '" data-sf-type="icon" data-icon-input data-icon-library="' . e($iconLibrary) . '"'
                 . ' data-icon-custom="' . e(json_encode(is_array($field['custom_icons'] ?? null) ? $field['custom_icons'] : [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) . '"'
                 . ' value="' . e($value) . '" placeholder="ri-home-line / fa fa-home" autocomplete="off"' . $native . '>'
-                . '<button type="button" class="btn btn-outline btn-sm" data-icon-picker>选择图标</button>'
-                . '<button type="button" class="btn btn-ghost btn-sm admin-sf-icon-clear" data-icon-clear>清除</button>'
+                . ('<button type="button" class="btn btn-outline btn-sm" data-icon-picker>' . e(t('admin.choose_icon')) . '</button>')
+                . ('<button type="button" class="btn btn-ghost btn-sm admin-sf-icon-clear" data-icon-clear>' . e(t('common.clear')) . '</button>')
                 . '</div>';
             break;
 
@@ -326,12 +326,12 @@ $renderField = function (array $field, array $values, ?string &$lastSection, boo
                    整张表单就再也保存不了。粒度由滑杆负责，输入框交给服务端做区间校验。 */
                 . '<input type="number" class="input admin-sf-range-num" data-sf-key="' . e($key) . '" data-sf-type="slider-num"'
                 . ' min="' . e((string) $sMin) . '" max="' . e((string) $sMax) . '" step="any"'
-                . ' value="' . e($sVal) . '" aria-label="' . e($label) . ' 数值"></div>';
+                . ' value="' . e($sVal) . '" aria-label="' . e($label) . (' ' . e(t('admin.value')) . '"></div>');
             break;
 
         case 'spacing':
             $sides = is_array($field['sides'] ?? null) ? $field['sides'] : ['top', 'right', 'bottom', 'left'];
-            $sideLabels = ['top' => '上', 'right' => '右', 'bottom' => '下', 'left' => '左'];
+            $sideLabels = ['top' => t('admin.top'), 'right' => t('admin.right'), 'bottom' => t('admin.bottom'), 'left' => t('admin.left')];
             $unit = (string) ($field['unit'] ?? 'px');
             $spacingData = json_decode($value !== '' ? $value : (string) ($field['default'] ?? '{}'), true);
             if (!is_array($spacingData)) { $spacingData = []; }
@@ -353,14 +353,14 @@ $renderField = function (array $field, array $values, ?string &$lastSection, boo
             $weights = is_array($field['weight_options'] ?? null) ? $field['weight_options'] : [];
             $typoData = json_decode($value !== '' ? $value : (string) ($field['default'] ?? '{}'), true);
             if (!is_array($typoData)) { $typoData = []; }
-            $partLabels = ['family' => '字体', 'size' => '字号', 'weight' => '字重',
-                           'line_height' => '行高', 'letter_spacing' => '字距',
-                           'style' => '样式', 'transform' => '大小写', 'color' => '颜色'];
+            $partLabels = ['family' => t('admin.font_family'), 'size' => t('admin.font_size'), 'weight' => t('admin.font_weight'),
+                           'line_height' => t('admin.line_height'), 'letter_spacing' => t('admin.letter_spacing'),
+                           'style' => t('admin.style'), 'transform' => t('admin.text_transform'), 'color' => t('admin.color')];
             $selects = [
                 'weight' => $weights,
-                'style' => ['' => '默认', 'normal' => '正常', 'italic' => '斜体'],
-                'transform' => ['' => '默认', 'none' => '常规', 'uppercase' => '全大写',
-                                'lowercase' => '全小写', 'capitalize' => '首字母大写'],
+                'style' => ['' => t('common.default'), 'normal' => t('admin.normal'), 'italic' => t('admin.italic')],
+                'transform' => ['' => t('common.default'), 'none' => t('admin.general'), 'uppercase' => t('admin.uppercase'),
+                                'lowercase' => t('admin.lowercase'), 'capitalize' => t('admin.capitalize')],
             ];
             echo '<div class="admin-sf-typo" data-sf-typo-wrap="' . e($key) . '">';
             foreach ($parts as $part) {
@@ -370,8 +370,8 @@ $renderField = function (array $field, array $values, ?string &$lastSection, boo
                 if (isset($selects[$part])) {
                     echo '<select class="input" data-sf-key="' . e($key) . '" data-sf-type="typography" data-sf-part="' . e($part) . '">';
                     // 字重没有"空"选项以外，其余都补一个"默认"
-                    if ($part !== 'weight') { echo '<option value="">默认</option>'; }
-                    elseif (!array_key_exists('', $selects[$part])) { echo '<option value="">默认</option>'; }
+                    if ($part !== 'weight') { echo ('<option value="">' . e(t('common.default')) . '</option>'); }
+                    elseif (!array_key_exists('', $selects[$part])) { echo ('<option value="">' . e(t('common.default')) . '</option>'); }
                     foreach ($selects[$part] as $ov => $ol) {
                         if ((string) $ov === '') { continue; }
                         echo '<option value="' . e((string) $ov) . '"' . ($cur === (string) $ov ? ' selected' : '')
@@ -379,7 +379,7 @@ $renderField = function (array $field, array $values, ?string &$lastSection, boo
                     }
                     echo '</select>';
                 } else {
-                    $ph = $part === 'family' ? '如 sans-serif' : ($part === 'size' ? '16' : ($part === 'color' ? '#rrggbb' : ''));
+                    $ph = $part === 'family' ? t('admin.for_example_sans_serif') : ($part === 'size' ? '16' : ($part === 'color' ? '#rrggbb' : ''));
                     echo '<input type="text" class="input" data-sf-key="' . e($key) . '" data-sf-type="typography"'
                         . ' data-sf-part="' . e($part) . '" value="' . e($cur) . '" placeholder="' . e($ph) . '" autocomplete="off">';
                 }
@@ -418,7 +418,7 @@ $renderField = function (array $field, array $values, ?string &$lastSection, boo
                 . '<span class="admin-sf-rep-tpl" hidden>' . admin_icon('grip', 14) . '</span>'
                 . '<div class="admin-sf-rep-rows"></div>'
                 . '<button type="button" class="btn btn-outline btn-sm admin-sf-rep-add">'
-                . e((string) ($field['add_label'] ?? '添加一行')) . '</button>'
+                . e((string) ($field['add_label'] ?? t('admin.add_row'))) . '</button>'
                 . '<span class="admin-field-hint admin-sf-rep-count"></span></div>';
             break;
 
@@ -436,9 +436,9 @@ $renderField = function (array $field, array $values, ?string &$lastSection, boo
             echo '<div class="admin-sf-comp" data-sf-comp-wrap="' . e($key) . '" data-sf-comp-type="' . e($type) . '">';
             foreach ($parts as $part) {
                 $cur = isset($data[$part]) ? (string) $data[$part] : '';
-                $plabel = ['color' => '颜色', 'image' => '图片', 'repeat' => '重复方式',
-                           'position' => '位置', 'size' => '尺寸', 'attachment' => '附着方式',
-                           'width' => '宽度', 'style' => '线型'][$part] ?? $part;
+                $plabel = ['color' => t('admin.color'), 'image' => t('common.image'), 'repeat' => t('admin.repeat'),
+                           'position' => t('admin.position'), 'size' => t('admin.dimensions'), 'attachment' => t('admin.attachment'),
+                           'width' => t('admin.width'), 'style' => t('admin.line_style')][$part] ?? $part;
                 echo '<label class="admin-sf-comp-cell"><span class="admin-sf-comp-lab">' . e($plabel) . '</span>';
                 if ($part === 'color') {
                     $hex = $cur !== '' ? $cur : '#000000';
@@ -452,8 +452,8 @@ $renderField = function (array $field, array $values, ?string &$lastSection, boo
                     echo '<span class="admin-sf-comp-image">'
                         . '<input type="text" class="input" data-sf-key="' . e($key)
                         . '" data-sf-type="comp-part" data-sf-part="image" value="' . e($cur)
-                        . '" placeholder="/uploads/xxx 或图片 URL" autocomplete="off">'
-                        . '<button type="button" class="btn btn-ghost btn-sm admin-sf-comp-clear">清除</button></span>';
+                        . ('" placeholder="' . e(t('admin.uploads_xxx_or_image_url')) . '" autocomplete="off">')
+                        . ('<button type="button" class="btn btn-ghost btn-sm admin-sf-comp-clear">' . e(t('common.clear')) . '</button></span>');
                 } elseif (isset($choices[$part])) {
                     echo '<select class="input" data-sf-key="' . e($key)
                         . '" data-sf-type="comp-part" data-sf-part="' . e($part) . '">';
@@ -482,7 +482,7 @@ $renderField = function (array $field, array $values, ?string &$lastSection, boo
             $lang = (string) ($field['language'] ?? 'css');
             echo '<div class="admin-sf-code" data-sf-code-wrap="' . e($key) . '">'
                 . '<div class="admin-sf-code-bar"><span class="admin-sf-code-lang">' . e($lang) . '</span>'
-                . '<button type="button" class="btn btn-ghost btn-sm admin-sf-code-tidy" title="重新缩进">整理缩进</button></div>'
+                . ('<button type="button" class="btn btn-ghost btn-sm admin-sf-code-tidy" title="' . e(t('admin.reindent')) . '">' . e(t('admin.format_indentation')) . '</button></div>')
                 . '<textarea class="input admin-sf-code-area" id="sf-' . e($key) . '" rows="' . $rows . '"'
                 . ' data-sf-key="' . e($key) . '" data-sf-type="code" spellcheck="false"'
                 . ' placeholder="' . e($placeholder) . '"' . $native . '>' . e($value) . '</textarea></div>';
@@ -497,7 +497,7 @@ $renderField = function (array $field, array $values, ?string &$lastSection, boo
                 . '<span class="admin-sf-groupcaret" aria-hidden="true"></span>';
             if ($icon !== '') { echo '<span class="admin-sf-groupicon">' . e($icon) . '</span>'; }
             echo '<span class="admin-sf-grouptitle">' . e($label) . '</span>'
-                . '<span class="admin-shadow-hint admin-sf-groupcount">' . count($subFields) . ' 项</span></button>';
+                . '<span class="admin-shadow-hint admin-sf-groupcount">' . count($subFields) . (' ' . e(t('admin.items_64728a')) . '</span></button>');
             echo '<div class="admin-sf-groupbody">';
             // 分组说明放进折叠区域内：它描述的是组内内容，放在组外会像是上一个字段的说明
             if ($desc !== '') {
@@ -519,9 +519,9 @@ $renderField = function (array $field, array $values, ?string &$lastSection, boo
         case 'backup':
             echo '<div class="admin-sf-backup" data-sf-backup>'
                 . '<div class="admin-sf-backup-acts">'
-                . '<button type="button" class="btn btn-success" data-sf-backup-act="export">导出设置</button>'
-                . '<button type="button" class="btn btn-success" data-sf-backup-act="import">导入设置</button>'
-                . '<button type="button" class="btn admin-sf-backup-reset" data-sf-backup-act="reset">恢复默认</button>'
+                . ('<button type="button" class="btn btn-success" data-sf-backup-act="export">' . e(t('admin.export_settings')) . '</button>')
+                . ('<button type="button" class="btn btn-success" data-sf-backup-act="import">' . e(t('admin.import_settings')) . '</button>')
+                . ('<button type="button" class="btn admin-sf-backup-reset" data-sf-backup-act="reset">' . e(t('admin.reset_to_defaults')) . '</button>')
                 . '</div>'
                 . '<input type="file" accept="application/json,.json" hidden data-sf-backup-file>'
                 . '<p class="admin-field-hint admin-sf-backup-msg" data-sf-backup-msg hidden></p>'
@@ -530,7 +530,7 @@ $renderField = function (array $field, array $values, ?string &$lastSection, boo
 
         default:
             // 理论上不可达（normalizeSetting 已做类型白名单）；留痕便于排查
-            echo '<p class="admin-field-hint">不支持的字段类型：' . e($type) . '</p>';
+            echo ('<p class="admin-field-hint">' . e(t('admin.unsupported_field_type'))) . e($type) . '</p>';
     }
 
     if (!$isBlock) {

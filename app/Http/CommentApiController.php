@@ -237,6 +237,7 @@ final class CommentApiController
         $isAdminComment = $isAdminUser;
         if (!$isAdminComment && $commentStatus !== 'SPAM') {
             Notify::sendCommentEmail([
+                'targetId' => $target['id'],
                 'commenter' => $name,
                 'isReply' => $isReply,
                 'postTitle' => $target['title'],
@@ -252,6 +253,7 @@ final class CommentApiController
             if ($isReply && !empty($parent['notify_reply']) && $parentEmail !== null
                 && filter_var($parentEmail, FILTER_VALIDATE_EMAIL) !== false && $parentEmail !== $email) {
                 Notify::sendReplyEmail([
+                    'targetId' => $target['id'],
                     'toEmail' => $parentEmail,
                     'replier' => $name,
                     'replyContent' => $content,

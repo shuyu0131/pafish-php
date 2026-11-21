@@ -4,17 +4,17 @@ $seoValues = $seoValues ?? [];
 $seoPrefix = $seoPrefix ?? 'content';
 ?>
 <details class="admin-advanced">
-  <summary><?= admin_icon('chevron-right', 14) ?>搜索引擎设置</summary>
+  <summary><?= admin_icon('chevron-right', 14) ?><?= e(t('admin.search_engine_settings')) ?></summary>
   <div class="admin-advanced-body">
     <div class="admin-field">
-      <label class="label" for="<?= e($seoPrefix) ?>SeoTitle">SEO 标题</label>
+      <label class="label" for="<?= e($seoPrefix) ?>SeoTitle"><?= e(t('admin.seo_title')) ?></label>
       <input class="input" id="<?= e($seoPrefix) ?>SeoTitle" name="seo_title" maxlength="255"
-             value="<?= e($seoValues['seo_title'] ?? '') ?>" placeholder="留空使用原标题">
+             value="<?= e($seoValues['seo_title'] ?? '') ?>" placeholder="<?= e(t('admin.leave_blank_to_use_the_original_title')) ?>">
     </div>
     <div class="admin-field">
-      <label class="label" for="<?= e($seoPrefix) ?>MetaDescription">SEO 描述</label>
+      <label class="label" for="<?= e($seoPrefix) ?>MetaDescription"><?= e(t('admin.seo_description')) ?></label>
       <textarea class="input" id="<?= e($seoPrefix) ?>MetaDescription" name="meta_description" rows="2"
-                maxlength="500" placeholder="留空自动生成"><?= e($seoValues['meta_description'] ?? '') ?></textarea>
+                maxlength="500" placeholder="<?= e(t('admin.leave_blank_to_generate_automatically')) ?>"><?= e($seoValues['meta_description'] ?? '') ?></textarea>
     </div>
   </div>
 </details>

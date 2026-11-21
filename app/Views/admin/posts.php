@@ -22,20 +22,20 @@ function admin_posts_url(array $params, array $patch, int $per, bool $includePag
 }
 
 $tabItems = [
-    ['key' => '', 'label' => '全部', 'count' => null],
-    ['key' => 'PUBLISHED', 'label' => '已发布', 'count' => $counts['PUBLISHED'] ?? 0],
-    ['key' => 'PENDING', 'label' => '待审核', 'count' => $counts['PENDING'] ?? 0],
-    ['key' => 'CHANGES_REQUESTED', 'label' => '退回修改', 'count' => $counts['CHANGES_REQUESTED'] ?? 0],
-    ['key' => 'DRAFT', 'label' => '草稿', 'count' => $counts['DRAFT'] ?? 0],
-    ['key' => 'SCHEDULED', 'label' => '定时', 'count' => $counts['SCHEDULED'] ?? 0],
-    ['key' => 'trash', 'label' => '回收站', 'count' => $counts['TRASH'] ?? 0],
+    ['key' => '', 'label' => t('common.all'), 'count' => null],
+    ['key' => 'PUBLISHED', 'label' => t('admin.published'), 'count' => $counts['PUBLISHED'] ?? 0],
+    ['key' => 'PENDING', 'label' => t('admin.pending_review'), 'count' => $counts['PENDING'] ?? 0],
+    ['key' => 'CHANGES_REQUESTED', 'label' => t('admin.request_changes'), 'count' => $counts['CHANGES_REQUESTED'] ?? 0],
+    ['key' => 'DRAFT', 'label' => t('admin.draft'), 'count' => $counts['DRAFT'] ?? 0],
+    ['key' => 'SCHEDULED', 'label' => t('admin.scheduled'), 'count' => $counts['SCHEDULED'] ?? 0],
+    ['key' => 'trash', 'label' => t('admin.trash'), 'count' => $counts['TRASH'] ?? 0],
 ];
 $sortItems = [
-    ['key' => 'latest', 'label' => '最新发布'],
-    ['key' => 'updated', 'label' => '最近更新'],
-    ['key' => 'pinned', 'label' => '置顶优先'],
-    ['key' => 'views', 'label' => '浏览最多'],
-    ['key' => 'comments', 'label' => '评论最多'],
+    ['key' => 'latest', 'label' => t('admin.recently_published')],
+    ['key' => 'updated', 'label' => t('admin.recently_updated')],
+    ['key' => 'pinned', 'label' => t('admin.pinned_first')],
+    ['key' => 'views', 'label' => t('admin.most_viewed')],
+    ['key' => 'comments', 'label' => t('admin.most_commented')],
 ];
 $canEdit = in_array($role ?? '', ['ADMIN', 'EDITOR'], true);
 $canReview = ($role ?? '') === 'ADMIN';
@@ -43,22 +43,22 @@ $canReview = ($role ?? '') === 'ADMIN';
 <div class="admin-stack admin-list-page admin-posts-list">
   <div class="admin-page-head">
     <div>
-      <h1 class="admin-h1">文章管理</h1>
+      <h1 class="admin-h1"><?= e(t('admin.posts')) ?></h1>
       <p class="admin-page-sub">
-        共 <?= $total ?> 篇<?= $params['q'] !== '' ? ' · 搜索“' . e($params['q']) . '”' : '' ?>
+        <?= e(t('admin.total')) ?> <?= $total ?> <?= e(t('admin.posts_69007d')) ?><?= $params['q'] !== '' ? t('admin.search') . e($params['q']) . '”' : '' ?>
       </p>
     </div>
   <?php if ($canEdit): ?>
   <div class="admin-head-actions">
-    <?php if ($canReview && ($counts['PENDING'] ?? 0) > 0): ?><a class="btn btn-outline" href="<?= e(url_to('/admin/posts?status=PENDING')) ?>">待审核 <?= (int) $counts['PENDING'] ?></a><?php endif; ?>
-    <a class="btn btn-primary" href="<?= e(url_to('/admin/posts/new')) ?>"><?= admin_icon('pen', 15) ?>写文章</a>
-    <a class="btn btn-outline" href="<?= e(url_to('/admin/posts/import')) ?>"><?= admin_icon('upload', 15) ?>导入 Markdown</a>
+    <?php if ($canReview && ($counts['PENDING'] ?? 0) > 0): ?><a class="btn btn-outline" href="<?= e(url_to('/admin/posts?status=PENDING')) ?>"><?= e(t('admin.pending_review')) ?> <?= (int) $counts['PENDING'] ?></a><?php endif; ?>
+    <a class="btn btn-primary" href="<?= e(url_to('/admin/posts/new')) ?>"><?= admin_icon('pen', 15) ?><?= e(t('admin.write_a_post')) ?></a>
+    <a class="btn btn-outline" href="<?= e(url_to('/admin/posts/import')) ?>"><?= admin_icon('upload', 15) ?><?= e(t('admin.import_markdown')) ?></a>
   </div>
   <?php endif; ?>
   </div>
   <div class="admin-list-toolbar">
   <!-- 状态 tabs -->
-  <nav class="admin-tabs admin-status-tabs" aria-label="文章状态">
+  <nav class="admin-tabs admin-status-tabs" aria-label="<?= e(t('admin.post_status')) ?>">
     <?php foreach ($tabItems as $t): ?>
       <?php $active = ($params['status'] ?? '') === $t['key']; ?>
       <a class="admin-tab <?= $active ? 'is-active' : '' ?>"
@@ -75,8 +75,8 @@ $canReview = ($role ?? '') === 'ADMIN';
     <div class="admin-filter-group">
       <select class="input admin-filter-select" data-filter-url="category"
               data-base="<?= e(url_to('/admin/posts')) ?>">
-        <option value="">全部分类</option>
-        <option value="none" <?= $params['category'] === 'none' ? 'selected' : '' ?>>未分类</option>
+        <option value=""><?= e(t('admin.all_categories')) ?></option>
+        <option value="none" <?= $params['category'] === 'none' ? 'selected' : '' ?>><?= e(t('admin.uncategorized')) ?></option>
         <?php foreach ($catTree as $c): ?>
           <option value="<?= (int) $c['id'] ?>" <?= $params['category'] === (string) $c['id'] ? 'selected' : '' ?>>
             <?= str_repeat('　', (int) $c['depth']) . e($c['name']) ?>
@@ -92,7 +92,7 @@ $canReview = ($role ?? '') === 'ADMIN';
         <?php foreach (['status' => $params['status'], 'category' => $params['category'], 'author' => $params['author'], 'sort' => $params['sort']] as $k => $v): ?>
           <?php if ($v !== '' && $v !== 'latest'): ?><input type="hidden" name="<?= e($k) ?>" value="<?= e($v) ?>"><?php endif; ?>
         <?php endforeach; ?>
-        <input class="input" type="search" name="q" value="<?= e($params['q']) ?>" placeholder="搜索标题或内容…">
+        <input class="input" type="search" name="q" value="<?= e($params['q']) ?>" placeholder="<?= e(t('admin.search_title_or_content')) ?>">
         <button type="submit" class="btn btn-outline"><?= admin_icon('search', 15) ?></button>
       </form>
     </div>
@@ -104,15 +104,15 @@ $canReview = ($role ?? '') === 'ADMIN';
     <table class="admin-table admin-posts-table">
       <thead>
         <tr>
-          <th class="admin-col-check"><input type="checkbox" id="adminCheckAll" aria-label="全选"></th>
-          <th>标题</th>
-          <th class="admin-post-category admin-table-secondary">分类</th>
-          <th class="admin-post-author admin-table-secondary">作者</th>
-          <th class="admin-post-count">评论</th>
-          <th class="admin-post-count" data-stat="views">浏览</th>
-          <th class="admin-post-engagement">赞 / 收藏</th>
-          <th class="admin-list-date admin-table-secondary"><?= $isTrash ? '删除时间' : ($params['sort'] === 'updated' ? '更新时间' : '发布时间') ?></th>
-          <th class="admin-col-ops">操作</th>
+          <th class="admin-col-check"><input type="checkbox" id="adminCheckAll" aria-label="<?= e(t('admin.select_all')) ?>"></th>
+          <th><?= e(t('common.title')) ?></th>
+          <th class="admin-post-category admin-table-secondary"><?= e(t('common.category')) ?></th>
+          <th class="admin-post-author admin-table-secondary"><?= e(t('admin.author')) ?></th>
+          <th class="admin-post-count"><?= e(t('common.comments')) ?></th>
+          <th class="admin-post-count" data-stat="views"><?= e(t('admin.views')) ?></th>
+          <th class="admin-post-engagement"><?= e(t('admin.likes_bookmarks')) ?></th>
+          <th class="admin-list-date admin-table-secondary"><?= $isTrash ? t('admin.deleted_8d55c8') : ($params['sort'] === 'updated' ? t('admin.updated') : t('admin.published_b410c2')) ?></th>
+          <th class="admin-col-ops"><?= e(t('common.actions')) ?></th>
         </tr>
       </thead>
       <tbody>
@@ -120,9 +120,9 @@ $canReview = ($role ?? '') === 'ADMIN';
           <tr><td colspan="9">
             <div class="admin-empty-list">
               <?= admin_icon('file-text', 32) ?>
-              <p>暂无文章</p>
+              <p><?= e(t('admin.no_posts_yet')) ?></p>
               <?php if ($canEdit): ?>
-                <a class="btn btn-outline" href="<?= e(url_to('/admin/posts/new')) ?>">去写第一篇</a>
+                <a class="btn btn-outline" href="<?= e(url_to('/admin/posts/new')) ?>"><?= e(t('admin.write_your_first_post')) ?></a>
               <?php endif; ?>
             </div>
           </td></tr>
@@ -131,67 +131,67 @@ $canReview = ($role ?? '') === 'ADMIN';
           <?php $listTime = $isTrash ? ($p['deleted_at'] ?: $p['updated_at']) : ($params['sort'] === 'updated' ? $p['updated_at'] : ($p['published_at'] ?: $p['updated_at'])); ?>
           <tr data-row-id="<?= (int) $p['id'] ?>">
             <td class="admin-col-check"><input type="checkbox" class="admin-row-check" value="<?= (int) $p['id'] ?>"></td>
-            <td class="admin-post-title-cell" data-label="标题">
+            <td class="admin-post-title-cell" data-label="<?= e(t('common.title')) ?>">
               <div class="admin-post-title-line">
-                <?php if ($p['is_pinned']): ?><span class="badge badge-accent">置顶</span><?php endif; ?>
-                <?php if ($p['category_pinned']): ?><span class="badge admin-badge-cat-pin">分类置顶</span><?php endif; ?>
-                <?php if ($p['password']): ?><span class="admin-mini-badge" title="需要密码访问"><?= admin_icon('lock', 12) ?></span><?php endif; ?>
-                <?php if ($p['external_url']): ?><span class="admin-mini-badge" title="外链文章，点击标题跳转外链"><?= admin_icon('external-link', 12) ?></span><?php endif; ?>
+                <?php if ($p['is_pinned']): ?><span class="badge badge-accent"><?= e(t('admin.pin')) ?></span><?php endif; ?>
+                <?php if ($p['category_pinned']): ?><span class="badge admin-badge-cat-pin"><?= e(t('admin.pinned_in_category')) ?></span><?php endif; ?>
+                <?php if ($p['password']): ?><span class="admin-mini-badge" title="<?= e(t('admin.password_required')) ?>"><?= admin_icon('lock', 12) ?></span><?php endif; ?>
+                <?php if ($p['external_url']): ?><span class="admin-mini-badge" title="<?= e(t('admin.external_post_the_title_links_to_an_external')) ?>"><?= admin_icon('external-link', 12) ?></span><?php endif; ?>
                 <?php if ($p['status'] !== 'PUBLISHED' && !$isTrash): ?><span class="admin-list-status"><?= e($statusLabel[$p['status']] ?? $p['status']) ?></span><?php endif; ?>
                 <a class="admin-post-title" title="<?= e($p['title']) ?>" href="<?= e(url_to('/admin/posts/' . $p['id'] . '/edit')) ?>"><span class="admin-post-title-text"><?= e($p['title']) ?></span></a>
               </div>
               <div class="admin-table-mobile-meta">
-                <?php if ($p['category_name']): ?><a href="<?= e(url_to(admin_posts_url($params, ['category' => (string) $p['category_id']], $per))) ?>"><?= e($p['category_name']) ?></a><?php else: ?><span>未分类</span><?php endif; ?>
+                <?php if ($p['category_name']): ?><a href="<?= e(url_to(admin_posts_url($params, ['category' => (string) $p['category_id']], $per))) ?>"><?= e($p['category_name']) ?></a><?php else: ?><span><?= e(t('admin.uncategorized')) ?></span><?php endif; ?>
                 <a href="<?= e(url_to(admin_posts_url($params, ['author' => (string) $p['author_id']], $per))) ?>"><?= e($p['author_username']) ?></a>
-                <time title="<?= e(($isTrash ? '删除时间：' : ($params['sort'] === 'updated' || !$p['published_at'] ? '更新时间：' : '发布时间：')) . format_date($listTime, 'yyyy-MM-dd HH:mm')) ?>" datetime="<?= e((string) $listTime) ?>"><?= e(format_date($listTime, 'yyyy-MM-dd')) ?></time>
+                <time title="<?= e(($isTrash ? t('admin.deleted_d9f0c4') : ($params['sort'] === 'updated' || !$p['published_at'] ? t('admin.updated_4668a1') : t('admin.published_55f0f1'))) . format_date($listTime, 'yyyy-MM-dd HH:mm')) ?>" datetime="<?= e((string) $listTime) ?>"><?= e(format_date($listTime, 'yyyy-MM-dd')) ?></time>
               </div>
             </td>
-            <td class="admin-post-category admin-table-secondary" data-label="分类">
+            <td class="admin-post-category admin-table-secondary" data-label="<?= e(t('common.category')) ?>">
               <?php if ($p['category_name']): ?>
                 <a class="admin-table-filter-link" href="<?= e(url_to(admin_posts_url($params, ['category' => (string) $p['category_id']], $per))) ?>"><?= e($p['category_name']) ?></a>
-              <?php else: ?><span class="admin-muted">未分类</span><?php endif; ?>
+              <?php else: ?><span class="admin-muted"><?= e(t('admin.uncategorized')) ?></span><?php endif; ?>
             </td>
-            <td class="admin-post-author admin-table-secondary" data-label="作者"><a class="admin-table-filter-link" href="<?= e(url_to(admin_posts_url($params, ['author' => (string) $p['author_id']], $per))) ?>"><?= e($p['author_username']) ?></a></td>
-            <td class="admin-post-count" data-label="评论"><a class="admin-table-filter-link" href="<?= e(url_to('/admin/comments?status=ALL&post_id=' . (int) $p['id'])) ?>"><?= (int) $p['comment_count'] ?></a></td>
-            <td class="admin-post-count" data-label="浏览"><?= number_format((int) $p['view_count']) ?></td>
-            <td class="admin-post-engagement" data-label="赞 / 收藏"><span title="点赞 <?= (int) $p['like_count'] ?>，收藏 <?= (int) $p['favorite_count'] ?>"><?= number_format((int) $p['like_count']) ?> / <?= number_format((int) $p['favorite_count']) ?></span></td>
-            <td class="admin-list-date admin-table-secondary" data-label="时间"><time title="<?= e(($isTrash ? '删除时间：' : ($params['sort'] === 'updated' || !$p['published_at'] ? '更新时间：' : '发布时间：')) . format_date($listTime, 'yyyy-MM-dd HH:mm')) ?>" datetime="<?= e((string) $listTime) ?>"><?= e(format_date($listTime, 'yyyy-MM-dd')) ?></time></td>
-            <td class="admin-col-ops" data-label="操作">
+            <td class="admin-post-author admin-table-secondary" data-label="<?= e(t('admin.author')) ?>"><a class="admin-table-filter-link" href="<?= e(url_to(admin_posts_url($params, ['author' => (string) $p['author_id']], $per))) ?>"><?= e($p['author_username']) ?></a></td>
+            <td class="admin-post-count" data-label="<?= e(t('common.comments')) ?>"><a class="admin-table-filter-link" href="<?= e(url_to('/admin/comments?status=ALL&post_id=' . (int) $p['id'])) ?>"><?= (int) $p['comment_count'] ?></a></td>
+            <td class="admin-post-count" data-label="<?= e(t('admin.views')) ?>"><?= number_format((int) $p['view_count']) ?></td>
+            <td class="admin-post-engagement" data-label="<?= e(t('admin.likes_bookmarks')) ?>"><span title="<?= e(t('admin.likes_and_bookmarks', ['likes' => (int) $p['like_count'], 'bookmarks' => (int) $p['favorite_count']])) ?>"><?= number_format((int) $p['like_count']) ?> / <?= number_format((int) $p['favorite_count']) ?></span></td>
+            <td class="admin-list-date admin-table-secondary" data-label="<?= e(t('admin.time')) ?>"><time title="<?= e(($isTrash ? t('admin.deleted_d9f0c4') : ($params['sort'] === 'updated' || !$p['published_at'] ? t('admin.updated_4668a1') : t('admin.published_55f0f1'))) . format_date($listTime, 'yyyy-MM-dd HH:mm')) ?>" datetime="<?= e((string) $listTime) ?>"><?= e(format_date($listTime, 'yyyy-MM-dd')) ?></time></td>
+            <td class="admin-col-ops" data-label="<?= e(t('common.actions')) ?>">
               <div class="admin-row-ops">
                 <?php if ($canReview && !$isTrash && $p['status'] === 'PENDING'): ?>
                   <form class="admin-inline-form" method="post" action="<?= e(url_to('/admin/posts/' . (int) $p['id'] . '/review')) ?>">
                     <?= csrf_field() ?><input type="hidden" name="decision" value="publish">
-                    <button type="submit" class="btn btn-primary btn-sm" title="通过并发布">通过</button>
+                    <button type="submit" class="btn btn-primary btn-sm" title="<?= e(t('admin.approve_and_publish')) ?>"><?= e(t('admin.approve')) ?></button>
                   </form>
                   <details class="admin-review-return">
-                    <summary class="admin-icon-btn" title="退回修改" aria-label="退回修改"><?= admin_icon('corner-down-right', 15) ?></summary>
+                    <summary class="admin-icon-btn" title="<?= e(t('admin.request_changes')) ?>" aria-label="<?= e(t('admin.request_changes')) ?>"><?= admin_icon('corner-down-right', 15) ?></summary>
                     <form method="post" action="<?= e(url_to('/admin/posts/' . (int) $p['id'] . '/review')) ?>">
                       <?= csrf_field() ?><input type="hidden" name="decision" value="changes_requested">
-                      <label class="admin-sr-only" for="review-note-list-<?= (int) $p['id'] ?>">退回意见</label>
-                      <textarea class="input" id="review-note-list-<?= (int) $p['id'] ?>" name="review_note" required maxlength="2000" rows="3" placeholder="写明需要修改的地方"></textarea>
-                      <button type="submit" class="btn btn-outline btn-sm">退回</button>
+                      <label class="admin-sr-only" for="review-note-list-<?= (int) $p['id'] ?>"><?= e(t('admin.change_request')) ?></label>
+                      <textarea class="input" id="review-note-list-<?= (int) $p['id'] ?>" name="review_note" required maxlength="2000" rows="3" placeholder="<?= e(t('admin.describe_the_changes_required')) ?>"></textarea>
+                      <button type="submit" class="btn btn-outline btn-sm"><?= e(t('admin.return')) ?></button>
                     </form>
                   </details>
                 <?php endif; ?>
-                <a class="admin-icon-btn" href="<?= e(url_to('/admin/posts/' . $p['id'] . '/edit')) ?>" title="编辑"><?= admin_icon('edit', 15) ?></a>
+                <a class="admin-icon-btn" href="<?= e(url_to('/admin/posts/' . $p['id'] . '/edit')) ?>" title="<?= e(t('common.edit')) ?>"><?= admin_icon('edit', 15) ?></a>
                 <?php if (!$isTrash && $p['status'] === 'PUBLISHED'): ?>
-                  <a class="admin-icon-btn" href="<?= e(content_url('post', $p)) ?>" target="_blank" rel="noopener" title="查看"><?= admin_icon('eye', 15) ?></a>
+                  <a class="admin-icon-btn" href="<?= e(content_url('post', $p)) ?>" target="_blank" rel="noopener" title="<?= e(t('admin.view')) ?>"><?= admin_icon('eye', 15) ?></a>
                 <?php endif; ?>
                 <?php if ($isTrash): ?>
                   <form class="admin-inline-form" method="post" action="<?= e(url_to('/admin/posts/' . $p['id'] . '/restore')) ?>">
                     <?= csrf_field() ?>
-                    <button type="submit" class="admin-icon-btn" title="恢复"><?= admin_icon('arrow-left', 15) ?></button>
+                    <button type="submit" class="admin-icon-btn" title="<?= e(t('admin.restore')) ?>"><?= admin_icon('arrow-left', 15) ?></button>
                   </form>
                   <form class="admin-inline-form" method="post" action="<?= e(url_to('/admin/posts/' . $p['id'] . '/purge')) ?>"
-                        data-confirm="确定彻底删除《<?= e($p['title']) ?>》？此操作不可恢复！">
+                        data-confirm="<?= e(t('admin.confirm_purge_post', ['title' => $p['title']])) ?>">
                     <?= csrf_field() ?>
-                    <button type="submit" class="admin-icon-btn admin-danger-btn" title="彻底删除"><?= admin_icon('trash', 15) ?></button>
+                    <button type="submit" class="admin-icon-btn admin-danger-btn" title="<?= e(t('admin.delete_permanently')) ?>"><?= admin_icon('trash', 15) ?></button>
                   </form>
                 <?php else: ?>
                   <form class="admin-inline-form" method="post" action="<?= e(url_to('/admin/posts/' . $p['id'] . '/delete')) ?>"
-                        data-confirm="确定将《<?= e($p['title']) ?>》移入回收站？可在回收站恢复。">
+                        data-confirm="<?= e(t('admin.confirm_trash_post', ['title' => $p['title']])) ?>">
                     <?= csrf_field() ?>
-                    <button type="submit" class="admin-icon-btn admin-danger-btn" title="移入回收站"><?= admin_icon('trash', 15) ?></button>
+                    <button type="submit" class="admin-icon-btn admin-danger-btn" title="<?= e(t('admin.move_to_trash')) ?>"><?= admin_icon('trash', 15) ?></button>
                   </form>
                 <?php endif; ?>
               </div>
@@ -206,31 +206,31 @@ $canReview = ($role ?? '') === 'ADMIN';
   <form method="post" action="<?= e(url_to('/admin/posts/batch')) ?>" class="admin-batch-bar">
     <?= csrf_field() ?>
     <input type="hidden" name="ids" value="">
-    <span class="admin-batch-count">已选 <span class="admin-batch-count-number">0</span> 篇</span>
+    <span class="admin-batch-count"><?= e(t('admin.selected')) ?> <span class="admin-batch-count-number">0</span> <?= e(t('admin.posts_69007d')) ?></span>
     <?php if ($isTrash): ?>
-      <select class="input admin-batch-op" name="op" aria-label="批量操作">
-        <option value="restore">恢复</option>
-        <option value="purge" data-batch-confirm="确定彻底删除选中的 {n} 篇文章？此操作不可恢复！">彻底删除</option>
+      <select class="input admin-batch-op" name="op" aria-label="<?= e(t('admin.batch_actions')) ?>">
+        <option value="restore"><?= e(t('admin.restore')) ?></option>
+        <option value="purge" data-batch-confirm="<?= e(t('admin.confirm_purge_posts')) ?>"><?= e(t('admin.delete_permanently')) ?></option>
       </select>
     <?php else: ?>
-      <select class="input admin-batch-op" name="op" aria-label="批量操作">
-        <option value="publish">立即发布</option>
-        <option value="draft">转草稿</option>
-        <option value="pin">置顶</option>
-        <option value="unpin">取消置顶</option>
-        <option value="move">移动到分类</option>
-        <option value="delete" data-batch-confirm="确定将选中的 {n} 篇文章移入回收站？可在回收站恢复。">移入回收站</option>
+      <select class="input admin-batch-op" name="op" aria-label="<?= e(t('admin.batch_actions')) ?>">
+        <option value="publish"><?= e(t('admin.publish_now')) ?></option>
+        <option value="draft"><?= e(t('admin.move_to_draft')) ?></option>
+        <option value="pin"><?= e(t('admin.pin')) ?></option>
+        <option value="unpin"><?= e(t('admin.unpin')) ?></option>
+        <option value="move"><?= e(t('admin.move_to_category')) ?></option>
+        <option value="delete" data-batch-confirm="<?= e(t('admin.confirm_trash_posts')) ?>"><?= e(t('admin.move_to_trash')) ?></option>
       </select>
       <select class="input admin-batch-move" name="category_id">
-        <option value="">选择分类…</option>
-        <option value="none">未分类</option>
+        <option value=""><?= e(t('admin.choose_category')) ?></option>
+        <option value="none"><?= e(t('admin.uncategorized')) ?></option>
         <?php foreach ($catTree as $c): ?>
           <option value="<?= (int) $c['id'] ?>"><?= str_repeat('　', (int) $c['depth']) . e($c['name']) ?></option>
         <?php endforeach; ?>
       </select>
     <?php endif; ?>
-    <button type="submit" class="btn btn-primary admin-batch-apply">应用</button>
-    <button type="button" class="btn btn-ghost" data-batch-clear>取消选择</button>
+    <button type="submit" class="btn btn-primary admin-batch-apply"><?= e(t('admin.app')) ?></button>
+    <button type="button" class="btn btn-ghost" data-batch-clear><?= e(t('admin.deselect')) ?></button>
   </form>
 
   <?= admin_pagination($page, $totalPages, $total, static function (int $p, int $size = 20) use ($params): string {

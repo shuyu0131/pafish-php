@@ -46,10 +46,10 @@ final class ApiController extends AdminController
             $csrf = $request->getHeaderLine('X-CSRF-Token');
         }
         if (!Session::verifyCsrf($csrf)) {
-            return $this->json($response, ['error' => '会话已过期，请刷新页面重试'], 419);
+            return $this->json($response, ['error' => t('js.session_page_expired_message'), 'code' => 'CSRF_EXPIRED'], 419);
         }
         if (!Auth::canManagePosts() && !RateLimiter::allow('submission-upload', (string) Auth::id(), 30, 3600)) {
-            return $this->json($response, ['error' => '上传操作过于频繁，请稍后再试'], 429);
+            return $this->json($response, ['error' => t('admin.too_many_uploads_please_try_again_later')], 429);
         }
 
         $raw = $request->getUploadedFiles()['file'] ?? null;
@@ -60,10 +60,10 @@ final class ApiController extends AdminController
             static fn ($f) => $f instanceof \Psr\Http\Message\UploadedFileInterface
         ));
         if ($files === []) {
-            return $this->json($response, ['error' => '未选择文件'], 400);
+            return $this->json($response, ['error' => t('admin.no_file_selected')], 400);
         }
         if (!Auth::canManagePosts() && count($files) > 5) {
-            return $this->json($response, ['error' => '一次最多上传 5 个文件'], 400);
+            return $this->json($response, ['error' => t('admin.upload_up_to_5_files_at_a_time')], 400);
         }
 
         $succMap = [];
@@ -87,7 +87,7 @@ final class ApiController extends AdminController
             }
         }
         if ($first === null) {
-            $msg = $errMap !== [] ? '上传失败：' . implode('；', $errMap) : '上传失败';
+            $msg = $errMap !== [] ? t('admin.upload_failed') . implode('；', $errMap) : t('admin.upload_failed_a6f805');
             return $this->json($response, ['error' => $msg], 400);
         }
 
@@ -112,25 +112,25 @@ final class ApiController extends AdminController
         if ($guard !== null) return $guard;
         $body = $request->getParsedBody() ?? [];
         $csrf = (string)($body['_csrf'] ?? $request->getHeaderLine('X-CSRF-Token'));
-        if (!Session::verifyCsrf($csrf)) return $this->json($response, ['error' => '会话已过期，请刷新页面重试'], 419);
+        if (!Session::verifyCsrf($csrf)) return $this->json($response, ['error' => t('js.session_page_expired_message'), 'code' => 'CSRF_EXPIRED'], 419);
         $uploadId = strtolower(trim((string)($body['upload_id'] ?? '')));
         $index = filter_var($body['chunk_index'] ?? null, FILTER_VALIDATE_INT);
         $total = filter_var($body['chunk_total'] ?? null, FILTER_VALIDATE_INT);
         $filename = trim((string)($body['filename'] ?? ''));
         $file = $request->getUploadedFiles()['file'] ?? null;
         if (!preg_match('/^[a-f0-9]{24,64}$/', $uploadId) || $index === false || $total === false || $index < 0 || $total < 1 || $total > 256 || $index >= $total || $filename === '' || !$file instanceof \Psr\Http\Message\UploadedFileInterface) {
-            return $this->json($response, ['error' => '分片参数无效'], 400);
+            return $this->json($response, ['error' => t('admin.invalid_upload_chunk_parameters')], 400);
         }
         $size = (int)($file->getSize() ?? 0);
-        if ($size <= 0 || $size > self::UPLOAD_CHUNK_BYTES) return $this->json($response, ['error' => '分片大小无效'], 400);
+        if ($size <= 0 || $size > self::UPLOAD_CHUNK_BYTES) return $this->json($response, ['error' => t('admin.invalid_upload_chunk_size')], 400);
         $root = dirname(__DIR__, 2) . '/storage/chunks/' . $uploadId;
         $this->cleanupExpiredChunks(dirname($root));
         $userId = (int)(Auth::id() ?? 0);
         [$activeSessions, $activeBytes] = $this->chunkUsage(dirname($root), $userId, $root);
         if (!is_dir($root) && $activeSessions >= self::UPLOAD_CHUNK_USER_SESSIONS) {
-            return $this->json($response, ['error' => '未完成上传数量已达上限，请完成或等待临时文件过期'], 429);
+            return $this->json($response, ['error' => t('admin.too_many_incomplete_uploads_complete_them_or_wait')], 429);
         }
-        if (!is_dir($root) && !@mkdir($root, 0700, true)) return $this->json($response, ['error' => '无法创建上传临时目录'], 500);
+        if (!is_dir($root) && !@mkdir($root, 0700, true)) return $this->json($response, ['error' => t('admin.unable_to_create_the_temporary_upload_directory')], 500);
         $metaPath = $root . '/meta.json';
         $meta = is_file($metaPath) ? json_decode((string)@file_get_contents($metaPath), true) : null;
         if (!is_array($meta)) {
@@ -138,18 +138,18 @@ final class ApiController extends AdminController
             @file_put_contents($metaPath, json_encode($meta, JSON_UNESCAPED_UNICODE), LOCK_EX);
         }
         if ((int)($meta['user'] ?? -1) !== $userId || (int)($meta['total'] ?? 0) !== $total || (string)($meta['filename'] ?? '') !== $filename) {
-            return $this->json($response, ['error' => '上传会话无效'], 403);
+            return $this->json($response, ['error' => t('admin.invalid_upload_session')], 403);
         }
         $partPath = $root . '/' . $index . '.part';
         $previousPartSize = is_file($partPath) ? (int) @filesize($partPath) : 0;
         $currentBytes = array_sum(array_map(static fn (string $part): int => (int) @filesize($part), glob($root . '/*.part') ?: []));
         if ($activeBytes + $currentBytes - $previousPartSize + $size > self::UPLOAD_CHUNK_USER_BYTES) {
-            return $this->json($response, ['error' => '未完成上传占用空间已达上限'], 429);
+            return $this->json($response, ['error' => t('admin.incomplete_uploads_have_reached_the_storage_limit')], 429);
         }
         try {
             $file->moveTo($partPath);
         } catch (\Throwable) {
-            return $this->json($response, ['error' => '保存分片失败'], 500);
+            return $this->json($response, ['error' => t('admin.failed_to_save_upload_chunk')], 500);
         }
         $meta['size'] = array_sum(array_map(static fn(string $p): int => (int)@filesize($p), glob($root . '/*.part') ?: []));
         @file_put_contents($metaPath, json_encode($meta, JSON_UNESCAPED_UNICODE), LOCK_EX);
@@ -157,12 +157,12 @@ final class ApiController extends AdminController
         if (count($parts) < $total) return $this->json($response, ['ok' => true, 'complete' => false, 'uploaded' => $meta['size']]);
         $assembled = $root . '/assembled.bin';
         $out = @fopen($assembled, 'wb');
-        if (!$out) return $this->json($response, ['error' => '无法合并分片'], 500);
+        if (!$out) return $this->json($response, ['error' => t('admin.unable_to_combine_upload_chunks')], 500);
         for ($i = 0; $i < $total; $i++) {
             $part = $root . '/' . $i . '.part';
-            if (!is_file($part)) { fclose($out); return $this->json($response, ['error' => '分片缺失，请重试'], 409); }
+            if (!is_file($part)) { fclose($out); return $this->json($response, ['error' => t('admin.an_upload_chunk_is_missing_please_try_again')], 409); }
             $in = @fopen($part, 'rb');
-            if (!$in) { fclose($out); return $this->json($response, ['error' => '读取分片失败'], 500); }
+            if (!$in) { fclose($out); return $this->json($response, ['error' => t('admin.unable_to_read_upload_chunk')], 500); }
             stream_copy_to_stream($in, $out);
             fclose($in);
         }
@@ -269,11 +269,11 @@ final class ApiController extends AdminController
         }
         $body = $request->getParsedBody() ?? [];
         if (!Session::verifyCsrf((string) ($body['_csrf'] ?? ''))) {
-            return $this->json($response, ['error' => '会话已过期，请刷新页面重试'], 419);
+            return $this->json($response, ['error' => t('js.session_page_expired_message'), 'code' => 'CSRF_EXPIRED'], 419);
         }
         $content = (string) ($body['content'] ?? '');
         if (strlen($content) > 16000000) {
-            return $this->json($response, ['error' => '内容过长'], 413);
+            return $this->json($response, ['error' => t('admin.content_is_too_long')], 413);
         }
         try {
             $format = \Pafish\Services\Content::format($body['content_format'] ?? 'markdown');
@@ -298,7 +298,7 @@ final class ApiController extends AdminController
         }
         $body = $request->getParsedBody() ?? [];
         if (!Session::verifyCsrf((string) ($body['_csrf'] ?? ''))) {
-            return $this->json($response, ['error' => '会话已过期，请刷新页面重试'], 419);
+            return $this->json($response, ['error' => t('js.session_page_expired_message'), 'code' => 'CSRF_EXPIRED'], 419);
         }
         $raw = $request->getUploadedFiles()['files'] ?? [];
         // 单文件时 PSR-7 返回单个对象，多文件（files[] 字段）返回数组；统一为数组
@@ -309,10 +309,10 @@ final class ApiController extends AdminController
             static fn ($f) => $f instanceof \Psr\Http\Message\UploadedFileInterface
         ));
         if ($files === []) {
-            return $this->json($response, ['error' => '未选择 Markdown 文件'], 400);
+            return $this->json($response, ['error' => t('admin.no_markdown_file_selected')], 400);
         }
         if (count($files) > self::IMPORT_MAX_FILES) {
-            return $this->json($response, ['error' => '一次最多导入 50 个文件'], 400);
+            return $this->json($response, ['error' => t('admin.import_up_to_50_files_at_a_time')], 400);
         }
         $status = ($body['status'] ?? '') === 'publish' ? 'PUBLISHED' : 'DRAFT';
 
@@ -323,11 +323,11 @@ final class ApiController extends AdminController
             $name = (string) $file->getClientFilename();
             try {
                 if (strtolower(pathinfo($name, PATHINFO_EXTENSION)) !== 'md') {
-                    throw new \RuntimeException('仅支持 .md 文件');
+                    throw new \RuntimeException(t('admin.only_md_files_are_supported'));
                 }
                 $buffer = (string) $file->getStream()->getContents();
                 if (strlen($buffer) > self::IMPORT_MAX_SIZE) {
-                    throw new \RuntimeException('文件超过 1MB 限制');
+                    throw new \RuntimeException(t('admin.file_exceeds_the_1_mb_limit'));
                 }
                 $this->importOne($name, $buffer, $status);
                 $created++;
@@ -353,7 +353,7 @@ final class ApiController extends AdminController
         $meta = self::parseFrontmatter($buffer);
         $content = $meta['content'];
         if (trim($content) === '') {
-            throw new \RuntimeException('正文为空');
+            throw new \RuntimeException(t('admin.content_is_empty'));
         }
         // 缺 title 用文件名去 .md 后缀（≤255）
         $title = mb_substr(trim($meta['title'] !== '' ? $meta['title'] : preg_replace('/\.md$/i', '', $name)), 0, 255);
@@ -385,7 +385,7 @@ final class ApiController extends AdminController
             'action' => $status === 'PUBLISHED' ? 'publish' : 'draft',
         ], ['id' => null, 'created' => true, 'source' => 'markdown_import']);
         if ($before === false || (is_array($before) && ($before['allowed'] ?? true) === false)) {
-            throw new \RuntimeException(is_array($before) ? (string) ($before['error'] ?? '文章保存被扩展拒绝') : '文章保存被扩展拒绝');
+            throw new \RuntimeException(is_array($before) ? (string) ($before['error'] ?? t('admin.an_extension_rejected_saving_this_post')) : t('admin.an_extension_rejected_saving_this_post'));
         }
         if (is_array($before)) {
             foreach (['title', 'slug', 'excerpt', 'content', 'externalUrl'] as $field) {
@@ -395,11 +395,11 @@ final class ApiController extends AdminController
             }
             if ($content === '' || mb_strlen($content) > 16000000 || $title === '' || mb_strlen($title) > 255
                 || $slug === '' || mb_strlen($slug) > 255 || mb_strlen($excerpt) > 500 || mb_strlen($externalUrl) > 500) {
-                throw new \RuntimeException('文章保存前过滤器返回了无效内容');
+                throw new \RuntimeException(t('admin.a_pre_save_filter_returned_invalid_content'));
             }
             $externalUrl = (string) (\Pafish\Services\Content::linkUrl($externalUrl, false) ?? '');
             if (DB::value('SELECT COUNT(*) FROM posts WHERE slug = ?', [$slug]) > 0) {
-                throw new \RuntimeException('别名已被使用，请更换');
+                throw new \RuntimeException(t('admin.this_slug_is_already_in_use_choose_another'));
             }
         }
 
@@ -430,6 +430,7 @@ final class ApiController extends AdminController
         $stmt->execute([$title, $slug, $excerpt, $content, $externalUrl !== '' ? $externalUrl : null, $status, $publishedAt, $authorId, $now, $now]);
         $postId = (int) $pdo->lastInsertId();
         \Pafish\Services\PermalinkRedirects::forgetPaths(\Pafish\Services\Permalinks::paths('post', [
+            'id' => $postId,
             'slug' => $slug,
             'published_at' => $publishedAt,
             'created_at' => $now,
@@ -480,10 +481,11 @@ final class ApiController extends AdminController
     private function guardJson(Request $request, Response $response, bool $allowSubmissionUser = false, bool $requiresOpenSubmissions = true): ?Response
     {
         if (!Auth::check()) {
-            return $this->json($response, ['error' => '未登录'], 401);
+            return $this->json($response, ['error' => t('js.session_expired_message'), 'code' => 'AUTH_REQUIRED'], 401)
+                ->withHeader('Cache-Control', 'no-store');
         }
         if (!Auth::canManagePosts() && !($allowSubmissionUser && (!$requiresOpenSubmissions || Settings::get('submissions_enabled', 'false') === 'true'))) {
-            return $this->json($response, ['error' => '无权限'], 403);
+            return $this->json($response, ['error' => t('admin.permission_denied')], 403);
         }
         return null;
     }

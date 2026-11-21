@@ -25,7 +25,7 @@ final class ProfileController extends AdminController
         $response->getBody()->write($this->render('profile', [
             'me' => Auth::user(),
             'appTokens' => AppTokens::listForUser((int) Auth::id()),
-        ], '个人资料'));
+        ], t('admin.profile')));
         return $response;
     }
 
@@ -34,33 +34,33 @@ final class ProfileController extends AdminController
     {
         $response = $response->withHeader('Cache-Control', 'no-store');
         if (Auth::isBearerAuthenticated() || $request->hasHeader('Authorization')) {
-            return $this->json($response, ['error' => '请在网页个人资料中创建令牌'], 403);
+            return $this->json($response, ['error' => t('admin.create_a_token_from_your_profile_in_the')], 403);
         }
         Auth::requireLogin();
         $body = $request->getParsedBody();
         $body = is_array($body) ? $body : [];
         $csrf = $body['_csrf'] ?? null;
         if (!is_string($csrf) || !Session::verifyCsrf($csrf)) {
-            return $this->json($response, ['error' => '会话已过期，请刷新页面重试'], 419);
+            return $this->json($response, ['error' => t('admin.your_session_has_expired_refresh_the_page_and')], 419);
         }
         $deviceName = $body['device_name'] ?? null;
         if (!is_string($deviceName) || trim($deviceName) === '' || mb_strlen($deviceName) > 100
             || preg_match('/[\x00-\x1f\x7f]/u', $deviceName) !== 0) {
-            return $this->json($response, ['error' => '请输入 1-100 字的设备名称，不含控制字符'], 400);
+            return $this->json($response, ['error' => t('admin.enter_a_device_name_with_1_100_characters')], 400);
         }
         $userId = (int) Auth::id();
         if (!\Pafish\Core\RateLimiter::allow('profile-app-token', (string) $userId, 10, 600)) {
-            return $this->json($response, ['error' => '创建令牌过于频繁，请稍后重试'], 429);
+            return $this->json($response, ['error' => t('admin.too_many_token_requests_please_try_again_later')], 429);
         }
         $password = $body['current_password'] ?? null;
         if (!is_string($password) || !password_verify($password, (string) (Auth::user()['password_hash'] ?? ''))) {
-            return $this->json($response, ['error' => '当前密码不正确'], 400);
+            return $this->json($response, ['error' => t('admin.the_current_password_is_incorrect')], 400);
         }
         try {
             $issued = AppTokens::issue($userId, trim($deviceName));
         } catch (\PDOException $e) {
             error_log('Profile app token creation failed: ' . $e->getMessage());
-            return $this->json($response, ['error' => '创建失败，请稍后重试'], 500);
+            return $this->json($response, ['error' => t('admin.unable_to_create_please_try_again_later')], 500);
         } catch (\RuntimeException $e) {
             return $this->json($response, ['error' => $e->getMessage()], 400);
         }
@@ -78,11 +78,11 @@ final class ProfileController extends AdminController
         Auth::requireLogin();
         $body = $request->getParsedBody() ?? [];
         if (!Session::verifyCsrf((string) ($body['_csrf'] ?? ''))) {
-            return $this->json($response, ['error' => '会话已过期，请刷新页面重试'], 419);
+            return $this->json($response, ['error' => t('admin.your_session_has_expired_refresh_the_page_and')], 419);
         }
         $tokenId = (int) ($args['id'] ?? 0);
         if ($tokenId < 1 || !AppTokens::revoke((int) Auth::id(), $tokenId)) {
-            return $this->json($response, ['error' => '设备授权不存在或已撤销'], 404);
+            return $this->json($response, ['error' => t('admin.device_authorization_does_not_exist_or_has_been')], 404);
         }
         return $this->json($response, ['ok' => true]);
     }
@@ -94,11 +94,11 @@ final class ProfileController extends AdminController
         $body = $request->getParsedBody();
         $csrf = is_array($body) ? ($body['_csrf'] ?? null) : null;
         if (!is_string($csrf) || !Session::verifyCsrf($csrf)) {
-            return $this->json($response, ['error' => '会话已过期，请刷新页面重试'], 419);
+            return $this->json($response, ['error' => t('admin.your_session_has_expired_refresh_the_page_and')], 419);
         }
         $tokenId = (int) ($args['id'] ?? 0);
         if ($tokenId < 1 || !AppTokens::deleteRevoked((int) Auth::id(), $tokenId)) {
-            return $this->json($response, ['error' => '令牌记录不存在或尚未撤销'], 404);
+            return $this->json($response, ['error' => t('admin.the_token_record_does_not_exist_or_has')], 404);
         }
         return $this->json($response, ['ok' => true]);
     }
@@ -110,7 +110,7 @@ final class ProfileController extends AdminController
         $me = Auth::user();
         $body = $request->getParsedBody() ?? [];
         if (!Session::verifyCsrf((string) ($body['_csrf'] ?? ''))) {
-            return $this->json($response, ['error' => '会话已过期，请刷新页面重试'], 419);
+            return $this->json($response, ['error' => t('admin.your_session_has_expired_refresh_the_page_and')], 419);
         }
         $nickname = mb_substr(trim((string) ($body['nickname'] ?? '')), 0, 50);
         $username = mb_substr(trim((string) ($body['username'] ?? '')), 0, 50);
@@ -118,7 +118,7 @@ final class ProfileController extends AdminController
         if ($username !== (string) $me['username'] || strtolower($email) !== strtolower((string) $me['email'])) {
             $currentPassword = $body['current_password'] ?? null;
             if (!is_string($currentPassword) || !password_verify($currentPassword, (string) $me['password_hash'])) {
-                return $this->json($response, ['error' => '修改用户名或邮箱前，请验证当前密码'], 400);
+                return $this->json($response, ['error' => t('admin.verify_your_current_password_before_changing_your_username')], 400);
             }
         }
         try {
@@ -128,18 +128,18 @@ final class ProfileController extends AdminController
         }
 
         if (!preg_match('/^[\w\x{4e00}-\x{9fa5}-]{2,50}$/u', $username)) {
-            return $this->json($response, ['error' => '用户名需 2-50 位，仅限中文、字母、数字、下划线和连字符'], 400);
+            return $this->json($response, ['error' => t('admin.username_must_contain_2_50_chinese_characters_letters')], 400);
         }
         if (!preg_match('/^[^@\s]+@[^@\s]+\.[^@\s]+$/', $email)) {
-            return $this->json($response, ['error' => '邮箱格式不正确'], 400);
+            return $this->json($response, ['error' => t('admin.invalid_email_format')], 400);
         }
         $dup = DB::fetchOne('SELECT id FROM users WHERE username = ? AND id <> ?', [$username, (int) $me['id']]);
         if ($dup) {
-            return $this->json($response, ['error' => '用户名已被占用'], 409);
+            return $this->json($response, ['error' => t('admin.username_is_already_taken')], 409);
         }
         $dup = DB::fetchOne('SELECT id FROM users WHERE email = ? AND id <> ?', [strtolower($email), (int) $me['id']]);
         if ($dup) {
-            return $this->json($response, ['error' => '邮箱已被注册'], 409);
+            return $this->json($response, ['error' => t('admin.this_email_address_is_already_registered')], 409);
         }
 
         \Pafish\Services\MediaReferences::transaction(static function () use ($nickname, $username, $email, $avatarUrl, $me): void {
@@ -159,26 +159,26 @@ final class ProfileController extends AdminController
         Auth::requireLogin();
         $body = $request->getParsedBody() ?? [];
         if (!Session::verifyCsrf((string) ($body['_csrf'] ?? ''))) {
-            return $this->json($response, ['error' => '会话已过期，请刷新页面重试'], 419);
+            return $this->json($response, ['error' => t('admin.your_session_has_expired_refresh_the_page_and')], 419);
         }
         if (!\Pafish\Core\RateLimiter::allow('profile-avatar', (string) Auth::id(), 20, 3600)) {
-            return $this->json($response, ['error' => '头像上传过于频繁，请稍后重试'], 429);
+            return $this->json($response, ['error' => t('admin.too_many_avatar_uploads_please_try_again_later')], 429);
         }
         $file = $request->getUploadedFiles()['file'] ?? null;
         if (!$file instanceof \Psr\Http\Message\UploadedFileInterface || $file->getError() !== UPLOAD_ERR_OK) {
-            return $this->json($response, ['error' => '请选择头像图片'], 400);
+            return $this->json($response, ['error' => t('admin.choose_an_avatar_image')], 400);
         }
         $stream = $file->getStream();
         if ($stream->isSeekable()) $stream->rewind();
         $data = $stream->read(2097153);
         if ($data === '' || strlen($data) > 2097152) {
-            return $this->json($response, ['error' => '头像图片不能超过 2MB'], 400);
+            return $this->json($response, ['error' => t('admin.avatar_images_cannot_exceed_2_mb')], 400);
         }
         $image = @getimagesizefromstring($data);
         $extensions = ['image/png' => 'png', 'image/jpeg' => 'jpg', 'image/gif' => 'gif', 'image/webp' => 'webp'];
         $ext = $extensions[$image['mime'] ?? ''] ?? null;
         if ($ext === null || $image[0] > 4096 || $image[1] > 4096) {
-            return $this->json($response, ['error' => '请选择 PNG、JPG、GIF 或 WebP 图片，边长不超过 4096 像素'], 400);
+            return $this->json($response, ['error' => t('admin.choose_a_png_jpg_gif_or_webp_image')], 400);
         }
         try {
             $uploaded = \Pafish\Services\Upload::handleStream($data, 'avatar.' . $ext);
@@ -195,18 +195,18 @@ final class ProfileController extends AdminController
         $me = Auth::user();
         $body = $request->getParsedBody() ?? [];
         if (!Session::verifyCsrf((string) ($body['_csrf'] ?? ''))) {
-            return $this->json($response, ['error' => '会话已过期，请刷新页面重试'], 419);
+            return $this->json($response, ['error' => t('admin.your_session_has_expired_refresh_the_page_and')], 419);
         }
         $current = (string) ($body['current_password'] ?? '');
         $new = (string) ($body['new_password'] ?? '');
         if ($current === '') {
-            return $this->json($response, ['error' => '请输入当前密码'], 400);
+            return $this->json($response, ['error' => t('admin.enter_your_current_password')], 400);
         }
         if (!password_verify($current, (string) ($me['password_hash'] ?? ''))) {
-            return $this->json($response, ['error' => '当前密码不正确'], 400);
+            return $this->json($response, ['error' => t('admin.the_current_password_is_incorrect')], 400);
         }
         if (!Auth::validPassword($new)) {
-            return $this->json($response, ['error' => Auth::PASSWORD_RULE], 400);
+            return $this->json($response, ['error' => t('admin.password_rule')], 400);
         }
         $changed = DB::transaction(static function () use ($new, $me): int {
             $changed = DB::execute(
@@ -217,7 +217,7 @@ final class ProfileController extends AdminController
             if ($changed === 1) \Pafish\Services\AppTokens::revokeAll((int) $me['id']);
             return $changed;
         });
-        if ($changed !== 1) return $this->json($response, ['error' => '账号状态已变化，请重新登录后再试'], 409);
+        if ($changed !== 1) return $this->json($response, ['error' => t('admin.your_account_status_has_changed_sign_in_again')], 409);
         return $this->json($response, ['ok' => true]);
     }
 }

@@ -31,7 +31,7 @@
       });
       if (slugAuto) slugAuto.value = row ? "0" : "1";
       title.textContent = row ? config.editTitle : config.createTitle;
-      submit.textContent = row ? "保存修改" : config.createTitle;
+      submit.textContent = row ? window.pafishT("js.save_changes") : config.createTitle;
       form.dispatchEvent(new CustomEvent("pafish:entity-open", { detail: { row: row, creating: !row } }));
       modal.hidden = false;
     }
@@ -71,9 +71,9 @@
         .then(function (response) { return response.json(); })
         .then(function (result) {
           if (result && result.ok) window.pafishToastReload(config.savedMessage, "success");
-          else { error.textContent = (result && result.error) || "保存失败，请重试"; error.hidden = false; }
+          else { error.textContent = (result && result.error) || window.pafishT("js.unable_to_save_please_try_again"); error.hidden = false; }
         })
-        .catch(function () { error.textContent = "网络错误，请重试"; error.hidden = false; })
+        .catch(function () { error.textContent = window.pafishT("common.network_error_retry"); error.hidden = false; })
         .finally(function () {
           saving = false;
           submit.disabled = false;

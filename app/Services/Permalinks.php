@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pafish\Services;
 
 use Pafish\Core\Url;
+use Pafish\Core\I18n;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -12,7 +13,8 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 final class Permalinks
 {
     public const DEFAULT_POST = '/post/%postname%';
-    private const POST_TEMPLATES = ['/post/%postname%', '/%postname%', '/%year%/%month%/%postname%'];
+    public const POST_ID = '/post/id/%id%';
+    private const POST_TEMPLATES = ['/post/%postname%', '/%postname%', '/%year%/%month%/%postname%', self::POST_ID];
     private const CONTENT_TEMPLATES = [
         'page' => ['setting' => 'page_permalink_structure', 'default' => '/pages/%pagename%', 'templates' => ['/pages/%pagename%', '/page/%pagename%']],
         'category' => ['setting' => 'category_permalink_structure', 'default' => '/category/%category%', 'templates' => ['/category/%category%', '/category/%category_path%', '/categories/%category%']],
@@ -32,13 +34,23 @@ final class Permalinks
 
     public static function postPath(array $post, ?string $template = null): string
     {
+        $template = self::postTemplate($template);
+        if ($template === self::POST_ID) {
+            $id = (int) ($post['id'] ?? 0);
+            // 兼容只传别名的旧主题/插件；核心列表查询直接提供 id。
+            if ($id <= 0 && (string) ($post['slug'] ?? '') !== '') {
+                $id = (int) (\Pafish\Core\DB::value('SELECT id FROM posts WHERE slug = ? AND deleted_at IS NULL LIMIT 1', [$post['slug']]) ?? 0);
+            }
+            if ($id > 0) return '/post/id/' . $id;
+            $template = self::DEFAULT_POST;
+        }
         $date = strtotime((string) ($post['published_at'] ?? $post['created_at'] ?? ''));
 
         if ($date === false) $date = 0;
         return str_replace(
             ['%postname%', '%year%', '%month%'],
             [rawurlencode((string) ($post['slug'] ?? '')), date('Y', $date), date('m', $date)],
-            self::postTemplate($template)
+            $template
         );
     }
 
@@ -54,25 +66,26 @@ final class Permalinks
     {
         if ($type === 'post') {
             return [
-                '/post/%postname%' => '/post/文章别名（兼容默认）',
-                '/%postname%' => '/文章别名',
-                '/%year%/%month%/%postname%' => '/年份/月/文章别名',
+                '/post/%postname%' => I18n::translate('admin.permalink_post_default'),
+                '/%postname%' => I18n::translate('admin.permalink_post_flat'),
+                '/%year%/%month%/%postname%' => I18n::translate('admin.permalink_post_date'),
+                self::POST_ID => I18n::translate('admin.permalink_post_id'),
             ];
         }
         $config = self::CONTENT_TEMPLATES[$type] ?? null;
         if ($config === null) return [];
         if ($type === 'category') {
             return [
-                '/category/%category%' => '/category/分类别名（单级）',
-                '/category/%category_path%' => '/category/父级/子级（层级路径）',
-                '/categories/%category%' => '/categories/分类别名（单级）',
+                '/category/%category%' => I18n::translate('admin.permalink_category'),
+                '/category/%category_path%' => I18n::translate('admin.permalink_category_path'),
+                '/categories/%category%' => I18n::translate('admin.permalink_categories'),
             ];
         }
-        $prefix = ['page' => '页面', 'category' => '分类', 'tag' => '标签'][$type];
         return array_combine($config['templates'], array_map(
             static fn (string $template): string => str_replace(
                 ['%pagename%', '%category%', '%category_path%', '%tag%'],
-                [$prefix . '别名', $prefix . '别名', $prefix . '别名', $prefix . '路径'],
+                [I18n::translate('admin.' . $type . '_slug_example'), I18n::translate('admin.' . $type . '_slug_example'),
+                    I18n::translate('admin.' . $type . '_path_example'), I18n::translate('admin.' . $type . '_slug_example')],
                 $template
             ),
             $config['templates']
@@ -210,6 +223,10 @@ final class Permalinks
     public static function postFromPath(string $path): ?array
     {
         $path = '/' . trim(rawurldecode($path), '/');
+        if (preg_match('#^/post/id/([1-9][0-9]*)$#D', $path, $m)) {
+            $id = filter_var($m[1], FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+            return $id === false ? null : ['id' => $id, 'legacy' => false];
+        }
         // Root-level post URLs remain routable after switching back to a prefixed
         // template so the controller can issue the canonical redirect.
         if (preg_match('#^/([^/]+)$#u', $path, $m)) {

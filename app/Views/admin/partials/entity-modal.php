@@ -8,7 +8,7 @@ unset($entityConfig['savePath'], $entityConfig['basePath']);
   <div class="admin-modal admin-entity-modal" role="dialog" aria-modal="true" aria-labelledby="<?= e($entityModalId) ?>Title">
     <div class="admin-modal-head">
       <h2 class="admin-modal-title" id="<?= e($entityModalId) ?>Title"><?= e($entityConfig['createTitle']) ?></h2>
-      <button type="button" class="admin-icon-btn" data-modal-close aria-label="关闭窗口"><?= admin_icon('x', 16) ?></button>
+      <button type="button" class="admin-icon-btn" data-modal-close aria-label="<?= e(t('admin.close_dialog')) ?>"><?= admin_icon('x', 16) ?></button>
     </div>
     <form id="<?= e($entityFormId) ?>" method="post" action="<?= e($entityConfig['saveUrl']) ?>" novalidate>
       <?= csrf_field() ?>
@@ -19,7 +19,7 @@ unset($entityConfig['savePath'], $entityConfig['basePath']);
         <div class="admin-editor-error" role="alert" hidden></div>
       </div>
       <div class="admin-modal-actions">
-        <button type="button" class="btn btn-ghost" data-modal-close>取消</button>
+        <button type="button" class="btn btn-ghost" data-modal-close><?= e(t('common.cancel')) ?></button>
         <button type="submit" class="btn btn-primary"><?= e($entityConfig['createTitle']) ?></button>
       </div>
     </form>

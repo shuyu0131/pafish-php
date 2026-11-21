@@ -28,7 +28,7 @@ final class SitemapController
         }
 
         $posts = DB::fetchAll(
-            "SELECT p.slug, p.published_at, p.created_at, p.updated_at FROM posts p
+            "SELECT p.id, p.slug, p.published_at, p.created_at, p.updated_at FROM posts p
              WHERE " . Posts::publicWhere('p', false) . "
                AND (p.password IS NULL OR p.password = '')
              ORDER BY p.published_at DESC LIMIT 49998"

@@ -73,9 +73,10 @@ final class Orders
             if ($nextStatus !== $currentStatus) {
                 $allowedTransitions = [
                     'pending' => ['paid', 'failed', 'cancelled'],
+                    // 渠道延迟回调可能晚于本地关闭/过期；真实入账必须允许补记。
+                    'cancelled' => ['paid'],
                     'paid' => ['refunded'],
                     'failed' => [],
-                    'cancelled' => [],
                     'refunded' => [],
                 ];
                 if (!in_array($nextStatus, $allowedTransitions[$currentStatus] ?? [], true)) {

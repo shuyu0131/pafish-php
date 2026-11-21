@@ -19,11 +19,11 @@ $template = $isEdit ? (string) $page['template'] : 'default';
 
     <header class="admin-editor-header">
       <div class="admin-editor-heading">
-        <h1 class="admin-h1"><?= $isEdit ? '编辑页面' : '新建页面' ?></h1>
+        <h1 class="admin-h1"><?= $isEdit ? t('admin.edit_page') : t('admin.new_page') ?></h1>
       </div>
       <div class="admin-editor-header-actions">
-        <button type="submit" class="btn btn-outline" data-save="draft">存为草稿</button>
-        <button type="submit" class="btn btn-primary admin-publish-primary" data-save="publish"><?= $status === 'PUBLISHED' ? '保存修改' : '发布' ?></button>
+        <button type="submit" class="btn btn-outline" data-save="draft"><?= e(t('admin.save_draft')) ?></button>
+        <button type="submit" class="btn btn-primary admin-publish-primary" data-save="publish"><?= $status === 'PUBLISHED' ? t('admin.save_changes') : t('admin.publish') ?></button>
       </div>
     </header>
     <div class="admin-editor-error" role="alert" hidden></div>
@@ -31,8 +31,8 @@ $template = $isEdit ? (string) $page['template'] : 'default';
       <div class="admin-editor-main">
         <div class="admin-editor-writing">
         <div class="admin-editor-title-wrap">
-          <input class="admin-editor-title" type="text" id="fTitle" name="title" aria-label="页面标题"
-                 value="<?= e($title) ?>" placeholder="页面标题" maxlength="100">
+          <input class="admin-editor-title" type="text" id="fTitle" name="title" aria-label="<?= e(t('admin.page_title')) ?>"
+                 value="<?= e($title) ?>" placeholder="<?= e(t('admin.page_title')) ?>" maxlength="100">
         </div>
 
         <?php $editorType = 'page'; require __DIR__ . '/partials/editor-controls.php'; ?>
@@ -50,47 +50,47 @@ $template = $isEdit ? (string) $page['template'] : 'default';
       <div class="admin-editor-side">
         <div class="card admin-form-card admin-settings-card">
           <div class="admin-editor-card-heading">
-            <strong>发布设置</strong>
+            <strong><?= e(t('admin.publishing_settings')) ?></strong>
           </div>
           <div class="admin-field">
-            <label class="label" for="fStatus">状态</label>
+            <label class="label" for="fStatus"><?= e(t('common.status')) ?></label>
             <select id="fStatus" name="status" class="input">
-              <option value="DRAFT" <?= $status === 'DRAFT' ? 'selected' : '' ?>>草稿</option>
-              <option value="PUBLISHED" <?= $status === 'PUBLISHED' ? 'selected' : '' ?>>发布</option>
+              <option value="DRAFT" <?= $status === 'DRAFT' ? 'selected' : '' ?>><?= e(t('admin.draft')) ?></option>
+              <option value="PUBLISHED" <?= $status === 'PUBLISHED' ? 'selected' : '' ?>><?= e(t('admin.publish')) ?></option>
             </select>
           </div>
           <div class="admin-field">
-            <label class="label" for="fSlug">页面地址</label>
+            <label class="label" for="fSlug"><?= e(t('admin.page_url')) ?></label>
             <input class="input" id="fSlug" name="slug" value="<?= e($slug) ?>"
-                   placeholder="留空自动生成英文或拼音，可自定义" maxlength="100">
-            <span class="admin-field-hint">新建时默认生成小写英文或拼音地址；需要时可直接自定义。</span>
+                   placeholder="<?= e(t('admin.leave_blank_to_generate_an_english_or_pinyin')) ?>" maxlength="100">
+            <span class="admin-field-hint"><?= e(t('admin.new_slugs_default_to_lowercase_english_or_pinyin')) ?></span>
           </div>
           <input type="hidden" name="allow_comments" value="0">
           <label class="admin-check">
             <input type="checkbox" id="fAllowComments" name="allow_comments" value="1" <?= ($page['allow_comments'] ?? 1) ? 'checked' : '' ?>>
-            <span>允许评论</span>
+            <span><?= e(t('admin.allow_comments')) ?></span>
           </label>
           <?php $templateUnavailable = !array_key_exists($template, $templateOptions); ?>
           <?php if (count($templateOptions) > 1 || $templateUnavailable): ?>
             <div class="admin-field">
-              <label class="label" for="pageTemplate">模板</label>
+              <label class="label" for="pageTemplate"><?= e(t('admin.template')) ?></label>
               <select id="pageTemplate" name="template" class="input">
                 <?php if ($templateUnavailable): ?>
-                  <option value="<?= e($template) ?>" selected><?= e($template) ?>（暂不可用）</option>
+                  <option value="<?= e($template) ?>" selected><?= e($template) ?><?= e(t('admin.unavailable')) ?></option>
                 <?php endif; ?>
                 <?php foreach ($templateOptions as $key => $label): ?>
                   <option value="<?= e($key) ?>" <?= $template === $key ? 'selected' : '' ?>><?= e($label) ?></option>
                 <?php endforeach; ?>
               </select>
               <?php if ($templateUnavailable): ?>
-                <span class="admin-field-hint">原模板暂不可用，前台使用默认布局；保留此选项可在恢复主题或插件后继续使用。</span>
+                <span class="admin-field-hint"><?= e(t('admin.the_original_template_is_unavailable_the_default_layout')) ?></span>
               <?php endif; ?>
             </div>
           <?php else: ?>
             <input type="hidden" name="template" value="default">
           <?php endif; ?>
           <?php if ($isEdit && $page['published_at']): ?>
-            <p class="admin-field-hint">发布于 <?= e(format_date($page['published_at'], 'yyyy-MM-dd HH:mm')) ?></p>
+            <p class="admin-field-hint"><?= e(t('admin.published_0f0d2b')) ?> <?= e(format_date($page['published_at'], 'yyyy-MM-dd HH:mm')) ?></p>
           <?php endif; ?>
           <?= \Pafish\Services\Plugin::renderInjection('page_editor', [
               'page' => $page,

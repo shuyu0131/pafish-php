@@ -46,13 +46,14 @@ return static function (array $fields): array {
     $panes = [];
     foreach ($order as $parent) {
         $children = $bucket[$parent];
+        $parentLabel = $parent === '常规' ? t('admin.general') : $parent;
         $hasSub = count(array_filter(array_keys($children), static fn ($k) => $k !== '')) > 0;
 
         if (!$hasSub) {
             // 没有子分组：一级自身就是叶子
             $own = $children[''] ?? [];
-            $tabs[] = ['name' => $parent, 'label' => $parent, 'icon' => $iconOf($own), 'children' => []];
-            $panes[] = ['name' => $parent, 'label' => $parent, 'icon' => $iconOf($own), 'fields' => $own];
+            $tabs[] = ['name' => $parent, 'label' => $parentLabel, 'icon' => $iconOf($own), 'children' => []];
+            $panes[] = ['name' => $parent, 'label' => $parentLabel, 'icon' => $iconOf($own), 'fields' => $own];
             continue;
         }
 
@@ -60,8 +61,8 @@ return static function (array $fields): array {
         // 直属字段归入「常规」子项（放在最前，保持"先写的先显示"）
         if (isset($children['']) && $children[''] !== []) {
             $name = $parent . '/常规';
-            $kids[] = ['name' => $name, 'label' => '常规', 'icon' => $iconOf($children['']), 'fields' => $children['']];
-            $panes[] = ['name' => $name, 'label' => '常规', 'icon' => $iconOf($children['']), 'fields' => $children['']];
+            $kids[] = ['name' => $name, 'label' => t('admin.general'), 'icon' => $iconOf($children['']), 'fields' => $children['']];
+            $panes[] = ['name' => $name, 'label' => t('admin.general'), 'icon' => $iconOf($children['']), 'fields' => $children['']];
         }
         foreach ($children as $ck => $groupFields) {
             if ($ck === '') {
@@ -76,7 +77,7 @@ return static function (array $fields): array {
         foreach ($kids as $kid) {
             if (($kid['icon'] ?? '') !== '') { $parentIcon = (string) $kid['icon']; break; }
         }
-        $tabs[] = ['name' => $parent, 'label' => $parent, 'icon' => $parentIcon, 'children' => $kids];
+        $tabs[] = ['name' => $parent, 'label' => $parentLabel, 'icon' => $parentIcon, 'children' => $kids];
     }
 
     // 导航栏只在"分组确实不止一个去处"时才有意义

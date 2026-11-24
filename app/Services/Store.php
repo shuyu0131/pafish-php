@@ -318,6 +318,7 @@ final class Store
     /** 从商店安装（已安装 → 拒绝，提示直接更新） */
     public static function installFromStore(string $kind, string $name, string $base, array $item): array
     {
+        self::assertValidKind($kind);
         self::assertValidName($name);
         self::assertCompatible($item);
         if (self::getInstalledVersion($kind, $name) !== null) {
@@ -325,6 +326,7 @@ final class Store
         }
         $buffer = self::downloadZip($base, $item);
         self::validateZip($buffer);
+        self::assertPackageIdentity($buffer, $kind, $name, (string) ($item['version'] ?? ''));
         if ($kind === 'theme') {
             return Theme::installFromBuffer($buffer);
         }
@@ -332,11 +334,11 @@ final class Store
     }
 
     /**
-     * 从商店更新：备份旧版本 → 移除 → 安装新版；失败自动恢复旧版本
-     * updateFromStore 的 .bak 回滚语义，但不依赖 rename——SPL 复制/删除）
+     * 从商店更新：先校验包身份；主题使用安装器原子替换，插件保留备份/恢复流程。
      */
     public static function updateFromStore(string $kind, string $name, string $base, array $item): array
     {
+        self::assertValidKind($kind);
         self::assertValidName($name);
         self::assertCompatible($item);
         $installedVersion = self::getInstalledVersion($kind, $name);
@@ -349,6 +351,11 @@ final class Store
         }
         $buffer = self::downloadZip($base, $item);
         self::validateZip($buffer);
+        self::assertPackageIdentity($buffer, $kind, $name, $targetVersion);
+        if ($kind === 'theme') {
+            // 主题安装器先验证完整包，再原子替换目录；验证失败时旧主题始终可用。
+            return Theme::installFromBuffer($buffer);
+        }
         $root = $kind === 'theme' ? Theme::root() : Plugin::root();
         $target = $root . '/' . $name;
         $bak = $root . '/.bak-store-' . bin2hex(random_bytes(4));
@@ -376,6 +383,36 @@ final class Store
     {
         if (preg_match(self::NAME_PATTERN, $name) !== 1) {
             throw new \RuntimeException('商店条目名称不合法');
+        }
+    }
+
+    private static function assertValidKind(string $kind): void
+    {
+        if (!isset(self::KIND_FILE[$kind])) throw new \RuntimeException('商店应用类型不合法');
+    }
+
+    /** 下载包必须与所选目录条目的身份和版本一致，不能替换另一个应用。 */
+    private static function assertPackageIdentity(string $buffer, string $kind, string $name, string $version): void
+    {
+        $tmp = tempnam(sys_get_temp_dir(), 'pfstore-id-');
+        if ($tmp === false) throw new \RuntimeException('无法校验商店包身份');
+        $zip = new \ZipArchive();
+        $opened = false;
+        try {
+            if (file_put_contents($tmp, $buffer) !== strlen($buffer) || $zip->open($tmp) !== true) {
+                throw new \RuntimeException('无法读取商店安装包');
+            }
+            $opened = true;
+            $raw = $zip->getFromName($name . '/' . $kind . '.json');
+            $manifest = is_string($raw) ? json_decode($raw, true) : null;
+            if (!is_array($manifest) || ($manifest['name'] ?? null) !== $name
+                || !is_string($manifest['version'] ?? null) || $version === ''
+                || self::compareVersions($manifest['version'], $version) !== 0) {
+                throw new \RuntimeException('商店安装包的名称或版本与目录条目不一致');
+            }
+        } finally {
+            if ($opened) $zip->close();
+            @unlink($tmp);
         }
     }
 

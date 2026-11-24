@@ -264,7 +264,7 @@ final class Upgrade
             fclose($lock);
         }
         // 7. 成功：重命名备份（保留 7 天）、清静态缓存
-        $keepName = 'before-v' . $info['latest'] . '-' . date('Ymd-His');
+        $keepName = 'before-v' . $info['latest'] . '-' . date('Ymd-His') . '-' . bin2hex(random_bytes(3));
         $keepPath = $root . '/backups/' . $keepName;
         if (!rename($bak, $keepPath)) {
             // 重命名失败不阻断升级成功，记录但继续
@@ -694,6 +694,13 @@ final class Upgrade
                 $normalized = str_replace('\\', '/', $entry);
                 $relative = (string) substr(rtrim($normalized, '/'), strlen('pafish/'));
                 if ($relative === '') {
+                    continue;
+                }
+                // 默认主题由应用商店独立更新，核心升级保留已安装目录。
+                // demo 仅作可选开发示例；兼容旧包时也不覆盖或重新安装。
+                if ((is_dir($root . '/themes/default') && ($relative === 'themes/default' || str_starts_with($relative, 'themes/default/')))
+                    || $relative === 'plugins/demo' || str_starts_with($relative, 'plugins/demo/')) {
+                    $unchanged[$relative] = true;
                     continue;
                 }
                 $target = $root . '/' . $relative;

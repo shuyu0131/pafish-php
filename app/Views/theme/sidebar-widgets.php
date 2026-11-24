@@ -79,16 +79,20 @@ foreach ($widgets as $widget):
             break;
 
         case 'recent_comments':
+            // 只取公开文章（已发布、未删除、已到发布时间，同 Posts::publicWhere）且未加密文章下的评论；
+            // 需要 c.id 才能生成 #comment-{id} 锚点
+            $publicPost = \Pafish\Services\Posts::publicWhere('p');
             $comments = DB::fetchAll(
-                "SELECT c.author_name, c.content, p.slug AS post_slug, p.title AS post_title, p.published_at, p.created_at
+                "SELECT c.id, c.author_name, c.content, p.id AS post_id, p.slug AS post_slug, p.title AS post_title, p.published_at, p.created_at
                  FROM comments c JOIN posts p ON p.id = c.post_id
-                 WHERE c.status = 'APPROVED'
+                 WHERE c.status = 'APPROVED' AND {$publicPost}
+                   AND (p.password IS NULL OR p.password = '')
                  ORDER BY c.created_at DESC LIMIT 5"
             );
             echo '<ul class="widget-list widget-comments">';
             foreach ($comments as $c):
                 echo '<li><span class="widget-comment-author">' . e($c['author_name']) . '</span>：'
-                    . '<a href="' . e(content_url('post', ['slug' => $c['post_slug'], 'published_at' => $c['published_at'], 'created_at' => $c['created_at']]) . '#comment-' . (int) $c['id']) . '">'
+                    . '<a href="' . e(content_url('post', ['id' => $c['post_id'], 'slug' => $c['post_slug'], 'published_at' => $c['published_at'], 'created_at' => $c['created_at']]) . '#comment-' . (int) $c['id']) . '">'
                     . e(mb_strimwidth(strip_tags($c['content']), 0, 40, '…')) . '</a></li>';
             endforeach;
             echo '</ul>';

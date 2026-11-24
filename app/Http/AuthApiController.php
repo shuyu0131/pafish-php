@@ -355,8 +355,8 @@ final class AuthApiController
 
         $tokenHash = hash('sha256', $token);
         $user = DB::fetchOne(
-            'SELECT id, disabled FROM users WHERE reset_token IN (?, ?) AND reset_token_expires > NOW()',
-            [$tokenHash, $token]
+            'SELECT id, disabled FROM users WHERE reset_token = ? AND reset_token_expires > NOW()',
+            [$tokenHash]
         );
         if (!$user) {
             return $this->json($response, ['error' => '重置链接无效或已过期'], 400);
@@ -366,11 +366,11 @@ final class AuthApiController
         }
 
         // 条件更新同时消费令牌；两个请求即使都完成了上面的读取，也只允许一个成功。
-        $changed = DB::transaction(static function () use ($password, $user, $token, $tokenHash): int {
+        $changed = DB::transaction(static function () use ($password, $user, $tokenHash): int {
             $changed = DB::execute(
                 'UPDATE users SET password_hash = ?, reset_token = NULL, reset_token_expires = NULL
-                 WHERE id = ? AND reset_token IN (?, ?) AND reset_token_expires > NOW() AND disabled = 0',
-                [password_hash($password, PASSWORD_BCRYPT, ['cost' => 10]), (int) $user['id'], $tokenHash, $token]
+                 WHERE id = ? AND reset_token = ? AND reset_token_expires > NOW() AND disabled = 0',
+                [password_hash($password, PASSWORD_BCRYPT, ['cost' => 10]), (int) $user['id'], $tokenHash]
             );
             if ($changed === 1) \Pafish\Services\AppTokens::revokeAll((int) $user['id']);
             return $changed;

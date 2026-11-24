@@ -77,12 +77,13 @@ final class ModelGateway
      */
     public static function complete(array $model, array $messages, array $options = []): array
     {
-        return self::withQuota($options, static function (string $reservation) use ($model, $messages, $options): array {
+        return self::withQuota($options, static function (string $reservation, int $maxTokens) use ($model, $messages, $options): array {
+            $options['maxTokens'] = $maxTokens;
             if (!isset($options['tools']) || $options['tools'] === []) {
                 return self::doComplete($model, $messages, $options, $reservation);
             }
             return self::completeWithTools($model, $messages, $options, $reservation);
-        });
+        }, $messages);
     }
 
     /** A small, metered chat request that also recognizes truncated reasoning responses. */
@@ -90,8 +91,10 @@ final class ModelGateway
     {
         if (($model['type'] ?? '') !== 'chat') throw new ConfigurationException('检查仅支持聊天类型模型。');
         $options = ['callerPlugin' => 'ai_foundation_health', 'maxTokens' => 64];
-        return self::withQuota($options, static function (string $reservation) use ($model, $options): array {
-            [$baseUrl, , $apiKey, , $payload] = self::prepareRequest($model, [['role' => 'user', 'content' => 'Reply with only: OK']], $options, false);
+        $messages = [['role' => 'user', 'content' => 'Reply with only: OK']];
+        return self::withQuota($options, static function (string $reservation, int $maxTokens) use ($model, $options, $messages): array {
+            $options['maxTokens'] = $maxTokens;
+            [$baseUrl, , $apiKey, , $payload] = self::prepareRequest($model, $messages, $options, false);
             $response = self::doRequest($baseUrl . '/chat/completions', $payload, $apiKey, 45);
             $body = json_decode((string) $response['body'], true);
             self::validateResponse((int) $response['status'], is_array($body) ? $body : null);
@@ -107,14 +110,10 @@ final class ModelGateway
                 if (($choice['finish_reason'] ?? '') !== 'length' && (!is_string($reasoning) || trim($reasoning) === '')) throw $e;
                 $detail = '连接正常；检查预算内仅返回思考内容或回复被截断，可在测试页验证完整回复。';
             }
-            $usage = [
-                'prompt_tokens' => (int) ($body['usage']['prompt_tokens'] ?? 0),
-                'completion_tokens' => (int) ($body['usage']['completion_tokens'] ?? 0),
-                'total_tokens' => (int) ($body['usage']['total_tokens'] ?? 0),
-            ];
+            $usage = self::responseUsage((array) ($body['usage'] ?? []), $reservation);
             self::logUsage($model, $options['callerPlugin'], $usage, $reservation);
             return ['detail' => $detail];
-        });
+        }, $messages);
     }
 
     /**
@@ -125,22 +124,20 @@ final class ModelGateway
         [$baseUrl, $modelId, $apiKey, $safeMessages, $payload] = self::prepareRequest($model, $messages, $options, false);
         
         $lastException = null;
+        $settled = false;
         for ($attempt = 1; $attempt <= self::MAX_RETRIES; $attempt++) {
             try {
                 $response = self::doRequest($baseUrl . '/chat/completions', $payload, $apiKey, 45);
                 $body = json_decode((string) $response['body'], true);
                 self::validateResponse($response['status'], $body);
                 
-                $content = self::extractContent($body);
-                $usage = [
-                    'prompt_tokens' => (int) ($body['usage']['prompt_tokens'] ?? 0),
-                    'completion_tokens' => (int) ($body['usage']['completion_tokens'] ?? 0),
-                    'total_tokens' => (int) ($body['usage']['total_tokens'] ?? 0),
-                ];
-                
+                $usage = self::responseUsage((array) ($body['usage'] ?? []), $reservation);
                 self::logUsage($model, $options['callerPlugin'] ?? 'unknown', $usage, $reservation);
+                $settled = true;
+                $content = self::extractContent($body);
                 return ['text' => $content, 'usage' => $usage];
             } catch (ServiceException $e) {
+                if ($settled) throw $e;
                 $lastException = $e;
                 if ($attempt < self::MAX_RETRIES) {
                     usleep(self::RETRY_DELAY_MS[$attempt - 1] * 1000);
@@ -168,6 +165,13 @@ final class ModelGateway
         $allToolCalls = [];
         
         for ($round = 0; $round < $maxToolCalls; $round++) {
+            if ($round > 0) {
+                // Each completed round is already billed. Tool results enlarge the
+                // next prompt, so admit that request again before sending it.
+                $maxTokens = null;
+                self::checkQuota($options, $messages, $maxTokens, $reservation);
+                $options['maxTokens'] = $maxTokens;
+            }
             [$baseUrl, $modelId, $apiKey, $safeMessages, $payload] = self::prepareRequest($model, $messages, $options, false);
             
             try {
@@ -175,10 +179,9 @@ final class ModelGateway
                 $body = json_decode((string) $response['body'], true);
                 self::validateResponse($response['status'], $body);
                 
-                // 累积用量
-                $totalUsage['prompt_tokens'] += (int) ($body['usage']['prompt_tokens'] ?? 0);
-                $totalUsage['completion_tokens'] += (int) ($body['usage']['completion_tokens'] ?? 0);
-                $totalUsage['total_tokens'] += (int) ($body['usage']['total_tokens'] ?? 0);
+                $roundUsage = self::responseUsage((array) ($body['usage'] ?? []), $reservation);
+                self::logUsage($model, $options['callerPlugin'] ?? 'unknown', $roundUsage, $reservation, false);
+                foreach ($totalUsage as $key => $_) $totalUsage[$key] += $roundUsage[$key];
                 
                 $choice = $body['choices'][0] ?? [];
                 $finishReason = (string) ($choice['finish_reason'] ?? '');
@@ -256,7 +259,7 @@ final class ModelGateway
                 
                 // 否则，AI 返回了最终文本
                 $content = self::extractContent($body);
-                self::logUsage($model, $options['callerPlugin'] ?? 'unknown', $totalUsage, $reservation);
+                self::releaseQuota($reservation);
                 
                 return [
                     'text' => $content,
@@ -270,7 +273,7 @@ final class ModelGateway
         }
         
         // 达到最大轮次
-        self::logUsage($model, $options['callerPlugin'] ?? 'unknown', $totalUsage, $reservation);
+        self::releaseQuota($reservation);
         throw new ServiceException('AI 连续调用工具 ' . $maxToolCalls . ' 次后仍未返回最终答案。');
     }
 
@@ -282,7 +285,8 @@ final class ModelGateway
      */
     public static function completeStream(array $model, array $messages, array $options, callable $onChunk): array
     {
-        return self::withQuota($options, static function (string $reservation) use ($model, $messages, $options, $onChunk): array {
+        return self::withQuota($options, static function (string $reservation, int $maxTokens) use ($model, $messages, $options, $onChunk): array {
+        $options['maxTokens'] = $maxTokens;
         [$baseUrl, $modelId, $apiKey, $safeMessages, $payload] = self::prepareRequest($model, $messages, $options, true);
         
         $buffer = '';
@@ -331,15 +335,11 @@ final class ModelGateway
         $body = json_decode((string) ($response['body'] ?? ''), true);
         self::validateResponse((int) ($response['status'] ?? 0), is_array($body) ? $body : []);
 
-        // Providers may omit usage in SSE responses; charge the reserved budget instead of zero.
-        if ($usage['total_tokens'] <= 0) {
-            $reserved = (int) DB::value('SELECT reserved_tokens FROM ' . self::table('quota_reservations') . ' WHERE id = ?', [$reservation]);
-            $usage = ['prompt_tokens' => 0, 'completion_tokens' => $reserved, 'total_tokens' => $reserved];
-        }
+        $usage = self::responseUsage($usage, $reservation);
         
         self::logUsage($model, $options['callerPlugin'] ?? 'unknown', $usage, $reservation);
         return ['usage' => $usage];
-        });
+        }, $messages);
     }
 
     /**
@@ -517,28 +517,52 @@ final class ModelGateway
         return $content;
     }
 
-    private static function logUsage(array $model, string $callerPlugin, array $usage, string $reservation): void
+    /** Missing provider usage consumes the conservative reservation, never zero. */
+    private static function responseUsage(array $usage, string $reservation): array
+    {
+        $prompt = max(0, (int) ($usage['prompt_tokens'] ?? 0));
+        $completion = max(0, (int) ($usage['completion_tokens'] ?? 0));
+        $total = max($prompt + $completion, (int) ($usage['total_tokens'] ?? 0));
+        if ($total <= 0) {
+            $total = (int) DB::value('SELECT reserved_tokens FROM ' . self::table('quota_reservations') . ' WHERE id=?', [$reservation]);
+        }
+        return ['prompt_tokens' => $prompt, 'completion_tokens' => $completion, 'total_tokens' => $total];
+    }
+
+    private static function logUsage(array $model, string $callerPlugin, array $usage, string $reservation, bool $release = true): void
     {
         try {
-            $table = self::table('usage_log');
-            DB::execute(
-                "INSERT INTO {$table} (model_id, caller_plugin, prompt_tokens, completion_tokens, total_tokens) VALUES (?, ?, ?, ?, ?)",
-                [(int) ($model['id'] ?? 0), substr($callerPlugin, 0, 100), $usage['prompt_tokens'], $usage['completion_tokens'], max(0, $usage['total_tokens'])]
-            );
-            self::releaseQuota($reservation);
+            DB::transaction(static function () use ($model, $callerPlugin, $usage, $reservation, $release): void {
+                // Settlement and reservation replacement use the same lock as admission.
+                DB::fetchOne('SELECT id FROM ' . self::table('quota_settings') . ' WHERE id=1 FOR UPDATE');
+                $reserved = (int) DB::value('SELECT reserved_tokens FROM ' . self::table('quota_reservations') . ' WHERE id=? FOR UPDATE', [$reservation]);
+                $prompt = max(0, (int) ($usage['prompt_tokens'] ?? 0));
+                $completion = max(0, (int) ($usage['completion_tokens'] ?? 0));
+                $total = max($prompt + $completion, (int) ($usage['total_tokens'] ?? 0));
+                if ($total <= 0) $total = $reserved;
+                $table = self::table('usage_log');
+                DB::execute(
+                    "INSERT INTO {$table} (model_id, caller_plugin, prompt_tokens, completion_tokens, total_tokens) VALUES (?, ?, ?, ?, ?)",
+                    [(int) ($model['id'] ?? 0), substr($callerPlugin, 0, 100), $prompt, $completion, $total]
+                );
+                if ($release) {
+                    self::releaseQuota($reservation);
+                } else {
+                    DB::execute('UPDATE ' . self::table('quota_reservations') . ' SET reserved_tokens=0 WHERE id=?', [$reservation]);
+                }
+            });
         } catch (\Throwable $e) {
             throw new ServiceException('用量记录失败，已停止本次调用以避免绕过配额。', 0, $e);
         }
     }
 
     /** Reserve one call and the requested token budget in a short transaction. */
-    private static function checkQuota(array $options): string
+    private static function checkQuota(array $options, ?array $messages = null, ?int &$maxTokens = null, ?string $existingReservation = null): string
     {
         try {
             $table = self::table('quota_settings');
-            $reservation = bin2hex(random_bytes(16));
-            $requested = max(1, (int) ($options['maxTokens'] ?? 0));
-            DB::transaction(static function () use ($table, $requested, $reservation, $options): void {
+            $reservation = $existingReservation ?? bin2hex(random_bytes(16));
+            DB::transaction(static function () use ($table, $reservation, $options, $messages, &$maxTokens, $existingReservation): void {
                 DB::execute("INSERT INTO {$table} (id) VALUES (1) ON DUPLICATE KEY UPDATE id = id");
                 $settings = DB::fetchOne("SELECT * FROM {$table} WHERE id = 1 FOR UPDATE") ?? ['hourly_calls_limit' => 1000, 'daily_tokens_limit' => 100000, 'max_tokens_per_call' => 4000];
                 $hourlyLimit = max(0, (int) ($settings['hourly_calls_limit'] ?? 1000));
@@ -548,20 +572,44 @@ final class ModelGateway
                 if ($maxTokensPerCall > 0 && $explicitMax > $maxTokensPerCall) {
                     throw new QuotaExceededException('单次请求 Token 数（' . $explicitMax . '）超过配额上限（' . $maxTokensPerCall . '）。');
                 }
-                $requested = $requested > 1 ? $requested : max(1, $maxTokensPerCall);
-                if (isset($options['tools']) && is_array($options['tools']) && $options['tools'] !== []) {
+                $maxTokens = max(1, min(32768, $explicitMax > 0 ? $explicitMax : ($maxTokensPerCall > 0 ? $maxTokensPerCall : 4000)));
+                $requested = $maxTokens;
+                if ($messages !== null) {
+                    // UTF-8 bytes conservatively bound text tokens across providers;
+                    // include serialized tool schemas and message framing as well.
+                    $input = json_encode(['messages' => $messages, 'tools' => $options['tools'] ?? []], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+                    $requested += strlen($input) + 64 + count($messages) * 32;
+                } elseif (isset($options['tools']) && is_array($options['tools']) && $options['tools'] !== []) {
                     $requested = min(2147483647, $requested * max(1, min(10, (int) ($options['maxToolCalls'] ?? 5))));
                 }
                 $usageTable = self::table('usage_log');
                 $reserveTable = self::table('quota_reservations');
                 DB::execute("DELETE FROM {$reserveTable} WHERE created_at < NOW() - INTERVAL 2 HOUR");
-                if ($hourlyLimit > 0 && (int) DB::value("SELECT COUNT(*) FROM {$usageTable} WHERE created_at > NOW() - INTERVAL 1 HOUR") + (int) DB::value("SELECT COUNT(*) FROM {$reserveTable} WHERE created_at > NOW() - INTERVAL 1 HOUR") >= $hourlyLimit) {
+                if ($existingReservation !== null && DB::value("SELECT id FROM {$reserveTable} WHERE id=? FOR UPDATE", [$reservation]) === null) {
+                    throw new ServiceException('调用的额度预留已失效。');
+                }
+                if ($hourlyLimit > 0 && (int) DB::value("SELECT COUNT(*) FROM {$usageTable} WHERE created_at > NOW() - INTERVAL 1 HOUR") + (int) DB::value("SELECT COUNT(*) FROM {$reserveTable} WHERE id<>? AND created_at > NOW() - INTERVAL 1 HOUR", [$reservation]) >= $hourlyLimit) {
                     throw new QuotaExceededException('已达到每小时调用上限（' . $hourlyLimit . ' 次），请稍后再试。');
                 }
-                if ($dailyTokenLimit > 0 && (int) DB::value("SELECT COALESCE(SUM(total_tokens),0) FROM {$usageTable} WHERE created_at > NOW() - INTERVAL 24 HOUR") + (int) DB::value("SELECT COALESCE(SUM(reserved_tokens),0) FROM {$reserveTable} WHERE created_at > NOW() - INTERVAL 24 HOUR") + $requested > $dailyTokenLimit) {
+                if ($dailyTokenLimit > 0 && (int) DB::value("SELECT COALESCE(SUM(total_tokens),0) FROM {$usageTable} WHERE created_at > NOW() - INTERVAL 24 HOUR") + (int) DB::value("SELECT COALESCE(SUM(reserved_tokens),0) FROM {$reserveTable} WHERE id<>? AND created_at > NOW() - INTERVAL 24 HOUR", [$reservation]) + $requested > $dailyTokenLimit) {
                     throw new QuotaExceededException('已达到每日 Token 上限（' . number_format($dailyTokenLimit) . '），请稍后再试。');
                 }
-                DB::execute("INSERT INTO {$reserveTable} (id, reserved_tokens) VALUES (?, ?)", [$reservation, $requested]);
+                $caller = mb_substr((string) ($options['callerPlugin'] ?? 'unknown'), 0, 190);
+                // Public chat cannot consume the entire shared AI budget. Both normal and
+                // streaming requests reserve against the same rolling 24-hour allocation.
+                if ($caller === 'ai_chat' && $dailyTokenLimit > 0) {
+                    $chatLimit = max(1, intdiv($dailyTokenLimit, 4));
+                    $chatUsed = (int) DB::value("SELECT COALESCE(SUM(total_tokens),0) FROM {$usageTable} WHERE caller_plugin = ? AND created_at > NOW() - INTERVAL 24 HOUR", [$caller]);
+                    $chatReserved = (int) DB::value("SELECT COALESCE(SUM(reserved_tokens),0) FROM {$reserveTable} WHERE caller_plugin = ? AND id<>? AND created_at > NOW() - INTERVAL 24 HOUR", [$caller, $reservation]);
+                    if ($chatUsed + $chatReserved + $requested > $chatLimit) {
+                        throw new QuotaExceededException('站内助手近 24 小时额度已用完，请稍后再试。');
+                    }
+                }
+                if ($existingReservation === null) {
+                    DB::execute("INSERT INTO {$reserveTable} (id, reserved_tokens, caller_plugin) VALUES (?, ?, ?)", [$reservation, $requested, $caller]);
+                } else {
+                    DB::execute("UPDATE {$reserveTable} SET reserved_tokens=? WHERE id=?", [$requested, $reservation]);
+                }
             });
             return $reservation;
         } catch (QuotaExceededException $e) {
@@ -577,10 +625,11 @@ final class ModelGateway
         try { DB::execute('DELETE FROM ' . self::table('quota_reservations') . ' WHERE id = ?', [$reservation]); } catch (\Throwable $e) { throw new ServiceException('配额结算失败，已停止本次调用。', 0, $e); }
     }
 
-    private static function withQuota(array $options, callable $operation): array
+    private static function withQuota(array $options, callable $operation, ?array $messages = null): array
     {
-        $reservation = self::checkQuota($options);
-        try { return $operation($reservation); }
+        $maxTokens = null;
+        $reservation = self::checkQuota($options, $messages, $maxTokens);
+        try { return $operation($reservation, $maxTokens); }
         catch (\Throwable $e) { try { self::releaseQuota($reservation); } catch (\Throwable) {} throw $e; }
     }
 

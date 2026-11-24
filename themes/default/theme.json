@@ -1,50 +1,307 @@
 {
   "name": "default",
   "title": "默认主题",
-  "version": "1.4.0",
+  "version": "1.5.2",
   "apiVersion": 2,
   "injects": [],
-  "systemTemplateFallback": ["index", "post", "page", "category", "tag", "search", "archives", "micro", "user"],
-  "description": "Pafish 默认主题。",
+  "systemTemplateFallback": [
+    "index",
+    "post",
+    "page",
+    "category",
+    "tag",
+    "search",
+    "archives",
+    "micro",
+    "user"
+  ],
+  "description": "Pafish 默认主题：与后台一致的淡蓝品牌色，留白与浅底分组，评论回复平铺不叠线。",
   "author": "纸鱼官方",
   "authorUrl": "https://pafish.cn/developers/pafish",
   "homepage": "https://www.pafish.cn",
   "settings": [
+    {
+      "key": "logo_type",
+      "label": "站点标识",
+      "type": "button_set",
+      "group": "品牌",
+      "default": "text",
+      "options": {
+        "text": "文字",
+        "image": "图片",
+        "image_text": "图片 + 文字"
+      },
+      "desc": "文字使用「站点名称」；选了图片但没有上传时，前台自动显示文字",
+      "nav_icon": "palette"
+    },
+    {
+      "key": "logo_image",
+      "label": "Logo 图片",
+      "type": "image",
+      "group": "品牌",
+      "default": "",
+      "desc": "建议使用透明背景的 PNG 或 SVG，高度不低于 64px（高清屏更清晰）",
+      "show_if": {
+        "rules": [
+          {
+            "key": "logo_type",
+            "value": "text",
+            "op": "ne"
+          }
+        ]
+      },
+      "nav_icon": "palette"
+    },
+    {
+      "key": "logo_image_dark",
+      "label": "暗色模式 Logo",
+      "type": "image",
+      "group": "品牌",
+      "default": "",
+      "desc": "可选。深色 Logo 在暗色背景上看不清时，上传一张浅色版本；留空沿用上面的图片",
+      "show_if": {
+        "rules": [
+          {
+            "key": "logo_type",
+            "value": "text",
+            "op": "ne"
+          }
+        ]
+      },
+      "nav_icon": "palette"
+    },
+    {
+      "key": "logo_height",
+      "label": "Logo 高度",
+      "type": "slider",
+      "group": "品牌",
+      "default": "32",
+      "min": 20,
+      "max": 56,
+      "step": 2,
+      "unit": "px",
+      "desc": "电脑端顶栏中的显示高度，宽度按比例自适应；移动端最高 30px",
+      "show_if": {
+        "rules": [
+          {
+            "key": "logo_type",
+            "value": "text",
+            "op": "ne"
+          }
+        ]
+      },
+      "nav_icon": "palette"
+    },
+    {
+      "key": "home_carousel_source",
+      "label": "首页幻灯片",
+      "type": "button_set",
+      "group": "首页",
+      "default": "off",
+      "options": {
+        "custom": "自定义幻灯片",
+        "off": "不显示"
+      },
+      "desc": "按需展示自己配置的图片或文字。置顶文章保留在文章列表中，不再作为轮播来源。",
+      "nav_icon": "home"
+    },
+    {
+      "key": "home_carousel_slides",
+      "label": "自定义幻灯片",
+      "type": "repeater",
+      "group": "首页",
+      "default": "[]",
+      "max_items": 6,
+      "title_key": "title",
+      "add_label": "添加幻灯片",
+      "desc": "可从媒体库选图或直接上传。图片、标题、说明、角标和链接均可留空；支持纯图片或纯文字，全空行不展示。图片建议使用横图，重要内容放在中央。",
+      "show_if": {
+        "key": "home_carousel_source",
+        "value": "custom"
+      },
+      "fields": [
+        {
+          "key": "image",
+          "label": "图片",
+          "type": "image",
+          "desc": "选填。支持上传、媒体库或粘贴图片地址。"
+        },
+        {
+          "key": "title",
+          "label": "标题",
+          "type": "text",
+          "maxlength": 60,
+          "placeholder": "选填，纯图片展示时可留空"
+        },
+        {
+          "key": "desc",
+          "label": "说明",
+          "type": "text",
+          "maxlength": 120
+        },
+        {
+          "key": "label",
+          "label": "角标",
+          "type": "text",
+          "maxlength": 12,
+          "placeholder": "如：专题、活动"
+        },
+        {
+          "key": "url",
+          "label": "链接",
+          "type": "text",
+          "maxlength": 500,
+          "pattern": "^(?:https?://[^\\s\\\\]+|/(?!/)[^\\s\\\\]*)$",
+          "pattern_message": "请填写 http(s):// 或 / 开头的链接",
+          "placeholder": "选填，留空时不跳转"
+        }
+      ],
+      "nav_icon": "home"
+    },
+    {
+      "key": "home_carousel_interval",
+      "label": "自动切换",
+      "type": "select",
+      "group": "首页",
+      "default": "6",
+      "options": {
+        "0": "不自动切换",
+        "4": "每 4 秒",
+        "6": "每 6 秒",
+        "8": "每 8 秒"
+      },
+      "desc": "鼠标悬停或正在操作时会暂停；访客系统开启「减少动态效果」时不自动切换",
+      "show_if": {
+        "key": "home_carousel_source",
+        "value": "custom"
+      },
+      "nav_icon": "home"
+    },
+    {
+      "key": "home_carousel_meta",
+      "label": "轮播显示内容",
+      "type": "checkboxes",
+      "group": "首页",
+      "default": "[\"category\",\"excerpt\"]",
+      "inline": true,
+      "options": {
+        "category": "角标",
+        "excerpt": "说明"
+      },
+      "desc": "控制自定义幻灯片中的可选文字；标题独立显示。",
+      "show_if": {
+        "key": "home_carousel_source",
+        "value": "custom"
+      },
+      "nav_icon": "home"
+    },
     {
       "key": "footer_text",
       "label": "页脚文案",
       "type": "text",
       "group": "内容",
       "default": "",
-      "placeholder": "留空使用默认（© 年份 站点名）"
+      "placeholder": "留空使用默认（© 年份 站点名）",
+      "nav_icon": "file-text"
     },
     {
       "key": "show_custom_fields",
       "label": "文章页显示自定义字段",
       "type": "checkbox",
       "group": "内容",
-      "default": "1"
+      "default": "1",
+      "nav_icon": "file-text"
+    },
+    {
+      "key": "header_login",
+      "label": "导航栏登录入口",
+      "type": "button_set",
+      "group": "布局",
+      "default": "link",
+      "options": {
+        "link": "文字链接",
+        "button": "按钮",
+        "hidden": "不显示"
+      },
+      "desc": "显示在导航栏最右侧，移动端在菜单底部。选「不显示」后访客看不到入口，仍可直接访问 /login 登录；已登录时显示「后台」",
+      "nav_icon": "layout"
     },
     {
       "key": "sidebar_enabled",
       "label": "显示侧栏",
       "type": "checkbox",
       "group": "布局",
-      "default": "1"
+      "default": "1",
+      "nav_icon": "layout"
+    },
+    {
+      "key": "sidebar_mobile",
+      "label": "移动端侧栏",
+      "type": "button_set",
+      "group": "布局",
+      "default": "below",
+      "options": {
+        "below": "显示在正文下方",
+        "hide": "不显示"
+      },
+      "show_if": {
+        "key": "sidebar_enabled",
+        "value": "1"
+      },
+      "desc": "屏幕宽度小于 960px（手机、竖屏平板）时，侧栏会移到正文下方",
+      "nav_icon": "layout"
+    },
+    {
+      "key": "sidebar_hide_mobile",
+      "label": "移动端隐藏的组件",
+      "type": "checkboxes",
+      "group": "布局",
+      "default": "[]",
+      "options": {
+        "categories": "分类",
+        "tags": "标签",
+        "recent_posts": "最新文章",
+        "hot_posts": "热门文章",
+        "recent_comments": "最新评论",
+        "recent_micro_statuses": "最新微语",
+        "custom": "自定义文本"
+      },
+      "show_if": {
+        "key": "sidebar_mobile",
+        "value": "below"
+      },
+      "desc": "按组件类型隐藏；勾选「自定义文本」会隐藏所有自定义文本组件",
+      "nav_icon": "layout"
+    },
+    {
+      "key": "sidebar_hide_desktop",
+      "label": "电脑端隐藏的组件",
+      "type": "checkboxes",
+      "group": "布局",
+      "default": "[]",
+      "options": {
+        "categories": "分类",
+        "tags": "标签",
+        "recent_posts": "最新文章",
+        "hot_posts": "热门文章",
+        "recent_comments": "最新评论",
+        "recent_micro_statuses": "最新微语",
+        "custom": "自定义文本"
+      },
+      "show_if": {
+        "key": "sidebar_enabled",
+        "value": "1"
+      },
+      "desc": "屏幕宽度 960px 及以上时隐藏所选类型的组件",
+      "nav_icon": "layout"
     },
     {
       "key": "show_post_cover",
       "label": "文章详情页显示封面",
       "type": "checkbox",
       "group": "布局",
-      "default": "0"
-    },
-    {
-      "key": "show_related_posts",
-      "label": "文章页显示相关推荐",
-      "type": "checkbox",
-      "group": "布局",
-      "default": "1"
+      "default": "0",
+      "nav_icon": "layout"
     }
   ]
 }

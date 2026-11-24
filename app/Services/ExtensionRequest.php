@@ -20,6 +20,7 @@ final class ExtensionRequest
     ) {
     }
 
+    public function clientIp(): string { return \Pafish\Core\ClientIp::fromRequest($this->request); }
     public function method(): string { return strtoupper($this->request->getMethod()); }
     public function query(): array { return $this->request->getQueryParams(); }
     public function body(): array { return is_array($this->request->getParsedBody()) ? $this->request->getParsedBody() : []; }

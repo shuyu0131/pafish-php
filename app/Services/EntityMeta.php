@@ -290,10 +290,11 @@ final class EntityMeta
                 $owners[] = ['plugin', $name, (string) ($manifest['title'] ?? $name), $manifest];
             }
         }
-        $name = Theme::active();
-        $manifest = Theme::manifest($name);
-        if ($manifest !== null && is_array($manifest['meta'] ?? null)) {
-            $owners[] = ['theme', $name, (string) ($manifest['title'] ?? $name), $manifest];
+        foreach (array_reverse(Theme::family(Theme::active())) as $name) {
+            $manifest = Theme::manifest($name);
+            if ($manifest !== null && is_array($manifest['meta'] ?? null)) {
+                $owners[] = ['theme', $name, (string) ($manifest['title'] ?? $name), $manifest];
+            }
         }
         return $owners;
     }

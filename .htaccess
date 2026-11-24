@@ -1,6 +1,10 @@
 <IfModule mod_rewrite.c>
     RewriteEngine On
 
+    RewriteRule ^(?:app|vendor|migrations|tests|docs|docker|runtime|backups|storage)(?:/|$) - [F,L,NC]
+    RewriteRule (^|/)\. - [F,L]
+    RewriteRule ^(?!index\.php(?:/|$)|install\.php$|cron\.php$).*\.(?:php[0-9]?|phtml|phar)(?:/|$) - [F,L,NC]
+
     RewriteRule ^uploads/(.*)$ public/uploads/$1 [L,NC]
 
     RewriteRule ^themes/.*\.php$ - [F,L,NC]

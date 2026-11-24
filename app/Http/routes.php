@@ -261,6 +261,8 @@ $app->group('/admin', function ($group) {
     $group->get('/appearance/{name}', [AppearanceController::class, 'settings']);
     $group->post('/appearance/save', [AppearanceController::class, 'save']);
     $group->post('/appearance/activate', [AppearanceController::class, 'activate']);
+    $group->post('/appearance/preview', [AppearanceController::class, 'preview']);
+    $group->post('/appearance/preview/stop', [AppearanceController::class, 'stopPreview']);
     $group->post('/appearance/uninstall', [AppearanceController::class, 'uninstall']);
     $group->post('/appearance/install', [AppearanceController::class, 'install']);
     $group->post('/appearance/import', [AppearanceController::class, 'import']);

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Pafish\Http;
 
-use Pafish\Core\DB;
 use Pafish\Services\Settings;
 use Pafish\Services\Theme;
 use Pafish\Services\ContentRepository;
@@ -70,13 +69,9 @@ final class HomeController
             }
         }
 
-        // 文章列表
-        $themeLimit = (int) Theme::value('recent_posts_limit', '0');
-        $perPage = $themeLimit > 0
-            ? min(30, max(1, $themeLimit))
-            : min(50, max(1, (int) Settings::get('posts_per_page', '10')));
-        [$posts, $total, $perPage, $pageNum] = Listings::published('', [], $request, perPage: $perPage);
-        $totalPages = max(1, (int) ceil($total / $perPage));
+        ['posts' => $posts, 'pageNum' => $pageNum, 'totalPages' => $totalPages] = \Pafish\Services\Posts::query([
+            'context' => 'home', 'page' => Listings::pageNumber($request), 'recent_comments' => true,
+        ]);
 
         $response->getBody()->write(render('index', [
             'title' => '首页',
@@ -87,7 +82,7 @@ final class HomeController
                 'url' => Listings::og($request, '首页')['url'],
             ],
             'posts' => $posts,
-            'lumina_list_kind' => 'home',
+            'listKind' => 'home',
             'pageNum' => $pageNum,
             'totalPages' => $totalPages,
             'listBaseUrl' => url_to('/'),
@@ -99,26 +94,6 @@ final class HomeController
     /** 为文章数组批量附加 tags 列表（[['name'=>..,'slug'=>..], ...]） */
     public static function attachTags(array $posts): array
     {
-        if ($posts === []) {
-            return $posts;
-        }
-        $ids = array_map(static fn (array $p): int => (int) $p['id'], $posts);
-        $placeholders = implode(',', array_fill(0, count($ids), '?'));
-        $rows = DB::fetchAll(
-            "SELECT pt.post_id, t.name, t.slug
-             FROM post_tags pt JOIN tags t ON t.id = pt.tag_id
-             WHERE pt.post_id IN ({$placeholders})",
-            $ids
-        );
-        $map = [];
-        foreach ($rows as $row) {
-            $map[(int) $row['post_id']][] = ['name' => $row['name'], 'slug' => $row['slug']];
-        }
-        foreach ($posts as &$post) {
-            $post['tags'] = $map[(int) $post['id']] ?? [];
-        }
-        unset($post);
-        return $posts;
+        return \Pafish\Services\PostQuery::attachTags($posts);
     }
-
 }

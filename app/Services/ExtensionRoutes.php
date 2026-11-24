@@ -72,10 +72,18 @@ final class ExtensionRoutes
     /** 合并清单路由和 extension.php 动态注册的路由。 */
     public static function routesFor(array $manifest, string $kind, string $name): array
     {
-        return array_merge(
+        $routes = array_merge(
             self::fromManifest($manifest, $kind, $name),
             ExtensionKernel::routesFor($kind, $name)
         );
+        if ($kind === 'theme' && isset($manifest['parent'])) {
+            $parent = $manifest['parent'];
+            $parentRoutes = self::routesFor(Theme::manifest($parent) ?? [], 'theme', $parent);
+            foreach ($parentRoutes as &$route) $route['owner'] = $parent;
+            unset($route);
+            $routes = array_merge($routes, $parentRoutes);
+        }
+        return $routes;
     }
 
     /** 启用主题/插件前检查自然路径是否与核心或其他已启用扩展冲突。 */
@@ -405,12 +413,12 @@ final class ExtensionRoutes
     {
         $out = [];
         $themeName = Theme::active();
-        if (!($skipKind === 'theme' && $skipName === $themeName)) {
+        if ($skipKind !== 'theme') {
             $desc = Theme::describe($themeName);
             if ($desc['manifest'] !== null) {
                 foreach (self::routesFor($desc['manifest'], 'theme', $themeName) as $route) {
                     if ($route['public']) {
-                        $out[] = ['kind' => 'theme', 'name' => $themeName] + $route;
+                        $out[] = ['kind' => 'theme', 'name' => $route['owner'] ?? $themeName] + $route;
                     }
                 }
             }

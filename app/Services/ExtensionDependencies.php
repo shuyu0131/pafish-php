@@ -102,7 +102,7 @@ final class ExtensionDependencies
             if ($dependency['kind'] === 'plugin' && !Plugin::isActive($dependency['name'])) {
                 throw new \RuntimeException('依赖插件未启用：' . $dependency['name']);
             }
-            if ($dependency['kind'] === 'theme' && Theme::active() !== $dependency['name']) {
+            if ($dependency['kind'] === 'theme' && !Theme::includes($dependency['name'])) {
                 throw new \RuntimeException('依赖主题未激活：' . $dependency['name']);
             }
         }

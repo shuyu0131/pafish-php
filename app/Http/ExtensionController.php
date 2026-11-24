@@ -78,7 +78,7 @@ final class ExtensionController
             return null;
         }
         // 长驻进程中扩展可能在路由表建立后被停用；捕获的公共路由不能绕过当前激活状态。
-        if (($matched['kind'] ?? '') === 'theme' && Theme::active() !== (string) ($matched['name'] ?? '')) {
+        if (($matched['kind'] ?? '') === 'theme' && !Theme::includes((string) ($matched['name'] ?? ''))) {
             return null;
         }
         if (($matched['kind'] ?? '') === 'plugin' && !Plugin::isActive((string) ($matched['name'] ?? ''))) {

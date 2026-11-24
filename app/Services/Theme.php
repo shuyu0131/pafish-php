@@ -26,6 +26,7 @@ final class Theme
     ];
     private const USER_DATA = ['posts', 'stats', 'reactions', 'comments', 'points'];
     private const PAGE_TEMPLATES = ['index', 'post', 'page', 'category', 'tag', 'search', 'archives', 'micro', 'user'];
+    private const TEMPLATE_DIRECTORIES = ['templates', 'parts', 'partials'];
 
     private static ?array $manifests = [];
     private static ?array $contexts = [];
@@ -33,15 +34,133 @@ final class Theme
     private static array $changedCache = [];
     private static ?string $bootedTheme = null;
     private static ?string $schemaBootKey = null;
+    private static array $configurationFields = [];
+    private static array $bootedOwners = [];
+    private static ?string $operationTheme = null;
+
+    /** Child first; one parent level keeps ownership and lifecycle unambiguous. */
+    public static function family(string $name): array
+    {
+        $manifest = self::manifest($name);
+        if ($manifest === null) return [];
+        return isset($manifest['parent']) ? [$name, $manifest['parent']] : [$name];
+    }
+
+    public static function includes(string $name): bool { return in_array($name, self::family(self::active()), true); }
+
+    public static function settingsTarget(string $owner): string
+    {
+        return self::includes($owner) ? self::active() : $owner;
+    }
+
+    private static function withTheme(string $name, callable $callback): mixed
+    {
+        $previous = self::$operationTheme;
+        self::$operationTheme = $name;
+        self::resetValues();
+        try { return $callback(); }
+        finally { self::$operationTheme = $previous; self::resetValues(); }
+    }
+
+    private static function bootOwner(string $owner): bool
+    {
+        self::$bootedOwners[$owner] = true;
+        return !is_file(self::root() . '/' . $owner . '/extension.php')
+            || ExtensionKernel::boot('theme', $owner, self::root(), self::context($owner));
+    }
+
+    /** Load declarations temporarily, retaining any owners already booted for this request. */
+    private static function withDefinitions(string $name, callable $callback): mixed
+    {
+        return self::withTheme($name, static function () use ($name, $callback): mixed {
+            $loaded = [];
+            try {
+                foreach (array_reverse(self::family($name)) as $owner) {
+                    if (!ExtensionKernel::isBooted('theme', $owner)) {
+                        $loaded[] = $owner;
+                        if (!self::bootOwner($owner)) throw new \RuntimeException('主题入口加载失败：' . $owner);
+                    }
+                }
+                return $callback();
+            } finally {
+                foreach ($loaded as $owner) {
+                    ExtensionKernel::reset('theme', $owner);
+                    unset(self::$bootedOwners[$owner]);
+                }
+            }
+        });
+    }
+
+    /** Read an inactive theme's runtime schema without retaining hooks or activating it. */
+    public static function prepareSettings(string $name): void
+    {
+        $desc = self::describe($name);
+        if ($desc['error'] !== null) throw new \InvalidArgumentException($desc['error']);
+        if ($name === self::active() || isset(self::$configurationFields[$name])) return;
+        self::$configurationFields[$name] = [];
+        try {
+            self::withDefinitions($name, static function () use ($name): void {
+                foreach (self::family($name) as $owner) self::$configurationFields[$owner] = ExtensionKernel::settingsFor('theme', $owner);
+            });
+        } catch (\Throwable $e) {
+            unset(self::$configurationFields[$name]);
+            throw $e;
+        }
+    }
+
+    /** Keep legacy homepage limits out of general-purpose controllers. */
+    public static function preparePostQuery(array $args): array
+    {
+        if (($args['context'] ?? '') === 'home' && !array_key_exists('per_page', $args)) {
+            $limit = (int) self::value('recent_posts_limit', '0');
+            $args['per_page'] = $limit > 0 ? min(30, $limit) : min(50, max(1, (int) Settings::get('posts_per_page', '10')));
+        }
+        return $args;
+    }
+
+    /** Page data extension point, with legacy display flags supplied for existing themes. */
+    public static function prepareViewData(string $template, array $data, bool $partial = false, array $provided = []): array
+    {
+        if (!$partial && $template === 'post' && isset($provided['post'])) {
+            foreach (['related', 'showRelated', 'showCustomFields'] as $key) {
+                if (!array_key_exists($key, $provided)) unset($data[$key]);
+            }
+        }
+        if ($template === 'post' && is_array($data['post'] ?? null)) {
+            $setting = static fn (string $key): string => function_exists('theme_value') ? \theme_value($key, '0') : self::value($key, '0');
+            $data += [
+                'showCustomFields' => $setting('show_custom_fields') !== '0',
+                'showRelated' => $setting('show_related_posts') !== '0',
+            ];
+        }
+        // The alias remains available to installed Lumina versions during migration.
+        if (isset($provided['listKind'])) {
+            $data['lumina_list_kind'] = $provided['listKind'];
+        } elseif (isset($provided['lumina_list_kind'])) {
+            $data['listKind'] = $provided['lumina_list_kind'];
+        } elseif (isset($data['listKind']) && !isset($data['lumina_list_kind'])) {
+            $data['lumina_list_kind'] = $data['listKind'];
+        }
+        $filtered = Hooks::applyFilters('theme_view_data', $data, ['template' => $template, 'theme' => self::active(), 'partial' => $partial]);
+        if (!is_array($filtered)) throw new \UnexpectedValueException('theme_view_data 必须返回数组');
+        if ($template === 'post' && !array_key_exists('related', $filtered)) {
+            $filtered['related'] = !empty($filtered['showRelated']) && empty($filtered['locked']) && !empty($filtered['post']['id'])
+                ? Posts::related((int) $filtered['post']['id']) : [];
+        }
+        return $filtered;
+    }
 
     public static function root(): string
     {
-        return dirname(__DIR__, 2) . '/themes';
+        return (defined('PAFISH_ROOT') ? PAFISH_ROOT : dirname(__DIR__, 2)) . '/themes';
     }
 
-    /** 当前激活主题名（默认 default；非法值回退 default） */
+    /** 当前请求使用的主题；临时操作、管理员预览、访客演示依次优先于正式主题。 */
     public static function active(): string
     {
+        if (self::$operationTheme !== null) return self::$operationTheme;
+        if (ThemePreview::name() !== null) return ThemePreview::name();
+        if (ThemeDemo::name() !== null) return ThemeDemo::name();
         $name = (string) Settings::get('active_theme', 'default');
         if (!self::isValidName($name) || !self::isThemeDirectory(self::root() . '/' . $name)) {
             return 'default';
@@ -53,68 +172,45 @@ final class Theme
     public static function boot(): bool
     {
         $name = self::active();
-        $manifest = self::manifest($name);
-        if ($manifest === null) {
-            ExtensionKernel::reset('theme', $name);
-            self::$bootedTheme = null;
-            return false;
-        }
-        try {
-            ExtensionDependencies::assertSatisfied('theme', $name, $manifest['requires'] ?? []);
-        } catch (\Throwable $e) {
-            \Pafish\Core\Logger::error('[pafish-theme] ' . $name . ' 依赖检查失败：' . $e->getMessage());
-            ExtensionKernel::reset('theme', $name);
-            self::$bootedTheme = null;
-            return false;
-        }
-
+        $family = self::family($name);
+        if ($family === []) return false;
+        if (self::$bootedTheme !== null && self::$bootedTheme !== $name) self::reset();
         $schemaKey = self::schemaBootKey($name);
-        $schemaReady = true;
-        if (self::$schemaBootKey !== $schemaKey) {
-            $schemaReady = self::syncActiveSchema($name);
-            if ($schemaReady) {
-                self::$schemaBootKey = $schemaKey;
+        $temporary = ThemePreview::name() !== null || ThemeDemo::name() !== null;
+        if (self::$bootedTheme === $name && ($temporary || self::$schemaBootKey === $schemaKey)) return true;
+        try {
+            foreach (array_reverse($family) as $owner) {
+                ExtensionDependencies::assertSatisfied('theme', $owner, self::manifest($owner)['requires'] ?? []);
+                if (!$temporary && self::$schemaBootKey !== $schemaKey) {
+                    if (!self::syncActiveSchema($owner)) throw new \RuntimeException('主题结构初始化失败：' . $owner);
+                }
+                if (!self::bootOwner($owner)) throw new \RuntimeException('主题入口加载失败：' . $owner);
             }
-        }
-        if (!$schemaReady) {
-            ExtensionKernel::reset('theme', $name);
-            if (self::$bootedTheme !== null) {
-                ExtensionKernel::reset('theme', self::$bootedTheme);
+            self::$schemaBootKey = $schemaKey;
+            if (self::$bootedTheme !== $name) {
+                foreach (array_reverse($family) as $owner) self::registerHooks($owner);
             }
-            // 允许同一长驻进程在下一次调用时重试失败的迁移。
-            self::$bootedTheme = null;
-            return false;
-        }
-        if (self::$bootedTheme === $name) {
+            self::$bootedTheme = $name;
             return true;
-        }
-        if (self::$bootedTheme !== null) {
-            ExtensionKernel::reset('theme', self::$bootedTheme);
-        }
-        if (is_file(self::root() . '/' . $name . '/extension.php')
-            && !ExtensionKernel::boot('theme', $name, self::root(), self::context($name))) {
-            // 有动态入口但注册失败时，不让主题的业务钩子继续进入请求。
-            // 下次请求仍会重试，核心页面保持可用。
+        } catch (\Throwable $e) {
+            \Pafish\Core\Logger::error('[pafish-theme] ' . $name . ' 启动失败：' . $e->getMessage());
+            foreach (array_keys(self::$bootedOwners) as $owner) ExtensionKernel::reset('theme', $owner);
+            self::$bootedOwners = [];
             self::$bootedTheme = null;
-            ExtensionKernel::reset('theme', $name);
+            self::$schemaBootKey = null;
             return false;
         }
-        self::$bootedTheme = $name;
-        self::registerHooks($name);
-        return true;
     }
 
     /** 主题清单签名；schema 或版本变化时，即使主题名未变也要重新同步。 */
     private static function schemaBootKey(string $name): string
     {
-        $desc = self::describe($name);
-        if ($desc['error'] !== null || $desc['manifest'] === null) {
-            return $name . ':invalid:' . (string) ($desc['error'] ?? 'manifest');
+        $parts = [];
+        foreach (self::family($name) as $owner) {
+            $manifest = self::manifest($owner);
+            $parts[] = [$owner, $manifest['version'], $manifest['schema'] ?? null];
         }
-        return $name . ':' . sha1(serialize([
-            (string) ($desc['manifest']['version'] ?? ''),
-            $desc['manifest']['schema'] ?? null,
-        ]));
+        return $name . ':' . sha1(serialize($parts));
     }
 
     /** 渲染当前主题注册的后台/前台扩展注入。 */
@@ -125,53 +221,39 @@ final class Theme
             return '';
         }
         $parts = [];
-        $name = self::active();
-        $manifest = self::manifest($name);
-        if (is_array($manifest)
-            && ((int) ($manifest['apiVersion'] ?? 1) < 2
-                || in_array($hook, (array) ($manifest['injects'] ?? []), true))) {
-            foreach (ExtensionKernel::injectionsFor('theme', $name, $hook) as $handler) {
-                try {
-                    $html = $handler($context, self::context($name));
-                    if (is_string($html) && trim($html) !== '') {
-                        $parts[] = $html;
+        foreach (array_reverse(self::family(self::active())) as $name) {
+            $manifest = self::manifest($name);
+            if (is_array($manifest)
+                && ((int) ($manifest['apiVersion'] ?? 1) < 2
+                    || in_array($hook, (array) ($manifest['injects'] ?? []), true))) {
+                foreach (ExtensionKernel::injectionsFor('theme', $name, $hook) as $handler) {
+                    try {
+                        $html = $handler($context, self::context($name));
+                        if (is_string($html) && trim($html) !== '') {
+                            $parts[] = $html;
+                        }
+                    } catch (\Throwable $e) {
+                        \Pafish\Core\Logger::error('[pafish-theme] ' . $name . ' renderInjection(' . $hook . ') 失败：' . $e->getMessage());
                     }
-                } catch (\Throwable $e) {
-                    \Pafish\Core\Logger::error('[pafish-theme] ' . $name . ' renderInjection(' . $hook . ') 失败：' . $e->getMessage());
                 }
-            }
-            $provider = ExtensionKernel::providerFor('theme', $name, 'renderInjection');
-            if ($provider !== null && ExtensionKernel::injectionsFor('theme', $name, $hook) === []) {
-                try {
-                    $html = $provider($hook, self::context($name), $context);
-                    if (is_string($html) && trim($html) !== '') {
-                        $parts[] = $html;
+                $provider = ExtensionKernel::providerFor('theme', $name, 'renderInjection', false);
+                if ($provider !== null && ExtensionKernel::injectionsFor('theme', $name, $hook) === []) {
+                    try {
+                        $html = $provider($hook, self::context($name), $context);
+                        if (is_string($html) && trim($html) !== '') {
+                            $parts[] = $html;
+                        }
+                    } catch (\Throwable $e) {
+                        \Pafish\Core\Logger::error('[pafish-theme] ' . $name . ' renderInjection(' . $hook . ') 失败：' . $e->getMessage());
                     }
-                } catch (\Throwable $e) {
-                    \Pafish\Core\Logger::error('[pafish-theme] ' . $name . ' renderInjection(' . $hook . ') 失败：' . $e->getMessage());
                 }
             }
         }
         $result = Hooks::applyFilters('theme_' . $hook, implode("\n", $parts), $context);
         $html = is_string($result) ? $result : '';
-        return $hook === 'head' ? self::parseInjectionTags($html) : $html;
-    }
-
-    /** 主题 head 注入与插件使用同一套标签白名单。 */
-    private static function parseInjectionTags(string $html): string
-    {
-        $out = '';
-        foreach ([
-            '/<script\\b[^>]*>[\\s\\S]*?<\\/script>/i',
-            '/<meta\\b[^>]*>/i',
-            '/<link\\b[^>]*>/i',
-            '/<style\\b[^>]*>[\\s\\S]*?<\\/style>/i',
-        ] as $pattern) {
-            if (preg_match_all($pattern, $html, $matches) !== false) {
-                $out .= implode("\n", $matches[0]);
-            }
-        }
-        return $out;
+        // Theme PHP is trusted code, like footer injections. Preserve author order;
+        // configuration values within the HTML still require contextual escaping.
+        return $html;
     }
 
     /** 当前主题编辑器专属样式；主题未提供时不输出任何内容。 */
@@ -190,43 +272,49 @@ final class Theme
     /** 解析主题静态文件的相对路径：优先主题根目录，兼容现有 assets/ 目录。 */
     public static function resolveAssetPath(string $name, string $path): ?string
     {
-        if (!self::isValidName($name)) {
-            return null;
-        }
+        return self::assetLocation($name, $path)['path'] ?? null;
+    }
+
+    /** Actual owner paths keep relative CSS/font/image links valid on static servers. */
+    public static function assetLocation(string $name, string $path): ?array
+    {
+        if (!self::isValidName($name)) return null;
         $path = trim(str_replace('\\', '/', $path), '/');
         $explicitAssets = str_starts_with($path, 'assets/');
-        if ($explicitAssets) {
-            $path = substr($path, 7);
-        }
-        if (!self::isSafeAssetPath($path)) {
-            return null;
-        }
-
-        $candidates = $explicitAssets
-            ? ['assets/' . $path, $path]
-            : [$path, 'assets/' . $path];
-        foreach (array_values(array_unique($candidates)) as $candidate) {
-            if (is_file(self::root() . '/' . $name . '/' . $candidate)) {
-                return $candidate;
+        if ($explicitAssets) $path = substr($path, 7);
+        if (!self::isSafeAssetPath($path)) return null;
+        $candidates = $explicitAssets ? ['assets/' . $path, $path] : [$path, 'assets/' . $path];
+        foreach (self::family($name) ?: [$name] as $owner) {
+            foreach (array_unique($candidates) as $candidate) {
+                $file = self::ownAssetFile($owner, $candidate);
+                if ($file !== null) return ['theme' => $owner, 'path' => $candidate, 'file' => $file];
             }
         }
-        // 文件尚不存在时仍返回稳定的主题路径。
-        return $candidates[0];
+        return ['theme' => $name, 'path' => $candidates[0], 'file' => null];
     }
-    /** 返回主题静态资源的真实路径。 */
+
+    /** Return only real files contained in their declared owner. */
+    private static function ownAssetFile(string $name, string $path): ?string
+    {
+        if (!self::isValidName($name) || !self::isSafeAssetPath($path)) return null;
+        $base = TemplateFiles::directory(self::root(), $name);
+        if ($base === null) return null;
+        $file = realpath($base . '/' . $path);
+        if ($file === false) return null;
+        $prefix = rtrim(str_replace('\\', '/', $base), '/') . '/';
+        $actual = str_replace('\\', '/', $file);
+        if (DIRECTORY_SEPARATOR === '\\') { $prefix = strtolower($prefix); $actual = strtolower($actual); }
+        return str_starts_with($actual, $prefix) && is_file($file) && is_readable($file) ? $file : null;
+    }
+
     public static function assetFile(string $name, string $path): ?string
     {
-        $relative = self::resolveAssetPath($name, $path);
-        if ($relative === null) {
-            return null;
-        }
-        $file = self::root() . '/' . $name . '/' . $relative;
-        return is_file($file) ? $file : null;
+        return self::assetLocation($name, $path)['file'] ?? null;
     }
 
     private static function isSafeAssetPath(string $path): bool
     {
-        if ($path === '' || str_contains($path, '..') || str_contains($path, "\0")
+        if ($path === '' || preg_match('~(^|/)\\.~', $path) || str_contains($path, '..') || str_contains($path, "\0")
             || str_contains($path, '\\') || str_contains($path, '//')) {
             return false;
         }
@@ -269,11 +357,17 @@ final class Theme
      */
     public static function describe(string $name): array
     {
+        return self::describeWithStack($name, []);
+    }
+
+    private static function describeWithStack(string $name, array $stack): array
+    {
+        if (in_array($name, $stack, true) || count($stack) > 1) return ['manifest' => null, 'error' => '父主题继承存在循环或超过一层'];
         if (!self::isValidName($name)) {
             return ['manifest' => null, 'error' => '主题名不合法'];
         }
         $dir = self::root() . '/' . $name;
-        if (!is_dir($dir) || !self::isThemeDirectory($dir)) {
+        if (TemplateFiles::directory(self::root(), $name) === null || !is_dir($dir) || !self::isThemeDirectory($dir)) {
             return ['manifest' => null, 'error' => '主题目录不存在或缺少模板文件'];
         }
         $file = $dir . '/theme.json';
@@ -288,7 +382,27 @@ final class Theme
         if ($error !== null) {
             return ['manifest' => null, 'error' => $error];
         }
-        return ['manifest' => self::normalizeManifest($json, $name), 'error' => null];
+        $manifest = self::normalizeManifest($json, $name);
+        if (isset($manifest['parent'])) {
+            $parent = self::describeWithStack($manifest['parent'], array_merge($stack, [$name]));
+            if ($parent['error'] !== null) return ['manifest' => null, 'error' => '父主题不可用：' . $parent['error']];
+            if (isset($parent['manifest']['parent'])) return ['manifest' => null, 'error' => '父主题不能再继承其他主题'];
+            if (isset($manifest['parentMinVersion']) && version_compare($parent['manifest']['version'], $manifest['parentMinVersion'], '<')) {
+                return ['manifest' => null, 'error' => '父主题版本低于要求：' . $manifest['parentMinVersion']];
+            }
+            foreach (['templateFallback', 'systemStyleFallback', 'systemTemplateFallback', 'templateDirectories', 'userData', 'editorFields', 'widgetAreas', 'pageTemplates'] as $key) {
+                if (!array_key_exists($key, $json)) $manifest[$key] = $parent['manifest'][$key] ?? null;
+            }
+            $manifest['editorFields'] = array_values(array_unique(array_merge($parent['manifest']['editorFields'] ?? [], $manifest['editorFields'] ?? [])));
+            foreach (['widgetAreas' => 'key', 'pageTemplates' => 'name'] as $key => $id) {
+                $merged = [];
+                foreach (array_merge($parent['manifest'][$key] ?? [], $manifest[$key] ?? []) as $entry) {
+                    if (is_array($entry) && is_string($entry[$id] ?? null)) $merged[$entry[$id]] = $entry;
+                }
+                $manifest[$key] = array_values($merged);
+            }
+        }
+        return ['manifest' => $manifest, 'error' => null];
     }
 
     /**
@@ -301,6 +415,8 @@ final class Theme
         if (($json['name'] ?? null) !== $dirName) {
             return 'name 缺失或与目录名不一致';
         }
+        if (array_key_exists('parent', $json) && (!is_string($json['parent']) || !self::isValidName($json['parent']) || $json['parent'] === $dirName)) return 'parent 必须是另一个合法主题名';
+        if (array_key_exists('parentMinVersion', $json) && (!isset($json['parent']) || !is_string($json['parentMinVersion']) || preg_match('/^[0-9]+(?:\.[0-9]+){0,2}(?:[-+][0-9A-Za-z.-]+)?$/D', $json['parentMinVersion']) !== 1)) return 'parentMinVersion 必须是合法的最低版本';
         if (array_key_exists('title', $json) && (!is_string($json['title']) || trim($json['title']) === '')) {
             return 'title 必须是非空字符串';
         }
@@ -353,6 +469,13 @@ final class Theme
         if (array_key_exists('settings', $json) && !is_array($json['settings'])) {
             return 'settings 必须是数组';
         }
+        if (isset($json['templateFallback']) && !in_array($json['templateFallback'], ['system', 'theme'], true)) return 'templateFallback 无效';
+        if (array_key_exists('systemStyleFallback', $json) && !is_bool($json['systemStyleFallback'])) return 'systemStyleFallback 必须为布尔值';
+        if (array_key_exists('templateDirectories', $json)
+            && (!is_array($json['templateDirectories']) || count($json['templateDirectories']) > 8
+                || array_filter($json['templateDirectories'], static fn (mixed $path): bool => !is_string($path) || !TemplateFiles::validName($path)) !== [])) {
+            return 'templateDirectories 必须为主题内的相对目录';
+        }
         if (array_key_exists('userData', $json)
             && (!is_array($json['userData'])
                 || array_filter($json['userData'], static fn ($key): bool => !is_string($key) || !in_array($key, self::USER_DATA, true)) !== [])) {
@@ -381,6 +504,9 @@ final class Theme
         $json['title'] = trim((string) ($json['title'] ?? $name)) ?: $name;
         $json['version'] = trim((string) ($json['version'] ?? self::DEFAULT_VERSION)) ?: self::DEFAULT_VERSION;
         $json['apiVersion'] = is_int($json['apiVersion'] ?? null) ? $json['apiVersion'] : 1;
+        $json['templateFallback'] = $json['templateFallback'] ?? 'system';
+        $json['systemStyleFallback'] = $json['systemStyleFallback'] ?? true;
+        $json['templateDirectories'] = $json['templateDirectories'] ?? self::TEMPLATE_DIRECTORIES;
         $json['requires'] = ExtensionDependencies::normalize($json['requires'] ?? null);
         $json['meta'] = EntityMetaSchema::normalize($json['meta'] ?? null);
         $json['injects'] = is_array($json['injects'] ?? null)
@@ -424,7 +550,43 @@ final class Theme
             $file = realpath($dir . '/' . $entry);
             if ($file !== false && dirname($file) === $directory && is_file($file) && is_readable($file)) return true;
         }
+        $raw = is_file($dir . '/theme.json') ? json_decode((string) file_get_contents($dir . '/theme.json'), true) : [];
+        if (is_array($raw) && is_string($raw['parent'] ?? null) && self::isValidName($raw['parent'])) return true;
+        foreach (self::templateDirectories(is_array($raw) ? $raw : []) as $relative) {
+            if ($relative === '' || ($nested = TemplateFiles::directory($dir, $relative)) === null) continue;
+            foreach (scandir($nested) ?: [] as $entry) {
+                if (preg_match('/^[a-z0-9_-]{1,64}\.php$/D', $entry) === 1 && TemplateFiles::find($dir, $relative . '/' . substr($entry, 0, -4)) !== null) return true;
+            }
+        }
         return false;
+    }
+
+    private static function templateDirectories(array $manifest): array
+    {
+        $directories = $manifest['templateDirectories'] ?? self::TEMPLATE_DIRECTORIES;
+        if (!is_array($directories)) $directories = self::TEMPLATE_DIRECTORIES;
+        return array_values(array_unique(array_merge([''], array_filter($directories, static fn (mixed $path): bool => is_string($path) && TemplateFiles::validName($path)))));
+    }
+
+    private static function findTemplate(string $theme, string $name): ?string
+    {
+        if (!self::isValidName($theme) || !TemplateFiles::validName($name)) return null;
+        foreach (self::family($theme) as $owner) {
+            foreach (self::templateDirectories(self::manifest($owner) ?? []) as $directory) {
+                $file = TemplateFiles::find(self::root() . '/' . $owner, ($directory !== '' ? $directory . '/' : '') . $name);
+                if ($file !== null) return $file;
+            }
+        }
+        return null;
+    }
+
+    /** Explicit parent delegation lets a child wrap a partial without recursive rendering. */
+    public static function parentTemplate(string $name): string
+    {
+        $family = self::family(self::active());
+        $file = isset($family[1]) ? self::findTemplate($family[1], $name) : null;
+        if ($file === null) throw new \RuntimeException('父主题模板不存在或路径无效：' . $name);
+        return $file;
     }
 
     /** 当前主题业务上下文。 */
@@ -443,7 +605,7 @@ final class Theme
     /** 注册主题业务模块的钩子。 */
     private static function registerHooks(string $name): void
     {
-        $handler = ExtensionKernel::providerFor('theme', $name, 'registerHooks');
+        $handler = ExtensionKernel::providerFor('theme', $name, 'registerHooks', false);
         if ($handler === null) {
             return;
         }
@@ -472,8 +634,7 @@ final class Theme
                 ExtensionSchema::recordFingerprint('theme', $name, $schema);
             }
             // 版本迁移可能由 extension.php 注册，先加载统一入口再执行 onUpgrade。
-            if (is_file(self::root() . '/' . $name . '/extension.php')
-                && !ExtensionKernel::boot('theme', $name, self::root(), self::context($name))) {
+            if (!self::bootOwner($name)) {
                 throw new \RuntimeException('主题入口加载失败');
             }
             self::runUpgrade($name, $fromVersion, $version);
@@ -496,7 +657,7 @@ final class Theme
         if (ExtensionKernel::runLifecycle('theme', $name, $phase, $args, $phase === 'onUpgrade')) {
             return;
         }
-        $handler = ExtensionKernel::providerFor('theme', $name, $phase);
+        $handler = ExtensionKernel::providerFor('theme', $name, $phase, false);
         if ($handler === null) {
             return;
         }
@@ -519,7 +680,7 @@ final class Theme
         if (ExtensionKernel::runLifecycle('theme', $name, 'onUpgrade', [$fromVersion, $toVersion], true)) {
             return;
         }
-        $handler = ExtensionKernel::providerFor('theme', $name, 'onUpgrade');
+        $handler = ExtensionKernel::providerFor('theme', $name, 'onUpgrade', false);
         if ($handler === null) {
             return;
         }
@@ -559,6 +720,8 @@ final class Theme
     public static function setExtensionSettings(string $name, array $partial): void
     {
         $prefix = self::settingsPrefix($name);
+        $desc = self::describe($name);
+        if ($desc['error'] !== null) throw new \InvalidArgumentException($desc['error']);
         $fields = [];
         foreach (ExtensionKernel::flattenFields(self::settingsFields($name)) as $field) {
             if (isset($field['key']) && !ExtensionKernel::isDecorativeType((string) ($field['type'] ?? ''))) {
@@ -577,6 +740,11 @@ final class Theme
                 throw new \InvalidArgumentException($error);
             }
             $pairs[$prefix . $key] = $value;
+        }
+        $combined = self::valuesFor($name);
+        foreach ($pairs as $key => $value) $combined[substr($key, strlen($prefix))] = $value;
+        if (array_sum(array_map('strlen', $combined)) > ExtensionKernel::MAX_SETTINGS_BYTES) {
+            throw new \InvalidArgumentException('主题设置总大小不能超过 1 MiB');
         }
         Settings::setMany($pairs);
         self::resetValues();
@@ -606,6 +774,26 @@ final class Theme
     /** 返回主题声明的设置字段。 */
     public static function settingsFields(string $name): array
     {
+        $fields = [];
+        foreach (array_reverse(self::family($name)) as $owner) $fields = self::mergeFields($fields, self::ownSettingsFields($owner));
+        return $fields;
+    }
+
+    private static function mergeFields(array $base, array $overrides): array
+    {
+        $byKey = array_column($base, null, 'key');
+        foreach ($overrides as $field) {
+            $key = $field['key'];
+            if (($field['type'] ?? '') === 'group' && ($byKey[$key]['type'] ?? '') === 'group') {
+                $field['fields'] = self::mergeFields($byKey[$key]['fields'], $field['fields']);
+            }
+            $byKey[$key] = $field;
+        }
+        return array_values($byKey);
+    }
+
+    private static function ownSettingsFields(string $name): array
+    {
         $manifest = self::manifest($name);
         $fields = [];
         foreach ((array) ($manifest['settings'] ?? []) as $field) {
@@ -614,7 +802,7 @@ final class Theme
                 $fields[(string) $normalized['key']] = $normalized;
             }
         }
-        foreach (ExtensionKernel::settingsFor('theme', $name) as $field) {
+        foreach (array_merge(self::$configurationFields[$name] ?? [], ExtensionKernel::settingsFor('theme', $name)) as $field) {
             if (is_array($field) && isset($field['key'])) {
                 $fields[(string) $field['key']] = $field;
             }
@@ -641,7 +829,7 @@ final class Theme
     {
         $keys = [];
         foreach (self::list() as $name) {
-            if ($name === self::active()) {
+            if (self::includes($name)) {
                 continue;
             }
             $keys = array_merge($keys, self::editorFieldKeys($name));
@@ -649,7 +837,7 @@ final class Theme
         return array_values(array_unique($keys));
     }
 
-    /** 当前主题根目录中的 page-*.php；清单仅提供可选显示名。 */
+    /** Discover page-*.php in the theme's template directories. */
     public static function pageTemplates(string $name): array
     {
         return self::customTemplates($name, 'page-');
@@ -673,26 +861,35 @@ final class Theme
             }
         }
         $templates = [];
-        foreach (scandir(self::root() . '/' . $name) ?: [] as $file) {
-            if (preg_match('/^' . preg_quote($prefix, '/') . '([a-z0-9-]{1,40})\.php$/D', $file, $match) !== 1) continue;
-            $key = $match[1];
-            $path = self::customTemplateFile($name, $key, $prefix);
-            if ($path === null) continue;
-            $title = $labels[$key] ?? '';
-            if ($title === '') {
-                $header = file_get_contents($path, false, null, 0, 8192);
-                // 只读取 PHP 文件头注释，不执行模板，也不从正文 HTML 提取标题。
-                if (is_string($header) && preg_match('/\A\s*<\?php\s*(?:declare\s*\(\s*strict_types\s*=\s*1\s*\)\s*;\s*)?\/\*([\s\S]*?)\*\//', $header, $comment) === 1
-                    && preg_match('/@name\h+([^\r\n*]+)/u', $comment[1], $label) === 1) {
-                    $title = trim($label[1]);
+        $seen = [];
+        foreach (self::family($name) as $owner) {
+            foreach (self::templateDirectories(self::manifest($owner) ?? []) as $relative) {
+                $directory = TemplateFiles::directory(self::root() . '/' . $owner, $relative);
+                if ($directory === null) continue;
+                foreach (scandir($directory) ?: [] as $file) {
+                    if (preg_match('/^' . preg_quote($prefix, '/') . '([a-z0-9-]{1,40})\.php$/D', $file, $match) !== 1) continue;
+                    $key = $match[1];
+                    if (isset($seen[$key])) continue;
+                    $path = self::customTemplateFile($name, $key, $prefix);
+                    if ($path === null) continue;
+                    $seen[$key] = true;
+                    $title = $labels[$key] ?? '';
+                    if ($title === '') {
+                        $header = file_get_contents($path, false, null, 0, 8192);
+                        // 只读取 PHP 文件头注释，不执行模板，也不从正文 HTML 提取标题。
+                        if (is_string($header) && preg_match('/\A\s*<\?php\s*(?:declare\s*\(\s*strict_types\s*=\s*1\s*\)\s*;\s*)?\/\*([\s\S]*?)\*\//', $header, $comment) === 1
+                            && preg_match('/@name\h+([^\r\n*]+)/u', $comment[1], $label) === 1) {
+                            $title = trim($label[1]);
+                        }
+                    }
+                    $templates[] = ['name' => $key, 'title' => mb_substr($title !== '' ? $title : $key, 0, 100)];
                 }
             }
-            $templates[] = ['name' => $key, 'title' => mb_substr($title !== '' ? $title : $key, 0, 100)];
         }
         return $templates;
     }
 
-    /** 只接受当前主题根目录的真实文件，拒绝目录穿越及指向目录外的链接。 */
+    /** Keep discovered templates inside the resolved theme directory. */
     public static function pageTemplateFile(string $theme, string $template): ?string
     {
         return self::customTemplateFile($theme, $template, 'page-');
@@ -707,10 +904,7 @@ final class Theme
     {
         if (!self::isValidName($theme) || $template === 'default'
             || preg_match(self::TEMPLATE_NAME_PATTERN, $template) !== 1) return null;
-        $directory = realpath(self::root() . '/' . $theme);
-        if ($directory === false) return null;
-        $file = realpath($directory . '/' . $prefix . $template . '.php');
-        return $file !== false && dirname($file) === $directory && is_file($file) && is_readable($file) ? $file : null;
+        return self::findTemplate($theme, $prefix . $template);
     }
 
     /** 当前主题可用的组件区域；主题未声明时保留通用区域。 */
@@ -732,26 +926,25 @@ final class Theme
         return $areas;
     }
 
-    /** 主题样式文件定位：优先 assets/css/ 子目录，根目录位置保留兼容旧主题。 */
-    private static function findAsset(string $name, string $file): ?string
-    {
-        foreach (['assets/css/', ''] as $dir) {
-            $path = self::root() . '/' . $name . '/' . $dir . $file;
-            if (is_file($path)) {
-                return $path;
-            }
-        }
-        return null;
-    }
-
     /** 主题 CSS（theme.css 内容，前台 <style> 注入）；无文件返回 null */
     public static function css(string $name): ?string
     {
         if (!self::isValidName($name)) {
             return null;
         }
-        $file = self::findAsset($name, 'theme.css');
-        return $file !== null ? (string) file_get_contents($file) : null;
+        return self::styleLayers($name, 'theme.css');
+    }
+
+    private static function styleLayers(string $name, string $file): ?string
+    {
+        $parts = [];
+        foreach (array_reverse(self::family($name)) as $owner) {
+            foreach (['assets/css/', ''] as $directory) {
+                $path = self::ownAssetFile($owner, $directory . $file);
+                if ($path !== null) { $parts[] = (string) file_get_contents($path); break; }
+            }
+        }
+        return $parts === [] ? null : implode("\n", $parts);
     }
 
     /**
@@ -763,8 +956,9 @@ final class Theme
         if (!self::isValidName($name)) {
             $name = 'default';
         }
-        $file = self::findAsset($name, 'style.css') ?? self::findAsset('default', 'style.css');
-        return $file !== null ? (string) file_get_contents($file) : null;
+        $css = self::styleLayers($name, 'style.css');
+        if ($css === null && (self::manifest($name)['systemStyleFallback'] ?? true)) $css = self::styleLayers('default', 'style.css');
+        return $css;
     }
 
     /**
@@ -1110,7 +1304,7 @@ final class Theme
      */
     public static function template(string $name, array $context = []): string
     {
-        if (!preg_match(self::NAME_PATTERN, $name)) {
+        if (!TemplateFiles::validName($name)) {
             throw new \RuntimeException('非法的模板名：' . $name);
         }
 
@@ -1132,6 +1326,17 @@ final class Theme
             }
         }
 
+        $manifest = self::manifest(self::active()) ?? [];
+        $themeFallback = ($manifest['templateFallback'] ?? 'system') === 'theme';
+        if ($themeFallback) {
+            $generic = match ($name) {
+                'category', 'tag', 'search' => ['listing', 'index'],
+                'post', 'page' => ['singular', 'index'],
+                default => [],
+            };
+            array_push($baseCandidates, ...$generic);
+        }
+
         $filtered = Hooks::applyFilters('theme_template_candidates', $baseCandidates, [
             'template' => $name,
             'context' => $context,
@@ -1140,7 +1345,7 @@ final class Theme
         $candidates = [];
         if (is_array($filtered)) {
             foreach ($filtered as $candidate) {
-                if (is_string($candidate) && preg_match('/^[a-z0-9_-]{1,64}$/D', $candidate) === 1 && !in_array($candidate, $candidates, true)) {
+                if (is_string($candidate) && TemplateFiles::validName($candidate) && !in_array($candidate, $candidates, true)) {
                     $candidates[] = $candidate;
                 }
             }
@@ -1149,21 +1354,21 @@ final class Theme
             $candidates = $baseCandidates;
         }
 
-        $directory = realpath(self::root() . '/' . self::active());
         foreach ($candidates as $candidate) {
-            $themeFile = $directory === false ? false : realpath($directory . '/' . $candidate . '.php');
-            if ($themeFile !== false && dirname($themeFile) === $directory && is_file($themeFile) && is_readable($themeFile)) {
+            $themeFile = self::findTemplate(self::active(), $candidate);
+            if ($themeFile !== null) {
                 return $themeFile;
             }
         }
-        $manifest = self::manifest(self::active());
         $fallbacks = $manifest['systemTemplateFallback'] ?? null;
-        if ($name !== 'micro' && in_array($name, self::PAGE_TEMPLATES, true) && is_array($fallbacks) && !in_array($name, $fallbacks, true)) {
+        if ($name !== 'micro' && in_array($name, self::PAGE_TEMPLATES, true)
+            && ((is_array($fallbacks) && !in_array($name, $fallbacks, true))
+                || ($themeFallback && $fallbacks === null && in_array($name, ['index','post','page','category','tag','search'], true)))) {
             throw new \RuntimeException('当前主题未提供页面模板：' . $name);
         }
         foreach ($candidates as $candidate) {
-            $systemFile = dirname(__DIR__) . '/Views/theme/' . $candidate . '.php';
-            if (is_file($systemFile)) {
+            $systemFile = TemplateFiles::find(dirname(__DIR__) . '/Views/theme', $candidate);
+            if ($systemFile !== null) {
                 return $systemFile;
             }
         }
@@ -1173,10 +1378,7 @@ final class Theme
     /** 判断当前主题是否提供指定模板。 */
     public static function hasTemplate(string $name): bool
     {
-        if (!preg_match(self::NAME_PATTERN, $name)) {
-            return false;
-        }
-        return is_file(self::root() . '/' . self::active() . '/' . $name . '.php');
+        return self::findTemplate(self::active(), $name) !== null;
     }
 
     /** 归档入口仅在主题提供模板或允许系统回退时启用。 */
@@ -1193,47 +1395,51 @@ final class Theme
     /** 切换激活主题 */
     public static function setActive(string $name): void
     {
+        if (ThemePreview::name() !== null) ThemePreview::stop();
         $desc = self::describe($name);
-        if ($desc['error'] !== null) {
-            throw new \RuntimeException($desc['error'] ?? '主题不存在');
-        }
-        ExtensionDependencies::assertSatisfied('theme', $name, $desc['manifest']['requires'] ?? []);
-        if (is_file(self::root() . '/' . $name . '/extension.php')
-            && !ExtensionKernel::boot('theme', $name, self::root(), self::context($name))) {
-            throw new \RuntimeException('主题入口加载失败');
-        }
+        if ($desc['error'] !== null) throw new \RuntimeException($desc['error']);
         $previous = self::active();
+        $previousFamily = self::family($previous);
         try {
-            ExtensionRoutes::assertCanActivate('theme', $name, $desc['manifest']);
-            $version = (string) $desc['manifest']['version'];
-            $previousVersion = ExtensionSchema::installedVersion('theme', $name);
-            $schema = $desc['manifest']['schema'] ?? null;
-            ExtensionSchema::sync('theme', $name, $schema);
-            ExtensionSchema::recordFingerprint('theme', $name, $schema);
-            self::runUpgrade($name, $previousVersion, $version);
-            ExtensionSchema::recordVersion('theme', $name, $version);
-            if ($previous !== $name) {
-                self::runLifecycle($previous, 'onDeactivate');
-                self::runLifecycle($name, 'onActivate');
-            }
-            Settings::set('active_theme', $name);
-            self::reset();
-            if (!self::boot()) {
-                throw new \RuntimeException('主题入口加载失败');
-            }
-        } catch (\Throwable $e) {
-            // 路由、schema 或迁移失败后，不能把新主题已注册的能力留在长驻进程中。
-            ExtensionKernel::reset('theme', $name);
-            if ($previous !== $name && self::active() === $name) {
-                try {
-                    Settings::set('active_theme', $previous);
-                } catch (\Throwable) {
-                    // 保留原始切换错误；下一次请求会按主题清单回退到 default。
+            self::withTheme($name, static function () use ($name, $desc, $previousFamily): void {
+                self::assertDependencies($name);
+                $family = self::family($name);
+                foreach (array_reverse($family) as $owner) {
+                    if (!self::bootOwner($owner)) throw new \RuntimeException('主题入口加载失败：' . $owner);
                 }
-            }
+                ExtensionRoutes::assertCanActivate('theme', $name, $desc['manifest']);
+                foreach (array_reverse($family) as $owner) {
+                    if (!self::syncActiveSchema($owner)) throw new \RuntimeException('主题结构或迁移失败：' . $owner);
+                }
+                foreach (array_diff($previousFamily, $family) as $owner) self::runLifecycle($owner, 'onDeactivate');
+                foreach (array_reverse(array_diff($family, $previousFamily)) as $owner) self::runLifecycle($owner, 'onActivate');
+                Settings::set('active_theme', $name);
+            });
+            self::reset();
+            if (!self::boot()) throw new \RuntimeException('主题入口加载失败');
+        } catch (\Throwable $e) {
+            if ((string) Settings::get('active_theme', 'default') === $name && $name !== $previous) Settings::set('active_theme', $previous);
             self::reset();
             throw $e;
         }
+    }
+
+    public static function assertDependencies(string $name): void
+    {
+        self::withTheme($name, static function () use ($name): void {
+            foreach (array_reverse(self::family($name)) as $owner) ExtensionDependencies::assertSatisfied('theme', $owner, self::manifest($owner)['requires'] ?? []);
+        });
+    }
+
+    /** Include inactive/broken children so uninstall cannot silently orphan them. */
+    public static function dependants(string $name): array
+    {
+        $out = [];
+        foreach (glob(self::root() . '/*/theme.json') ?: [] as $file) {
+            $raw = json_decode((string) file_get_contents($file), true);
+            if (($raw['parent'] ?? null) === $name) $out[] = basename(dirname($file));
+        }
+        return $out;
     }
 
     /** 从 zip 缓冲安装主题；返回 name/title/version/updated。校验失败抛 RuntimeException（已回滚） */
@@ -1310,6 +1516,22 @@ final class Theme
                     throw new \RuntimeException('安装失败：' . $error . '（已回滚）');
                 }
                 $json = self::normalizeManifest($json, (string) $top);
+                try {
+                    if (isset($json['parent'])) {
+                        $parent = self::describe($json['parent']);
+                        if ($parent['error'] !== null || isset($parent['manifest']['parent'])) throw new \RuntimeException('父主题不存在、不可用或已继承其他主题');
+                        if (isset($json['parentMinVersion']) && version_compare($parent['manifest']['version'], $json['parentMinVersion'], '<')) throw new \RuntimeException('父主题版本不满足要求');
+                    }
+                    foreach (self::dependants((string) $top) as $child) {
+                        $rawChild = json_decode((string) file_get_contents(self::root() . '/' . $child . '/theme.json'), true);
+                        if (isset($json['parent']) || (is_string($rawChild['parentMinVersion'] ?? null) && version_compare($json['version'], $rawChild['parentMinVersion'], '<'))) {
+                            throw new \RuntimeException('更新会破坏已安装子主题的父主题或版本要求：' . $child);
+                        }
+                    }
+                } catch (\Throwable $e) {
+                    self::rmDir($stage);
+                    throw $e;
+                }
             } else {
                 throw new \RuntimeException('安装失败：主题包缺少 theme.json（已回滚）');
             }
@@ -1320,10 +1542,19 @@ final class Theme
                     self::rmDir($stage);
                     throw new \RuntimeException('无法替换已安装主题，请检查目录权限');
                 }
+                clearstatcache(true);
             }
-            if (!@rename($stagedTarget, $target)) {
-                if ($backup !== null) {
-                    @rename($backup, $target);
+            $replaced = @rename($stagedTarget, $target);
+            // Windows 目录移动后，杀毒/索引器可能短暂持有旧目录句柄。
+            for ($attempt = 0; !$replaced && PHP_OS_FAMILY === 'Windows' && $attempt < 5; $attempt++) {
+                usleep(20000);
+                clearstatcache(true);
+                $replaced = @rename($stagedTarget, $target);
+            }
+            if (!$replaced) {
+                if ($backup !== null && !@rename($backup, $target)) {
+                    self::rmDir($stage);
+                    throw new \RuntimeException('主题更新失败，旧版本已保留在 themes/' . basename($backup) . '，请恢复该目录');
                 }
                 self::rmDir($stage);
                 throw new \RuntimeException('主题更新失败（已回滚）');
@@ -1359,6 +1590,7 @@ final class Theme
     /** 卸载主题：拒绝当前主题；默认保留主题设置和私有数据。 */
     public static function uninstall(string $name, bool $deleteData = false): void
     {
+        if ($name === 'default') throw new \RuntimeException('默认主题是系统回退主题，不能卸载；可通过应用商店更新');
         if (!self::isValidName($name)) {
             throw new \RuntimeException('主题名不合法');
         }
@@ -1366,10 +1598,11 @@ final class Theme
         if ($desc['error'] !== null) {
             throw new \RuntimeException('无法卸载：' . ($desc['error'] ?? '主题不存在'));
         }
-        if (self::active() === $name) {
+        if (self::dependants($name) !== []) throw new \RuntimeException('不能卸载仍被子主题依赖的父主题：' . implode('、', self::dependants($name)));
+        if (self::includes($name)) {
             throw new \RuntimeException('不能卸载当前正在使用的主题，请先切换到其他主题');
         }
-        self::runLifecycle($name, 'onUninstall');
+        self::withDefinitions($name, static fn () => self::runLifecycle($name, 'onUninstall'));
         // 先删除代码目录；目录权限失败时保留主题设置和数据，便于修复后重试。
         if (!@self::rmDir(self::root() . '/' . $name)) {
             throw new \RuntimeException('删除主题目录失败');
@@ -1429,7 +1662,8 @@ final class Theme
             if (!isset($keys[$k])) {
                 continue;
             }
-            $pairs[$k] = is_scalar($v) ? (string) $v : '';
+            if (!is_scalar($v)) throw new \InvalidArgumentException('主题设置备份中的值必须是字符串或标量');
+            $pairs[$k] = (string) $v;
         }
         self::setExtensionSettings($name, $pairs);
         return ['imported' => count($pairs), 'total' => $total];
@@ -1457,6 +1691,8 @@ final class Theme
     /** 清除静态缓存（安装/卸载/激活/保存设置后调用） */
     public static function reset(): void
     {
+        foreach (array_keys(self::$bootedOwners) as $owner) ExtensionKernel::reset('theme', $owner);
+        self::$bootedOwners = [];
         if (self::$bootedTheme !== null) {
             ExtensionKernel::reset('theme', self::$bootedTheme);
         }
@@ -1465,6 +1701,7 @@ final class Theme
         self::resetValues();
         self::$bootedTheme = null;
         self::$schemaBootKey = null;
+        self::$configurationFields = [];
     }
 
     public static function resetValues(): void

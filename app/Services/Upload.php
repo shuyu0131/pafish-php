@@ -92,6 +92,30 @@ final class Upload
         return self::process($buffer, $origName, strlen($buffer));
     }
 
+    /** Image-only entry points reject other extensions before any storage or hooks. */
+    public static function handleImageStream(string $buffer, string $origName): array
+    {
+        $ext = strtolower(pathinfo(trim($origName), PATHINFO_EXTENSION));
+        if (!in_array($ext, ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'], true)) {
+            throw new \RuntimeException('只能上传图片');
+        }
+        return self::handleStream($buffer, $origName);
+    }
+
+    private static function validateRaster(string $buffer, string $ext): array
+    {
+        $info = @getimagesizefromstring($buffer);
+        if (!is_array($info) || ($info['mime'] ?? '') !== (self::MIME_MAP[$ext] ?? '')
+            || $info[0] < 1 || $info[1] < 1 || $info[0] > 16384 || $info[1] > 16384
+            || $info[0] * $info[1] > 40000000) {
+            throw new \RuntimeException('图片内容无效或尺寸过大');
+        }
+        $image = @imagecreatefromstring($buffer);
+        if ($image === false) throw new \RuntimeException('图片内容无效');
+        unset($image);
+        return [(int) $info[0], (int) $info[1]];
+    }
+
     public static function handlePath(string $path, string $origName): array
     {
         if (!is_file($path)) {
@@ -109,7 +133,7 @@ final class Upload
         if (!in_array($ext, self::ALLOWED_EXT, true)) {
             throw new \RuntimeException('不支持的文件类型：' . ($ext !== '' ? $ext : '无扩展名'));
         }
-        if (in_array($ext, ['png', 'jpg', 'jpeg', 'webp'], true)) {
+        if (in_array($ext, ['png', 'jpg', 'jpeg', 'gif', 'webp'], true)) {
             return self::process((string) file_get_contents($path), $origName, $size);
         }
         if ($ext === 'svg') {
@@ -147,6 +171,9 @@ final class Upload
 
         $width = null;
         $height = null;
+        if (in_array($ext, ['png', 'jpg', 'jpeg', 'gif', 'webp'], true)) {
+            [$width, $height] = self::validateRaster($buffer, $ext);
+        }
 
         // 图片压缩（失败回退原图）
         if (in_array($ext, ['png', 'jpg', 'jpeg', 'webp'], true)) {
@@ -173,6 +200,11 @@ final class Upload
         }
         if (strlen($buffer) > $maxMb * 1024 * 1024) {
             throw new \RuntimeException("处理后的文件不能超过 {$maxMb}MB");
+        }
+
+        if ($ext === 'svg') $buffer = self::sanitizeSvg($buffer);
+        if (in_array($ext, ['png', 'jpg', 'jpeg', 'gif', 'webp'], true)) {
+            [$width, $height] = self::validateRaster($buffer, $ext);
         }
 
         // 云存储插件优先（激活插件声明 storage 且实现 storeFile）
@@ -317,83 +349,70 @@ final class Upload
      */
     private static function sanitizeSvg(string $svg): string
     {
-        $referenceAttributes = ['fill', 'stroke', 'filter', 'clip-path', 'mask', 'marker-start', 'marker-mid', 'marker-end'];
+        $namespace = 'http://www.w3.org/2000/svg';
+        $elements = ['svg', 'g', 'defs', 'symbol', 'use', 'path', 'rect', 'circle', 'ellipse',
+            'line', 'polyline', 'polygon', 'text', 'tspan', 'textPath', 'title', 'desc',
+            'linearGradient', 'radialGradient', 'stop', 'clipPath', 'mask', 'pattern', 'marker'];
+        $attributes = ['id', 'class', 'viewBox', 'preserveAspectRatio', 'width', 'height',
+            'x', 'y', 'x1', 'y1', 'x2', 'y2', 'cx', 'cy', 'r', 'rx', 'ry', 'd', 'points',
+            'transform', 'fill', 'fill-rule', 'fill-opacity', 'stroke', 'stroke-width',
+            'stroke-linecap', 'stroke-linejoin', 'stroke-miterlimit', 'stroke-dasharray',
+            'stroke-dashoffset', 'stroke-opacity', 'opacity', 'clip-path', 'clip-rule', 'mask',
+            'marker-start', 'marker-mid', 'marker-end', 'markerWidth', 'markerHeight',
+            'markerUnits', 'refX', 'refY', 'orient', 'gradientUnits', 'gradientTransform',
+            'spreadMethod', 'offset', 'stop-color', 'stop-opacity', 'fx', 'fy', 'fr',
+            'patternUnits', 'patternContentUnits', 'patternTransform', 'maskUnits',
+            'maskContentUnits', 'clipPathUnits', 'font-family', 'font-size', 'font-weight',
+            'font-style', 'text-anchor', 'dominant-baseline', 'dx', 'dy', 'rotate',
+            'textLength', 'lengthAdjust', 'startOffset', 'vector-effect', 'href', 'role', 'aria-label'];
+        if (stripos($svg, '<!DOCTYPE') !== false || stripos($svg, '<!ENTITY') !== false) {
+            throw new \RuntimeException('SVG 不允许文档类型或实体声明');
+        }
         $dom = new \DOMDocument('1.0', 'UTF-8');
-        $dom->preserveWhiteSpace = false;
         $dom->resolveExternals = false;
+        $dom->substituteEntities = false;
         $previous = libxml_use_internal_errors(true);
         try {
             if (!$dom->loadXML($svg, LIBXML_NONET | LIBXML_NOBLANKS)) {
                 throw new \RuntimeException('SVG 文件格式无效');
             }
             $root = $dom->documentElement;
-            if (!$root || strtolower($root->localName ?: $root->nodeName) !== 'svg') {
-                throw new \RuntimeException('SVG 文件格式无效');
+            if (!$root || $root->localName !== 'svg' || $root->namespaceURI !== $namespace) {
+                throw new \RuntimeException('SVG 命名空间无效');
             }
-
-            $blocked = ['script', 'foreignobject', 'iframe', 'object', 'embed', 'audio', 'video', 'animate', 'animatemotion', 'animatetransform', 'set'];
-            $walk = function (\DOMNode $node) use (&$walk, $blocked, $referenceAttributes): void {
+            $walk = static function (\DOMElement $node) use (&$walk, $namespace, $elements, $attributes): void {
+                for ($i = $node->attributes->length - 1; $i >= 0; $i--) {
+                    $attr = $node->attributes->item($i);
+                    if (!$attr) continue;
+                    $name = $attr->localName;
+                    $value = trim($attr->value);
+                    $allowedNamespace = !$attr->namespaceURI
+                        || ($attr->namespaceURI === 'http://www.w3.org/1999/xlink' && $name === 'href');
+                    $unsafeUrl = preg_match('/url|\\\\|\/\*/i', $value) === 1
+                        && preg_match('/^url\(\s*#[A-Za-z_][A-Za-z0-9_.:-]*\s*\)$/D', $value) !== 1;
+                    if (!$allowedNamespace || !in_array($name, $attributes, true)
+                        || ($name === 'href' && preg_match('/^#[A-Za-z_][A-Za-z0-9_.:-]*$/D', $value) !== 1)
+                        || $unsafeUrl) {
+                        $node->removeAttributeNode($attr);
+                    }
+                }
                 for ($child = $node->firstChild; $child !== null;) {
                     $next = $child->nextSibling;
                     if ($child instanceof \DOMElement) {
-                        $name = strtolower($child->localName ?: $child->nodeName);
-                        if (in_array($name, $blocked, true)) {
+                        if ($child->namespaceURI !== $namespace || !in_array($child->localName, $elements, true)) {
                             $node->removeChild($child);
-                            $child = $next;
-                            continue;
+                        } else {
+                            $walk($child);
                         }
-                        if ($name === 'style') {
-                            $node->removeChild($child);
-                            $child = $next;
-                            continue;
-                        }
-                        for ($i = $child->attributes->length - 1; $i >= 0; $i--) {
-                            $attribute = $child->attributes->item($i);
-                            if (!$attribute) {
-                                continue;
-                            }
-                            $attrName = strtolower($attribute->localName ?: $attribute->name);
-                            $value = trim($attribute->value);
-                            $isHref = $attrName === 'href';
-                            $internalReference = preg_match('/^url\(\s*#[A-Za-z_][A-Za-z0-9_.:-]*\s*\)$/i', $value) === 1;
-                            $unsafeReference = in_array($attrName, $referenceAttributes, true)
-                                && !$internalReference
-                                && preg_match('/url|\\\\|\/\*/i', $value) === 1;
-                            if (str_starts_with($attrName, 'on')
-                                || ($isHref && $value !== '' && !str_starts_with($value, '#'))
-                                || $attrName === 'style' || $unsafeReference) {
-                                $child->removeAttributeNode($attribute);
-                            }
-                        }
-                        $walk($child);
+                    } elseif (!$child instanceof \DOMText) {
+                        $node->removeChild($child);
                     }
                     $child = $next;
                 }
             };
-            // 根节点同样可能携带 onload、href 或 style，不能只清理子元素属性。
-            for ($i = $root->attributes->length - 1; $i >= 0; $i--) {
-                $attribute = $root->attributes->item($i);
-                if (!$attribute) {
-                    continue;
-                }
-                $attrName = strtolower($attribute->localName ?: $attribute->name);
-                $value = trim($attribute->value);
-                $isHref = $attrName === 'href';
-                $internalReference = preg_match('/^url\(\s*#[A-Za-z_][A-Za-z0-9_.:-]*\s*\)$/i', $value) === 1;
-                $unsafeReference = in_array($attrName, $referenceAttributes, true)
-                    && !$internalReference
-                    && preg_match('/url|\\\\|\/\*/i', $value) === 1;
-                if (str_starts_with($attrName, 'on')
-                    || ($isHref && $value !== '' && !str_starts_with($value, '#'))
-                    || $attrName === 'style' || $unsafeReference) {
-                    $root->removeAttributeNode($attribute);
-                }
-            }
             $walk($root);
             $clean = $dom->saveXML($root);
-            if (!is_string($clean) || $clean === '') {
-                throw new \RuntimeException('SVG 文件格式无效');
-            }
+            if (!is_string($clean) || $clean === '') throw new \RuntimeException('SVG 文件格式无效');
             return $clean;
         } finally {
             libxml_clear_errors();

@@ -204,13 +204,31 @@ function inst_write_config(string $path, string $content): array
 }
 
 // ---------- 环境检查 ----------
+function inst_ini_bytes(string $value): int
+{
+    $value = trim($value);
+    $number = (int) $value;
+    return $number * match (strtolower(substr($value, -1))) {
+        'g' => 1024 ** 3,
+        'm' => 1024 ** 2,
+        'k' => 1024,
+        default => 1,
+    };
+}
+
 function inst_checks(string $root): array
 {
     $checks = [];
     $checks[] = inst_check_result(PHP_VERSION_ID >= 80100, 'PHP 版本 ≥ 8.1', '当前 ' . PHP_VERSION);
-    foreach (['pdo', 'pdo_mysql', 'gd', 'zip', 'mbstring', 'intl', 'curl', 'openssl', 'json', 'fileinfo'] as $ext) {
+    foreach (['pdo', 'pdo_mysql', 'gd', 'zip', 'mbstring', 'intl', 'curl', 'openssl', 'json'] as $ext) {
         $checks[] = inst_check_result(extension_loaded($ext), "PHP 扩展 {$ext}", extension_loaded($ext) ? '已启用' : '未启用');
     }
+    $checks[] = inst_check_result(
+        extension_loaded('fileinfo'),
+        'PHP 扩展 fileinfo（可选）',
+        extension_loaded('fileinfo') ? '已启用' : '未启用；不影响安装与核心上传流程',
+        true
+    );
     $dirs = [
         'runtime' => '运行配置与任务状态',
         'public/uploads' => '媒体上传',
@@ -229,19 +247,19 @@ function inst_checks(string $root): array
         );
     }
     // 上传限制（警告级，不阻塞安装）：主题/插件 zip 包上限 10MB，post_max_size 需 ≥ 16M 才能正常上传
-    $postMax = (int) (ini_get('post_max_size') ?: 0);
-    $uploadMax = (int) (ini_get('upload_max_filesize') ?: 0);
+    $postMax = inst_ini_bytes((string) ini_get('post_max_size'));
+    $uploadMax = inst_ini_bytes((string) ini_get('upload_max_filesize'));
     $checks[] = inst_check_result(
-        $postMax >= 16,
+        $postMax === 0 || $postMax >= 16 * 1024 * 1024,
         'PHP post_max_size ≥ 16M（应用商店/主题安装）',
         '当前 ' . ini_get('post_max_size') . '（修改 php.ini 后需重启 Web 服务）',
-        $postMax < 10
+        true
     );
     $checks[] = inst_check_result(
-        $uploadMax >= 12,
+        $uploadMax >= 12 * 1024 * 1024,
         'PHP upload_max_filesize ≥ 12M（应用商店/主题安装）',
         '当前 ' . ini_get('upload_max_filesize') . '（修改 php.ini 后需重启 Web 服务）',
-        $uploadMax < 10
+        true
     );
 
     // 安装会顺利完成、首页却直接 500（日志：Failed opening required .../vendor/autoload.php），
@@ -308,7 +326,7 @@ function inst_run(array $post, string $root): array
     $adminEmail = trim($post['admin_email'] ?? '');
     $adminPass = (string) ($post['admin_password'] ?? '');
     $adminPass2 = (string) ($post['admin_password2'] ?? '');
-    $prettyUrls = ($post['pretty_urls'] ?? '1') === '1';
+    $prettyUrls = ($post['pretty_urls'] ?? '0') === '1';
 
     if ($db['database'] === '' || $adminUser === '' || $adminEmail === '' || $adminPass === '') {
         $errors[] = '请填写全部必填项';
@@ -440,8 +458,8 @@ function inst_run(array $post, string $root): array
 }
 
 // ---------- 安装种子数据 ----------
-// 幂等：已存在的记录一律跳过（重复安装 / 中断重试 / 运行配置丢失后重装均不报错，
-// 不会覆盖用户改过的数据，缺什么补什么）
+// 初始化管理员、运行设置及一篇关联默认分类和标签的欢迎文章。
+// 已存在的同身份记录保留，便于安装中断后重试；不用于清理或重置已有站点。
 function inst_seed(PDO $pdo, string $siteName, string $adminUser, string $adminEmail, string $adminPass): void
 {
     $hash = static fn (string $pw): string => password_hash($pw, PASSWORD_BCRYPT, ['cost' => 12]);
@@ -455,87 +473,42 @@ function inst_seed(PDO $pdo, string $siteName, string $adminUser, string $adminE
             ->execute([$adminUser, $adminEmail, $hash($adminPass), 'ADMIN']);
         $adminId = (int) $pdo->lastInsertId();
     }
-    // 分类（按 slug 判重）
-    $selCat = $pdo->prepare('SELECT id FROM categories WHERE slug = ?');
-    $selCat->execute(['tech']);
-    $techId = (int) $selCat->fetchColumn();
-    if ($techId === 0) {
-        $pdo->prepare('INSERT INTO categories (name, slug, description) VALUES (?, ?, ?)')
-            ->execute(['技术', 'tech', '编程、架构与工程实践']);
-        $techId = (int) $pdo->lastInsertId();
-    }
-    $selCat->execute(['life']);
-    $lifeId = (int) $selCat->fetchColumn();
-    if ($lifeId === 0) {
-        $pdo->prepare('INSERT INTO categories (name, slug, description) VALUES (?, ?, ?)')
-            ->execute(['生活', 'life', '日常记录与思考']);
-        $lifeId = (int) $pdo->lastInsertId();
+
+    $selCategory = $pdo->prepare('SELECT id FROM categories WHERE slug = ?');
+    $selCategory->execute(['default']);
+    $categoryId = (int) $selCategory->fetchColumn();
+    if ($categoryId === 0) {
+        $pdo->prepare('INSERT INTO categories (name, slug) VALUES (?, ?)')->execute(['默认分类', 'default']);
+        $categoryId = (int) $pdo->lastInsertId();
     }
 
-    // 标签（按 slug 判重）
     $selTag = $pdo->prepare('SELECT id FROM tags WHERE slug = ?');
-    $tagIds = [];
-    foreach ([['PHP', 'php'], ['MySQL', 'mysql'], ['设计', 'design']] as [$name, $slug]) {
-        $selTag->execute([$slug]);
-        $id = (int) $selTag->fetchColumn();
-        if ($id === 0) {
-            $pdo->prepare('INSERT INTO tags (name, slug) VALUES (?, ?)')->execute([$name, $slug]);
-            $id = (int) $pdo->lastInsertId();
-        }
-        $tagIds[$slug] = $id;
+    $selTag->execute(['getting-started']);
+    $tagId = (int) $selTag->fetchColumn();
+    if ($tagId === 0) {
+        $pdo->prepare('INSERT INTO tags (name, slug) VALUES (?, ?)')->execute(['开始', 'getting-started']);
+        $tagId = (int) $pdo->lastInsertId();
     }
 
-    // 示例文章（按 slug 判重；已存在则整篇跳过——post_tags 是复合主键，仅新文章建立标签关联）
-    $helloContent = "# 欢迎来到纸鱼博客\n\n这是一篇由种子脚本创建的示例文章。\n\n## 功能一览\n\n- **Markdown 编辑**：后台使用 Markdown 编辑器\n- **分类与标签**：灵活组织内容\n- **全文搜索**：基于 MySQL ngram 中文分词\n- **评论审核**：游客评论需审核后展示\n\n```ts\nconsole.log(\"Hello, Pafish Blog!\");\n```\n\n感谢阅读！";
-    $designContent = "# 极简设计随笔\n\n好的设计是不打扰读者的设计。\n\n## 留白\n\n留白不是浪费，而是呼吸。\n\n## 对比\n\n对比制造层次，层次引导阅读。\n\n> 少即是多。 —— Ludwig Mies van der Rohe";
-
-    $insPost = $pdo->prepare(
-        'INSERT INTO posts (title, slug, excerpt, content, status, published_at, author_id, category_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-    );
-    $insPt = $pdo->prepare('INSERT INTO post_tags (post_id, tag_id) VALUES (?, ?)');
+    // 已存在的文章整篇保留，不改正文、分类或标签关系。
     $selPost = $pdo->prepare('SELECT id FROM posts WHERE slug = ?');
-
     $selPost->execute(['hello-pafish']);
-    $helloId = (int) $selPost->fetchColumn();
-    if ($helloId === 0) {
-        $insPost->execute([
-            '你好，纸鱼博客', 'hello-pafish',
-            '欢迎来到纸鱼博客！这是一篇示例文章，介绍本博客系统的能力。',
-            $helloContent, 'PUBLISHED', date('Y-m-d H:i:s'), $adminId, $techId,
-        ]);
-        $helloId = (int) $pdo->lastInsertId();
-        $insPt->execute([$helloId, $tagIds['php']]);
-        $insPt->execute([$helloId, $tagIds['mysql']]);
-    }
-
-    $selPost->execute(['minimalist-design-notes']);
-    $designId = (int) $selPost->fetchColumn();
-    if ($designId === 0) {
-        $insPost->execute([
-            '极简设计随笔', 'minimalist-design-notes',
-            '关于极简主义设计的一些思考：留白、对比与克制。',
-            $designContent, 'PUBLISHED', date('Y-m-d H:i:s', time() - 86400), $adminId, $lifeId,
-        ]);
-        $designId = (int) $pdo->lastInsertId();
-        $insPt->execute([$designId, $tagIds['design']]);
-    }
-
-    $selPost->execute(['draft-example']);
     if ((int) $selPost->fetchColumn() === 0) {
-        $insPost->execute([
-            '一篇未完成的草稿', 'draft-example',
-            '这篇文章还在写作中……',
-            '草稿内容，尚未发布。', 'DRAFT', null, $adminId, $techId,
-        ]);
+        $pdo->prepare('INSERT INTO posts (title, slug, excerpt, content, status, published_at, author_id, category_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+            ->execute([
+                '你好，纸鱼博客', 'hello-pafish', '这是你的第一篇文章，开始记录和分享吧。',
+                "欢迎使用纸鱼博客！\n\n这是你的第一篇文章。登录后台后，可以编辑或删除它，也可以直接开始写自己的内容。",
+                'PUBLISHED', date('Y-m-d H:i:s'), $adminId, $categoryId,
+            ]);
+        $pdo->prepare('INSERT INTO post_tags (post_id, tag_id) VALUES (?, ?)')->execute([(int) $pdo->lastInsertId(), $tagId]);
     }
-
     // 默认设置（缺失才补，已存在的键不覆盖）
     $selSetting = $pdo->prepare('SELECT COUNT(*) FROM settings WHERE `key` = ?');
     $insSetting = $pdo->prepare('INSERT INTO settings (`key`, `value`) VALUES (?, ?)');
     $defaults = [
         'site_name' => $siteName !== '' ? $siteName : '纸鱼博客',
-        'site_subtitle' => '记录技术、设计与生活',
-        'site_description' => '纸鱼博客是一个极简风格的博客系统',
+        'site_subtitle' => '',
+        'site_description' => '',
         'comments_enabled' => 'true',
         'comments_need_review' => 'true',
         'comments_honeypot_enabled' => 'true',
@@ -554,37 +527,7 @@ function inst_seed(PDO $pdo, string $siteName, string $adminUser, string $adminE
         }
     }
 
-    // 关于页
-    $selPage = $pdo->prepare('SELECT id FROM pages WHERE slug = ?');
-    $selPage->execute(['about']);
-    if ((int) $selPage->fetchColumn() === 0) {
-        $pdo->prepare('INSERT INTO pages (title, slug, content, status, published_at) VALUES (?, ?, ?, ?, ?)')
-            ->execute([
-                '关于', 'about',
-                "纸鱼博客是一个极简风格的博客系统，支持 Markdown 写作、全文搜索与评论审核。\n\n在这里记录技术、设计与生活的点滴。",
-                'PUBLISHED', date('Y-m-d H:i:s'),
-            ]);
-    }
-
-    // 默认导航（同 label+url 判重）
-    $selNav = $pdo->prepare('SELECT COUNT(*) FROM nav_items WHERE label = ? AND url = ?');
-    $insNav = $pdo->prepare('INSERT INTO nav_items (label, url, sort_order) VALUES (?, ?, ?)');
-    foreach ([['首页', '/', 1], ['归档', '/archives', 2], ['关于', '/pages/about', 3]] as [$label, $url, $order]) {
-        $selNav->execute([$label, $url]);
-        if ((int) $selNav->fetchColumn() === 0) {
-            $insNav->execute([$label, $url, $order]);
-        }
-    }
-
-    // 默认侧边栏组件（同 type+sort_order 判重）
-    $selWidget = $pdo->prepare('SELECT COUNT(*) FROM widgets WHERE type = ? AND sort_order = ?');
-    $insWidget = $pdo->prepare('INSERT INTO widgets (type, sort_order) VALUES (?, ?)');
-    foreach ([['categories', 1], ['recent_posts', 2], ['tags', 3]] as [$type, $order]) {
-        $selWidget->execute([$type, $order]);
-        if ((int) $selWidget->fetchColumn() === 0) {
-            $insWidget->execute([$type, $order]);
-        }
-    }
+    // 关于页、导航项和侧栏组件由站长按需添加。
 }
 
 // ---------- 视图 ----------
@@ -638,7 +581,7 @@ function inst_layout(string $title, string $inner, string $extra = ''): string
   .bad { color:var(--bad); font-weight:500; }
   .detail { color:var(--muted); font-size:12px; }
   label { display:block; margin:17px 0 5px; color:var(--ink); font-size:12px; font-weight:500; }
-  input[type=text], input[type=password], input[type=email], input[type=number] { width:100%; min-height:39px; padding:8px 10px; border:1px solid #cdd3da; border-radius:4px; outline:0; background:#fff; color:var(--ink); font:inherit; }
+  input[type=text], input[type=password], input[type=email], input[type=number], input[type=url] { width:100%; min-height:39px; padding:8px 10px; border:1px solid #cdd3da; border-radius:4px; outline:0; background:#fff; color:var(--ink); font:inherit; }
   input:hover { border-color:#b4bec9; }
   input:focus { border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-soft); }
   .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:0 20px; }
@@ -777,12 +720,12 @@ HTML;
     } else {
         $dbSection = <<<HTML
     <div class="grid2">
-      <div><label>数据库主机</label><input type="text" name="db_host" value="{$field('db_host', '127.0.0.1')}" required></div>
-      <div><label>端口</label><input type="number" name="db_port" value="{$field('db_port', '3306')}" required></div>
+      <div><label for="db-host">数据库主机</label><input type="text" id="db-host" name="db_host" value="{$field('db_host', '127.0.0.1')}" required></div>
+      <div><label for="db-port">端口</label><input type="number" id="db-port" name="db_port" value="{$field('db_port', '3306')}" required></div>
     </div>
-    <label>数据库名</label><input type="text" name="db_name" value="{$field('db_name')}" placeholder="如 pafish（不存在会自动创建）" required>
-    <label>数据库用户名</label><input type="text" name="db_user" value="{$field('db_user')}" required>
-    <label>数据库密码</label><input type="password" name="db_pass">
+    <label for="db-name">数据库名</label><input type="text" id="db-name" name="db_name" value="{$field('db_name')}" placeholder="如 pafish（不存在会自动创建）" required>
+    <label for="db-user">数据库用户名</label><input type="text" id="db-user" name="db_user" value="{$field('db_user')}" required>
+    <label for="db-pass">数据库密码</label><input type="password" id="db-pass" name="db_pass">
 HTML;
     }
     $prettyChecked = !array_key_exists('pretty_urls', $old) || (string)$old['pretty_urls'] === '1' ? ' checked' : '';
@@ -802,20 +745,21 @@ HTML;
   </div>
   <div class="card" style="margin-top:16px">
     <h2>站点信息</h2>
-    <label>站点名称</label><input type="text" name="site_name" value="{$field('site_name', '纸鱼博客')}">
-    <label>站点地址（不带结尾斜杠，用于 RSS / 站点地图）</label><input type="url" name="site_url" value="{$field('site_url')}" placeholder="https://example.com" required>
+    <label for="site-name">站点名称</label><input type="text" id="site-name" name="site_name" value="{$field('site_name', '纸鱼博客')}">
+    <label for="site-url">站点地址（不带结尾斜杠，用于 RSS / 站点地图）</label><input type="url" id="site-url" name="site_url" value="{$field('site_url')}" placeholder="https://example.com" required>
+    <input type="hidden" name="pretty_urls" value="0">
     <div class="checkbox"><input type="checkbox" name="pretty_urls" value="1"{$prettyChecked} id="pu">
       <label for="pu" style="margin:0">启用伪静态（Apache .htaccess / Nginx try_files 已配置时勾选；否则取消勾选，链接自动用 index.php?p= 形式）</label></div>
   </div>
   <div class="card" style="margin-top:16px">
     <h2>管理员账号</h2>
     <div class="grid2">
-      <div><label>用户名</label><input type="text" name="admin_username" value="{$field('admin_username', 'admin')}" required></div>
-      <div><label>邮箱</label><input type="email" name="admin_email" value="{$field('admin_email', 'admin@example.com')}" required></div>
+      <div><label for="admin-username">用户名</label><input type="text" id="admin-username" name="admin_username" value="{$field('admin_username', 'admin')}" required></div>
+      <div><label for="admin-email">邮箱</label><input type="email" id="admin-email" name="admin_email" value="{$field('admin_email', 'admin@example.com')}" required></div>
     </div>
     <div class="grid2">
-      <div><label>密码（至少 8 位）</label><input type="password" name="admin_password" required></div>
-      <div><label>确认密码</label><input type="password" name="admin_password2" required></div>
+      <div><label for="admin-password">密码（至少 8 位）</label><input type="password" id="admin-password" name="admin_password" required></div>
+      <div><label for="admin-password-confirm">确认密码</label><input type="password" id="admin-password-confirm" name="admin_password2" required></div>
     </div>
   </div>
   <button class="btn" type="submit">开始安装</button>
@@ -832,6 +776,7 @@ if ($action === 'install') {
     $result = inst_run($_POST, $root);
     if (!empty($result['errors'])) {
         $keep = $_POST;
+        $keep['pretty_urls'] = ($_POST['pretty_urls'] ?? '0') === '1' ? '1' : '0';
         unset($keep['db_pass'], $keep['admin_password'], $keep['admin_password2']);
         $_SESSION['install_old_input'] = $keep;
         $errs = '<div class="err"><strong>安装未完成</strong><br>' . implode('<br>', array_map('inst_e', $result['errors'])) . '<br><span class="detail">已填写的非敏感信息已保留，密码字段需要重新输入。</span></div>';
@@ -865,7 +810,7 @@ if ($action === 'install') {
       {$installerStep}
       <li>进入后台，在「站点设置」填写<strong>站点名称和描述</strong>。</li>
       <li>在「主题与外观」挑一套喜欢的主题。</li>
-      <li>在「文章」里写下第一篇内容。</li>
+      <li>在「文章」里编辑欢迎文章，或开始写自己的内容。</li>
     </ol>
   </div>
   <a class="btn" href="{$links['admin']}">进入后台</a>

@@ -27,7 +27,8 @@ final class ClientIp
 
     public static function isTrustedProxy(string $ip): bool
     {
-        $binary = inet_pton($ip);
+        $binary = @inet_pton($ip);
+        if ($binary === false) return false;
         foreach ((array) Config::get('trusted_proxies', []) as $network) {
             if (!is_string($network)) continue;
             $parts = explode('/', $network, 2);

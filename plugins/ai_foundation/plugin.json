@@ -65,6 +65,7 @@
         "name": "quota_reservations",
         "columns": [
           { "name": "id", "type": "string", "default": "" },
+          { "name": "caller_plugin", "type": "string", "default": "" },
           { "name": "reserved_tokens", "type": "bigint", "unsigned": true, "default": 0 },
           { "name": "created_at", "type": "datetime", "default": "CURRENT_TIMESTAMP" }
         ],

@@ -40,6 +40,12 @@ date_default_timezone_set((string) Config::get('timezone', 'Asia/Shanghai'));
 mb_internal_encoding('UTF-8');
 require PAFISH_ROOT . '/app/Core/helpers.php';
 
+if (PHP_SAPI !== 'cli' && !\Pafish\Core\RateLimiter::allow('cron-http', 'site', 1, 60)) {
+    http_response_code(429);
+    header('Retry-After: 60');
+    exit;
+}
+
 try {
     DB::pdo();
     Plugin::boot();

@@ -11,6 +11,17 @@ use Pafish\Core\Session;
 /** Shared public visibility and reading gate; does not grant editing permission. */
 final class Posts
 {
+    /** Structured, paginated public reads; no raw SQL or verifier fields. */
+    public static function query(array $args = []): array
+    {
+        return PostQuery::query($args);
+    }
+
+    public static function related(int $postId, int $limit = 3): array
+    {
+        return self::query(['related_to' => $postId, 'per_page' => $limit, 'pinned' => false, 'context' => 'related'])['posts'];
+    }
+
     public static function commentsOpen(array $post): bool
     {
         return Settings::get('comments_enabled', 'true') !== 'false'

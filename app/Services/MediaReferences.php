@@ -42,6 +42,28 @@ final class MediaReferences
         return DB::value('SELECT value FROM extension_storage WHERE ' . self::STATE) === 'ready';
     }
 
+    /** Conservative protection for uncatalogued files, including comment shortcodes. */
+    public static function referencesFilename(string $filename): bool
+    {
+        if (preg_match('/^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$/D', $filename) !== 1) {
+            throw new \InvalidArgumentException('无效媒体文件名');
+        }
+        $like = '%' . str_replace(['|', '_'], ['||', '|_'], $filename) . '%';
+        // These files may predate the upload catalogue or use Joe's draw: shortcode,
+        // so media_references alone cannot establish that they are abandoned.
+        $sources = array_merge(array_values(self::SOURCES), [
+            ['comments', ['content']],
+            ['uploads', ['url']],
+        ]);
+        foreach ($sources as [$table, $fields]) {
+            $where = implode(' OR ', array_map(static fn (string $field): string => "`{$field}` LIKE ? ESCAPE '|'", $fields));
+            if (DB::value("SELECT 1 FROM `{$table}` WHERE {$where} LIMIT 1", array_fill(0, count($fields), $like)) !== null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** Importing an arbitrary URL can reveal references written before it was catalogued. */
     public static function catalogTransaction(callable $write): mixed
     {

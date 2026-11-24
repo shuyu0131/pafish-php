@@ -14,6 +14,11 @@ use Pafish\Core\Logger;
  */
 final class ExtensionKernel
 {
+    public const MAX_SETTING_DEPTH = 4;
+    public const MAX_SETTING_FIELDS = 256;
+    public const MAX_SETTING_ROWS = 500;
+    public const MAX_SETTING_BYTES = 262144;
+    public const MAX_SETTINGS_BYTES = 1048576;
     private const SETTING_TYPES = [
         'text', 'textarea', 'checkbox', 'checkboxes', 'select', 'color', 'switcher', 'radio', 'image', 'icon', 'password',
         // 展示型：不产生设置值，只用于排版说明（CSF 的 heading / subheading）
@@ -44,6 +49,10 @@ final class ExtensionKernel
 
     /** 不含值、只做容器的类型（其子字段才是真实设置项）。 */
     private const CONTAINER_TYPES = ['group'];
+    private static array $settingDiagnostics = [];
+
+    public static function settingDiagnostics(): array { return self::$settingDiagnostics; }
+    public static function resetSettingDiagnostics(): void { self::$settingDiagnostics = []; }
 
     /**
      * 复合视觉型的子键白名单（保存时拒绝未声明的键）。
@@ -54,25 +63,6 @@ final class ExtensionKernel
     private const COMPOSITE_KEYS = [
         'background' => ['color', 'image', 'repeat', 'position', 'size', 'attachment'],
         'border' => ['width', 'style', 'color'],
-    ];
-
-    /**
-     * 复合型里「值单一、可内联渲染」的类型：允许作为 group 的子字段。
-     *
-     * repeater 行内仍不放行——行内再嵌 JSON 复合值会让表格布局失控。
-     */
-    private const COMPOUND_INLINE_TYPES = ['spacing', 'typography', 'background', 'border'];
-
-    /**
-     * 可安全放进容器/repeater 子字段的类型。
-     *
-     * 排除容器自身与复合类型，避免无限递归和难以渲染的深嵌套；
-     * group 子字段另见 COMPOUND_INLINE_TYPES。
-     */
-    private const LEAF_TYPES = [
-        'text', 'textarea', 'checkbox', 'checkboxes', 'select', 'color', 'switcher',
-        'radio', 'image', 'icon', 'password', 'slider',
-        'button_set', 'image_select', 'palette', 'code',
     ];
 
     /** @var array<string, true> */
@@ -305,9 +295,14 @@ final class ExtensionKernel
         }
     }
 
-    public static function providerFor(string $kind, string $name, string $key): ?callable
+    public static function providerFor(string $kind, string $name, string $key, bool $inherit = true): ?callable
     {
-        return self::$providers[self::key($kind, $name)][$key] ?? null;
+        $provider = self::$providers[self::key($kind, $name)][$key] ?? null;
+        if ($provider === null && $inherit && $kind === 'theme') {
+            $parent = Theme::manifest($name)['parent'] ?? null;
+            if (is_string($parent)) return self::$providers[self::key($kind, $parent)][$key] ?? null;
+        }
+        return $provider;
     }
 
     /** 主题切换或插件停用时清理请求内注册状态。 */
@@ -330,8 +325,13 @@ final class ExtensionKernel
     }
 
     /** 运行时设置与 manifest 使用同一套安全字段结构。 */
-    private static function normalizeSetting(mixed $field, string $kind): ?array
+    private static function normalizeSetting(mixed $field, string $kind, int $depth = 0, ?int &$remaining = null): ?array
     {
+        $remaining ??= self::MAX_SETTING_FIELDS;
+        if ($depth > self::MAX_SETTING_DEPTH || --$remaining < 0) {
+            self::logRejectedSetting($field, $kind, '设置结构超过允许的嵌套深度或字段数量');
+            return null;
+        }
         if (!is_array($field)
             || !is_string($field['key'] ?? null)
             || preg_match('/^[a-zA-Z][a-zA-Z0-9_.:-]{0,79}$/', $field['key']) !== 1
@@ -495,7 +495,7 @@ final class ExtensionKernel
 
         // ---- 复合型：repeater（可重复行）----
         if ($out['type'] === 'repeater') {
-            $sub = self::normalizeSubFields($field, $kind, ['heading', 'subheading'], 'repeater');
+            $sub = self::normalizeSubFields($field, $kind, $depth, $remaining);
             if ($sub === []) {
                 self::logRejectedSetting($field, $kind, 'repeater 的 fields 为空或子字段全部非法');
                 return null;
@@ -504,7 +504,7 @@ final class ExtensionKernel
             $out['max_items'] = is_int($field['max_items'] ?? null) && $field['max_items'] > 0
                 ? min($field['max_items'], 100) : 20;
             $out['min_items'] = is_int($field['min_items'] ?? null) && $field['min_items'] >= 0
-                ? max(0, $field['min_items']) : 0;
+                ? min($out['max_items'], $field['min_items']) : 0;
             if (is_string($field['add_label'] ?? null) && trim($field['add_label']) !== '') {
                 $out['add_label'] = trim($field['add_label']);
             }
@@ -572,7 +572,7 @@ final class ExtensionKernel
         // ---- 容器型：group（可折叠区块）----
         if ($out['type'] === 'group') {
             // group 内允许 heading/subheading 做小节标题（它们是排版，不产生值）
-            $sub = self::normalizeSubFields($field, $kind, ['heading', 'subheading'], 'group', true);
+            $sub = self::normalizeSubFields($field, $kind, $depth, $remaining);
             if ($sub === []) {
                 self::logRejectedSetting($field, $kind, 'group 的 fields 为空或子字段全部非法');
                 return null;
@@ -716,25 +716,16 @@ final class ExtensionKernel
         return [];
     }
 
-    private static function normalizeSubFields(array $parent, string $kind, array $dropTypes, string $for, bool $allowCompound = false): array
+    private static function normalizeSubFields(array $parent, string $kind, int $depth, int &$remaining): array
     {
         $sub = [];
         foreach ((array) ($parent['fields'] ?? []) as $subField) {
-            $normalized = self::normalizeSetting($subField, $kind);
-            if ($normalized === null) {
-                continue;
+            if ($remaining <= 0) {
+                self::logRejectedSetting($parent, $kind, '设置结构超过允许的字段数量');
+                break;
             }
-            // 容器内不放行嵌套容器：否则折叠区块会层层套娃，既难渲染也难解释
-            $allowed = in_array($normalized['type'], self::LEAF_TYPES, true)
-                || in_array($normalized['type'], $dropTypes, true)
-                || ($allowCompound && in_array($normalized['type'], self::COMPOUND_INLINE_TYPES, true));
-            if (!$allowed) {
-
-                $hint = in_array($normalized['type'], self::CONTAINER_TYPES, true)
-                    ? '（不允许嵌套容器）'
-                    : '（不允许在 ' . $for . ' 的子字段里使用）';
-                self::logRejectedSetting($subField, $kind,
-                    $for . ' 的子字段不支持的「' . $normalized['type'] . '」类型' . $hint);
+            $normalized = self::normalizeSetting($subField, $kind, $depth + 1, $remaining);
+            if ($normalized === null) {
                 continue;
             }
             $sub[(string) $normalized['key']] = $normalized;
@@ -878,7 +869,16 @@ final class ExtensionKernel
     /** 校验设置字段值，返回错误信息或 null。 */
     public static function validateSettingValue(array $field, string $value): ?string
     {
+        $remaining = self::MAX_SETTING_ROWS;
+        return self::validateValue($field, $value, 0, $remaining);
+    }
+
+    private static function validateValue(array $field, string $value, int $depth, int &$remaining): ?string
+    {
         $label = (string) ($field['label'] ?? $field['key'] ?? '');
+        if (strlen($value) > self::MAX_SETTING_BYTES || $depth > self::MAX_SETTING_DEPTH) {
+            return $label . ' 超过允许的数据大小或嵌套深度';
+        }
         $type = (string) ($field['type'] ?? 'text');
         $rules = is_array($field['rules'] ?? null) ? $field['rules'] : [];
 
@@ -936,7 +936,7 @@ final class ExtensionKernel
 
         if (in_array($type, self::JSON_TYPES, true)
             || ($type === 'image_select' && ($field['multiple'] ?? false) === true)) {
-            return self::validateComposite($field, $value, $label);
+            return self::validateComposite($field, $value, $label, $depth, $remaining);
         }
 
         return null;
@@ -948,7 +948,7 @@ final class ExtensionKernel
         return rtrim(rtrim(number_format($n, 4, '.', ''), '0'), '.');
     }
 
-    private static function validateComposite(array $field, string $value, string $label): ?string
+    private static function validateComposite(array $field, string $value, string $label, int $depth, int &$remaining): ?string
     {
         $type = (string) $field['type'];
 
@@ -956,7 +956,7 @@ final class ExtensionKernel
             return null;   // 空值交给 required 规则判定
         }
 
-        $decoded = json_decode($value, true);
+        $decoded = json_decode($value, true, 32);
         if (!is_array($decoded)) {
             return $label . ' 的数据格式不正确（需为 JSON）';
         }
@@ -979,6 +979,7 @@ final class ExtensionKernel
         }
 
         if ($type === 'spacing') {
+            if (array_diff(array_keys($decoded), (array) ($field['sides'] ?? [])) !== []) return $label . ' 含未声明的间距属性';
             $limit = (float) ($field['numeric_limit'] ?? 999);
             foreach ((array) ($field['sides'] ?? []) as $side) {
                 if (!array_key_exists($side, $decoded)) {
@@ -1059,6 +1060,8 @@ final class ExtensionKernel
             return $label . ' 的数据格式不正确（需为数组）';
         }
         $maxItems = (int) ($field['max_items'] ?? 20);
+        $remaining -= count($decoded);
+        if ($remaining < 0) return $label . ' 的重复列表总行数超过 ' . self::MAX_SETTING_ROWS;
         $minItems = (int) ($field['min_items'] ?? 0);
         $rules = is_array($field['rules'] ?? null) ? $field['rules'] : [];
         if ($decoded === [] && ($rules['required'] ?? false) === true) {
@@ -1071,7 +1074,7 @@ final class ExtensionKernel
             return $label . ' 至少需要 ' . $minItems . ' 行';
         }
         $subFields = [];
-        foreach ((array) ($field['fields'] ?? []) as $sub) {
+        foreach (self::flattenFields((array) ($field['fields'] ?? [])) as $sub) {
             if (is_array($sub) && isset($sub['key'])) {
                 $subFields[(string) $sub['key']] = $sub;
             }
@@ -1087,13 +1090,11 @@ final class ExtensionKernel
                 $subField = $subFields[(string) $k];
                 $subType = (string) ($subField['type'] ?? 'text');
                 if (is_array($v)) {
-                    // repeater 内的多选字段本来就以数组编辑；先编码成与顶层
-                    // 相同的 JSON 语义，再交给 checkboxes 的候选项校验。
-                    if (!array_is_list($v)
-                        || ($subType !== 'checkboxes' && !(($subType === 'image_select') && (($subField['multiple'] ?? false) === true)))) {
+                    if (!in_array($subType, self::JSON_TYPES, true)
+                        && !(($subType === 'image_select') && (($subField['multiple'] ?? false) === true))) {
                         return $label . ' 第 ' . ($i + 1) . ' 行的「' . ($subField['label'] ?? $k) . '」取值不合法';
                     }
-                    $subValue = json_encode(array_values($v), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                    $subValue = json_encode($decodedShape[$i]->{(string) $k}, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
                     if ($subValue === false) {
                         return $label . ' 第 ' . ($i + 1) . ' 行的「' . ($subField['label'] ?? $k) . '」取值不合法';
                     }
@@ -1102,7 +1103,7 @@ final class ExtensionKernel
                 } else {
                     return $label . ' 第 ' . ($i + 1) . ' 行的「' . ($subField['label'] ?? $k) . '」取值不合法';
                 }
-                $subErr = self::validateSettingValue($subField, $subValue);
+                $subErr = self::validateValue($subField, $subValue, $depth + 1, $remaining);
                 if ($subErr !== null) {
                     return '第 ' . ($i + 1) . ' 行：' . $subErr;
                 }
@@ -1149,6 +1150,9 @@ final class ExtensionKernel
                 }
             }
         }
+        $message = (is_array($field) && is_string($field['key'] ?? null) ? $field['key'] . ': ' : '') . $reason;
+        self::$settingDiagnostics[$kind . ':' . $message] = $message;
+        if (count(self::$settingDiagnostics) > 50) self::$settingDiagnostics = array_slice(self::$settingDiagnostics, -50, null, true);
         \Pafish\Core\Logger::error(
             '[pafish-extension] 已忽略一个无效的 ' . $kind . ' 设置项：' . $reason
         );

@@ -244,7 +244,7 @@ $hasIconFields = $canConfigure && \Pafish\Services\ExtensionKernel::hasSettingTy
 
   function loadLib() {
     libGrid.innerHTML = ("<p class=\"admin-muted admin-modal-hint\">" + window.pafishI18n.escape(window.pafishT("common.loading")) + "</p>");
-    fetch(pafishApi("/uploads?page=") + libPage + "&q=" + encodeURIComponent(libQ.value.trim()))
+    fetch(pafishApi("/uploads?type=image&page=") + libPage + "&q=" + encodeURIComponent(libQ.value.trim()))
       .then(function (r) { return r.json(); })
       .then(function (j) {
         libGrid.innerHTML = "";
@@ -253,27 +253,27 @@ $hasIconFields = $canConfigure && \Pafish\Services\ExtensionKernel::hasSettingTy
           libPager.hidden = true;
           return;
         }
-        j.items.forEach(function (item) {
+        j.items.filter(function (item) { return item.mime && item.mime.indexOf('image/') === 0; }).forEach(function (item) {
           var cell = document.createElement("button");
           cell.type = "button";
           cell.className = "admin-lib-item";
           cell.dataset.url = item.url;
-          cell.title = item.original_name;
+          cell.title = (item.originalName || item.original_name || "");
           if (item.mime && item.mime.indexOf("image/") === 0) {
             var img = document.createElement("img");
             img.src = item.url;
-            img.alt = item.original_name;
+            img.alt = (item.originalName || item.original_name || "");
             img.loading = "lazy";
             cell.appendChild(img);
           } else {
             var span = document.createElement("span");
-            span.textContent = item.original_name;
+            span.textContent = (item.originalName || item.original_name || "");
             cell.appendChild(span);
           }
           cell.addEventListener("click", function () {
             if (libTarget) {
-              var input = document.querySelector('[data-sf-key="' + libTarget + '"][data-sf-type="image"]');
-              if (input) {
+              var input = libTarget;
+              if (input.isConnected) {
                 input.value = cell.dataset.url;
                 input.dispatchEvent(new Event("input", { bubbles: true }));
                 input.dispatchEvent(new Event("change", { bubbles: true }));
@@ -304,17 +304,23 @@ $hasIconFields = $canConfigure && \Pafish\Services\ExtensionKernel::hasSettingTy
       });
   }
 
-  document.querySelectorAll(".admin-sf-lib").forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      libTarget = btn.dataset.target;
-      libPage = 1;
-      libQ.value = "";
-      modal.hidden = false;
-      loadLib();
-    });
+  document.addEventListener("click", function (event) {
+    var btn = event.target.closest && event.target.closest('.admin-sf-lib');
+    if (!btn) { return; }
+    var wrap = btn.closest('.admin-sf-image');
+    libTarget = wrap && wrap.querySelector('[data-sf-type="image"], [data-sub-type="image"]');
+    if (!libTarget) { return; }
+    libPage = 1;
+    libQ.value = "";
+    modal.hidden = false;
+    libQ.focus();
+    loadLib();
   });
   document.querySelectorAll("[data-plugin-close-modal]").forEach(function (btn) {
     btn.addEventListener("click", function () { modal.hidden = true; });
+  });
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape' && !modal.hidden) { modal.hidden = true; if (libTarget && libTarget.isConnected) libTarget.focus(); libTarget = null; }
   });
   modal.addEventListener("click", function (e) {
     if (e.target === modal) { modal.hidden = true; }

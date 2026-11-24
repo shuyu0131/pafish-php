@@ -140,14 +140,16 @@ final class Url
             return self::base() . '/index.php?p=theme-assets';
         }
 
-        $resolved = \Pafish\Services\Theme::resolveAssetPath($theme, $path);
-        if ($resolved === null) {
+        $location = \Pafish\Services\Theme::assetLocation($theme, $path);
+        if ($location === null) {
             return self::base() . '/index.php?p=theme-assets';
         }
+        $theme = $location['theme'];
+        $resolved = $location['path'];
         $segments = array_values(array_filter(explode('/', $resolved), static fn (string $part): bool => $part !== ''));
         $url = self::base() . '/themes/' . rawurlencode($theme) . '/' . implode('/', array_map('rawurlencode', $segments));
-        $file = dirname(__DIR__, 2) . '/themes/' . $theme . '/' . $resolved;
-        if (is_file($file)) {
+        $file = $location['file'];
+        if ($file !== null) {
             $url .= '?v=' . (string) filemtime($file);
         }
         return $url;

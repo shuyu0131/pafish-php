@@ -22,7 +22,7 @@ $renderField = require __DIR__ . '/partials/schema-field.php';
 $buildGroups = require __DIR__ . '/partials/schema-groups.php';
 
 // 页头内容先抓成字符串：能配置时它要「收进」面板成为面板标题栏，
-// 不能配置时（主题不可用/未启用）它仍以普通页头出现，页面不至于没有标题。
+// 不能配置时（主题不可用）它仍以普通页头出现，页面不至于没有标题。
 // 页头只有标题本身——面板标题栏不是介绍页，简介与版本号留给主题列表去交代。
 ob_start();
 ?>
@@ -34,7 +34,7 @@ $headMain = ob_get_clean();
 
 // 先算分组，再决定怎么渲染——字段区由 schema-nav.php 消费这些分组数据
 $fields = [];
-if ($manifest !== null && $active) {
+if ($manifest !== null && $error === null) {
     foreach ($settings as $field) {
         if (is_array($field) && isset($field['key'])) {
             $fields[] = $field;
@@ -60,8 +60,8 @@ $fields[] = [
         : t('admin.this_theme_has_no_configurable_settings_reset_to'),
 ];
 $built = $buildGroups($fields);
-// 只要主题可用且已启用，表单就存在——即便一个设置项都没声明，也还有备份/恢复这一组
-$canConfigure = $manifest !== null && $active;
+// 只要主题可用，表单就存在——即便一个设置项都没声明，也还有备份/恢复这一组
+$canConfigure = $manifest !== null && $error === null;
 $hasIconFields = $canConfigure && \Pafish\Services\ExtensionKernel::hasSettingType($fields, 'icon');
 ?>
 <div class="admin-stack admin-theme-settings">
@@ -72,18 +72,28 @@ $hasIconFields = $canConfigure && \Pafish\Services\ExtensionKernel::hasSettingTy
     </ol>
   </nav>
   <p class="admin-backup-msg" id="themeSettingMsg" hidden></p>
+  <?php if (is_string($manifest['parent'] ?? null)): ?>
+    <p class="admin-field-hint"><?= e(t('admin.parent_theme')) ?>: <a href="<?= e(url_to('/admin/appearance/' . $manifest['parent'])) ?>"><?= e($manifest['parent']) ?></a> · <?= e(t('admin.child_theme_settings_notice')) ?></p>
+  <?php endif; ?>
+  <?php if (!empty($schemaIssues)): ?>
+    <details class="card admin-form-card"><summary><?= e(t('admin.theme_schema_issues')) ?></summary>
+      <ul><?php foreach ($schemaIssues as $issue): ?><li><?= e($issue) ?></li><?php endforeach; ?></ul>
+    </details>
+  <?php endif; ?>
 
   <?php if ($error !== null): ?>
     <div class="card admin-empty"><?= e(t('admin.theme_ce2c86')) ?><?= e($themeName) ?><?= e(t('admin.is_unavailable')) ?><?= e($error) ?></div>
   <?php elseif (!$active): ?>
-    <div class="card admin-empty"><?= e(t('admin.this_theme_is_inactive_first')) ?> <a href="<?= e(url_to('/admin/appearance')) ?>"><?= e(t('admin.activate_it_from_the_theme_list')) ?></a> <?= e(t('admin.before_configuring_it')) ?></div>
+    <p class="admin-field-hint"><?= e(t('admin.inactive_theme_settings_notice')) ?></p>
   <?php endif; ?>
 
   <?php if ($canConfigure): ?>
     <?php /* 分组表单：工具条 + 设置项 + 末尾保存。 */ ?>
     <form class="card admin-form-card admin-schema-form" id="themeSettingForm">
       <div class="admin-page-head">
-        <div class="admin-theme-settings-title"><?= $headMain ?><span class="admin-sf-dirty" data-sf-dirty role="status" hidden><?= e(t('admin.unsaved')) ?></span></div>
+        <div class="admin-theme-settings-title"><?= $headMain ?><span class="admin-sf-dirty" data-sf-dirty role="status" hidden><?= e(t('admin.unsaved')) ?></span>
+          <button type="button" class="btn btn-outline btn-sm" id="themePreviewBtn" title="<?= e(t('admin.preview_saved_theme_settings')) ?>"><?= e(t('admin.theme_preview')) ?></button>
+        </div>
         <div class="admin-head-actions">
           <button type="button" class="admin-sf-expandall" data-sf-expandall
                   aria-pressed="false" title="<?= e(t('admin.expand_all')) ?>" aria-label="<?= e(t('admin.expand_all')) ?>">
@@ -110,7 +120,7 @@ $hasIconFields = $canConfigure && \Pafish\Services\ExtensionKernel::hasSettingTy
       </div>
     </form>
   <?php else: ?>
-    <?php /* 不可配置时（主题不可用 / 未启用）：标题仍以普通页头出现，
+    <?php /* 不可配置时（主题不可用）：标题仍以普通页头出现，
              页面不会变成没有标题的孤儿页。 */ ?>
     <div class="card admin-form-card"><div class="admin-page-head"><div><?= $headMain ?></div></div></div>
   <?php endif; ?>
@@ -140,6 +150,13 @@ $hasIconFields = $canConfigure && \Pafish\Services\ExtensionKernel::hasSettingTy
   "use strict";
   var CSRF = <?= json_encode($themeSettingCsrf) ?>;
   var NAME = <?= json_encode($themeName) ?>;
+  var previewBtn = document.getElementById("themePreviewBtn");
+  if (previewBtn) previewBtn.addEventListener("click", function () {
+    var form = document.createElement("form"); form.method = "POST"; form.target = "_blank";
+    form.action = <?= json_encode(url_to('/admin/appearance/preview')) ?>;
+    [["name", NAME], ["_csrf", CSRF]].forEach(function (pair) { var input = document.createElement("input"); input.type = "hidden"; input.name = pair[0]; input.value = pair[1]; form.appendChild(input); });
+    document.body.appendChild(form); form.submit(); form.remove();
+  });
   var msg = document.getElementById("themeSettingMsg");
 
   function showMsg(text, isError) {
@@ -287,7 +304,7 @@ $hasIconFields = $canConfigure && \Pafish\Services\ExtensionKernel::hasSettingTy
 
   function loadLib() {
     libGrid.innerHTML = ("<p class=\"admin-muted admin-modal-hint\">" + window.pafishI18n.escape(window.pafishT("common.loading")) + "</p>");
-    fetch(pafishApi("/uploads?page=") + libPage + "&q=" + encodeURIComponent(libQ.value.trim()))
+    fetch(pafishApi("/uploads?type=image&page=") + libPage + "&q=" + encodeURIComponent(libQ.value.trim()))
       .then(function (r) { return r.json(); })
       .then(function (j) {
         libGrid.innerHTML = "";
@@ -296,27 +313,27 @@ $hasIconFields = $canConfigure && \Pafish\Services\ExtensionKernel::hasSettingTy
           libPager.hidden = true;
           return;
         }
-        j.items.forEach(function (item) {
+        j.items.filter(function (item) { return item.mime && item.mime.indexOf('image/') === 0; }).forEach(function (item) {
           var cell = document.createElement("button");
           cell.type = "button";
           cell.className = "admin-lib-item";
           cell.dataset.url = item.url;
-          cell.title = item.original_name;
+          cell.title = (item.originalName || item.original_name || "");
           if (item.mime && item.mime.indexOf("image/") === 0) {
             var img = document.createElement("img");
             img.src = item.url;
-            img.alt = item.original_name;
+            img.alt = (item.originalName || item.original_name || "");
             img.loading = "lazy";
             cell.appendChild(img);
           } else {
             var span = document.createElement("span");
-            span.textContent = item.original_name;
+            span.textContent = (item.originalName || item.original_name || "");
             cell.appendChild(span);
           }
           cell.addEventListener("click", function () {
             if (libTarget) {
-              var input = document.querySelector('[data-sf-key="' + libTarget + '"][data-sf-type="image"]');
-              if (input) {
+              var input = libTarget;
+              if (input.isConnected) {
                 input.value = cell.dataset.url;
                 input.dispatchEvent(new Event("input", { bubbles: true }));
                 input.dispatchEvent(new Event("change", { bubbles: true }));
@@ -347,17 +364,23 @@ $hasIconFields = $canConfigure && \Pafish\Services\ExtensionKernel::hasSettingTy
       });
   }
 
-  document.querySelectorAll(".admin-sf-lib").forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      libTarget = btn.dataset.target;
-      libPage = 1;
-      libQ.value = "";
-      modal.hidden = false;
-      loadLib();
-    });
+  document.addEventListener("click", function (event) {
+    var btn = event.target.closest && event.target.closest('.admin-sf-lib');
+    if (!btn) { return; }
+    var wrap = btn.closest('.admin-sf-image');
+    libTarget = wrap && wrap.querySelector('[data-sf-type="image"], [data-sub-type="image"]');
+    if (!libTarget) { return; }
+    libPage = 1;
+    libQ.value = "";
+    modal.hidden = false;
+    libQ.focus();
+    loadLib();
   });
   document.querySelectorAll("[data-theme-close-modal]").forEach(function (btn) {
     btn.addEventListener("click", function () { modal.hidden = true; });
+  });
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape' && !modal.hidden) { modal.hidden = true; if (libTarget && libTarget.isConnected) libTarget.focus(); libTarget = null; }
   });
   modal.addEventListener("click", function (e) {
     if (e.target === modal) { modal.hidden = true; }

@@ -29,12 +29,9 @@ final class TagController
             if ($redirect !== null) return $redirect;
         }
 
-        [$posts, $total, $perPage, $pageNum] = Listings::published(
-            'EXISTS (SELECT 1 FROM post_tags pt WHERE pt.post_id = p.id AND pt.tag_id = ?)',
-            [(int) $tag['id']],
-            $request
-        );
-        $totalPages = max(1, (int) ceil($total / $perPage));
+        ['posts' => $posts, 'total' => $total, 'pageNum' => $pageNum, 'totalPages' => $totalPages] = \Pafish\Services\Posts::query([
+            'context' => 'tag', 'tag_ids' => [(int) $tag['id']], 'page' => Listings::pageNumber($request), 'recent_comments' => true,
+        ]);
 
         $metaDesc = $tag['meta_description'] ?: ($tag['description'] ?: "「{$tag['name']}」标签下的文章列表");
         $seoTitle = $tag['seo_title'] ?: $tag['name'];
@@ -45,6 +42,7 @@ final class TagController
             'description' => $metaDesc,
             'og' => Listings::og($request, $seoTitle, $metaDesc),
             'tag' => $tag,
+            'listKind' => 'tag',
             'posts' => $posts,
             'total' => $total,
             'pageNum' => $pageNum,

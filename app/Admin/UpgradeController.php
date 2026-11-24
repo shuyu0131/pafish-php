@@ -33,6 +33,7 @@ final class UpgradeController extends AdminController
         if (($info['error'] ?? '') !== '' && ($info['latest'] ?? '') === '') {
             return $this->json($response, ['error' => $info['error']], 400);
         }
+        $info['notesHtml'] = \Pafish\Services\Markdown::render((string) ($info['notes'] ?? ''));
         return $this->json($response, ['ok' => true] + $info);
     }
 

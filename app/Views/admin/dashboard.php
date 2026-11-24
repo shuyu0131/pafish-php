@@ -114,7 +114,12 @@
         updateTrigger(j);
         if (hasUpdate) {
           message.textContent = window.pafishT("js.new_version_available_v") + latest + window.pafishT("js.ready_to_update");
-          if (j.notes) { notes.textContent = j.notes; notes.hidden = false; }
+          if (j.notes) {
+            // notesHtml is rendered and sanitized by the check endpoint.
+            if (typeof j.notesHtml === "string") notes.innerHTML = j.notesHtml;
+            else notes.textContent = j.notes;
+            notes.hidden = false;
+          }
           run.hidden = false;
         } else {
           message.textContent = window.pafishT("js.already_up_to_date_v") + (j.current || current) + "）。";

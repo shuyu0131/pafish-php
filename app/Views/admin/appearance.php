@@ -42,7 +42,7 @@ $themeActive = count(array_filter($themes, static fn (array $theme): bool => !em
         </div>
         <div class="admin-installed-theme-body">
           <div class="admin-installed-theme-title">
-            <?php if ($t['active'] && $t['settingsCount'] > 0): ?>
+            <?php if ($t['error'] === null): ?>
               <a href="<?= e(url_to('/admin/appearance/' . rawurlencode($t['name']))) ?>"><?= e($t['title']) ?></a>
             <?php else: ?>
               <strong><?= e($t['title']) ?></strong>
@@ -58,6 +58,7 @@ $themeActive = count(array_filter($themes, static fn (array $theme): bool => !em
               <?php if (($t['authorUrl'] ?? '') !== ''): ?><a href="<?= e($t['authorUrl']) ?>" target="_blank" rel="noopener noreferrer"><?= e($t['author'] !== '' ? $t['author'] : t('admin.unknown_author')) ?></a><?php else: ?><?= e($t['author'] !== '' ? $t['author'] : t('admin.unknown_author')) ?><?php endif; ?>
             </span>
             <?php if ($t['version'] !== ''): ?><span>v<?= e($t['version']) ?></span><?php endif; ?>
+            <?php if (($t['parent'] ?? '') !== ''): ?><span><?= e(t('admin.parent_theme')) ?>: <?= e($t['parent']) ?></span><?php endif; ?>
             <?php if (is_array($t['update'] ?? null)): ?><span class="badge badge-accent"><?= e(t('admin.update_available_v')) ?><?= e($t['update']['version']) ?></span><?php endif; ?>
           </p>
         </div>
@@ -65,13 +66,16 @@ $themeActive = count(array_filter($themes, static fn (array $theme): bool => !em
           <?php if (is_array($t['update'] ?? null)): ?>
             <button type="button" class="btn btn-primary btn-sm admin-store-update" data-kind="theme" data-name="<?= e($t['name']) ?>" data-title="<?= e($t['title']) ?>" data-version="<?= e($t['update']['version']) ?>" data-local-version="<?= e($t['version']) ?>" data-changelog="<?= e($t['update']['changelog']) ?>"><?= e(t('admin.update')) ?></button>
           <?php endif; ?>
-          <?php if ($t['active']): ?>
-            <?php if ($t['settingsCount'] > 0): ?>
-              <a class="btn btn-primary btn-sm" href="<?= e(url_to('/admin/appearance/' . rawurlencode($t['name']))) ?>"><?= e(t('admin.settings')) ?></a>
-            <?php endif; ?>
-          <?php else: ?>
+          <?php if ($t['error'] === null): ?>
+            <a class="btn btn-outline btn-sm" href="<?= e(url_to('/admin/appearance/' . rawurlencode($t['name']))) ?>"><?= e(t('admin.settings')) ?></a>
+            <form method="post" action="<?= e(url_to('/admin/appearance/preview')) ?>" target="_blank">
+              <?= csrf_field() ?><input type="hidden" name="name" value="<?= e($t['name']) ?>">
+              <button class="btn btn-outline btn-sm" type="submit"><?= e(t('admin.theme_preview')) ?></button>
+            </form>
+          <?php endif; ?>
+          <?php if (!$t['active']): ?>
             <button type="button" class="btn btn-primary btn-sm admin-theme-activate" data-name="<?= e($t['name']) ?>" data-title="<?= e($t['title']) ?>"><?= e(t('admin.activate')) ?></button>
-            <button type="button" class="btn btn-ghost btn-sm admin-theme-uninstall" data-name="<?= e($t['name']) ?>" data-title="<?= e($t['title']) ?>"><?= e(t('admin.uninstall')) ?></button>
+            <button type="button" class="btn btn-ghost btn-sm admin-theme-uninstall" data-name="<?= e($t['name']) ?>" data-title="<?= e($t['title']) ?>"<?php if (!empty($t['dependants'])): ?> disabled title="<?= e(t('admin.parent_theme_in_use')) ?>"<?php endif; ?>><?= e(t('admin.uninstall')) ?></button>
           <?php endif; ?>
         </div>
       </article>

@@ -197,7 +197,7 @@ final class ContentTransfer
         $cat = isset($row['category_slug']) ? ($categoryIds[$row['category_slug']] ?? null) : ($row['category_id'] ?? null);
         // 导出包的字段是数组；旧 TEXT 镜像需序列化，不能让 PDO 把它写成 "Array"。
         if (is_array($row['custom_fields'] ?? null)) $row['custom_fields'] = json_encode($row['custom_fields'], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
-        $password = array_key_exists('password', $row) ? $row['password'] : ($existing['password'] ?? null);
+        $password = PostPasswords::normalize(array_key_exists('password', $row) ? $row['password'] : ($existing['password'] ?? null));
         $values = [(string) ($row['title'] ?? $slug), (string) ($row['excerpt'] ?? ''), (string) ($row['content'] ?? ''), $row['cover_url'] ?? null, (string) ($row['status'] ?? 'DRAFT'), $row['published_at'] ?? null, (int) ($row['is_pinned'] ?? 0), (int) ($row['category_pinned'] ?? 0), $password, $row['external_url'] ?? null, $row['custom_fields'] ?? null, $author, $cat];
         if ($existing) {
             PermalinkRedirects::recordEntityChange('post', $existing, array_replace($existing, [

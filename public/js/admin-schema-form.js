@@ -46,6 +46,17 @@
     var flatMode = !!form.querySelector(".admin-sf-layout-flat");
 
     var CSRF = opts.csrf || "";
+    var settingPartLabels = {
+      top: window.pafishT('js.setting_part_top'), right: window.pafishT('js.setting_part_right'),
+      bottom: window.pafishT('js.setting_part_bottom'), left: window.pafishT('js.setting_part_left'),
+      family: window.pafishT('js.setting_part_family'), size: window.pafishT('js.setting_part_size'),
+      weight: window.pafishT('js.setting_part_weight'), line_height: window.pafishT('js.setting_part_line_height'),
+      letter_spacing: window.pafishT('js.setting_part_letter_spacing'), style: window.pafishT('js.setting_part_style'),
+      transform: window.pafishT('js.setting_part_transform'), color: window.pafishT('js.setting_part_color'),
+      image: window.pafishT('js.setting_part_image'), repeat: window.pafishT('js.setting_part_repeat'),
+      position: window.pafishT('js.setting_part_position'), attachment: window.pafishT('js.setting_part_attachment'),
+      width: window.pafishT('js.setting_part_width')
+    };
     var msgEl = opts.msgId ? document.getElementById(opts.msgId) : null;
     var M = Object.assign({ saving: window.pafishT("common.saving"), saved: window.pafishT("js.saved"), save: window.pafishT("common.save") }, opts.messages || {});
 
@@ -475,20 +486,7 @@
       });
     });
 
-    // ---------- image：清除 ----------
-    form.querySelectorAll(".admin-sf-image-clear").forEach(function (btn) {
-      btn.addEventListener("click", function () {
-        var el = form.querySelector('[data-sf-key="' + btn.dataset.target + '"][data-sf-type="image"]');
-        if (el) {
-          el.value = "";
-          el.dispatchEvent(new Event("input", { bubbles: true }));
-          el.dispatchEvent(new Event("change", { bubbles: true }));
-        }
-        refreshShowIf();
-      });
-    });
-
-    // image 字段的缩略预览与手写 URL、媒体库、上传共用同一输入源。
+    // 顶层和动态重复行共用同一图片控件，不依赖字段名或行号定位。
     function syncImagePreview(input) {
       var wrap = input && input.closest ? input.closest(".admin-sf-image") : null;
       var preview = wrap && wrap.querySelector("[data-sf-image-preview]");
@@ -499,20 +497,25 @@
       if (previewWrap) { previewWrap.hidden = value === ""; }
       if (value !== "") { preview.src = value; }
     }
-    form.querySelectorAll('[data-sf-type="image"]').forEach(function (input) {
+    function initImage(wrap) {
+      var input = wrap.querySelector('[data-sf-type="image"], [data-sub-type="image"]');
+      if (!input) { return; }
       input.addEventListener("input", function () { syncImagePreview(input); });
       input.addEventListener("change", function () { syncImagePreview(input); });
       syncImagePreview(input);
-    });
-
-    // ---------- image：本地上传 ----------
-    form.querySelectorAll(".admin-sf-upload").forEach(function (btn) {
-      var key = btn.dataset.target;
-      var input = document.getElementById("sf-upload-" + key);
-      if (!input) { return; }
-      btn.addEventListener("click", function () { input.click(); });
-      input.addEventListener("change", function () {
-        var file = input.files && input.files[0];
+      var clear = wrap.querySelector('.admin-sf-image-clear');
+      if (clear) { clear.addEventListener('click', function () {
+        input.value = '';
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        refreshShowIf();
+      }); }
+      var btn = wrap.querySelector('.admin-sf-upload');
+      var fileInput = wrap.querySelector('input[type="file"]');
+      if (!btn || !fileInput) { return; }
+      btn.addEventListener("click", function () { fileInput.click(); });
+      fileInput.addEventListener("change", function () {
+        var file = fileInput.files && fileInput.files[0];
         if (!file) { return; }
         var label = btn.textContent;
         btn.disabled = true;
@@ -524,12 +527,13 @@
           method: "POST", body: fd, headers: { "X-Requested-With": "XMLHttpRequest" }
         }).then(function (r) { return r.json(); }).then(function (j) {
           if (!j || !j.ok || !j.url) { throw new Error((j && j.error) || window.pafishT("js.upload_failed")); }
-          var target = form.querySelector('[data-sf-key="' + key + '"][data-sf-type="image"]');
-          if (target) {
-            target.value = j.url;
-            target.dispatchEvent(new Event("input", { bubbles: true }));
-            target.dispatchEvent(new Event("change", { bubbles: true }));
+          if (!form.contains(input)) {
+            showMsg(window.pafishT('js.image_uploaded_row_changed'), false);
+            return;
           }
+          input.value = j.url;
+          input.dispatchEvent(new Event("input", { bubbles: true }));
+          input.dispatchEvent(new Event("change", { bubbles: true }));
           refreshShowIf();
           showMsg(window.pafishT("js.image_uploaded_save_settings_to_apply"), false);
         }).catch(function (err) {
@@ -537,10 +541,11 @@
         }).finally(function () {
           btn.disabled = false;
           btn.textContent = label;
-          input.value = "";
+          fileInput.value = "";
         });
       });
-    });
+    }
+    form.querySelectorAll('.admin-sf-image').forEach(initImage);
 
     // ---------- slider：range ↔ number 双向 ----------
     form.querySelectorAll("[data-sf-slider-wrap]").forEach(function (wrap) {
@@ -570,7 +575,26 @@
 
     // ---------- repeater：动态行 ----------
     var repeaterCommits = [];
-    form.querySelectorAll("[data-sf-repeater]").forEach(function (wrap) {
+    form.addEventListener("mouseup", function () {
+      form.querySelectorAll("[data-sf-repeater]").forEach(function (wrap) { if (wrap.sfDisarm) { wrap.sfDisarm(); } });
+    });
+    function fieldDefaults(fields) {
+      var values = {};
+      fields.forEach(function (sf) {
+        if (sf.type === "group") { Object.assign(values, fieldDefaults(sf.fields || [])); return; }
+        var value = sf.default;
+        var list = sf.type === "repeater" || sf.type === "checkboxes" || (sf.type === "image_select" && sf.multiple);
+        if (list || ["spacing", "typography", "background", "border"].indexOf(sf.type) !== -1) {
+          try { values[sf.key] = typeof value === "string" ? JSON.parse(value || (list ? "[]" : "{}")) : value; }
+          catch (e) { values[sf.key] = list ? [] : {}; }
+          if (values[sf.key] == null) { values[sf.key] = list ? [] : {}; }
+        } else if (sf.type !== "heading" && sf.type !== "subheading") {
+          values[sf.key] = value == null ? (sf.type === "switcher" || sf.type === "checkbox" ? "0" : "") : String(value);
+        }
+      });
+      return values;
+    }
+    function initRepeater(wrap) {
       var hid = wrap.querySelector('input[type="hidden"][data-sf-type="repeater"]');
       var rowsBox = wrap.querySelector(".admin-sf-rep-rows");
       var addBtn = wrap.querySelector(".admin-sf-rep-add");
@@ -625,13 +649,61 @@
 
         var body = document.createElement("div");
         body.className = "admin-sf-rep-body";
-        subFields.forEach(function (sf) {
-          var cell = document.createElement(sf.type === "icon" || sf.type === "checkboxes" ? "div" : "label");
+        function renderSubField(sf, host) {
+          if (sf.type === "heading" || sf.type === "subheading") {
+            var heading = document.createElement("h4"); heading.textContent = sf.label; host.appendChild(heading); return;
+          }
+          if (sf.type === "group") {
+            var group = document.createElement("fieldset"); group.className = "admin-sf-rep-group";
+            if (sf.show_if) { group.dataset.sfRowIf = JSON.stringify(sf.show_if); }
+            var legend = document.createElement("legend"); legend.textContent = sf.label; group.appendChild(legend);
+            (sf.fields || []).forEach(function (child) { renderSubField(child, group); }); host.appendChild(group); return;
+          }
+          var cell = document.createElement(["image", "icon", "checkboxes", "repeater", "spacing", "typography", "background", "border"].indexOf(sf.type) !== -1 ? "div" : "label");
           cell.className = "admin-sf-rep-cell";
+          if (sf.show_if) { cell.dataset.sfRowIf = JSON.stringify(sf.show_if); }
           var lab = document.createElement("span");
           lab.className = "admin-sf-rep-lab";
           lab.textContent = sf.label || sf.key;
           cell.appendChild(lab);
+
+          if (sf.type === "repeater") {
+            cell.classList.add("admin-sf-rep-cell-wide");
+            var child = document.createElement("div"); child.className = "admin-sf-repeater";
+            child.dataset.sfRepeater = sf.key; child.dataset.sfRepNested = "1";
+            child.dataset.sfMax = String(sf.max_items || 20); child.dataset.sfMin = String(sf.min_items || 0);
+            child.dataset.sfTitleKey = sf.title_key || ""; child.dataset.sfSubFields = JSON.stringify(sf.fields || []);
+            var hidden = document.createElement("input"); hidden.type = "hidden";
+            hidden.dataset.sfType = "repeater"; hidden.dataset.subKey = sf.key; hidden.dataset.subType = "repeater";
+            var childValue = row[sf.key] == null ? sf.default : row[sf.key];
+            hidden.value = typeof childValue === "string" ? childValue : JSON.stringify(childValue || []);
+            child.appendChild(hidden);
+            var childRows = document.createElement("div"); childRows.className = "admin-sf-rep-rows"; child.appendChild(childRows);
+            var childAdd = document.createElement("button"); childAdd.type = "button"; childAdd.className = "btn btn-outline btn-sm admin-sf-rep-add";
+            childAdd.textContent = sf.add_label || window.pafishT("js.add_setting_row"); child.appendChild(childAdd);
+            var childCount = document.createElement("span"); childCount.className = "admin-field-hint admin-sf-rep-count"; child.appendChild(childCount);
+            cell.appendChild(child); host.appendChild(cell); initRepeater(child); return;
+          }
+          if (["spacing", "typography", "background", "border"].indexOf(sf.type) !== -1) {
+            cell.classList.add("admin-sf-rep-cell-wide");
+            var compound = document.createElement("div"); compound.className = "admin-sf-rep-compound";
+            var parts = sf.type === "spacing" ? sf.sides || [] : sf.fields || [];
+            var stored = row[sf.key] == null ? sf.default : row[sf.key];
+            if (typeof stored === "string") { try { stored = JSON.parse(stored); } catch (e) { stored = {}; } }
+            stored = stored || {};
+            parts.forEach(function (part) {
+              var partLabel = document.createElement("label"); partLabel.className = "admin-sf-rep-cell";
+              var caption = document.createElement("span"); caption.textContent = settingPartLabels[part] || part; partLabel.appendChild(caption);
+              var choices = (sf.choices || {})[part] || (part === "weight" ? sf.weight_options : null);
+              var input = document.createElement(choices ? "select" : "input"); input.className = "input"; input.dataset.subPart = part;
+              if (choices) { Object.keys(choices).forEach(function (key) { var option = document.createElement("option"); option.value = key; option.textContent = choices[key]; input.appendChild(option); }); }
+              input.value = stored[part] == null ? "" : String(stored[part]); partLabel.appendChild(input); compound.appendChild(partLabel);
+            });
+            var compoundValue = document.createElement("input"); compoundValue.type = "hidden";
+            compoundValue.dataset.subKey = sf.key; compoundValue.dataset.subType = sf.type;
+            compoundValue.sfRead = function () { var value = {}; compound.querySelectorAll("[data-sub-part]").forEach(function (input) { if (input.value !== "") { value[input.dataset.subPart] = input.value; } }); return value; };
+            cell.appendChild(compoundValue); cell.appendChild(compound); host.appendChild(cell); return;
+          }
 
           // 多选使用勾选列表；候选项较多时直接在列表内搜索，
           // 不依赖原生多选框的 Ctrl/Command 操作。
@@ -719,7 +791,7 @@
             }
 
             cell.appendChild(checks);
-            body.appendChild(cell);
+            host.appendChild(cell);
             return;
           }
 
@@ -781,16 +853,24 @@
             inp.classList.add("admin-sf-rep-multi");
           }
           if (sf.type === "image") {
-            var imagePreview = document.createElement("img");
-            imagePreview.className = "admin-sf-rep-image-preview";
-            imagePreview.alt = "";
-            imagePreview.hidden = !val;
-            if (val) { imagePreview.src = val; }
-            inp.addEventListener("input", function () {
-              imagePreview.hidden = inp.value.trim() === "";
-              if (!imagePreview.hidden) { imagePreview.src = inp.value.trim(); }
+            cell.classList.add('admin-sf-rep-cell-wide');
+            var imageWrap = document.createElement('div'); imageWrap.className = 'admin-sf-image admin-sf-rep-image';
+            var previewWrap = document.createElement('div'); previewWrap.className = 'admin-sf-image-preview-wrap';
+            var imagePreview = document.createElement('img'); imagePreview.className = 'admin-sf-image-preview';
+            imagePreview.alt = ''; imagePreview.dataset.sfImagePreview = '';
+            previewWrap.appendChild(imagePreview); imageWrap.appendChild(previewWrap);
+            inp.classList.add('admin-sf-image-value');
+            inp.setAttribute('aria-label', sf.label || sf.key);
+            inp.placeholder = sf.placeholder || window.pafishT('js.image_input_placeholder');
+            imageWrap.appendChild(inp);
+            [['admin-sf-lib', 'js.choose_from_media_library'], ['admin-sf-upload', 'js.upload_image'], ['admin-sf-image-clear', 'common.clear']].forEach(function (spec) {
+              var button = document.createElement('button'); button.type = 'button';
+              button.className = 'btn btn-outline btn-sm ' + spec[0]; button.textContent = window.pafishT(spec[1]);
+              imageWrap.appendChild(button);
             });
-            cell.appendChild(imagePreview);
+            var uploadInput = document.createElement('input'); uploadInput.type = 'file';
+            uploadInput.accept = 'image/*,.svg'; uploadInput.hidden = true; uploadInput.dataset.sfNoDirty = '';
+            imageWrap.appendChild(uploadInput); cell.appendChild(imageWrap); initImage(imageWrap);
           }
           if (sf.type === "icon") {
             var iconWrap = document.createElement("span");
@@ -824,15 +904,21 @@
             iconWrap.appendChild(pick);
             iconWrap.appendChild(clear);
             cell.appendChild(iconWrap);
-          } else {
+          } else if (sf.type !== 'image') {
             cell.appendChild(inp);
           }
-          body.appendChild(cell);
-        });
+          if (sf.desc) {
+            var hint = document.createElement('span'); hint.className = 'admin-field-hint'; hint.textContent = sf.desc; cell.appendChild(hint);
+          }
+          host.appendChild(cell);
+        }
+        subFields.forEach(function (sf) { renderSubField(sf, body); });
         item.appendChild(body);
         body.addEventListener("input", commit);
+        body.addEventListener("change", commit);
 
         head.querySelector(".admin-sf-rep-del").addEventListener("click", function () {
+          commit();
           var rows = readRows();
           if (rows.length <= minItems) { return; }
           rows.splice(index, 1);
@@ -841,12 +927,14 @@
         });
         head.querySelector(".admin-sf-rep-up").addEventListener("click", function () {
           if (index <= 0) { return; }
+          commit();
           var rows = readRows();
           var t = rows[index - 1]; rows[index - 1] = rows[index]; rows[index] = t;
           writeRows(rows);
           renderAll();
         });
         head.querySelector(".admin-sf-rep-down").addEventListener("click", function () {
+          commit();
           var rows = readRows();
           if (index >= rows.length - 1) { return; }
           var t = rows[index + 1]; rows[index + 1] = rows[index]; rows[index] = t;
@@ -865,7 +953,7 @@
           rows.splice(index + 1, 0, duplicate);
           writeRows(rows);
           renderAll();
-          var newRow = rowsBox.querySelectorAll(".admin-sf-rep-row")[index + 1];
+          var newRow = rowsBox.children[index + 1];
           var firstControl = newRow && newRow.querySelector("[data-sub-key]");
           if (firstControl && firstControl.focus) { firstControl.focus(); }
         });
@@ -876,10 +964,14 @@
       function commit() {
         var rows = [];
         rowsBox.querySelectorAll(".admin-sf-rep-row").forEach(function (item) {
+          if (item.parentElement !== rowsBox) { return; }
           var obj = {};
           item.querySelectorAll("[data-sub-key]").forEach(function (inp) {
+            if (inp.closest(".admin-sf-rep-row") !== item) { return; }
             var t = inp.dataset.subType;
-            if (t === "switcher" || t === "checkbox") { obj[inp.dataset.subKey] = inp.checked ? "1" : "0"; }
+            if (t === "repeater") { var childWrap = inp.parentElement; if (childWrap.sfCommit) { childWrap.sfCommit(); } try { obj[inp.dataset.subKey] = JSON.parse(inp.value); } catch (e) { obj[inp.dataset.subKey] = []; } }
+            else if (inp.sfRead) { obj[inp.dataset.subKey] = inp.sfRead(); }
+            else if (t === "switcher" || t === "checkbox") { obj[inp.dataset.subKey] = inp.checked ? "1" : "0"; }
             else if (t === "checkboxes") {
               if (!Object.prototype.hasOwnProperty.call(obj, inp.dataset.subKey)) { obj[inp.dataset.subKey] = []; }
               if (inp.checked) { obj[inp.dataset.subKey].push(inp.dataset.subValue || ""); }
@@ -889,9 +981,18 @@
           rows.push(obj);
         });
         writeRows(rows);
-        rowsBox.querySelectorAll(".admin-sf-rep-row").forEach(function (item, i) {
+        Array.from(rowsBox.children).forEach(function (item, i) {
           var t = item.querySelector(".admin-sf-rep-title");
           if (t) { t.textContent = rowTitle(rows[i] || {}, i); }
+          item.querySelectorAll("[data-sf-row-if]").forEach(function (cell) {
+            if (cell.closest(".admin-sf-rep-row") !== item) { return; }
+            var spec; try { spec = JSON.parse(cell.dataset.sfRowIf); } catch (e) { return; }
+            var results = (spec.rules || []).map(function (rule) {
+              var row = rows[i] || {};
+              return matchRule(Object.prototype.hasOwnProperty.call(row, rule.key) ? String(row[rule.key]) : getVal(rule.key), rule);
+            });
+            cell.hidden = spec.relation === "or" ? !results.some(Boolean) : !results.every(Boolean);
+          });
         });
       }
 
@@ -902,6 +1003,7 @@
         rowsBox.innerHTML = "";
         rows.forEach(function (row, i) { rowsBox.appendChild(renderRow(row, i, rows.length)); });
         writeRows(rows);
+        commit();
         // 每次增删、复制、移动或首次渲染后都初始化新行内的搜索下拉等共享控件。
         wrap.dispatchEvent(new CustomEvent("pafish:controls-init", { bubbles: true, detail: { repeater: wrap } }));
       }
@@ -912,14 +1014,14 @@
       var armed = null, dragEl = null;
       rowsBox.addEventListener("mousedown", function (e) {
         var h = e.target.closest && e.target.closest(".admin-sf-rep-drag");
-        if (!h) { return; }
+        if (!h || h.closest("[data-sf-repeater]") !== wrap) { return; }
         armed = h.closest(".admin-sf-rep-row");
         if (armed) { armed.draggable = true; }
       });
       // 按了手柄又没真拖（只是点了一下）——松开就撤销，不然这一行一直是可拖状态
-      document.addEventListener("mouseup", function () {
+      wrap.sfDisarm = function () {
         if (armed) { armed.draggable = false; armed = null; }
-      });
+      };
       rowsBox.addEventListener("dragstart", function (e) {
         var row = e.target.closest && e.target.closest(".admin-sf-rep-row");
         if (!row || row !== armed || !row.draggable) { return; }
@@ -954,26 +1056,10 @@
 
       if (addBtn) {
         addBtn.addEventListener("click", function () {
+          commit();
           var rows = readRows();
           if (rows.length >= maxItems) { return; }
-          var blank = {};
-          subFields.forEach(function (sf) {
-            var isMulti = sf.type === "checkboxes" || (sf.type === "image_select" && sf.multiple);
-            var value = sf.default;
-            if (isMulti) {
-              if (Array.isArray(value)) { blank[sf.key] = value.map(String); }
-              else {
-                try {
-                  var parsed = JSON.parse(value == null || value === "" ? "[]" : String(value));
-                  blank[sf.key] = Array.isArray(parsed) ? parsed.map(String) : [];
-                } catch (e) { blank[sf.key] = []; }
-              }
-            } else if (sf.type === "switcher" || sf.type === "checkbox") {
-              blank[sf.key] = value == null ? "0" : (value === true ? "1" : value === false ? "0" : String(value));
-            } else {
-              blank[sf.key] = value == null ? "" : String(value);
-            }
-          });
+          var blank = fieldDefaults(subFields);
           rows.push(blank);
           writeRows(rows);
           renderAll();
@@ -982,8 +1068,12 @@
         });
       }
 
+      wrap.sfCommit = commit;
       renderAll();
-      repeaterCommits.push(commit);
+      return commit;
+    }
+    form.querySelectorAll("[data-sf-repeater]").forEach(function (wrap) {
+      if (!wrap.hasAttribute("data-sf-rep-nested")) { repeaterCommits.push(initRepeater(wrap)); }
     });
 
     // ---------- 视觉选择型：button_set / image_select / palette ----------
@@ -1436,6 +1526,7 @@
       });
 
       form.querySelectorAll("[data-sf-repeater]").forEach(function (wrap) {
+        if (wrap.hasAttribute("data-sf-rep-nested")) { return; }
         var hid = wrap.querySelector('input[type="hidden"][data-sf-type="repeater"]');
         if (hid) { fd.append(hid.dataset.sfKey, hid.value || "[]"); }
       });

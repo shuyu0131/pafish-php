@@ -24,6 +24,14 @@ final class HttpMiddleware
                     $routePath = substr($routePath, strlen($basePath)) ?: '/';
                 }
             }
+            if (\Pafish\Services\ThemePreview::blocksWrite($routePath) && !in_array(strtoupper($request->getMethod()), ['GET', 'HEAD'], true)) {
+                $response = new \Slim\Psr7\Response(405);
+                $response->getBody()->write(json_encode(['error' => \t('admin.theme_preview_read_only')], JSON_UNESCAPED_UNICODE));
+                return $response->withHeader('Allow', 'GET, HEAD')->withHeader('Content-Type', 'application/json; charset=UTF-8');
+            }
+            if (\Pafish\Services\ThemePreview::name() !== null || \Pafish\Services\ThemeDemo::isPrivate()) {
+                $request = $request->withoutHeader('If-None-Match')->withoutHeader('If-Modified-Since');
+            }
             $uri = $request->getUri();
             if ($canonical !== $uri->getPath()) {
                 $request = $request->withUri($uri->withPath($canonical));
@@ -57,7 +65,8 @@ final class HttpMiddleware
             if (Session::isHttps()) {
                 $response = $response->withHeader('Strict-Transport-Security', 'max-age=31536000');
             }
-            return $response;
+            $response = \Pafish\Services\ThemeDemo::decorate($response);
+            return \Pafish\Services\ThemePreview::decorate($response, $request->getMethod());
         });
     }
 }

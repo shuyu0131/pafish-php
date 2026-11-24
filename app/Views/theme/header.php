@@ -117,7 +117,7 @@ window.pafishApi = function (p) {
   </a>
   <?php $sidebarWidgets = widget_items('sidebar'); ?>
   <?= render_partial('sidebar-widgets', ['area' => 'sidebar']) ?>
-  <?php if ($activeTheme === 'default'): ?>
+  <?php if (Theme::includes('default')): ?>
     <?= render_partial('default-sidebar', ['hasCustomWidgets' => $sidebarWidgets !== []]) ?>
   <?php endif; ?>
   <?php $sidebarInjectContext = ['template' => $GLOBALS['pafish_tpl_ctx'] ?? []]; ?>
@@ -130,7 +130,7 @@ window.pafishApi = function (p) {
 
   <?php /* 桌面顶栏 */ ?>
   <header class="app-header">
-    <?php if ($activeTheme === 'default'): ?>
+    <?php if (Theme::includes('default')): ?>
     <div class="app-header-nav">
       <a href="<?= e(url_to('/')) ?>" class="app-brand-top"><?= e($siteName) ?></a>
       <?php /* public-nav.php 自身即输出 <nav class="app-nav" />，此处只包布局容器。 */ ?>

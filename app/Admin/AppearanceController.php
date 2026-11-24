@@ -47,6 +47,8 @@ final class AppearanceController extends AdminController
                     Theme::settingsFields($name)
                 )),
                 'active' => $name === $active,
+                'parent' => $manifest['parent'] ?? '',
+                'dependants' => Theme::dependants($name),
             ];
         }
         $catalogNotice = '';
@@ -87,7 +89,13 @@ final class AppearanceController extends AdminController
         $this->guardAdmin();
         $name = (string) ($args['name'] ?? '');
         $desc = Theme::describe($name);
+        \Pafish\Services\ExtensionKernel::resetSettingDiagnostics();
+        if ($desc['error'] === null) {
+            try { Theme::prepareSettings($name); } catch (\RuntimeException | \InvalidArgumentException $e) { $desc['error'] = $e->getMessage(); }
+        }
         $settings = $desc['manifest'] !== null ? Theme::settingsFields($name) : [];
+        $schemaIssues = array_values(array_filter(\Pafish\Services\ExtensionKernel::settingDiagnostics(),
+            static fn(string $message, string $key): bool => str_starts_with($key, 'theme:'), ARRAY_FILTER_USE_BOTH));
         $headExtra = '';
         if (\Pafish\Services\ExtensionKernel::hasSettingType($settings, 'icon')) {
             $headExtra = '<link rel="stylesheet" href="' . e(asset_url('/css/remixicon.min.css')) . '">'
@@ -100,6 +108,7 @@ final class AppearanceController extends AdminController
             'active' => $name === Theme::active(),
             'values' => $desc['manifest'] !== null ? Theme::valuesFor($name) : [],
             'settings' => $settings,
+            'schemaIssues' => $schemaIssues,
             'headExtra' => $headExtra,
         ], t('admin.theme_settings')));
         return $response;
@@ -114,9 +123,7 @@ final class AppearanceController extends AdminController
         if ($desc['error'] !== null) {
             return $this->json($response, ['error' => $desc['error'] ?? t('admin.theme_not_found')], 400);
         }
-        if ($name !== Theme::active()) {
-            return $this->json($response, ['error' => t('admin.activate_this_theme_before_configuring_it')], 400);
-        }
+        try { Theme::prepareSettings($name); } catch (\RuntimeException | \InvalidArgumentException $e) { return $this->json($response, ['error' => $e->getMessage()], 400); }
         // 只保存提交的键，checkbox 由前端全量序列化为 '1'/'0'
         // 先收集并完成全部校验，再统一写库（校验失败不产生部分写入）
         $pairs = [];
@@ -134,6 +141,10 @@ final class AppearanceController extends AdminController
                 continue;
             }
             $raw = $body[$key];
+            if (!is_scalar($raw)) {
+                $errors[$key] = ($field['label'] ?? $key) . ' 的取值格式不正确';
+                continue;
+            }
             if ($type === 'checkbox' || $type === 'switcher') {
                 $value = (is_scalar($raw) && (string) $raw === '1') ? '1' : '0';
             } else {
@@ -153,7 +164,11 @@ final class AppearanceController extends AdminController
                 'fields' => $errors,
             ], 400);
         }
-        Theme::setExtensionSettings($name, $pairs);
+        try {
+            Theme::setExtensionSettings($name, $pairs);
+        } catch (\InvalidArgumentException $e) {
+            return $this->json($response, ['error' => $e->getMessage()], 400);
+        }
         return $this->json($response, ['ok' => true, 'saved' => $pairs]);
     }
 
@@ -162,11 +177,32 @@ final class AppearanceController extends AdminController
         $this->guardAdmin();
         $name = trim((string) ($request->getParsedBody()['name'] ?? ''));
         try {
+            \Pafish\Services\ThemePreview::stop();
             Theme::setActive($name);
             return $this->json($response, ['ok' => true, 'name' => $name]);
         } catch (\Throwable $e) {
             return $this->json($response, ['error' => $e->getMessage()], 400);
         }
+    }
+
+    public function preview(Request $request, Response $response): Response
+    {
+        $this->guardAdmin();
+        $name = $request->getParsedBody()['name'] ?? '';
+        try {
+            if (!is_string($name)) throw new \InvalidArgumentException('主题名不合法');
+            \Pafish\Services\ThemePreview::start($name);
+        } catch (\DomainException | \InvalidArgumentException | \RuntimeException $e) {
+            return $this->json($response, ['error' => $e->getMessage()], 400);
+        }
+        return $response->withStatus(303)->withHeader('Location', Url::to('/'))->withHeader('Cache-Control', 'no-store');
+    }
+
+    public function stopPreview(Request $request, Response $response): Response
+    {
+        $this->guardAdmin();
+        \Pafish\Services\ThemePreview::stop();
+        return $response->withStatus(303)->withHeader('Location', Url::to('/'))->withHeader('Cache-Control', 'no-store');
     }
 
     public function uninstall(Request $request, Response $response): Response
@@ -218,9 +254,6 @@ final class AppearanceController extends AdminController
         $this->guardAdmin();
         $body = $request->getParsedBody() ?? [];
         $name = trim((string) ($body['name'] ?? ''));
-        if ($name !== Theme::active()) {
-            return $this->json($response, ['error' => t('admin.activate_this_theme_before_importing_settings')], 400);
-        }
         $files = $request->getUploadedFiles();
         $upload = $files['file'] ?? null;
         if (!$upload instanceof UploadedFileInterface || $upload->getError() !== UPLOAD_ERR_OK) {
@@ -230,11 +263,15 @@ final class AppearanceController extends AdminController
         if (!str_ends_with($filename, '.json')) {
             return $this->json($response, ['error' => t('admin.upload_a_json_file')], 400);
         }
-        $json = json_decode((string) $upload->getStream()->getContents(), true);
+        $limit = \Pafish\Services\ExtensionKernel::MAX_SETTINGS_BYTES * 8;
+        $raw = $upload->getStream()->read($limit + 1);
+        if (strlen($raw) > $limit) return $this->json($response, ['error' => t('admin.theme_settings_backup_too_large')], 400);
+        $json = json_decode($raw, true, 32);
         if (!is_array($json)) {
             return $this->json($response, ['error' => t('admin.the_backup_file_is_not_valid_json')], 400);
         }
         try {
+            Theme::prepareSettings($name);
             $result = Theme::importValues($name, $json);
             return $this->json($response, ['ok' => true, 'imported' => $result['imported'], 'total' => $result['total']]);
         } catch (\Throwable $e) {
@@ -246,9 +283,6 @@ final class AppearanceController extends AdminController
     {
         $this->guardAdmin();
         $name = trim((string) (($request->getParsedBody() ?? [])['name'] ?? ''));
-        if ($name !== Theme::active()) {
-            return $this->json($response, ['error' => t('admin.activate_this_theme_before_resetting_its_settings')], 400);
-        }
         try {
             $cleared = Theme::resetToDefaults($name);
             return $this->json($response, ['ok' => true, 'cleared' => $cleared]);
@@ -260,11 +294,9 @@ final class AppearanceController extends AdminController
     public function export(Request $request, Response $response): Response
     {
         $this->guardAdmin();
-        $name = (string) ($_GET['name'] ?? '');
-        if ($name !== Theme::active()) {
-            return $this->json($response, ['error' => t('admin.activate_this_theme_before_exporting_settings')], 400);
-        }
+        $name = (string) ($request->getQueryParams()['name'] ?? '');
         try {
+            Theme::prepareSettings($name);
             $data = Theme::exportValues($name);
         } catch (\Throwable $e) {
             $response->getBody()->write($e->getMessage());

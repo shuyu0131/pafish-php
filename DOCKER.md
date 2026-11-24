@@ -1,144 +1,112 @@
-# Docker deployment
+# Docker 部署
 
-The Compose setup runs pafish with Apache/PHP and MySQL 8.4. Site files are
-baked into the image; database and writable site data use named volumes.
+仓库提供 Apache/PHP 应用、MySQL 8.4 和定时任务的 Compose 配置。网站代码在镜像中，数据库与可写数据通过命名卷保存。本文用于部署网站；不需要先发布自己的 Docker 镜像。
 
-## Start
+## 选择启动方式
 
-Download [`docker-compose.yml`](https://raw.githubusercontent.com/shuyu0131/pafish-php/main/docker-compose.yml)
-and [`.env.example`](https://raw.githubusercontent.com/shuyu0131/pafish-php/main/.env.example)
-from the project repository, then copy `.env.example` to `.env`:
+需要 Docker Engine 与 Compose v2。命令在放有 docker-compose.yml 的项目目录执行。
 
-```sh
+| 情况 | 使用方式 |
+| --- | --- |
+| 已取得可拉取的项目发行镜像 | 默认 Compose，PAFISH_IMAGE 指向实际发行标签 |
+| 只有本地源码，或要验证当前修改 | 同时使用 docker-compose.build.yml 本地构建 |
+
+默认镜像地址是 ghcr.io/shuyu0131/pafish-php:latest。仓库写了地址不代表该标签一定已公开；拉取失败时先检查标签和访问权限，或使用本地构建。正式环境应固定到实际存在的版本标签。
+
+## 准备环境变量
+
+复制 .env.example 为 .env，填写两个不同的长随机数据库密码。Linux/macOS 示例：
+
+```bash
 cp .env.example .env
 ```
 
-Edit `.env` and set two different, long random passwords. If the GHCR image is
-already available, start the site with:
+Windows PowerShell 可使用 Copy-Item .env.example .env。不要把 .env 提交到仓库或公开下载目录。
 
-```sh
+| 变量 | 说明 |
+| --- | --- |
+| MYSQL_DATABASE、MYSQL_USER | 初次初始化 MySQL 的库名与普通账户 |
+| MYSQL_PASSWORD | 普通数据库账户密码 |
+| MYSQL_ROOT_PASSWORD | 与普通账户不同的 MySQL root 密码 |
+| PAFISH_IMAGE | 实际应用镜像标签，默认 GHCR latest |
+| HTTP_BIND | 默认 127.0.0.1，只对宿主机开放 |
+| HTTP_PORT | 宿主机端口，默认 8080 |
+
+已有数据库卷不会因为改 .env 就重新初始化账户；应用安装后的连接也保存在 runtime/config.php。改密码需协调数据库账户、运行配置和后续初始化变量，不是重启一次就自动同步。
+
+## 启动
+
+使用发行镜像：
+
+```bash
 docker compose up -d
 ```
 
-Before the first public GHCR release, or when you want to run the checkout you
-are currently editing, use the source-build command under
-[Image publication](#image-publication) instead. The default Compose file
-otherwise tries to pull `ghcr.io/shuyu0131/pafish-php:latest`.
+使用当前源码构建：
 
-Open <http://localhost:8080/install.php>. As with emlog, finish the setup in
-the browser. Compose supplies the database connection automatically, so the
-installer only asks for the public site URL and administrator details.
+```bash
+docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+```
 
-Set the public site URL to the URL readers will use, including `https://` when
-TLS terminates at a reverse proxy. Keep `pretty_urls` enabled; Apache has
-`mod_rewrite` enabled and the project `.htaccess` is active.
+访问 http://localhost:8080/install.php。Compose 为安装器提供数据库连接默认值，填写最终公开站点 URL 和管理员信息完成向导。已有配置时不会再次安装。
 
-The web container listens on port `8080`. Compose binds it to `127.0.0.1` by
-default, which is appropriate when a reverse proxy on the host serves the
-public hostname. Set `HTTP_BIND=0.0.0.0` in `.env` only when the site should be
-reachable directly from other machines. A proxy in another container should
-share a Docker network with this Compose project; in that setup, expose port
-8080 on the internal network rather than publishing it publicly.
+当前镜像未提供专门的安装入口删除开关；安装器依靠已存在配置阻止重装。公开部署可在前置代理阻止后续 /install.php 访问，避免把普通主机的“删镜像内文件”当成可持久的镜像修改。
 
-For a reverse proxy, forward the original host and scheme, including
-`X-Forwarded-Proto`. After installation, add only the proxy's actual IP or
-CIDR to `trusted_proxies` in `runtime/config.php`; this setting controls
-forwarded client-IP handling. Do not trust arbitrary client-supplied forwarding
-headers. The canonical `site_url` should match the public HTTPS URL.
+查看状态和日志：
 
-## Persistent data and updates
+```bash
+docker compose ps
+docker compose logs --tail=100 app scheduler db
+```
 
-Compose creates named volumes for MySQL, runtime configuration, uploaded
-media, backups, chunked uploads, plugins, and themes. They survive container
-recreation and image updates. Back up the database volume and these site-data
-volumes before moving a deployment to another host; copying only the image is
-not a site backup.
+scheduler 每分钟运行 cron.php，输出 0 篇到期文章是正常结果。健康检查只说明对应服务探测通过，不代表安装、登录、数据库迁移和所有扩展都已验证。
 
-To update the core, pull the new image and recreate the containers:
+## 域名与反向代理
 
-```sh
+默认监听宿主机 127.0.0.1:8080，适合由宿主机反向代理转发。需要其他机器直接访问才把 HTTP_BIND 改为 0.0.0.0，并按实际防火墙策略开放端口。
+
+代理转发正确的 Host 和协议，site_url 填读者使用的 HTTPS 地址。只把真实代理 IP/CIDR 放入 trusted_proxies。代理位于其他容器时，使用共同 Docker 网络访问 app:8080，不能用该代理容器自己的 127.0.0.1 指代应用。
+
+Apache 已启用 mod_rewrite 和项目 .htaccess，正常可保留 pretty_urls。不要给容器 Apache 粘贴 Nginx location 规则。
+
+## 持久卷保存什么
+
+| 卷 | 内容 |
+| --- | --- |
+| pafish_mysql | MySQL 数据文件 |
+| pafish_runtime | 运行配置、日志与缓存 |
+| pafish_uploads | 本地上传 |
+| pafish_backups | 数据库备份文件 |
+| pafish_storage | 分片上传等运行文件 |
+| pafish_plugins、pafish_themes | 已安装扩展代码 |
+
+默认 Compose 项目名为 pafish；更改项目名或目录部署方式可能创建另一组卷，让网站看起来像未安装。先检查实际卷和项目归属，不立即重新初始化。
+
+普通 docker compose down 不删除命名卷。down -v 会删除持久数据，只在确实准备丢弃站点时使用。卷仍在不等于已有异地备份，范围见 [备份与搬迁](docs/backup-migration.md)。
+
+## 更新与内置扩展同步
+
+发行镜像更新：
+
+```bash
 docker compose pull
 docker compose up -d
 ```
 
-The image is immutable at runtime for core files. Use image updates for core
-releases; the application's in-place core updater cannot replace files baked
-into the image. Manage installed plugins and themes through the admin UI; those
-directories persist independently of the core image. On startup, the image
-updates its bundled default theme, Sitemap, and AI Foundation components in
-their named volumes when the image contains a higher manifest version. The
-MySQL volume remains the source of truth for database content.
+源码构建则重复前面的双 Compose --build 命令。app 与 scheduler 应使用同一应用版本。核心文件由镜像提供，不用后台在线更新去修改容器里的核心代码。
 
-The `scheduler` service runs `cron.php` once per minute for scheduled posts.
-Inspect service status and logs with:
+当前 docker/entrypoint.sh 对 default、sitemap、ai_foundation 执行种子同步：目录缺少清单时补入，镜像清单版本更高时替换对应目录，版本相同或已安装更高版本时保留。其他主题插件目录保留在卷中。
 
-```sh
-docker compose ps
-docker compose logs -f app scheduler db
-```
+这与普通核心在线更新“保留现有默认主题目录”的规则不同。自定义默认主题文件仍可能被更高版本镜像种子替换，应放进独立子主题。demo 仅在文档示例目录提供，不随 Docker 镜像分发；需要时手动复制到插件目录或单独安装。
 
-Use `docker compose down` to stop the services. Do not add `-v` unless you
-intend to delete the persistent database and site data.
+## 故障和恢复
 
-## Image publication
+拉取不到镜像先检查 PAFISH_IMAGE；数据库启动失败先看 db 日志和卷状态；站点显示未安装先检查项目名与 runtime 卷；更新后业务异常按兼容版本和备份恢复，不盲目删除全部卷。
 
-The Compose file references the project image in GHCR as
-`ghcr.io/shuyu0131/pafish-php`. The repository's release workflow publishes a
-multi-architecture image for version tags. After the first publish, set the
-GHCR package visibility to public so Docker can pull it without login. A
-maintainer can also mirror it to a project-owned Docker Hub namespace. Project
-images published to GHCR or a Docker Hub account are separate from Docker
-Official Images, which are curated `library/` repositories maintained through
-Docker's `docker-library/official-images` process.
+数据库版本升级需要兼容迁移，旧 MySQL 镜像不一定能读取新版本写入的数据卷。回退应用标签不等于数据库可原地降级。
 
-Until the first GHCR release image is published, use the local checkout command
-shown below or set `PAFISH_IMAGE` to an image you built and tagged yourself.
+## 镜像维护者
 
-For comparison, Docker Hub currently marks `emlog/emlog` as a project-owned
-image (`is_official: false` in the public Hub API). It can still be the
-publisher's official emlog image in the everyday sense; it is simply not part
-of Docker's `library/` Official Images program.
+Dockerfile 与 Compose build override 用于构建，仓库发布工作流用于发布镜像。推送到 GHCR 或 Docker Hub 需要相应仓库权限；部署文档不代表镜像已经公开。项目自有镜像也不等于 Docker library/ 的 Official Image。镜像发布是独立维护流程，不是安装前置步骤。
 
-For a project-owned image, replace `your-account` with the Docker Hub
-organization or account that owns the repository:
-
-```sh
-docker build -t your-account/pafish:1.3.0 -t your-account/pafish:latest .
-docker push your-account/pafish:1.3.0
-docker push your-account/pafish:latest
-```
-
-For a local checkout, build from source with the development override:
-
-```sh
-docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
-```
-
-The override builds the `app` and `scheduler` services from the current
-checkout; MySQL still uses the official `mysql:8.4` image. After changing
-source files, repeat the command to rebuild the application image. Pin
-`PAFISH_IMAGE` to a release tag in production instead of relying on `latest`.
-
-Docker Official Images require an upstream source repository and maintainers
-who commit to timely version and security updates, a repeatable build, Docker
-best practices, and the review requirements in the Official Images project.
-The current review checklist also asks whether the project has contacted the
-upstream maintainers, uses an OSI-approved license, has a useful or reasonably
-popular service, has documentation ready for Docker Hub, considers existing
-official base images, passes current tests, and can support the image after it
-is accepted. Two Official Images maintainers review the Dockerization. The
-program also values multi-architecture support, although available
-architectures depend on upstream and base-image support; tags must not be
-continuous-integration builds that change without a release.
-
-The project proposes a new image by adding a definition under `library/` and
-opening a pull request to `docker-library/official-images`; Docker's
-maintainers review and accept it. A matching image documentation contribution
-to [`docker-library/docs`](https://github.com/docker-library/docs) should be
-ready around the same time. See the current [Official Images review
-guide](https://github.com/docker-library/official-images/blob/master/README.md)
-and [new-image checklist](https://github.com/docker-library/official-images/blob/master/NEW-IMAGE-CHECKLIST.md)
-before making that commitment. pafish's MIT license and upstream repository
-make the licensing/source prerequisites straightforward; popularity,
-maintainer commitment, documentation, reproducible builds, and multi-arch
-coverage are the parts we still need to demonstrate before proposing it.
+[安装说明](docs/install.md) · [更新与维护](docs/maintenance.md) · [文档目录](docs/README.md)。

@@ -23,6 +23,7 @@ final class SettingsController extends AdminController
     /** 保存白名单（商店地址使用内置官方源） */
     private const ALLOWED_KEYS = [
         'site_name', 'site_subtitle', 'site_description', 'site_icp', 'site_locale',
+        'theme_demo_enabled',
         'seo_title_order', 'seo_title_separator',
         'comments_enabled', 'comments_need_review', 'comments_captcha_enabled', 'comments_honeypot_enabled',
         'submissions_enabled', 'submissions_need_review',
@@ -54,6 +55,13 @@ final class SettingsController extends AdminController
     {
         $this->guardAdmin();
         $body = $request->getParsedBody() ?? [];
+        if (array_key_exists('theme_demo_enabled', $body)
+            && !in_array($body['theme_demo_enabled'], ['true', 'false'], true)) {
+            $message = t('admin.invalid_theme_demo_setting');
+            if ($this->isAjax($request)) return $this->json($response, ['error' => $message], 400);
+            $this->flash('error', $message);
+            return $this->redirect($response, '/admin/settings#settings-basic');
+        }
         if (array_key_exists('site_locale', $body)
             && (!is_string($body['site_locale']) || !\Pafish\Core\I18n::supports($body['site_locale']))) {
             $message = t('admin.unsupported_language');

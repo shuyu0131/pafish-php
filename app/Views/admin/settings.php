@@ -93,6 +93,15 @@ $keywordsText = $listText('comment_spam_keywords', "\n");
       <p class="admin-field-hint"><?= e(t('admin.old_url_formats_remain_accessible_and_redirect_to')) ?></p>
     </div>
     <div class="card admin-form-card">
+      <h2 class="admin-card-title"><?= e(t('admin.theme_demo')) ?></h2>
+      <input type="hidden" name="theme_demo_enabled" value="false">
+      <label class="admin-check-row">
+        <input type="checkbox" name="theme_demo_enabled" value="true" <?= $boolVal('theme_demo_enabled', 'false') ? 'checked' : '' ?>>
+        <span><?= e(t('admin.enable_theme_demo')) ?></span>
+      </label>
+      <p class="admin-field-hint"><?= e(t('admin.theme_demo_hint')) ?></p>
+    </div>
+    <div class="card admin-form-card">
       <h2 class="admin-card-title"><?= e(t('admin.accounts_and_registration')) ?></h2>
       <label class="admin-check-row">
         <input type="checkbox" name="allow_registration" value="true" <?= $boolVal('allow_registration', 'true') ? 'checked' : '' ?>>

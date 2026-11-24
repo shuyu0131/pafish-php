@@ -16,19 +16,16 @@ final class SearchController
     public function index(Request $request, Response $response): Response
     {
         $query = $request->getQueryParams();
-        $keyword = is_scalar($query['q'] ?? null) ? trim((string) $query['q']) : '';
+        $keyword = is_scalar($query['q'] ?? null) ? mb_substr(trim((string) $query['q']), 0, 1000) : '';
         $pageNum = is_scalar($query['page'] ?? null) ? max(1, (int) $query['page']) : 1;
         $posts = [];
         $total = 0;
         $perPage = 10;
 
         if ($keyword !== '') {
-            [$posts, $total, $perPage, $pageNum] = Listings::published(
-                "MATCH(p.title, p.excerpt, p.content) AGAINST (? IN NATURAL LANGUAGE MODE)
-                 OR p.title LIKE ? OR p.excerpt LIKE ? OR p.content LIKE ?",
-                [$keyword, "%{$keyword}%", "%{$keyword}%", "%{$keyword}%"],
-                $request
-            );
+            ['posts' => $posts, 'total' => $total, 'perPage' => $perPage, 'pageNum' => $pageNum] = \Pafish\Services\Posts::query([
+                'context' => 'search', 'search' => $keyword, 'page' => $pageNum, 'recent_comments' => true,
+            ]);
         }
         $totalPages = max(1, (int) ceil($total / $perPage));
 
@@ -41,6 +38,7 @@ final class SearchController
             'og' => Listings::og($request, $title, $metaDesc, ['q', 'page']),
             'robots' => 'noindex, follow',
             'keyword' => $keyword,
+            'listKind' => 'search',
             'posts' => $posts,
             'total' => $total,
             'pageNum' => $pageNum,

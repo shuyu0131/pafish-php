@@ -34,7 +34,7 @@ final class Plugin
 
     public static function root(): string
     {
-        return dirname(__DIR__, 2) . '/plugins';
+        return (defined('PAFISH_ROOT') ? PAFISH_ROOT : dirname(__DIR__, 2)) . '/plugins';
     }
 
     /** 扫描 plugins/ 目录下的全部插件名（同 Theme::list：点前缀目录忽略） */

@@ -1,28 +1,57 @@
-/* Default theme colors */
+/*
+ * 默认主题配色（亮 / 暗两组）。
+ * 品牌色与后台一致：#4786d6（暗色 #6fa3e8）。
+ * 由品牌色派生的颜色（链接文字、按钮底色、浅底等）在 style.css 的 :root 里用 color-mix 计算，
+ * 只改这里的 --accent 就能整体换色。
+ * --bg-soft / --success 同时供 public/css/content.css 使用（代码块、表头、高亮）。
+ */
 :root {
   --bg: #ffffff;
-  --fg: #343a40;
-  --muted: #68727c;
+  --bg-soft: #f6f7f8;
+  --bg-soft-2: #eef0f3;
   --card: #ffffff;
-  --border: #e1e5e8;
-  --accent: #464646;
-  --accent-soft: #eeeeee;
-  --danger: #a84848;
-  --title: #252a2f;
-  --meta: #76808a;
-  --side: #535d66;
+  --fg: #464646;
+  --title: #25292e;
+  --muted: #6b7178;
+  --meta: #757b82;
+  --side: #565c62;
+  --border: #e6e9ec;
+  --accent: #4786d6;
+  --accent-soft: rgba(71, 134, 214, 0.08);
+  --danger: #b4543f;
+  --success: #2f9e63;
+  --warm: #b45309;
+  --warm-soft: #fdf3e4;
+  /* 点赞红 / 收藏黄：--*-ink 用于文字（白底对比度 ≥ 4.5:1），--* 用于图标 */
+  --like: #e5484d;
+  --like-ink: #c9343a;
+  --like-soft: #fdecec;
+  --fav: #f2a900;
+  --fav-ink: #9a6700;
+  --fav-soft: #fff4d6;
 }
 
 .dark {
-  --bg: #181b1e;
-  --fg: #d5d9dc;
-  --muted: #a4adb4;
-  --card: #1f2327;
-  --border: #363c42;
-  --accent: #767676;
-  --accent-soft: #363636;
-  --danger: #e29388;
-  --title: #edf0f2;
-  --meta: #9da6ad;
-  --side: #c0c7cb;
+  --bg: #161616;
+  --bg-soft: #1f1f1f;
+  --bg-soft-2: #282828;
+  --card: #1c1c1c;
+  --fg: #d0d0d0;
+  --title: #ececec;
+  --muted: #9a9a9a;
+  --meta: #8c8c8c;
+  --side: #b5b5b5;
+  --border: #2e2e2e;
+  --accent: #6fa3e8;
+  --accent-soft: rgba(111, 163, 232, 0.1);
+  --danger: #e08a74;
+  --success: #4cc38a;
+  --warm: #f0b35a;
+  --warm-soft: rgba(240, 179, 90, 0.12);
+  --like: #ff6b6b;
+  --like-ink: #ff7b7b;
+  --like-soft: rgba(255, 107, 107, 0.14);
+  --fav: #f5c04a;
+  --fav-ink: #f5c04a;
+  --fav-soft: rgba(245, 192, 74, 0.14);
 }

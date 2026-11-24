@@ -128,7 +128,7 @@ final class ExtensionContext
 
     public function getSettings(): array
     {
-        return $this->kind === 'plugin' ? Plugin::settings($this->name) : Theme::valuesFor($this->name);
+        return $this->kind === 'plugin' ? Plugin::settings($this->name) : Theme::valuesFor(Theme::settingsTarget($this->name));
     }
 
     public function setSettings(array $partial): void
@@ -137,7 +137,7 @@ final class ExtensionContext
             Plugin::setSettings($this->name, $partial);
             return;
         }
-        Theme::setExtensionSettings($this->name, $partial);
+        Theme::setExtensionSettings(Theme::settingsTarget($this->name), $partial);
     }
 
     public function log(string $message): void
@@ -152,12 +152,13 @@ final class ExtensionContext
     /** 渲染扩展私有 views/{template}.php，禁止用户可控路径参与 include。 */
     public function render(string $template, array $data = []): string
     {
-        if (preg_match('/^[a-z0-9_-]{1,60}$/', $template) !== 1) {
+        if (!in_array($this->kind, ['theme', 'plugin'], true) || preg_match('/^[a-z0-9_-]{1,50}$/D', $this->name) !== 1
+            || !TemplateFiles::validName($template)) {
             throw new \RuntimeException('扩展视图名不合法');
         }
         $root = $this->kind === 'plugin' ? Plugin::root() : Theme::root();
-        $file = $root . '/' . $this->name . '/views/' . $template . '.php';
-        if (!is_file($file)) {
+        $file = TemplateFiles::find($root . '/' . $this->name, 'views/' . $template);
+        if ($file === null) {
             throw new \RuntimeException('扩展视图不存在：' . $template);
         }
         extract($data, EXTR_SKIP);

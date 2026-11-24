@@ -29,16 +29,10 @@ final class CategoryController
             if ($redirect !== null) return $redirect;
         }
 
-        $ids = array_keys(\Pafish\Services\Categories::descendants(
-            DB::fetchAll('SELECT id,parent_id FROM categories'), (int) $category['id']
-        ));
-        [$posts, $total, $perPage, $pageNum] = Listings::published(
-            '',
-            [],
-            $request,
-            categoryIds: $ids
-        );
-        $totalPages = max(1, (int) ceil($total / $perPage));
+        ['posts' => $posts, 'total' => $total, 'pageNum' => $pageNum, 'totalPages' => $totalPages] = \Pafish\Services\Posts::query([
+            'context' => 'category', 'category_ids' => [(int) $category['id']], 'include_child_categories' => true,
+            'page' => Listings::pageNumber($request), 'recent_comments' => true,
+        ]);
 
         $category['cover_url'] = \Pafish\Services\Content::safeImageUrl($category['cover_url'] ?? null);
         $description = (string) ($category['description'] ?? '');
@@ -53,6 +47,7 @@ final class CategoryController
             'description' => $metaDesc,
             'og' => $og,
             'category' => $category,
+            'listKind' => 'category',
             'posts' => $posts,
             'total' => $total,
             'pageNum' => $pageNum,

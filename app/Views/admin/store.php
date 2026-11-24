@@ -37,7 +37,7 @@ sort($allCategories);
       <span class="badge"><?= e(t('admin.the_official_store_is_temporarily_unreachable')) ?></span>
       <span class="admin-muted"><?= e(t('admin.free_apps_can_still_use_the_cached_catalogue')) ?></span>
     <?php else: ?>
-      <span class="admin-muted"><?= e(t('admin.no_store_account_linked_link_an_account_in')) ?></span>
+      <span class="admin-muted"><?= e(t('admin.no_store_account_linked_before_settings')) ?><a href="<?= e(url_to('/admin/settings#settings-extensions')) ?>"><?= e(t('admin.site_settings')) ?></a><?= e(t('admin.no_store_account_linked_after_settings')) ?></span>
     <?php endif; ?>
     <button type="button" class="btn btn-ghost btn-sm" id="storeRefresh"><?= e(t('admin.refresh_catalogue')) ?></button>
   </div>

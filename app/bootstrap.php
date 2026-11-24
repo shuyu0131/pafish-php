@@ -114,6 +114,14 @@ if ($__dir !== null) {
         'xml' => 'application/xml; charset=utf-8',
     ];
     $__ext = strtolower(pathinfo($__file, PATHINFO_EXTENSION));
+    if ($__dir === 'uploads') {
+        if (preg_match('/\.(?:php[0-9]?|phtml|pht|phar|cgi|pl|py|sh|shtml|htaccess|htpasswd)(?:\.|$)/i', basename($__file))) {
+            http_response_code(404);
+            exit;
+        }
+        header('X-Content-Type-Options: nosniff');
+        header("Content-Security-Policy: sandbox; default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'");
+    }
     header('Content-Type: ' . ($__types[$__ext] ?? 'application/octet-stream'));
     header('Content-Length: ' . (string) filesize($__file));
     header('Cache-Control: ' . ($__dir === 'uploads' ? 'no-cache' : 'public, max-age=86400'));
@@ -225,6 +233,8 @@ Url::init($_SERVER['SCRIPT_NAME'] ?? '/index.php');
 Session::start();
 require __DIR__ . '/Core/helpers.php';
 \Pafish\Core\I18n::setLocale((string) \Pafish\Services\Settings::get('site_locale', 'zh-CN'));
+\Pafish\Services\ThemePreview::prepare($__path);
+\Pafish\Services\ThemeDemo::prepare($__path, $_GET, $_SERVER['REQUEST_METHOD'] ?? 'GET');
 \Pafish\Services\Theme::boot();
 
 // 5. Slim 应用（PHP-DI 容器，控制器自动装配）
@@ -239,11 +249,12 @@ $app->setBasePath(Url::base());
 // 7.5 插件系统启动：注册激活插件的钩子 + 系统注入渲染器 + 云存储管线
 // 定时任务失败不阻断前台请求。
 \Pafish\Services\Plugin::boot();
+\Pafish\Services\ThemeDemo::validateRoutes();
 
 // 7.6 定时发布兜底：无 cron 环境时由请求低频触发（runtime/scheduler.lock 60s 限频），
 // 让后台文章状态及时同步；有 cron 时该调用几乎不执行查询。失败不阻断请求。
 try {
-    \Pafish\Services\Scheduler::maybeRun();
+    if (\Pafish\Services\ThemeDemo::name() === null) \Pafish\Services\Scheduler::maybeRun();
 } catch (\Throwable $e) {
     // 不影响本次请求，但要留痕：否则"定时文章到点没上线"会毫无线索。
     \Pafish\Core\Logger::exception('[pafish-scheduler] 定时发布兜底执行失败', $e);

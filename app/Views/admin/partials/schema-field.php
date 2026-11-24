@@ -17,6 +17,12 @@ $renderField = function (array $field, array $values, ?string &$lastSection, boo
     // help：常驻说明之外的补充细节，默认收起成 ? 气泡，避免长表单被文字淹没
     $help = is_string($field['help'] ?? null) ? $field['help'] : '';
     $options = is_array($field['options'] ?? null) ? $field['options'] : [];
+    // 更新清单删除旧选项时，显示有效默认项，避免隐藏域继续提交失效值。
+    $defaultOption = (string) ($field['default'] ?? '');
+    if (in_array($type, ['select', 'radio', 'button_set', 'palette'], true)
+        && !array_key_exists($value, $options) && array_key_exists($defaultOption, $options)) {
+        $value = $defaultOption;
+    }
     $showIf = is_array($field['show_if'] ?? null) ? $field['show_if'] : null;
     $rules = is_array($field['rules'] ?? null) ? $field['rules'] : [];
     $section = is_string($rules['section'] ?? null) ? $rules['section'] : null;
@@ -393,19 +399,7 @@ $renderField = function (array $field, array $values, ?string &$lastSection, boo
             $rows = json_decode($value !== '' ? $value : '[]', true);
             if (!is_array($rows) || !array_is_list($rows)) { $rows = []; }
             $titleKey = (string) ($field['title_key'] ?? ($subFields[0]['key'] ?? ''));
-            $meta = array_map(static function (array $f): array {
-                $meta = [
-                    'key' => (string) $f['key'],
-                    'label' => (string) $f['label'],
-                    'type' => (string) ($f['type'] ?? 'text'),
-                    'library' => (string) ($f['library'] ?? 'remixicon'),
-                    'custom_icons' => is_array($f['custom_icons'] ?? null) ? $f['custom_icons'] : [],
-                ];
-                foreach (['options', 'placeholder', 'default', 'min', 'max', 'step', 'unit', 'rows', 'multiple', 'inline', 'rules'] as $key) {
-                    if (array_key_exists($key, $f)) { $meta[$key] = $f[$key]; }
-                }
-                return $meta;
-            }, $subFields);
+            $meta = $subFields; // Normalized schema includes bounded nested fields.
             echo '<div class="admin-sf-repeater" data-sf-repeater="' . e($key) . '"'
                 . ' data-sf-max="' . (int) ($field['max_items'] ?? 20) . '"'
                 . ' data-sf-min="' . (int) ($field['min_items'] ?? 0) . '"'

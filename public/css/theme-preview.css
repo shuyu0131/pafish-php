@@ -1,0 +1,21 @@
+.pafish-theme-preview-bar {
+  position: fixed;
+  inset: auto 0 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px max(16px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  border-top: 1px solid #49505c;
+  background: #20252d;
+  color: #fff;
+  font: 14px/1.5 system-ui, sans-serif;
+  text-align: start;
+  box-sizing: border-box;
+}
+.pafish-theme-preview-bar > span { flex: 1; }
+.pafish-theme-preview-bar a { color: #fff; text-decoration: underline; white-space: nowrap; }
+.pafish-theme-preview-bar form { margin: 0; }
+.pafish-theme-preview-bar button { padding: 6px 12px; border: 1px solid #cbd1da; border-radius: 4px; background: #fff; color: #20252d; font: inherit; cursor: pointer; white-space: nowrap; }
+.pafish-theme-preview-bar :focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+@media (max-width: 640px) { .pafish-theme-preview-bar { flex-wrap: wrap; } .pafish-theme-preview-bar > span { flex-basis: 100%; } }

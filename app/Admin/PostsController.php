@@ -458,7 +458,7 @@ final class PostsController extends AdminController
         });
     }
 
-    /** Save a front-end post for the authenticated owner; managers may edit other authors. */
+    /** Save a front-end post for the authenticated owner; only administrators may edit other authors. */
     public function saveForCurrentUser(array $body, ?int $id = null): array
     {
         if (!\Pafish\Core\Auth::check()) {
@@ -470,7 +470,7 @@ final class PostsController extends AdminController
             throw new \RuntimeException(t('admin.user_submissions_are_closed_on_this_site'));
         }
         $result = \Pafish\Services\MediaReferences::transaction(function () use ($body, $id, $allowManagerEdit): array {
-            return $this->persistPost($body, $id, $allowManagerEdit, !$allowManagerEdit);
+            return $this->persistPost($body, $id, !$allowManagerEdit);
         });
         \Pafish\Core\Cache::clearPrefix('nav.');
         return $result;
@@ -484,8 +484,8 @@ final class PostsController extends AdminController
         $result = DB::transaction(static function () use ($id, $operation): array {
             $manager = \Pafish\Core\Auth::can('posts.manage');
             $post = DB::fetchOne(
-                'SELECT * FROM posts WHERE id=? AND deleted_at IS NULL' . ($manager ? '' : ' AND author_id=?') . ' FOR UPDATE',
-                $manager ? [$id] : [$id, (int) \Pafish\Core\Auth::id()]
+                'SELECT * FROM posts WHERE id=? AND deleted_at IS NULL' . (\Pafish\Core\Auth::isAdmin() ? '' : ' AND author_id=?') . ' FOR UPDATE',
+                \Pafish\Core\Auth::isAdmin() ? [$id] : [$id, (int) \Pafish\Core\Auth::id()]
             );
             if ($post === null) throw new \RuntimeException(t('admin.the_post_does_not_exist_or_you_do'));
             if ($operation === 'delete') {
@@ -519,14 +519,13 @@ final class PostsController extends AdminController
         return $result;
     }
 
-    private function persistPost(array $body, ?int $id = null, bool $allowManagerEdit = false, bool $userSubmission = false): array
+    private function persistPost(array $body, ?int $id = null, bool $userSubmission = false): array
     {
         $action = (string) ($body['action'] ?? 'draft');
         if ($userSubmission && !in_array($action, ['draft', 'publish', 'auto'], true)) {
             throw new \RuntimeException(t('admin.users_can_only_save_drafts_or_submit_for'));
         }
-        $mayEditAnyAuthor = \Pafish\Core\Auth::isAdmin()
-            || ($allowManagerEdit && \Pafish\Core\Auth::can('posts.manage'));
+        $mayEditAnyAuthor = \Pafish\Core\Auth::isAdmin();
         $stored = $id !== null ? DB::fetchOne('SELECT * FROM posts WHERE id = ? FOR UPDATE', [$id]) : null;
         if ($id !== null && $stored === null) throw new \RuntimeException(t('admin.post_not_found'));
         if ($id !== null && !$mayEditAnyAuthor) {

@@ -89,7 +89,16 @@ function asset_url(string $path): string
 /** 主题资源直链（主题目录直出，兼容 assets/ 子目录）。 */
 function theme_asset_url(string $theme, string $path): string
 {
+    // Parent templates using their own explicit name still allow child asset overrides.
+    if (Theme::includes($theme)) $theme = Theme::active();
     return Url::themeAsset($theme, $path);
+}
+
+/** Explicitly load the parent resource, e.g. when a child stylesheet extends its CSS. */
+function parent_theme_asset_url(string $path): string
+{
+    $family = Theme::family(Theme::active());
+    return Url::themeAsset($family[1] ?? Theme::active(), $path);
 }
 
 /** API 路径（含 query 适配，见 Url::api） */
@@ -145,7 +154,7 @@ function format_date(mixed $date, string $fmt = 'Y年n月j日'): string
  *  数据通过全局上下文在 header/footer/partial 之间共享：
  *  控制器传的 $title/$og/$description 等在 get_header() 中同样可见，
  *  局部模板传入的数据优先于上下文 */
-function render(string $template, array $data = []): string
+function render(string $template, array $data = [], bool $partial = false): string
 {
     $context = $GLOBALS['pafish_tpl_ctx'] ?? [];
     $vars = array_merge($context, $data);
@@ -156,6 +165,7 @@ function render(string $template, array $data = []): string
         $vars['pluginHtml'] = \Pafish\Services\Plugin::renderPageTemplate($vars['page']);
         if ($vars['pluginHtml'] !== '') $vars['contentHtml'] = $vars['pluginHtml'];
     }
+    $vars = Theme::prepareViewData($template, $vars, $partial, $data);
     $GLOBALS['pafish_tpl_ctx'] = $vars;
     $file = Theme::template($template, $vars);
     extract($vars, EXTR_SKIP);
@@ -167,7 +177,14 @@ function render(string $template, array $data = []): string
 /** 渲染局部模板（partials/）并返回 HTML */
 function render_partial(string $name, array $data = []): string
 {
-    return render($name, $data);
+    $hadContext = array_key_exists('pafish_tpl_ctx', $GLOBALS);
+    $context = $GLOBALS['pafish_tpl_ctx'] ?? [];
+    try {
+        return render($name, $data, true);
+    } finally {
+        if ($hadContext) $GLOBALS['pafish_tpl_ctx'] = $context;
+        else unset($GLOBALS['pafish_tpl_ctx']);
+    }
 }
 
 /** 后台统一分页：紧凑页码、总数、每页数量和跳页。 */
@@ -492,12 +509,12 @@ function friend_links(): array
 /** 渲染主题 header/footer，主题可覆盖 header.php / footer.php。 */
 function get_header(): void
 {
-    echo render('header');
+    echo render_partial('header');
 }
 
 function get_footer(): void
 {
-    echo render('footer');
+    echo render_partial('footer');
 }
 
 /** 当前导航是否高亮（对比请求路径） */

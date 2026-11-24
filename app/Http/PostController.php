@@ -49,9 +49,6 @@ final class PostController
         $commentPage = max(1, (int) ($request->getQueryParams()['cpage'] ?? 1));
 
         $settings = ['site_name' => \site_name()];
-        // 可选展示由主题声明控制。
-        $showCustomFields = \theme_value('show_custom_fields', '0') !== '0';
-        $showRelated = \theme_value('show_related_posts', '0') !== '0';
 
         // ---- 密码门 ----
         if (!empty($post['password'])) {
@@ -75,8 +72,6 @@ final class PostController
                         'commentPage' => $commentPage,
                         'settings' => $settings,
                         'theme' => \Theme::values(),
-                        'showCustomFields' => $showCustomFields,
-                        'showRelated' => $showRelated,
                         'locked' => true,
                     ], $this->neighbors($post));
                 }
@@ -86,8 +81,6 @@ final class PostController
                         'commentPage' => $commentPage,
                         'settings' => $settings,
                         'theme' => \Theme::values(),
-                        'showCustomFields' => $showCustomFields,
-                        'showRelated' => $showRelated,
                         'locked' => true,
                     ], $this->neighbors($post));
                 }
@@ -103,8 +96,6 @@ final class PostController
                     'commentPage' => $commentPage,
                     'settings' => $settings,
                     'theme' => \Theme::values(),
-                    'showCustomFields' => $showCustomFields,
-                    'showRelated' => $showRelated,
                     'locked' => true,
                 ], $this->neighbors($post));
             }
@@ -136,21 +127,17 @@ final class PostController
             : ['roots' => [], 'total' => 0, 'totalPages' => 1];
 
         $neighbors = $this->neighbors($post);
-        $related = $showRelated ? $this->related($post) : [];
 
         return $this->renderPost($request, $response, $post, [
             'commentPage' => $commentPage,
             'settings' => $settings,
             'theme' => \Theme::values(),
-            'showCustomFields' => $showCustomFields,
-            'showRelated' => $showRelated,
             'locked' => false,
             'liked' => $liked,
             'favorited' => $favorited,
             'customFields' => $customFields,
             'prevPost' => $neighbors[0],
             'nextPost' => $neighbors[1],
-            'related' => $related,
             'commentsEnabled' => $commentsEnabled,
             'commentsOpen' => \Pafish\Services\Posts::commentsOpen($post),
             'needReview' => $needReview,
@@ -316,47 +303,9 @@ final class PostController
         return [$prev, $next];
     }
 
-    /** 相关推荐：同分类或共享标签，排除自身，最多 3 篇 */
-    private function related(array $post): array
-    {
-        $id = (int) $post['id'];
-        $catId = (int) ($post['category_id'] ?? 0);
-        $tagIds = array_map(static fn (array $t): int => (int) DB::value('SELECT id FROM tags WHERE slug = ?', [$t['slug']]), $post['tags'] ?? []);
-        $tagIds = array_filter($tagIds);
-        $params = [$id];
-        $sql = "SELECT p.id, p.title, p.slug,
-                       CASE WHEN p.password IS NOT NULL AND p.password <> '' THEN '' ELSE p.excerpt END AS excerpt,
-                       p.published_at, p.created_at,
-                       c.id AS category_id, c.name AS category_name, c.slug AS category_slug
-                FROM posts p
-                LEFT JOIN categories c ON c.id = p.category_id
-                WHERE " . \Pafish\Services\Posts::publicWhere('p') . "
-                  AND p.id != ?";
-        $or = [];
-        if ($catId > 0) {
-            $or[] = 'p.category_id = ?';
-            $params[] = $catId;
-        }
-        if ($tagIds !== []) {
-            $ph = implode(',', array_fill(0, count($tagIds), '?'));
-            $or[] = "p.id IN (SELECT post_id FROM post_tags WHERE tag_id IN ({$ph}))";
-            $params = array_merge($params, $tagIds);
-        }
-        if ($or === []) {
-            return [];
-        }
-        $sql .= ' AND (' . implode(' OR ', $or) . ') ORDER BY p.published_at DESC LIMIT 3';
-        return DB::fetchAll($sql, $params);
-    }
-
     private function verifyPassword(string $input, string $hash): bool
     {
-        // 按 PHP 支持的算法验证；bcrypt/Argon2 格式即使损坏也不能把哈希字符串当密码。
-        if ((password_get_info($hash)['algoName'] ?? 'unknown') !== 'unknown'
-            || str_starts_with($hash, '$2') || str_starts_with($hash, '$argon2')) {
-            return password_verify($input, $hash);
-        }
-        return hash_equals($hash, $input);
+        return password_verify($input, $hash);
     }
 
     private function notFound(Response $response): Response

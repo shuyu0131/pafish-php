@@ -90,21 +90,30 @@
       form.querySelectorAll(".admin-sf-nav-error").forEach(function (b) { b.remove(); });
     }
 
+    function setGroupHidden(group, hidden) {
+      group.classList.toggle("hidden", hidden);
+      group.hidden = hidden;
+    }
+
     function switchGroup(name) {
       // 平铺模式没有分组切换，只需把可能残留的 hidden 清掉
       if (flatMode) {
-        form.querySelectorAll(".admin-sf-group").forEach(function (g) { g.classList.remove("hidden"); });
+        form.querySelectorAll(".admin-sf-group").forEach(function (g) { setGroupHidden(g, false); });
         return;
       }
       form.querySelectorAll("[data-sf-tab]").forEach(function (b) {
         var on = b.dataset.sfTab === name;
         b.classList.toggle("active", on);
-        b.setAttribute("aria-current", on ? "true" : "false");
+        b.classList.toggle("is-active", on);
+        if (b.closest("[role=tablist]")) {
+          b.setAttribute("aria-selected", on ? "true" : "false");
+          b.setAttribute("tabindex", on ? "0" : "-1");
+        } else { b.setAttribute("aria-current", on ? "true" : "false"); }
       });
       // 切到子级时把父级展开，否则当前项会藏在收起的父级里
       openParentOf(name);
       form.querySelectorAll(".admin-sf-group").forEach(function (g) {
-        g.classList.toggle("hidden", g.dataset.sfGroup !== name);
+        setGroupHidden(g, g.dataset.sfGroup !== name);
       });
       syncHash(name);
     }
@@ -154,7 +163,7 @@
       form.classList.toggle("is-expanded", expanded);
       form.querySelectorAll(".admin-sf-group").forEach(function (g) {
         // 展开全部时所有面板可见；否则回到"只显示当前项"
-        g.classList.toggle("hidden", expanded ? false : g.dataset.sfGroup !== activeGroup());
+        setGroupHidden(g, expanded ? false : g.dataset.sfGroup !== activeGroup());
       });
       if (expandBtn) {
         expandBtn.setAttribute("aria-pressed", expanded ? "true" : "false");
@@ -343,6 +352,23 @@
         // 手动切换分组时退出"展开全部"，否则点了导航界面看起来毫无变化，很困惑
         if (expanded) { expanded = false; applyExpanded(); }
         switchGroup(btn.dataset.sfTab);
+      });
+    });
+
+    form.querySelectorAll("[data-sf-tablist]").forEach(function (tabList) {
+      tabList.addEventListener("keydown", function (event) {
+        var tabs = Array.prototype.slice.call(tabList.querySelectorAll('[role="tab"]'));
+        var current = tabs.indexOf(event.target.closest('[role="tab"]'));
+        if (current < 0 || tabs.length === 0) { return; }
+        var next = current;
+        if (event.key === "ArrowRight") { next = (current + 1) % tabs.length; }
+        else if (event.key === "ArrowLeft") { next = (current - 1 + tabs.length) % tabs.length; }
+        else if (event.key === "Home") { next = 0; }
+        else if (event.key === "End") { next = tabs.length - 1; }
+        else { return; }
+        event.preventDefault();
+        tabs[next].focus();
+        switchGroup(tabs[next].dataset.sfTab);
       });
     });
 
@@ -1409,7 +1435,7 @@
       }
       if (layoutEl) { layoutEl.classList.add("is-searching"); }
       // 搜索期间所有分组都展开，命中项才不会被藏在别的 tab 里
-      form.querySelectorAll(".admin-sf-group").forEach(function (g) { g.classList.remove("hidden"); });
+      form.querySelectorAll(".admin-sf-group").forEach(function (g) { setGroupHidden(g, false); });
       var hit = 0;
       searchLabels.forEach(function (item) {
         var on = item.text.indexOf(q) !== -1;

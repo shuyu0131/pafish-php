@@ -170,7 +170,12 @@ final class ExtensionController
             }
             $status = is_array($result) && isset($result['status']) ? (int) $result['status'] : 200;
             $response->getBody()->write($html);
-            return $response->withStatus($this->safeStatus($status))->withHeader('Content-Type', 'text/html; charset=utf-8');
+            $contentType = is_array($result) && in_array(
+                (string) ($result['content_type'] ?? ''),
+                ['application/xml; charset=utf-8', 'text/plain; charset=utf-8'],
+                true
+            ) ? (string) $result['content_type'] : 'text/html; charset=utf-8';
+            return $response->withStatus($this->safeStatus($status))->withHeader('Content-Type', $contentType);
         }
         if ($type === 'json') {
             if (!is_array($result)) {

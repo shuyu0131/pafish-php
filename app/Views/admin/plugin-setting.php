@@ -41,6 +41,7 @@ if ($manifest !== null) {
 $built = $buildGroups($fields);
 $canConfigure = $pluginActive && $manifest !== null && $error === null && $fields !== [];
 $hasIconFields = $canConfigure && \Pafish\Services\ExtensionKernel::hasSettingType($fields, 'icon');
+$settingsLayout = ($manifest['settingsLayout'] ?? 'flat') === 'tabs' ? 'tabs' : 'flat';
 ?>
 <div class="admin-stack admin-plugin-settings-page">
   <nav aria-label="<?= e(t('admin.breadcrumb')) ?>">
@@ -57,13 +58,13 @@ $hasIconFields = $canConfigure && \Pafish\Services\ExtensionKernel::hasSettingTy
   <?php endif; ?>
 
   <?php if ($canConfigure): ?>
-      <?php /* 插件页保留直接顺排的普通表单，分组作为小节标题显示。 */ ?>
+      <?php /* 默认顺排设置项；较长的插件表单可声明 settingsLayout=tabs。 */ ?>
       <form class="card admin-form-card admin-plain-form" id="pluginSettingForm">
         <div class="admin-page-head">
           <div><?= $headMain ?></div>
         </div>
 
-        <?php $flat = true; require __DIR__ . '/partials/schema-nav.php'; ?>
+        <?php $flat = $settingsLayout !== 'tabs'; $tabsMode = $settingsLayout === 'tabs'; require __DIR__ . '/partials/schema-nav.php'; ?>
 
         <?php /* 操作区：测试类动作在主操作左边，保存恒定在最右——
                  顺序在窄屏换行后也保持一致。

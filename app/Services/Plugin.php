@@ -164,6 +164,10 @@ final class Plugin
                 return 'apiVersion 不受支持';
             }
         }
+        if (array_key_exists('settingsLayout', $json)
+            && !in_array($json['settingsLayout'], ['flat', 'tabs'], true)) {
+            return 'settingsLayout 只支持 flat 或 tabs';
+        }
         $dependencyError = ExtensionDependencies::validate($json['requires'] ?? null);
         if ($dependencyError !== null) {
             return $dependencyError;
@@ -298,6 +302,9 @@ final class Plugin
             'homepage' => self::manifestUrl($json, 'homepage'),
             'requires' => ExtensionDependencies::normalize($json['requires'] ?? null),
             'settings' => $settings,
+            'settingsLayout' => in_array($json['settingsLayout'] ?? 'flat', ['flat', 'tabs'], true)
+                ? (string) ($json['settingsLayout'] ?? 'flat')
+                : 'flat',
             'meta' => EntityMetaSchema::normalize($json['meta'] ?? null),
             'injects' => $injects,
             'pageTemplates' => $pageTemplates,

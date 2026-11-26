@@ -9,6 +9,7 @@
       <div class="admin-modal-tabs" aria-label="<?= e(t('admin.media_source')) ?>">
         <button type="button" class="admin-modal-tab active" data-mtab="upload" aria-pressed="true"><?= admin_icon('upload', 14) ?><?= e(t('admin.upload_files')) ?></button>
         <button type="button" class="admin-modal-tab" data-mtab="library" aria-pressed="false"><?= admin_icon('image', 14) ?><?= e(t('admin.media_library')) ?></button>
+        <button type="button" class="admin-modal-tab" data-mtab="url" aria-pressed="false"><?= admin_icon('link', 14) ?><?= e(t('js.image_url')) ?></button>
       </div>
       <div class="admin-media-upload-panel" data-mpanel="upload">
         <div class="admin-media-upload-icon" aria-hidden="true"><?= admin_icon('upload', 24) ?></div>
@@ -24,6 +25,15 @@
         <div class="admin-lib-grid" data-lib-grid aria-live="polite"></div>
         <div class="admin-pager admin-lib-pager" data-lib-pager hidden></div>
       </div>
+      <form class="admin-media-url-form" data-mpanel="url" data-media-url-form hidden novalidate>
+        <label class="label" for="editorImageUrl"><?= e(t('js.image_url')) ?></label>
+        <input class="input" type="text" inputmode="url" id="editorImageUrl" name="url" placeholder="https://" autocomplete="off" spellcheck="false" maxlength="2048" aria-describedby="editorImageUrlHint editorImageUrlError" required>
+        <p class="admin-field-hint" id="editorImageUrlHint"><?= e(t('js.enter_an_http_https_image_url_or_a')) ?></p>
+        <label class="label" for="editorImageAlt"><?= e(t('js.alternative_text')) ?></label>
+        <input class="input" type="text" id="editorImageAlt" name="alt" maxlength="500">
+        <p class="admin-modal-error" id="editorImageUrlError" data-media-url-error role="alert" hidden></p>
+        <div class="admin-media-url-actions"><button type="submit" class="btn btn-primary"><?= e(t('js.insert')) ?></button></div>
+      </form>
     </div>
   </div>
 </div>

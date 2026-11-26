@@ -190,6 +190,28 @@ final class ModelGateway
                 // 如果 AI 决定调用工具（部分中转站把 finish_reason 报成 stop，也要按 tool_calls 处理）
                 if ($hasToolCalls && ($finishReason === 'tool_calls' || $finishReason === 'stop' || $finishReason === '')) {
                     $messages[] = $choice['message']; // 保存 assistant 消息（含 tool_calls）
+
+                    // 调用方自管工具循环（如 mcp Runner 要过自己的权限守卫与审计）：
+                    // 只把模型要调的工具原样回传，不在网关里执行，避免同一工具跑两遍。
+                    if (($options['executeTools'] ?? true) === false) {
+                        $calls = [];
+                        foreach ($choice['message']['tool_calls'] as $toolCall) {
+                            $callName = (string) ($toolCall['function']['name'] ?? '');
+                            $callId = (string) ($toolCall['id'] ?? '');
+                            if ($callName === '' || $callId === '') continue;
+                            $calls[] = [
+                                'id' => $callId,
+                                'name' => $callName,
+                                'arguments' => (string) ($toolCall['function']['arguments'] ?? '{}'),
+                            ];
+                        }
+                        self::releaseQuota($reservation);
+                        return [
+                            'text' => self::extractContent($body),
+                            'usage' => $totalUsage,
+                            'tool_calls' => $calls,
+                        ];
+                    }
                     
                     foreach ($choice['message']['tool_calls'] as $toolCall) {
                         $functionName = (string) ($toolCall['function']['name'] ?? '');

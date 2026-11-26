@@ -3,6 +3,28 @@
 
   var activeModal = null;
   var lastFocus = null;
+  var modalBodyPaddingRight = null;
+
+  function lockPageScroll() {
+    if (modalBodyPaddingRight !== null) return;
+    modalBodyPaddingRight = document.body.style.paddingRight;
+    var scrollbarWidth = Math.max(0, window.innerWidth - document.documentElement.clientWidth);
+    if (scrollbarWidth > 0) {
+      var currentPadding = parseFloat(window.getComputedStyle(document.body).paddingRight) || 0;
+      document.body.style.paddingRight = (currentPadding + scrollbarWidth) + 'px';
+    }
+    document.body.classList.add('admin-modal-open');
+    document.documentElement.classList.add('admin-modal-open');
+  }
+
+  function unlockPageScroll() {
+    if (modalBodyPaddingRight !== null) {
+      document.body.style.paddingRight = modalBodyPaddingRight;
+      modalBodyPaddingRight = null;
+    }
+    document.body.classList.remove('admin-modal-open');
+    document.documentElement.classList.remove('admin-modal-open');
+  }
 
   function focusables(root) {
     return Array.prototype.slice.call(root.querySelectorAll(
@@ -25,16 +47,14 @@
     if (next === activeModal) return;
     if (activeModal && !next) {
       activeModal.setAttribute('aria-hidden', 'true');
-      document.body.classList.remove('admin-modal-open');
-      document.documentElement.classList.remove('admin-modal-open');
+      unlockPageScroll();
       if (lastFocus && document.contains(lastFocus)) lastFocus.focus({ preventScroll: true });
       lastFocus = null;
     }
     activeModal = next;
     if (!activeModal) return;
     if (!lastFocus) lastFocus = document.activeElement;
-    document.body.classList.add('admin-modal-open');
-    document.documentElement.classList.add('admin-modal-open');
+    lockPageScroll();
     activeModal.setAttribute('aria-hidden', 'false');
     activeModal.setAttribute('role', 'presentation');
     var dialog = activeModal.querySelector('[role="dialog"],.admin-modal');

@@ -595,6 +595,7 @@
     mediaFile.accept = coverMode ? 'image/*,.svg' : mediaFile.dataset.fullAccept;
     $('[data-mupload-hint]').textContent = coverMode ? window.pafishT("js.choose_an_image_file") : window.pafishT("js.images_are_inserted_as_images_other_files_as");
     modalErrorHidden();
+    if (imageUrlForm) imageUrlForm.reset();
     els.modalEl.hidden = false;
     renderModal();
   }
@@ -718,7 +719,7 @@
       });
     }
   }
-  function pick(url, mime, name) {
+  function pick(url, mime, name, metadata) {
     if (modal.mode === "cover") {
       if (!isImage(mime)) return;
       setCover(url);
@@ -726,10 +727,11 @@
       return;
     }
     if (modal.imagesOnly && !isImage(mime)) return;
-    if (window.__pafishEditor && window.__pafishEditor.insertMedia(url, mime, name) === false) return;
+    if (window.__pafishEditor && window.__pafishEditor.insertMedia(url, mime, name, metadata) === false) return;
     closeModal();
   }
 
+  var imageUrlForm = window.PafishEditors ? window.PafishEditors.bindImageUrl(els.modalEl, pick) : null;
   $('[data-media-browse]').addEventListener('click', function () { $('#mediaFile').click(); });
 
   // ---------- 初始化 ----------

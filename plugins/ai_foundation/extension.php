@@ -174,6 +174,8 @@ return static function (ExtensionContext $ctx): void {
     $ctx->provider('completeTextStream', static function (array $messages, array $options, callable $onChunk) use ($ctx): array {
         $caller = ai_foundation_extract_caller_plugin();
         $options['callerPlugin'] = $caller;
+        // 流式通道只转发文本增量，不处理 tool_calls；与 completeText 一样剥掉工具参数
+        unset($options['tools'], $options['allowedTools']);
         
         $model = ai_foundation_find_model($ctx, (int) ($options['modelId'] ?? 0), 'chat', (string) ($options['purpose'] ?? 'general'));
         $result = AiFoundation\ModelGateway::completeStream($model, $messages, $options, $onChunk);

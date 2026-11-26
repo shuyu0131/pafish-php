@@ -104,6 +104,7 @@
     $('[data-mupload-hint]').textContent = coverMode ? window.pafishT("js.choose_an_image_file") : window.pafishT("js.images_are_inserted_as_images_other_files_as");
     var me = $("[data-mupload-error]");
     if (me) { me.hidden = true; me.textContent = ""; }
+    if (imageUrlForm) imageUrlForm.reset();
     $("#mediaModal").hidden = false;
     renderModal();
   }
@@ -227,9 +228,9 @@
       });
     }
   }
-  function pick(url, mime, name) {
+  function pick(url, mime, name, metadata) {
     if (modal.imagesOnly && !isImage(mime)) return;
-    if (window.__pafishEditor && window.__pafishEditor.insertMedia(url, mime, name) === false) return;
+    if (window.__pafishEditor && window.__pafishEditor.insertMedia(url, mime, name, metadata) === false) return;
     closeModal();
   }
 
@@ -264,6 +265,7 @@
       });
   }
 
+  var imageUrlForm = window.PafishEditors ? window.PafishEditors.bindImageUrl($('#mediaModal'), pick) : null;
   $('[data-media-browse]').addEventListener('click', function () { $('#mediaFile').click(); });
 
   // ---------- 绑定 ----------

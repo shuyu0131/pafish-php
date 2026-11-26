@@ -1,6 +1,15 @@
 (function () {
   "use strict";
 
+  var statusTabs = document.querySelector('.admin-posts-list .admin-status-tabs');
+  var activeTab = statusTabs && statusTabs.querySelector('[aria-current="page"]');
+  if (activeTab) {
+    var tabBounds = activeTab.getBoundingClientRect();
+    var tabsBounds = statusTabs.getBoundingClientRect();
+    if (tabBounds.right > tabsBounds.right) statusTabs.scrollLeft += tabBounds.right - tabsBounds.right;
+    else if (tabBounds.left < tabsBounds.left) statusTabs.scrollLeft -= tabsBounds.left - tabBounds.left;
+  }
+
   function currentParams() {
     return new URLSearchParams(location.search);
   }

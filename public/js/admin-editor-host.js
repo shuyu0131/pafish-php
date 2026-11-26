@@ -241,8 +241,8 @@
       if (ok && incompatible) message(window.pafishT("js.this_content_format_does_not_match_the_active"));
       return ok;
     });
-    function insertMedia(url, mime, name) {
-      var markdown = window.PafishEditors.mediaMarkdown(url, mime, name);
+    function insertMedia(url, mime, name, metadata) {
+      var markdown = window.PafishEditors.mediaMarkdown(url, mime, name, metadata);
       if (changing || !instance) return;
       if (mediaRequest) {
         var request = mediaRequest;
@@ -253,7 +253,7 @@
       }
       if (options.getFormat() === 'html' || available[selected].format === 'html') {
         var node = document.createElement(String(mime).indexOf('image/') === 0 ? 'img' : 'a');
-        if (node.tagName === 'IMG') { node.src = url; node.alt = name || ''; }
+        if (node.tagName === 'IMG') { node.src = url; node.alt = metadata && typeof metadata.alt === 'string' ? metadata.alt : name || ''; }
         else { node.href = url; node.textContent = name || window.pafishT("js.download_attachment"); }
         var html = '<p>' + node.outerHTML + '</p>';
         if (typeof instance.insertHtml === 'function') instance.insertHtml(html);
@@ -297,15 +297,58 @@
     };
   }
 
+  function imageUrl(value) {
+    var url = String(value || '').trim();
+    if (!url || url.length > 2048 || /[\\\u0000-\u001f\u007f]/.test(url) || /^\/\//.test(url)) return null;
+    if (!/^https?:\/\//i.test(url) && url.charAt(0) !== '/') return null;
+    try {
+      var parsed = new URL(url, 'https://pafish.invalid');
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
+      if (url.charAt(0) === '/' && /^\/\//.test(parsed.pathname)) return null;
+      return url.charAt(0) === '/' ? parsed.pathname + parsed.search + parsed.hash : parsed.href;
+    } catch (error) { return null; }
+  }
+
+  function bindImageUrl(modal, onSelect) {
+    var form = modal && modal.querySelector('[data-media-url-form]');
+    if (!form) return null;
+    var input = form.querySelector('[name="url"]');
+    var alt = form.querySelector('[name="alt"]');
+    var error = form.querySelector('[data-media-url-error]');
+    function clearError() {
+      error.hidden = true;
+      error.textContent = '';
+      input.removeAttribute('aria-invalid');
+    }
+    input.addEventListener('input', clearError);
+    form.addEventListener('submit', function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      clearError();
+      var url = imageUrl(input.value);
+      if (!url) {
+        error.textContent = window.pafishT('js.enter_an_http_https_image_url_or_a');
+        error.hidden = false;
+        input.setAttribute('aria-invalid', 'true');
+        input.focus();
+        return;
+      }
+      onSelect(url, 'image/*', alt.value.trim(), { alt: alt.value.trim() });
+    });
+    return { reset: function () { form.reset(); clearError(); } };
+  }
+
   window.PafishEditors = {
     register: function (id, factory) { if (/^[a-z0-9_-]{1,50}$/.test(id) && id !== 'default' && typeof factory === 'function') factories[id] = factory; },
     init: init,
+    bindImageUrl: bindImageUrl,
     query: function (url, params) { return url + (url.indexOf('?') >= 0 ? '&' : '?') + params.toString(); },
-    mediaMarkdown: function (url, mime, name) {
+    mediaMarkdown: function (url, mime, name, metadata) {
       var safeUrl = String(url || '');
       if (!/^(?:https?:\/\/|\/(?!\/))/.test(safeUrl) || /[\\\u0000-\u001f\u007f]/.test(safeUrl)) throw new Error(window.pafishT("js.invalid_media_url"));
-      safeUrl = safeUrl.replace(/[\s()<>]/g, function (c) { return encodeURIComponent(c); });
-      var label = (String(name || window.pafishT("js.media")).replace(/\.[^.]+$/, '') || window.pafishT("js.media")).replace(/[\r\n]/g, ' ').replace(/[\\[\]]/g, '\\$&');
+      safeUrl = safeUrl.replace(/[\s()<>]/g, function (c) { return c === '(' ? '%28' : c === ')' ? '%29' : encodeURIComponent(c); });
+      var label = metadata && typeof metadata.alt === 'string' ? metadata.alt : (String(name || window.pafishT("js.media")).replace(/\.[^.]+$/, '') || window.pafishT("js.media"));
+      label = label.replace(/[\r\n]/g, ' ').replace(/[\\[\]]/g, '\\$&');
       return (String(mime).indexOf('image/') === 0 ? '![' : '[') + label + '](' + safeUrl + ')';
     }
   };

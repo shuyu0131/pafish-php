@@ -18,6 +18,7 @@ $hasNav = $built['hasNav'];
 // 平铺模式（单栏顺排）：把分组导航降级成"内联的分组标题"。
 // 由调用方通过 $flat 传入；默认关闭，主题设置页仍是左侧两级导航。
 $flat = !empty($flat);
+$tabsMode = !empty($tabsMode);
 $useNav = $hasNav && !$flat;
 // 图标来自分组内首个声明 icon 的字段（见 schema-groups.php）。
 // 名字不认识时 admin_icon() 会回退到默认字形，所以这里无需白名单。
@@ -37,14 +38,29 @@ foreach ($tabs as $tab) {
     }
 }
 ?>
-<div class="admin-sf-layout<?= $useNav ? '' : ' admin-sf-layout-single' ?><?= $flat ? ' admin-sf-layout-flat' : '' ?>">
-  <?php if ($useNav): ?>
+<div class="admin-sf-layout<?= $useNav && !$tabsMode ? '' : ' admin-sf-layout-single' ?><?= $flat ? ' admin-sf-layout-flat' : '' ?><?= $tabsMode ? ' admin-sf-layout-tabs' : '' ?>">
+  <?php if ($useNav && !$tabsMode): ?>
     <?php /* 窄屏遮罩：点它关闭抽屉。桌面端由 CSS 收掉。 */ ?>
     <div class="admin-sf-navbackdrop" data-sf-navbackdrop hidden></div>
   <?php endif; ?>
 
+  <?php if ($useNav && $tabsMode): ?>
+    <nav class="admin-tabs admin-sf-tabs" role="tablist" data-sf-tablist aria-label="<?= e(t('admin.settings_groups')) ?>">
+      <?php foreach ($panes as $i => $pane): ?>
+        <?php $paneTabId = 'admin-sf-tab-' . substr(hash('sha256', (string) $pane['name']), 0, 12); ?>
+        <button type="button" class="admin-tab<?= $i === 0 ? ' active is-active' : '' ?>"
+                id="<?= e($paneTabId) ?>" role="tab" data-sf-tab="<?= e($pane['name']) ?>"
+                aria-controls="<?= e('admin-sf-panel-' . substr(hash('sha256', (string) $pane['name']), 0, 12)) ?>"
+                aria-selected="<?= $i === 0 ? 'true' : 'false' ?>"
+                tabindex="<?= $i === 0 ? '0' : '-1' ?>">
+          <?= e($pane['label']) ?>
+        </button>
+      <?php endforeach; ?>
+    </nav>
+  <?php endif; ?>
+
   <div class="admin-sf-panes">
-    <?php if ($useNav): ?>
+    <?php if ($useNav && !$tabsMode): ?>
       <?php /* 窄屏唤出导航的按钮。桌面端由 CSS 收掉。
              放在内容区顶部而不是头部：头部在手机上已经很挤，
              再塞一个按钮会把站点名挤没。 */ ?>
@@ -55,10 +71,12 @@ foreach ($tabs as $tab) {
       </button>
     <?php endif; ?>
     <?php foreach ($panes as $i => $pane): ?>
+      <?php $paneTabId = 'admin-sf-tab-' . substr(hash('sha256', (string) $pane['name']), 0, 12); ?>
+      <?php $panelHidden = !$flat && $i > 0; ?>
       <?php /* 平铺模式：所有分组都显示，各自带一条小节标题。
              非平铺模式：只显示首个分组，其余靠导航切换。 */ ?>
-      <section class="admin-sf-group<?= (!$flat && $i > 0) ? ' hidden' : '' ?>"
-               data-sf-group="<?= e($pane['name']) ?>" aria-label="<?= e($pane['name']) ?>">
+      <section class="admin-sf-group<?= $panelHidden ? ' hidden' : '' ?>"
+               data-sf-group="<?= e($pane['name']) ?>" aria-label="<?= e($pane['label']) ?>"<?= $panelHidden ? ' hidden' : '' ?><?= $tabsMode ? ' id="' . e('admin-sf-panel-' . substr(hash('sha256', (string) $pane['name']), 0, 12)) . '" role="tabpanel" aria-labelledby="' . e($paneTabId) . '" tabindex="0"' : '' ?>>
         <?php
         // 分组标题两种模式都输出：平铺模式直接显示；带导航的模式平时由样式收掉
         // （"当前在哪个分组"由左侧导航表达），搜索时用不到导航，就靠它给命中项标注来源。
@@ -78,7 +96,7 @@ foreach ($tabs as $tab) {
     <?php endforeach; ?>
   </div>
 
-  <?php if ($useNav): ?>
+  <?php if ($useNav && !$tabsMode): ?>
     <nav class="admin-sf-side" id="admin-sf-nav" aria-label="<?= e(t('admin.settings_groups')) ?>">
       <?php /* 抽屉标题栏（窄屏显示）：给一个明确的关闭入口，
               否则只能靠点遮罩，触屏上容易误操作。 */ ?>
